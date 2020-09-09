@@ -43,6 +43,7 @@ class TestDockerDeployment(unittest.TestCase):
         self.app = vespa_docker.deploy(
             disk_folder="/home/travis/build/vespa-engine/pyvespa/sample_application"
         )
+        print(self.app.deployment_message)
 
     def test_deployment_message(self):
         print(self.app.deployment_message)
