@@ -3,6 +3,8 @@ python:
   - "3.6"
   - "3.7"
   - "3.8"
+env:
+  - WORK_DIR=/home/travis/build/vespa-engine/pyvespa
 services:
   - docker
 before_install:
