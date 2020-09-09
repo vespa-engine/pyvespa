@@ -3,7 +3,6 @@ python:
   - "3.6"
   - "3.7"
   - "3.8"
-  - "nightly"  # nightly build
 install:
   - pip install pytest
   - pip install -e .
