@@ -34,9 +34,8 @@ app_package = ApplicationPackage(name="msmarco", schema=msmarco_schema)
 #
 # Deploy in a Docker container
 #
-import os
-
-print(os.getcwd())
 vespa_docker = VespaDocker(application_package=app_package)
-app = vespa_docker.deploy(disk_folder="~/sample_application")
+app = vespa_docker.deploy(
+    disk_folder="/home/travis/build/vespa-engine/pyvespa/sample_application"
+)
 # app.deployment_message
