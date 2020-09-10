@@ -1,11 +1,8 @@
 language: python
-python:
-- '3.6'
-- '3.7'
-- '3.8'
 env:
-- WORK_DIR=/home/travis/build/vespa-engine/pyvespa
-- PYVESPA_VERSION=0.2
+  global:
+    - WORK_DIR=/home/travis/build/vespa-engine/pyvespa
+    - PYVESPA_VERSION=0.2
 services:
 - docker
 before_install:
@@ -15,7 +12,8 @@ install:
 jobs:
   include:
     - stage: test
-      script: pytest
+      script:
+      - pytest
     - stage: deploy
       deploy:
         provider: pypi
