@@ -3,9 +3,9 @@ import setuptools
 
 
 def get_target_version():
+    pyvespa_version = os.environ.get("PYVESPA_VERSION", "0+dev")
     build_nr = os.environ.get("TRAVIS_JOB_NUMBER", "0+dev")
-    version = "0.2"
-    return "{}.{}".format(version, build_nr)
+    return "{}.{}".format(pyvespa_version, build_nr)
 
 
 min_python = "3.6"
