@@ -3,8 +3,8 @@ import setuptools
 
 
 def get_target_version():
-    build_nr = os.environ.get("GITHUB_RUN_NUMBER", "0+dev")
-    version = "0.1"
+    build_nr = os.environ.get("TRAVIS_BUILD_NUMBER", "0+dev")
+    version = "0.2"
     return "{}.{}".format(version, build_nr)
 
 
