@@ -15,6 +15,7 @@ jobs:
       script:
       - pytest
     - stage: deploy
+      script: skip
       deploy:
         provider: pypi
         server: https://test.pypi.org/legacy/
