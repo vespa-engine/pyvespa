@@ -15,7 +15,7 @@ script:
 - pytest
 deploy:
   provider: pypi
-  server: https://test.pypi.org/index
+  server: https://test.pypi.org/simple
   username: "__token__"
   password:
     secure: 5NYbAxJn9tYlRcs4rKixcBjuFi06UQNQYcs08VtWeLhMO470kpy9ff5qVTEWrwiRYv5ct+Z5i6qlW1ALoVIk5pbGKaO0Xlt0qGpn6kXClZlPSvWTurI0IS4Cs1bCALKoA+ezJTGcE0caKYUvwFkTZCnhnpVX0D3/Rxtvj+jwqzDyamlCZ6snleDuYuTbyahBvYTiItjVFHXP50OcXaQb4Mce5IlVufD4B8LaQLtxqBMWHWF5Xx09YTaKPRfGn+NJd49LIIH8yYtEA+nGEv8gk232Y8qIhnE7iJMMPt8iIODeNFTia9XjRISP3GjC4rTm+cgYL8iWFGXhHTL5I3YwDH4O2YffecNsa90ckA+uJIYwGwElA0tdnqrzH/Gpr5Ifk6EgIjxn36iGBbO/fXiJrzpVX7EIQSvHOD0XyVYGyKvydB5Ch1mPKBmyBzh+4B1x0KP9i4hJnPU6+WrVYirOx1Q7yeaS7zAwLAcxo+glemxnlrTuhytkKoRgKfGbnWtLAJEW7o+/YJPCl/nak57pig91ZVzndO5NfNIcEHsG684J6Mug3p+9sG8RqSykTCchUF8QteSRRWoYFeYFZmLSj2C0GaMCAPkPddyzfR4xPJA9jwQYVLFtCq7jCaaS5dBxRb+gkidw6v9DhCiT1HeCyn08eOZWWiWihWu/c5b2Il4=
