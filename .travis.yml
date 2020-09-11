@@ -26,8 +26,3 @@ jobs:
       script:
           - pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa==$PYVESPA_VERSION.$TRAVIS_BUILD_NUMBER
           - pytest
-
-
-branches:
-  only:
-    - master
