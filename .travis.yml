@@ -26,5 +26,5 @@ jobs:
           all_branches: true
     - stage: retrieve
       script:
-          - pip install -Iv pyvespa==$PYVESPA_VERSION.$TRAVIS_JOB_NUMBER
+          - pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa==$PYVESPA_VERSION.$TRAVIS_JOB_NUMBER
 
