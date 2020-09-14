@@ -14,18 +14,15 @@ jobs:
       - pip install -e .
       - pytest
     - stage: deploy test server
-      if: type = push
+      if: branch = master
       script: skip
       deploy:
         provider: pypi
         server: https://test.pypi.org/legacy/
         username: "__token__"
         password: $TEST_PYPI_TOKEN
-        on:
-          all_branches: true
-          type: push
     - stage: retrieve, install and test
-      if: type = push
+      if: branch = master
       script:
           - pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa==$PYVESPA_VERSION.$TRAVIS_BUILD_NUMBER
           - pytest
