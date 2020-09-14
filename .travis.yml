@@ -1,15 +1,30 @@
 language: python
-python:
-  - "3.6"
-  - "3.7"
-  - "3.8"
 env:
-  - WORK_DIR=/home/travis/build/vespa-engine/pyvespa
+  global:
+    - WORK_DIR=/home/travis/build/vespa-engine/pyvespa
+    - PYVESPA_VERSION=0.2
 services:
   - docker
 before_install:
-- docker pull vespaengine/vespa
-install:
-  - pip install -e .
-script:
-  - pytest
+  - docker pull vespaengine/vespa
+jobs:
+  include:
+    - stage: run tests
+      script:
+        - pip install -e .
+        - pytest
+    - stage: deploy test server
+      if: branch = master AND type = push
+      script: skip
+      deploy:
+        provider: pypi
+        server: https://test.pypi.org/legacy/
+        username: "__token__"
+        password: $TEST_PYPI_TOKEN
+    - stage: retrieve, install and test
+      if: branch = master AND type = push
+      script:
+        - pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa==$PYVESPA_VERSION.$TRAVIS_BUILD_NUMBER
+        - pytest
+
+
