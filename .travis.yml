@@ -4,15 +4,15 @@ env:
     - WORK_DIR=/home/travis/build/vespa-engine/pyvespa
     - PYVESPA_VERSION=0.2
 services:
-- docker
+  - docker
 before_install:
-- docker pull vespaengine/vespa
+  - docker pull vespaengine/vespa
 jobs:
   include:
     - stage: run tests
       script:
-      - pip install -e .
-      - pytest
+        - pip install -e .
+        - pytest
     - stage: deploy test server
       if: branch = master AND type = push
       script: skip
@@ -24,7 +24,7 @@ jobs:
     - stage: retrieve, install and test
       if: branch = master AND type = push
       script:
-          - pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa==$PYVESPA_VERSION.$TRAVIS_BUILD_NUMBER
-          - pytest
+        - pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa==$PYVESPA_VERSION.$TRAVIS_BUILD_NUMBER
+        - pytest
 
 
