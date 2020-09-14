@@ -9,11 +9,11 @@ before_install:
 - docker pull vespaengine/vespa
 jobs:
   include:
-    - stage: test
+    - stage: run tests
       script:
       - pip install -e .
       - pytest
-    - stage: deploy
+    - stage: deploy test server
       if: type = push
       script: skip
       deploy:
@@ -24,7 +24,7 @@ jobs:
         on:
           all_branches: true
           type: push
-    - stage: retrieve
+    - stage: retrieve, install and test
       if: type = push
       script:
           - pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa==$PYVESPA_VERSION.$TRAVIS_BUILD_NUMBER
