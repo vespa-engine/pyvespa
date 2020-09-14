@@ -14,7 +14,7 @@ jobs:
       - pip install -e .
       - pytest
     - stage: deploy test server
-      if: branch = master
+      if: branch = master AND type = push
       script: skip
       deploy:
         provider: pypi
@@ -22,7 +22,7 @@ jobs:
         username: "__token__"
         password: $TEST_PYPI_TOKEN
     - stage: retrieve, install and test
-      if: branch = master
+      if: branch = master AND type = push
       script:
           - pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa==$PYVESPA_VERSION.$TRAVIS_BUILD_NUMBER
           - pytest
