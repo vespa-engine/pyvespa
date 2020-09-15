@@ -666,6 +666,8 @@ class VespaCloud(object):
 
         application_zip_bytes = self._to_application_zip()
 
+        Path(disk_folder).mkdir(parents=True, exist_ok=True)
+
         self._write_private_key_and_cert(
             self.data_key, self.data_certificate, disk_folder
         )
