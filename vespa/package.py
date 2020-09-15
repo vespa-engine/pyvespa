@@ -503,8 +503,9 @@ class VespaCloud(object):
         self,
         tenant: str,
         application: str,
-        key_location: str,
         application_package: ApplicationPackage,
+        key_location: Optional[str] = None,
+        key_content: Optional[str] = None,
         output_file: IO = sys.stdout,
     ) -> None:
         """
@@ -512,14 +513,16 @@ class VespaCloud(object):
 
         :param tenant: Tenant name registered in the Vespa Cloud.
         :param application: Application name registered in the Vespa Cloud.
-        :param key_location: Location of the private key used for signing HTTP requests to the Vespa Cloud.
         :param application_package: ApplicationPackage to be deployed.
+        :param key_location: Location of the private key used for signing HTTP requests to the Vespa Cloud.
+        :param key_content: Content of the private key used for signing HTTP requests to the Vespa Cloud. Use only when
+            key file is not available.
         :param output_file: Output file to write output messages.
         """
         self.tenant = tenant
         self.application = application
         self.application_package = application_package
-        self.api_key = self._read_private_key(key_location)
+        self.api_key = self._read_private_key(key_location, key_content)
         self.api_public_key_bytes = standard_b64encode(
             self.api_key.public_key().public_bytes(
                 serialization.Encoding.PEM,
@@ -534,16 +537,21 @@ class VespaCloud(object):
         self.output = output_file
 
     @staticmethod
-    def _read_private_key(key_location: str) -> ec.EllipticCurvePrivateKey:
-        with open(key_location, "rb") as key_data:
-            key = serialization.load_pem_private_key(
-                key_data.read(), None, default_backend()
+    def _read_private_key(
+        key_location: Optional[str] = None, key_content: Optional[str] = None
+    ) -> ec.EllipticCurvePrivateKey:
+        if not key_content:
+            with open(key_location, "rb") as key_data:
+                key_content = key_data.read()
+        else:
+            key_content = bytes(key_content, "ascii")
+
+        key = serialization.load_pem_private_key(key_content, None, default_backend())
+        if not isinstance(key, ec.EllipticCurvePrivateKey):
+            raise TypeError(
+                "Key at " + key_location + " must be an elliptic curve private key"
             )
-            if not isinstance(key, ec.EllipticCurvePrivateKey):
-                raise TypeError(
-                    "Key at " + key_location + " must be an elliptic curve private key"
-                )
-            return key
+        return key
 
     def _write_private_key_and_cert(
         self, key: ec.EllipticCurvePrivateKey, cert: x509.Certificate, disk_folder: str
