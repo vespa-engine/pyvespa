@@ -540,17 +540,18 @@ class VespaCloud(object):
     def _read_private_key(
         key_location: Optional[str] = None, key_content: Optional[str] = None
     ) -> ec.EllipticCurvePrivateKey:
-        if not key_content:
+
+        if key_content:
+            key_content = bytes(key_content, "ascii")
+        elif key_location:
             with open(key_location, "rb") as key_data:
                 key_content = key_data.read()
         else:
-            key_content = bytes(key_content, "ascii")
+            raise ValueError("Provide either key_content or key_location.")
 
         key = serialization.load_pem_private_key(key_content, None, default_backend())
         if not isinstance(key, ec.EllipticCurvePrivateKey):
-            raise TypeError(
-                "Key at " + key_location + " must be an elliptic curve private key"
-            )
+            raise TypeError("Key must be an elliptic curve private key")
         return key
 
     def _write_private_key_and_cert(
