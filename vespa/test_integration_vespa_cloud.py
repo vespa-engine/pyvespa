@@ -50,7 +50,7 @@ class TestDockerDeployment(unittest.TestCase):
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
             application="pyvespa-integration",
-            key_content=os.getenv("VESPA_CLOUD_APP_KEY").replace(r"\n", "\n"),
+            key_content=os.getenv("VESPA_CLOUD_USER_KEY").replace(r"\n", "\n"),
             application_package=app_package,
         )
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
