@@ -13,7 +13,7 @@ from vespa.package import (
 )
 
 
-class TestDockerDeployment(unittest.TestCase):
+class TestCloudDeployment(unittest.TestCase):
     def setUp(self) -> None:
         #
         # Create application package
@@ -45,7 +45,7 @@ class TestDockerDeployment(unittest.TestCase):
         )
         app_package = ApplicationPackage(name="msmarco", schema=msmarco_schema)
         #
-        # Deploy in a Docker container
+        # Deploy on Vespa Cloud
         #
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
