@@ -12,7 +12,7 @@ jobs:
     - stage: run tests
       script:
         - pip install -e .
-        - pytest
+        - travis_wait 30 pytest
     - stage: deploy test server
       if: branch = master AND type = push
       script: skip
@@ -25,6 +25,6 @@ jobs:
       if: branch = master AND type = push
       script:
         - pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa==$PYVESPA_VERSION.$TRAVIS_BUILD_NUMBER
-        - pytest
+        - travis_wait 30 pytest
 
 
