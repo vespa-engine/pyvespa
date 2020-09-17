@@ -786,6 +786,15 @@ class VespaCloud(object):
             )["message"],
             file=self.output,
         )
+        print(
+            self._request(
+                "DELETE",
+                "/application/v4/tenant/{}/application/{}/instance/{}".format(
+                    self.tenant, self.application, instance
+                ),
+            )["message"],
+            file=self.output,
+        )
 
     def close(self):
         self.connection.close()
