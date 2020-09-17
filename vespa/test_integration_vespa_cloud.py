@@ -1,6 +1,7 @@
 import unittest
 import os
 import shutil
+import uuid
 from vespa.application import Vespa
 from vespa.package import (
     Document,
@@ -54,8 +55,9 @@ class TestCloudDeployment(unittest.TestCase):
             application_package=app_package,
         )
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.instance_name = uuid.uuid4()
         self.app = self.vespa_cloud.deploy(
-            instance="integration-test", disk_folder=self.disk_folder
+            instance=str(self.instance_name), disk_folder=self.disk_folder
         )
 
     def test_deployment_message(self):
@@ -63,4 +65,4 @@ class TestCloudDeployment(unittest.TestCase):
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
-        self.vespa_cloud.delete(instance="integration-test")
+        self.vespa_cloud.delete(instance=str(self.instance_name))
