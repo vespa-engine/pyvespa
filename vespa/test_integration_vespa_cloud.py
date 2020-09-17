@@ -57,10 +57,10 @@ class TestCloudDeployment(unittest.TestCase):
         )
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
         self.instance_name = "".join(
-            random.choice(string.ascii_lowercase) for _ in range(24)
+            random.choice(string.ascii_lowercase) for _ in range(10)
         )
         self.app = self.vespa_cloud.deploy(
-            instance=str(self.instance_name), disk_folder=self.disk_folder
+            instance=self.instance_name, disk_folder=self.disk_folder
         )
 
     def test_deployment_message(self):
@@ -68,4 +68,4 @@ class TestCloudDeployment(unittest.TestCase):
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
-        self.vespa_cloud.delete(instance=str(self.instance_name))
+        self.vespa_cloud.delete(instance=self.instance_name)
