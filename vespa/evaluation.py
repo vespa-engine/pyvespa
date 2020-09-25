@@ -173,7 +173,10 @@ class NormalizedDiscountedCumulativeGain(EvalMetric):
         ]
         ideal_dcg = self._compute_dcg(sorted(scores, reverse=True))
         dcg = self._compute_dcg(scores)
-        ndcg = dcg / ideal_dcg
+
+        ndcg = 0
+        if ideal_dcg > 0:
+            ndcg = dcg / ideal_dcg
 
         return {
             str(self.name) + "_ideal_dcg": ideal_dcg,
