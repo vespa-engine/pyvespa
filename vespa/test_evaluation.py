@@ -1,9 +1,15 @@
 # Copyright Verizon Media. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import unittest
+import math
 
 from vespa.query import VespaResult
-from vespa.evaluation import MatchRatio, Recall, ReciprocalRank
+from vespa.evaluation import (
+    MatchRatio,
+    Recall,
+    ReciprocalRank,
+    NormalizedDiscountedCumulativeGain,
+)
 
 
 class TestEvalMetric(unittest.TestCase):
@@ -148,7 +154,10 @@ class TestEvalMetric(unittest.TestCase):
             default_score=0,
         )
         self.assertDictEqual(
-            evaluation, {"recall_2_value": 0.5,},
+            evaluation,
+            {
+                "recall_2_value": 0.5,
+            },
         )
 
         metric = Recall(at=1)
@@ -159,7 +168,10 @@ class TestEvalMetric(unittest.TestCase):
             default_score=0,
         )
         self.assertDictEqual(
-            evaluation, {"recall_1_value": 0.0,},
+            evaluation,
+            {
+                "recall_1_value": 0.0,
+            },
         )
 
     def test_reciprocal_rank(self):
@@ -171,7 +183,10 @@ class TestEvalMetric(unittest.TestCase):
             default_score=0,
         )
         self.assertDictEqual(
-            evaluation, {"reciprocal_rank_2_value": 0.5,},
+            evaluation,
+            {
+                "reciprocal_rank_2_value": 0.5,
+            },
         )
 
         metric = ReciprocalRank(at=1)
@@ -182,5 +197,48 @@ class TestEvalMetric(unittest.TestCase):
             default_score=0,
         )
         self.assertDictEqual(
-            evaluation, {"reciprocal_rank_1_value": 0.0,},
+            evaluation,
+            {
+                "reciprocal_rank_1_value": 0.0,
+            },
+        )
+
+    def test_normalized_discounted_cumulative_gain(self):
+
+        metric = NormalizedDiscountedCumulativeGain(at=2)
+        evaluation = metric.evaluate_query(
+            query_results=VespaResult(self.query_results),
+            relevant_docs=self.labelled_data[0]["relevant_docs"],
+            id_field="vespa_id_field",
+            default_score=0,
+        )
+        expected_dcg = 0 / math.log2(2) + 1 / math.log2(3)
+        expected_ideal_dcg = 1 / math.log2(2) + 0 / math.log2(3)
+        expected_ndcg = expected_dcg / expected_ideal_dcg
+        self.assertDictEqual(
+            evaluation,
+            {
+                "ndcg_2_ideal_dcg": expected_ideal_dcg,
+                "ndcg_2_dcg": expected_dcg,
+                "ndcg_2_value": expected_ndcg,
+            },
+        )
+
+        metric = NormalizedDiscountedCumulativeGain(at=1)
+        evaluation = metric.evaluate_query(
+            query_results=VespaResult(self.query_results),
+            relevant_docs=self.labelled_data[0]["relevant_docs"],
+            id_field="vespa_id_field",
+            default_score=0,
+        )
+        expected_dcg = 0 / math.log2(2)
+        expected_ideal_dcg = 0 / math.log2(3)
+        expected_ndcg = 0
+        self.assertDictEqual(
+            evaluation,
+            {
+                "ndcg_1_ideal_dcg": expected_ideal_dcg,
+                "ndcg_1_dcg": expected_dcg,
+                "ndcg_1_value": expected_ndcg,
+            },
         )
