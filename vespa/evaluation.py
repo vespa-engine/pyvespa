@@ -162,7 +162,8 @@ class NormalizedDiscountedCumulativeGain(EvalMetric):
         :param relevant_docs: A list with dicts where each dict contains a doc id a optionally a doc score.
         :param id_field: The Vespa field representing the document id.
         :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
-        :return: Dict containing the reciprocal rank value (_value).
+        :return: Dict containing the ideal discounted cumulative gain (_ideal_dcg), the discounted cumulative
+            gain (_dcg) and the normalized discounted cumulative gain (_value).
         """
 
         relevant_scores = {str(doc["id"]): doc["score"] for doc in relevant_docs}
