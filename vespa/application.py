@@ -110,6 +110,25 @@ class Vespa(object):
         response = post(end_point, json=vespa_format, cert=self.cert)
         return response
 
+    @staticmethod
+    def annotate_data(
+        hits, query_id, id_field, relevant_id, relevant_score, default_score
+    ):
+        data = []
+        for h in hits:
+            rank_features = h["fields"]["rankfeatures"]
+            rank_features.update({"document_id": h["fields"][id_field]})
+            rank_features.update({"query_id": query_id})
+            rank_features.update(
+                {
+                    "relevant": relevant_score
+                    if h["fields"][id_field] == relevant_id
+                    else default_score
+                }
+            )
+            data.append(rank_features)
+        return data
+
     def collect_training_data_point(
         self,
         query: str,
@@ -159,7 +178,7 @@ class Vespa(object):
             )
             hits.extend(random_hits_result.hits)
 
-            features = annotate_data(
+            features = self.annotate_data(
                 hits=hits,
                 query_id=query_id,
                 id_field=id_field,
@@ -280,22 +299,3 @@ class Vespa(object):
             evaluation.append(evaluation_query)
         evaluation = DataFrame.from_records(evaluation)
         return evaluation
-
-
-# todo: a better pattern for labelled data would be (query_id, query, doc_id, score) with the possibility od
-#  assigning a specific default value for those docs not mentioned
-def annotate_data(hits, query_id, id_field, relevant_id, relevant_score, default_score):
-    data = []
-    for h in hits:
-        rank_features = h["fields"]["rankfeatures"]
-        rank_features.update({"document_id": h["fields"][id_field]})
-        rank_features.update({"query_id": query_id})
-        rank_features.update(
-            {
-                "relevant": relevant_score
-                if h["fields"][id_field] == relevant_id
-                else default_score
-            }
-        )
-        data.append(rank_features)
-    return data
