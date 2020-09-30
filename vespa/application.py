@@ -112,21 +112,27 @@ class Vespa(object):
 
     @staticmethod
     def annotate_data(
-        hits, query_id, id_field, relevant_id, relevant_score, default_score
+        hits, query_id, id_field, relevant_id, fields, relevant_score, default_score
     ):
         data = []
         for h in hits:
-            rank_features = h["fields"]["rankfeatures"]
-            rank_features.update({"document_id": h["fields"][id_field]})
-            rank_features.update({"query_id": query_id})
-            rank_features.update(
+            record = {}
+            record.update({"document_id": h["fields"][id_field]})
+            record.update({"query_id": query_id})
+            record.update(
                 {
-                    "relevant": relevant_score
+                    "label": relevant_score
                     if h["fields"][id_field] == relevant_id
                     else default_score
                 }
             )
-            data.append(rank_features)
+            for field in fields:
+                field_value = h["fields"][field]
+                if isinstance(field_value, dict):
+                    record.update(field_value)
+                else:
+                    record.update({field: field_value})
+            data.append(record)
         return data
 
     def collect_training_data_point(
@@ -137,6 +143,7 @@ class Vespa(object):
         id_field: str,
         query_model: Query,
         number_additional_docs: int,
+        fields: List[str],
         relevant_score: int = 1,
         default_score: int = 0,
         **kwargs
@@ -150,6 +157,7 @@ class Vespa(object):
         :param id_field: The Vespa field representing the document id.
         :param query_model: Query model.
         :param number_additional_docs: Number of additional documents to retrieve for each relevant document.
+        :param fields: Which fields should be retrieved.
         :param relevant_score: Score to assign to relevant documents. Default to 1.
         :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
         :param kwargs: Extra keyword arguments to be included in the Vespa Query.
@@ -179,6 +187,7 @@ class Vespa(object):
                 query_id=query_id,
                 id_field=id_field,
                 relevant_id=relevant_id,
+                fields=fields,
                 relevant_score=relevant_score,
                 default_score=default_score,
             )
