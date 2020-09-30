@@ -157,10 +157,6 @@ class Vespa(object):
             and vespa rank features returned by the Query model RankProfile used.
         """
 
-        assert (
-            query_model.rank_profile.list_features == "true"
-        ), "Enable rank features via RankProfile is necessary."
-
         relevant_id_result = self.query(
             query=query,
             query_model=query_model,
