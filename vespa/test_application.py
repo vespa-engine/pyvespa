@@ -153,7 +153,7 @@ class TestVespaCollectData(unittest.TestCase):
             id_field="vespa_id_field",
             query_model=query_model,
             number_additional_docs=2,
-            fields=["rankfeatures"],
+            fields=["rankfeatures", "title"],
             timeout="15s",
         )
 
@@ -175,9 +175,30 @@ class TestVespaCollectData(unittest.TestCase):
             ]
         )
         expected_data = [
-            {"document_id": "abc", "query_id": "123", "label": 1, "a": 1, "b": 2},
-            {"document_id": "def", "query_id": "123", "label": 0, "a": 3, "b": 4},
-            {"document_id": "ghi", "query_id": "123", "label": 0, "a": 5, "b": 6},
+            {
+                "document_id": "abc",
+                "query_id": "123",
+                "label": 1,
+                "a": 1,
+                "b": 2,
+                "title": "this is a title",
+            },
+            {
+                "document_id": "def",
+                "query_id": "123",
+                "label": 0,
+                "a": 3,
+                "b": 4,
+                "title": "this is a title 2",
+            },
+            {
+                "document_id": "ghi",
+                "query_id": "123",
+                "label": 0,
+                "a": 5,
+                "b": 6,
+                "title": "this is a title 3",
+            },
         ]
         self.assertEqual(data, expected_data)
 
