@@ -202,6 +202,27 @@ class TestVespaCollectData(unittest.TestCase):
         ]
         self.assertEqual(data, expected_data)
 
+    def test_collect_training_data_point_absent_field(self):
+
+        self.app.query = Mock(
+            side_effect=[
+                VespaResult(self.raw_vespa_result_recall),
+                VespaResult(self.raw_vespa_result_additional),
+            ]
+        )
+        query_model = Query(rank_profile=RankProfile(list_features=True))
+        with self.assertRaises(KeyError):
+            _ = self.app.collect_training_data_point(
+                query="this is a query",
+                query_id="123",
+                relevant_id="abc",
+                id_field="vespa_id_field",
+                query_model=query_model,
+                number_additional_docs=2,
+                fields=["rankfeatures", "crazy_field"],
+                timeout="15s",
+            )
+
     def test_collect_training_data_point_0_recall_hits(self):
 
         self.raw_vespa_result_recall = {
