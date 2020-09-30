@@ -127,14 +127,12 @@ class Vespa(object):
                 }
             )
             for field in fields:
-                try:
-                    field_value = h["fields"][field]
-                except KeyError:
-                    raise KeyError("Invalid field to collect: {}".format(field))
-                if isinstance(field_value, dict):
-                    record.update(field_value)
-                else:
-                    record.update({field: field_value})
+                field_value = h["fields"].get(field, None)
+                if field_value:
+                    if isinstance(field_value, dict):
+                        record.update(field_value)
+                    else:
+                        record.update({field: field_value})
             data.append(record)
         return data
 

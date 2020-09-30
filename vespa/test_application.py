@@ -211,17 +211,58 @@ class TestVespaCollectData(unittest.TestCase):
             ]
         )
         query_model = Query(rank_profile=RankProfile(list_features=True))
-        with self.assertRaises(KeyError):
-            _ = self.app.collect_training_data_point(
-                query="this is a query",
-                query_id="123",
-                relevant_id="abc",
-                id_field="vespa_id_field",
-                query_model=query_model,
-                number_additional_docs=2,
-                fields=["rankfeatures", "crazy_field"],
-                timeout="15s",
-            )
+        data = self.app.collect_training_data_point(
+            query="this is a query",
+            query_id="123",
+            relevant_id="abc",
+            id_field="vespa_id_field",
+            query_model=query_model,
+            number_additional_docs=2,
+            fields=["rankfeatures", "crazy_field"],
+            timeout="15s",
+        )
+
+        self.assertEqual(self.app.query.call_count, 2)
+        self.app.query.assert_has_calls(
+            [
+                call(
+                    query="this is a query",
+                    query_model=query_model,
+                    recall=("vespa_id_field", ["abc"]),
+                    timeout="15s",
+                ),
+                call(
+                    query="this is a query",
+                    query_model=query_model,
+                    hits=2,
+                    timeout="15s",
+                ),
+            ]
+        )
+        expected_data = [
+            {
+                "document_id": "abc",
+                "query_id": "123",
+                "label": 1,
+                "a": 1,
+                "b": 2,
+            },
+            {
+                "document_id": "def",
+                "query_id": "123",
+                "label": 0,
+                "a": 3,
+                "b": 4,
+            },
+            {
+                "document_id": "ghi",
+                "query_id": "123",
+                "label": 0,
+                "a": 5,
+                "b": 6,
+            },
+        ]
+        self.assertEqual(data, expected_data)
 
     def test_collect_training_data_point_0_recall_hits(self):
 
