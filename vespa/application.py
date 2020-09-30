@@ -127,7 +127,10 @@ class Vespa(object):
                 }
             )
             for field in fields:
-                field_value = h["fields"][field]
+                try:
+                    field_value = h["fields"][field]
+                except KeyError:
+                    raise KeyError("Invalid field to collect: {}".format(field))
                 if isinstance(field_value, dict):
                     record.update(field_value)
                 else:
