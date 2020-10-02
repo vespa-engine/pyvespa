@@ -68,4 +68,3 @@ class TestCloudDeployment(unittest.TestCase):
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
-        self.vespa_cloud.delete(instance=self.instance_name)
