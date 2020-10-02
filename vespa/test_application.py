@@ -137,17 +137,6 @@ class TestVespaCollectData(unittest.TestCase):
             }
         }
 
-    def test_disable_rank_features(self):
-        with self.assertRaises(AssertionError):
-            self.app.collect_training_data_point(
-                query="this is a query",
-                query_id="123",
-                relevant_id="abc",
-                id_field="vespa_id_field",
-                query_model=Query(),
-                number_additional_docs=2,
-            )
-
     def test_collect_training_data_point(self):
 
         self.app.query = Mock(
@@ -164,6 +153,7 @@ class TestVespaCollectData(unittest.TestCase):
             id_field="vespa_id_field",
             query_model=query_model,
             number_additional_docs=2,
+            fields=["rankfeatures", "title"],
             timeout="15s",
         )
 
@@ -185,9 +175,92 @@ class TestVespaCollectData(unittest.TestCase):
             ]
         )
         expected_data = [
-            {"document_id": "abc", "query_id": "123", "relevant": 1, "a": 1, "b": 2},
-            {"document_id": "def", "query_id": "123", "relevant": 0, "a": 3, "b": 4},
-            {"document_id": "ghi", "query_id": "123", "relevant": 0, "a": 5, "b": 6},
+            {
+                "document_id": "abc",
+                "query_id": "123",
+                "label": 1,
+                "a": 1,
+                "b": 2,
+                "title": "this is a title",
+            },
+            {
+                "document_id": "def",
+                "query_id": "123",
+                "label": 0,
+                "a": 3,
+                "b": 4,
+                "title": "this is a title 2",
+            },
+            {
+                "document_id": "ghi",
+                "query_id": "123",
+                "label": 0,
+                "a": 5,
+                "b": 6,
+                "title": "this is a title 3",
+            },
+        ]
+        self.assertEqual(data, expected_data)
+
+    def test_collect_training_data_point_absent_field(self):
+
+        self.app.query = Mock(
+            side_effect=[
+                VespaResult(self.raw_vespa_result_recall),
+                VespaResult(self.raw_vespa_result_additional),
+            ]
+        )
+        query_model = Query(rank_profile=RankProfile(list_features=True))
+        data = self.app.collect_training_data_point(
+            query="this is a query",
+            query_id="123",
+            relevant_id="abc",
+            id_field="vespa_id_field",
+            query_model=query_model,
+            number_additional_docs=2,
+            fields=["rankfeatures", "crazy_field"],
+            timeout="15s",
+        )
+
+        self.assertEqual(self.app.query.call_count, 2)
+        self.app.query.assert_has_calls(
+            [
+                call(
+                    query="this is a query",
+                    query_model=query_model,
+                    recall=("vespa_id_field", ["abc"]),
+                    timeout="15s",
+                ),
+                call(
+                    query="this is a query",
+                    query_model=query_model,
+                    hits=2,
+                    timeout="15s",
+                ),
+            ]
+        )
+        expected_data = [
+            {
+                "document_id": "abc",
+                "query_id": "123",
+                "label": 1,
+                "a": 1,
+                "b": 2,
+            },
+            {
+                "document_id": "def",
+                "query_id": "123",
+                "label": 0,
+                "a": 3,
+                "b": 4,
+            },
+            {
+                "document_id": "ghi",
+                "query_id": "123",
+                "label": 0,
+                "a": 5,
+                "b": 6,
+            },
         ]
         self.assertEqual(data, expected_data)
 
@@ -222,6 +295,7 @@ class TestVespaCollectData(unittest.TestCase):
             id_field="vespa_id_field",
             query_model=query_model,
             number_additional_docs=2,
+            fields=["rankfeatures"],
             timeout="15s",
         )
 
@@ -242,9 +316,27 @@ class TestVespaCollectData(unittest.TestCase):
     def test_collect_training_data(self):
 
         mock_return_value = [
-            {"document_id": "abc", "query_id": "123", "relevant": 1, "a": 1, "b": 2,},
-            {"document_id": "def", "query_id": "123", "relevant": 0, "a": 3, "b": 4,},
-            {"document_id": "ghi", "query_id": "123", "relevant": 0, "a": 5, "b": 6,},
+            {
+                "document_id": "abc",
+                "query_id": "123",
+                "relevant": 1,
+                "a": 1,
+                "b": 2,
+            },
+            {
+                "document_id": "def",
+                "query_id": "123",
+                "relevant": 0,
+                "a": 3,
+                "b": 4,
+            },
+            {
+                "document_id": "ghi",
+                "query_id": "123",
+                "relevant": 0,
+                "a": 5,
+                "b": 6,
+            },
         ]
         self.app.collect_training_data_point = Mock(return_value=mock_return_value)
         labelled_data = [
@@ -353,16 +445,24 @@ class TestVespaEvaluate(unittest.TestCase):
         )
         self.assertEqual(self.app.query.call_count, 1)
         self.app.query.assert_has_calls(
-            [call(query="this is a test", query_model=query_model, hits=10),]
+            [
+                call(query="this is a test", query_model=query_model, hits=10),
+            ]
         )
         self.assertEqual(eval_metric.evaluate_query.call_count, 1)
         eval_metric.evaluate_query.assert_has_calls(
-            [call({}, self.labelled_data[0]["relevant_docs"], "vespa_id_field", 0),]
+            [
+                call({}, self.labelled_data[0]["relevant_docs"], "vespa_id_field", 0),
+            ]
         )
         self.assertDictEqual(evaluation, {"query_id": "0", "metric": 1, "metric_2": 2})
 
     def test_evaluate(self):
-        self.app.evaluate_query = Mock(side_effect=[{"query_id": "0", "metric": 1},])
+        self.app.evaluate_query = Mock(
+            side_effect=[
+                {"query_id": "0", "metric": 1},
+            ]
+        )
         evaluation = self.app.evaluate(
             labelled_data=self.labelled_data,
             eval_metrics=[Mock()],
