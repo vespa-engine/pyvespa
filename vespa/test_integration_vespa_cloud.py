@@ -1,8 +1,6 @@
 import unittest
 import os
 import shutil
-import random
-import string
 from vespa.application import Vespa
 from vespa.package import (
     Document,
@@ -56,9 +54,7 @@ class TestCloudDeployment(unittest.TestCase):
             application_package=app_package,
         )
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-        self.instance_name = "".join(
-            random.choice(string.ascii_lowercase) for _ in range(10)
-        )
+        self.instance_name = "test"
         self.app = self.vespa_cloud.deploy(
             instance=self.instance_name, disk_folder=self.disk_folder
         )
