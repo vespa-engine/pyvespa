@@ -42,15 +42,19 @@ class TestDockerDeployment(unittest.TestCase):
         #
         # Deploy in a Docker container
         #
-        vespa_docker = VespaDocker(application_package=app_package)
+        vespa_docker = VespaDocker()
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
         self.app = vespa_docker.deploy(
-            disk_folder=self.disk_folder
+            application_package=app_package, disk_folder=self.disk_folder
         )
 
     def test_deployment_message(self):
-        self.assertTrue(any(re.match("Generation: [0-9]+", line) for line in self.app.deployment_message))
+        self.assertTrue(
+            any(
+                re.match("Generation: [0-9]+", line)
+                for line in self.app.deployment_message
+            )
+        )
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
-
