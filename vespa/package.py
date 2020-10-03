@@ -443,7 +443,13 @@ class VespaDocker(object):
             == "HTTP/1.1 200 OK"
         )
 
-    def _create_application_package_files(self, dir_path):
+    def export_application_package(self, dir_path: str) -> None:
+        """
+        Export application package to disk.
+
+        :param dir_path: Desired application path. Directory will be created if not already exist.
+        :return: None. Application package file will be stored on `dir_path`.
+        """
         Path(os.path.join(dir_path, "application/schemas")).mkdir(
             parents=True, exist_ok=True
         )
@@ -472,7 +478,7 @@ class VespaDocker(object):
         :return: a Vespa connection instance.
         """
 
-        self._create_application_package_files(dir_path=disk_folder)
+        self.export_application_package(dir_path=disk_folder)
 
         self._run_vespa_engine_container(
             disk_folder=disk_folder, container_memory=container_memory
@@ -647,23 +653,40 @@ class VespaCloud(object):
             raise RuntimeError("No endpoints found for container 'test_app_container'")
         return container_url[0]
 
+    def _create_application_package_content(self):
+        return {
+            "application/schemas/{}.sd".format(
+                self.application_package.schema.name
+            ): self.application_package.schema_to_text,
+            "application/services.xml": self.application_package.services_to_text,
+            "application/security/clients.pem": self.data_certificate.public_bytes(
+                serialization.Encoding.PEM
+            ),
+        }
+
+    def export_application_package(self, dir_path):
+        """
+        Export application package to disk.
+
+        :param dir_path: Desired application path. Directory will be created if not already exist.
+        :return: None. Application package file will be stored on `dir_path`.
+        """
+
+        Path(os.path.join(dir_path, "application/schemas")).mkdir(
+            parents=True, exist_ok=True
+        )
+        application_package_content = self._create_application_package_content()
+
+        for file_path in application_package_content:
+            with open(os.path.join(dir_path, file_path), "w") as f:
+                f.write(application_package_content[file_path])
+
     def _to_application_zip(self) -> BytesIO:
+        application_package_content = self._create_application_package_content()
         buffer = BytesIO()
         with zipfile.ZipFile(buffer, "a") as zip_archive:
-            zip_archive.writestr(
-                "application/schemas/{}.sd".format(
-                    self.application_package.schema.name
-                ),
-                self.application_package.schema_to_text,
-            )
-            zip_archive.writestr(
-                "application/services.xml", self.application_package.services_to_text
-            )
-            zip_archive.writestr(
-                "application/security/clients.pem",
-                self.data_certificate.public_bytes(serialization.Encoding.PEM),
-            )
-
+            for file_path in application_package_content:
+                zip_archive.writestr(file_path, application_package_content[file_path])
         return buffer
 
     def _start_deployment(self, instance: str, job: str, disk_folder: str) -> int:
