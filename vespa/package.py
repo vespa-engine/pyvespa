@@ -515,6 +515,28 @@ class VespaDocker(object):
             container_memory=container_memory,
         )
 
+    def deploy_from_disk(
+        self,
+        application_name: str,
+        disk_folder: str,
+        container_memory: str = "4G",
+    ):
+        """
+        Deploy disk-based application package into a Vespa container.
+
+        :param application_name: Name of the application.
+        :param disk_folder: Disk folder to save the required Vespa config files.
+        :param container_memory: Docker container memory available to the application.
+
+        :return: a Vespa connection instance.
+        """
+
+        self._execute_deployment(
+            application_name=application_name,
+            disk_folder=disk_folder,
+            container_memory=container_memory,
+        )
+
 
 class VespaCloud(object):
     def __init__(
