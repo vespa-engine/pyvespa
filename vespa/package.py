@@ -509,7 +509,7 @@ class VespaDocker(object):
             dir_path=disk_folder, application_package=application_package
         )
 
-        self._execute_deployment(
+        return self._execute_deployment(
             application_name=application_package.name,
             disk_folder=disk_folder,
             container_memory=container_memory,
