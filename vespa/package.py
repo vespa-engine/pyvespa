@@ -402,21 +402,21 @@ class VespaDocker(object):
 
     def _run_vespa_engine_container(
         self,
-        application_package: ApplicationPackage,
+        application_name: str,
         disk_folder: str,
         container_memory: str,
     ):
         client = docker.from_env()
         if self.container is None:
             try:
-                self.container = client.containers.get(application_package.name)
+                self.container = client.containers.get(application_name)
             except docker.errors.NotFound:
                 self.container = client.containers.run(
                     "vespaengine/vespa",
                     detach=True,
                     mem_limit=container_memory,
-                    name=application_package.name,
-                    hostname=application_package.name,
+                    name=application_name,
+                    hostname=application_name,
                     privileged=True,
                     volumes={disk_folder: {"bind": "/app", "mode": "rw"}},
                     ports={self.local_port: self.local_port, 19112: 19112},
@@ -459,13 +459,13 @@ class VespaDocker(object):
 
     def _execute_deployment(
         self,
-        application_package: ApplicationPackage,
+        application_name: str,
         disk_folder: str,
         container_memory: str = "4G",
     ):
 
         self._run_vespa_engine_container(
-            application_package=application_package,
+            application_name=application_name,
             disk_folder=disk_folder,
             container_memory=container_memory,
         )
@@ -510,7 +510,7 @@ class VespaDocker(object):
         )
 
         self._execute_deployment(
-            application_package=application_package,
+            application_name=application_package.name,
             disk_folder=disk_folder,
             container_memory=container_memory,
         )
