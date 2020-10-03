@@ -389,39 +389,34 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
 class VespaDocker(object):
     def __init__(
         self,
-        application_package: ApplicationPackage,
         output_file: IO = sys.stdout,
     ) -> None:
         """
-        Deploy application to a Vespa container
+        Manage Docker deployments.
 
-        :param application_package: ApplicationPackage to be deployed.
         :param output_file: Output file to write output messages.
         """
-        self.application_package = application_package
         self.container = None
         self.local_port = 8080
         self.output = output_file
 
-    def _run_vespa_engine_container(self, disk_folder: str, container_memory: str):
-        """
-        Run a vespa container.
-
-        :param disk_folder: Folder containing the application files.
-        :param container_memory: Memory limit of the container
-        :return:
-        """
+    def _run_vespa_engine_container(
+        self,
+        application_package: ApplicationPackage,
+        disk_folder: str,
+        container_memory: str,
+    ):
         client = docker.from_env()
         if self.container is None:
             try:
-                self.container = client.containers.get(self.application_package.name)
+                self.container = client.containers.get(application_package.name)
             except docker.errors.NotFound:
                 self.container = client.containers.run(
                     "vespaengine/vespa",
                     detach=True,
                     mem_limit=container_memory,
-                    name=self.application_package.name,
-                    hostname=self.application_package.name,
+                    name=application_package.name,
+                    hostname=application_package.name,
                     privileged=True,
                     volumes={disk_folder: {"bind": "/app", "mode": "rw"}},
                     ports={self.local_port: self.local_port, 19112: 19112},
@@ -443,39 +438,36 @@ class VespaDocker(object):
             == "HTTP/1.1 200 OK"
         )
 
-    def _create_application_package_files(self, dir_path):
+    def _create_application_package_files(
+        self, dir_path: str, application_package: ApplicationPackage
+    ):
         Path(os.path.join(dir_path, "application/schemas")).mkdir(
             parents=True, exist_ok=True
         )
         with open(
             os.path.join(
                 dir_path,
-                "application/schemas/{}.sd".format(
-                    self.application_package.schema.name
-                ),
+                "application/schemas/{}.sd".format(application_package.schema.name),
             ),
             "w",
         ) as f:
-            f.write(self.application_package.schema_to_text)
+            f.write(application_package.schema_to_text)
         with open(os.path.join(dir_path, "application/hosts.xml"), "w") as f:
-            f.write(self.application_package.hosts_to_text)
+            f.write(application_package.hosts_to_text)
         with open(os.path.join(dir_path, "application/services.xml"), "w") as f:
-            f.write(self.application_package.services_to_text)
+            f.write(application_package.services_to_text)
 
-    def deploy(self, disk_folder: str, container_memory: str = "4G"):
-        """
-        Deploy the application into a Vespa container.
-
-        :param disk_folder: Disk folder to save the required Vespa config files.
-        :param container_memory: Docker container memory available to the application.
-
-        :return: a Vespa connection instance.
-        """
-
-        self._create_application_package_files(dir_path=disk_folder)
+    def _execute_deployment(
+        self,
+        application_package: ApplicationPackage,
+        disk_folder: str,
+        container_memory: str = "4G",
+    ):
 
         self._run_vespa_engine_container(
-            disk_folder=disk_folder, container_memory=container_memory
+            application_package=application_package,
+            disk_folder=disk_folder,
+            container_memory=container_memory,
         )
 
         while not self._check_configuration_server():
@@ -495,6 +487,32 @@ class VespaDocker(object):
             url="http://localhost",
             port=self.local_port,
             deployment_message=deployment_message,
+        )
+
+    def deploy(
+        self,
+        application_package: ApplicationPackage,
+        disk_folder: str,
+        container_memory: str = "4G",
+    ):
+        """
+        Deploy the application package into a Vespa container.
+
+        :param application_package: ApplicationPackage to be deployed.
+        :param disk_folder: Disk folder to save the required Vespa config files.
+        :param container_memory: Docker container memory available to the application.
+
+        :return: a Vespa connection instance.
+        """
+
+        self._create_application_package_files(
+            dir_path=disk_folder, application_package=application_package
+        )
+
+        self._execute_deployment(
+            application_package=application_package,
+            disk_folder=disk_folder,
+            container_memory=container_memory,
         )
 
 
