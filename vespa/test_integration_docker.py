@@ -62,8 +62,9 @@ class TestDockerDeployment(unittest.TestCase):
         vespa_docker.export_application_package(
             dir_path=self.disk_folder, application_package=self.app_package
         )
+        # todo: work around until https://github.com/vespa-engine/pyvespa/issues/21 is fixed
         app = vespa_docker.deploy_from_disk(
-            application_name=self.app_package.name, disk_folder=self.disk_folder
+            application_name=self.app_package.name + "work_around", disk_folder=self.disk_folder
         )
 
         self.assertTrue(
@@ -72,3 +73,4 @@ class TestDockerDeployment(unittest.TestCase):
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
+        # todo: rm docker conttainer after each test
