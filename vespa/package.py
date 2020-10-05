@@ -500,7 +500,7 @@ class VespaDocker(object):
         application_package: ApplicationPackage,
         disk_folder: str,
         container_memory: str = "4G",
-    ):
+    ) -> Vespa:
         """
         Deploy the application package into a Vespa container.
 
@@ -526,7 +526,7 @@ class VespaDocker(object):
         application_name: str,
         disk_folder: str,
         container_memory: str = "4G",
-    ):
+    ) -> Vespa:
         """
         Deploy disk-based application package into a Vespa container.
 
@@ -537,7 +537,7 @@ class VespaDocker(object):
         :return: a Vespa connection instance.
         """
 
-        self._execute_deployment(
+        return self._execute_deployment(
             application_name=application_name,
             disk_folder=disk_folder,
             container_memory=container_memory,
