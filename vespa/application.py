@@ -1,6 +1,7 @@
 # Copyright Verizon Media. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
-from typing import Optional, Dict, Tuple, List
+import sys
+from typing import Optional, Dict, Tuple, List, IO
 from pandas import DataFrame
 from requests import post
 from requests.models import Response
@@ -16,6 +17,7 @@ class Vespa(object):
         port: Optional[int] = None,
         deployment_message: Optional[List[str]] = None,
         cert: Optional[str] = None,
+        output_file: IO = sys.stdout,
     ) -> None:
         """
         Establish a connection with a Vespa application.
@@ -24,12 +26,14 @@ class Vespa(object):
         :param port: Vespa instance port.
         :param deployment_message: Message returned by Vespa engine after deployment. Used internally by deploy methods.
         :param cert: Path to certificate and key file.
+        :param output_file: Output file to write output messages.
 
         >>> Vespa(url = "https://cord19.vespa.ai")
         >>> Vespa(url = "http://localhost", port = 8080)
         >>> Vespa(url = "https://api.vespa-external.aws.oath.cloud", port = 4443, cert = "/path/to/cert-and-key.pem")
 
         """
+        self.output_file = output_file
         self.url = url
         self.port = port
         self.deployment_message = deployment_message
@@ -202,6 +206,7 @@ class Vespa(object):
         number_additional_docs: int,
         relevant_score: int = 1,
         default_score: int = 0,
+        show_progress: Optional[int] = None,
         **kwargs
     ) -> DataFrame:
         """
@@ -213,14 +218,36 @@ class Vespa(object):
         :param number_additional_docs: Number of additional documents to retrieve for each relevant document.
         :param relevant_score: Score to assign to relevant documents. Default to 1.
         :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
+        :param show_progress: Prints the the current point being collected every `show_progress` step. Default to None,
+            in which case progress is not printed.
         :param kwargs: Extra keyword arguments to be included in the Vespa Query.
         :return: DataFrame containing document id (document_id), query id (query_id), scores (relevant)
             and vespa rank features returned by the Query model RankProfile used.
         """
 
         training_data = []
+        number_queries = len(labelled_data)
+        idx_total = 0
+        idx_query = 0
         for query_data in labelled_data:
+            idx_query += 1
+            idx_doc = 0
+            number_relevant_docs = len(query_data["relevant_docs"])
             for doc_data in query_data["relevant_docs"]:
+                idx_total += 1
+                idx_doc += 1
+                if (show_progress is not None) and (idx_total % show_progress == 0):
+                    print(
+                        "Query {}/{}, Doc {}/{}. Query id: {}. Doc id: {}".format(
+                            idx_query,
+                            number_queries,
+                            idx_doc,
+                            number_relevant_docs,
+                            query_data["query_id"],
+                            doc_data["id"],
+                        ),
+                        file=self.output_file,
+                    )
                 training_data_point = self.collect_training_data_point(
                     query=query_data["query"],
                     query_id=query_data["query_id"],
