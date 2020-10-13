@@ -51,10 +51,27 @@ class TestCloudDeployment(unittest.TestCase):
             tenant="vespa-team",
             application="pyvespa-integration",
             key_content=os.getenv("VESPA_CLOUD_USER_KEY").replace(r"\n", "\n"),
-            application_package=self.app_package,
         )
-        app = vespa_cloud.deploy(instance="test", disk_folder=self.disk_folder)
+        app = vespa_cloud.deploy(
+            application_package=self.app_package,
+            instance="test",
+            disk_folder=self.disk_folder,
+        )
         self.assertIsInstance(app, Vespa)
 
+    def test_deploy_from_disk(self):
+        vespa_cloud = VespaCloud(
+            tenant="vespa-team",
+            application="pyvespa-integration",
+            key_content=os.getenv("VESPA_CLOUD_USER_KEY").replace(r"\n", "\n"),
+        )
+        vespa_cloud.export_application_package(
+            dir_path=self.disk_folder, application_package=self.app_package
+        )
+        app = vespa_cloud.deploy_from_disk(
+            application_name=self.app_package.name, disk_folder=self.disk_folder
+        )
+        self.assertIsInstance(app, Vespa)
+        
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
