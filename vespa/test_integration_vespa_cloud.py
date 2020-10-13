@@ -72,6 +72,6 @@ class TestCloudDeployment(unittest.TestCase):
             application_name=self.app_package.name, disk_folder=self.disk_folder
         )
         self.assertIsInstance(app, Vespa)
-        
+
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)

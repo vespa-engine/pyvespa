@@ -676,7 +676,7 @@ class VespaCloud(object):
         return self._request("GET", "/zone/v1/environment/dev/default")["name"]
 
     def _get_endpoint(
-        self, instance: str, region: str, application_package: ApplicationPackage
+        self, instance: str, region: str, application_package_name: str
     ) -> str:
         endpoints = self._request(
             "GET",
@@ -687,7 +687,7 @@ class VespaCloud(object):
         container_url = [
             endpoint["url"]
             for endpoint in endpoints
-            if endpoint["cluster"] == "{}_container".format(application_package.name)
+            if endpoint["cluster"] == "{}_container".format(application_package_name)
         ]
         if not container_url:
             raise RuntimeError("No endpoints found for container 'test_app_container'")
@@ -743,16 +743,12 @@ class VespaCloud(object):
         instance: str,
         job: str,
         disk_folder: str,
-        application_package: ApplicationPackage,
+        application_zip_bytes: BytesIO,
     ) -> int:
         deploy_path = (
             "/application/v4/tenant/{}/application/{}/instance/{}/deploy/{}".format(
                 self.tenant, self.application, instance, job
             )
-        )
-
-        application_zip_bytes = self._to_application_zip(
-            application_package=application_package
         )
 
         Path(disk_folder).mkdir(parents=True, exist_ok=True)
@@ -832,6 +828,31 @@ class VespaCloud(object):
                 file=self.output,
             )
 
+    def _make_deployment(
+        self,
+        instance: str,
+        disk_folder: str,
+        application_package_name: str,
+        application_zip_bytes: BytesIO,
+    ):
+
+        region = self._get_dev_region()
+        job = "dev-" + region
+
+        run = self._start_deployment(
+            instance, job, disk_folder, application_zip_bytes=application_zip_bytes
+        )
+        self._follow_deployment(instance, job, run)
+        endpoint_url = self._get_endpoint(
+            instance=instance,
+            region=region,
+            application_package_name=application_package_name,
+        )
+        return Vespa(
+            url=endpoint_url,
+            cert=os.path.join(disk_folder, self.private_cert_file_name),
+        )
+
     def deploy(
         self, application_package: ApplicationPackage, instance: str, disk_folder: str
     ) -> Vespa:
@@ -844,19 +865,44 @@ class VespaCloud(object):
 
         :return: a Vespa connection instance.
         """
-        region = self._get_dev_region()
-        job = "dev-" + region
-        run = self._start_deployment(
-            instance, job, disk_folder, application_package=application_package
+
+        application_zip_bytes = self._to_application_zip(
+            application_package=application_package
         )
-        self._follow_deployment(instance, job, run)
-        endpoint_url = self._get_endpoint(
-            instance=instance, region=region, application_package=application_package
+
+        vespa_app = self._make_deployment(
+            instance=instance,
+            disk_folder=disk_folder,
+            application_package_name=application_package.name,
+            application_zip_bytes=application_zip_bytes,
         )
-        return Vespa(
-            url=endpoint_url,
-            cert=os.path.join(disk_folder, self.private_cert_file_name),
+
+        return vespa_app
+
+    def _from_disk_to_application_zip(self, disk_folder: str) -> BytesIO:
+        buffer = BytesIO()
+        with zipfile.ZipFile(buffer, "a") as zip_archive:
+            for root, dirs, files in os.walk(disk_folder):
+                for file in files:
+                    zip_archive.write(os.path.join(root, file))
+        return buffer
+
+    def deploy_from_disk(
+        self, application_package_name: str, instance: str, disk_folder: str
+    ):
+
+        application_zip_bytes = self._from_disk_to_application_zip(
+            disk_folder=disk_folder
         )
+
+        vespa_app = self._make_deployment(
+            instance=instance,
+            disk_folder=disk_folder,
+            application_package_name=application_package_name,
+            application_zip_bytes=application_zip_bytes,
+        )
+
+        return vespa_app
 
     def delete(self, instance: str):
         """
