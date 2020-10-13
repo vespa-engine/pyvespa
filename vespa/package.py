@@ -725,7 +725,9 @@ class VespaCloud(object):
         )
 
         for file_path in application_package_content:
-            with open(os.path.join(dir_path, file_path), "w") as f:
+            file_name = os.path.join(dir_path, file_path)
+            os.makedirs(os.path.dirname(file_name), exist_ok=True)
+            with open(file_name, "w") as f:
                 f.write(application_package_content[file_path])
 
     def _to_application_zip(self, application_package: ApplicationPackage) -> BytesIO:
@@ -887,9 +889,7 @@ class VespaCloud(object):
                     zip_archive.write(os.path.join(root, file))
         return buffer
 
-    def deploy_from_disk(
-        self, application_package_name: str, instance: str, disk_folder: str
-    ):
+    def deploy_from_disk(self, application_name: str, instance: str, disk_folder: str):
 
         application_zip_bytes = self._from_disk_to_application_zip(
             disk_folder=disk_folder
@@ -898,7 +898,7 @@ class VespaCloud(object):
         vespa_app = self._make_deployment(
             instance=instance,
             disk_folder=disk_folder,
-            application_package_name=application_package_name,
+            application_package_name=application_name,
             application_zip_bytes=application_zip_bytes,
         )
 
