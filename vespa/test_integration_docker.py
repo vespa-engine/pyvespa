@@ -42,9 +42,6 @@ class TestDockerDeployment(unittest.TestCase):
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
 
     def test_deploy(self):
-        #
-        # Deploy in a Docker container
-        #
         self.vespa_docker = VespaDocker()
         app = self.vespa_docker.deploy(
             application_package=self.app_package, disk_folder=self.disk_folder
@@ -55,9 +52,6 @@ class TestDockerDeployment(unittest.TestCase):
         )
 
     def test_deploy_from_disk(self):
-        #
-        # Deploy in a Docker container
-        #
         self.vespa_docker = VespaDocker()
         self.vespa_docker.export_application_package(
             dir_path=self.disk_folder, application_package=self.app_package
