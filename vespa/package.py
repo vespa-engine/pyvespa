@@ -438,13 +438,15 @@ class VespaDocker(object):
             == "HTTP/1.1 200 OK"
         )
 
+    @staticmethod
     def export_application_package(
-        self, dir_path: str, application_package: ApplicationPackage
+        dir_path: str, application_package: ApplicationPackage
     ) -> None:
         """
         Export application package to disk.
 
         :param dir_path: Desired application path. Directory will be created if not already exist.
+        :param application_package: Application package to export.
         :return: None. Application package file will be stored on `dir_path`.
         """
         Path(os.path.join(dir_path, "application/schemas")).mkdir(
@@ -549,7 +551,6 @@ class VespaCloud(object):
         self,
         tenant: str,
         application: str,
-        application_package: ApplicationPackage,
         key_location: Optional[str] = None,
         key_content: Optional[str] = None,
         output_file: IO = sys.stdout,
@@ -559,7 +560,6 @@ class VespaCloud(object):
 
         :param tenant: Tenant name registered in the Vespa Cloud.
         :param application: Application name registered in the Vespa Cloud.
-        :param application_package: ApplicationPackage to be deployed.
         :param key_location: Location of the private key used for signing HTTP requests to the Vespa Cloud.
         :param key_content: Content of the private key used for signing HTTP requests to the Vespa Cloud. Use only when
             key file is not available.
@@ -567,7 +567,6 @@ class VespaCloud(object):
         """
         self.tenant = tenant
         self.application = application
-        self.application_package = application_package
         self.api_key = self._read_private_key(key_location, key_content)
         self.api_public_key_bytes = standard_b64encode(
             self.api_key.public_key().public_bytes(
@@ -676,7 +675,9 @@ class VespaCloud(object):
     def _get_dev_region(self) -> str:
         return self._request("GET", "/zone/v1/environment/dev/default")["name"]
 
-    def _get_endpoint(self, instance: str, region: str) -> str:
+    def _get_endpoint(
+        self, instance: str, region: str, application_package: ApplicationPackage
+    ) -> str:
         endpoints = self._request(
             "GET",
             "/application/v4/tenant/{}/application/{}/instance/{}/environment/dev/region/{}".format(
@@ -686,57 +687,73 @@ class VespaCloud(object):
         container_url = [
             endpoint["url"]
             for endpoint in endpoints
-            if endpoint["cluster"]
-            == "{}_container".format(self.application_package.name)
+            if endpoint["cluster"] == "{}_container".format(application_package.name)
         ]
         if not container_url:
             raise RuntimeError("No endpoints found for container 'test_app_container'")
         return container_url[0]
 
-    def _create_application_package_content(self):
+    def _create_application_package_content(
+        self, application_package: ApplicationPackage
+    ):
         return {
             "application/schemas/{}.sd".format(
-                self.application_package.schema.name
-            ): self.application_package.schema_to_text,
-            "application/services.xml": self.application_package.services_to_text,
+                application_package.schema.name
+            ): application_package.schema_to_text,
+            "application/services.xml": application_package.services_to_text,
             "application/security/clients.pem": self.data_certificate.public_bytes(
                 serialization.Encoding.PEM
             ),
         }
 
-    def export_application_package(self, dir_path):
+    def export_application_package(
+        self, dir_path, application_package: ApplicationPackage
+    ):
         """
         Export application package to disk.
 
         :param dir_path: Desired application path. Directory will be created if not already exist.
+        :param application_package: Application package to export.
         :return: None. Application package file will be stored on `dir_path`.
         """
 
         Path(os.path.join(dir_path, "application/schemas")).mkdir(
             parents=True, exist_ok=True
         )
-        application_package_content = self._create_application_package_content()
+        application_package_content = self._create_application_package_content(
+            application_package=application_package
+        )
 
         for file_path in application_package_content:
             with open(os.path.join(dir_path, file_path), "w") as f:
                 f.write(application_package_content[file_path])
 
-    def _to_application_zip(self) -> BytesIO:
-        application_package_content = self._create_application_package_content()
+    def _to_application_zip(self, application_package: ApplicationPackage) -> BytesIO:
+        application_package_content = self._create_application_package_content(
+            application_package=application_package
+        )
         buffer = BytesIO()
         with zipfile.ZipFile(buffer, "a") as zip_archive:
             for file_path in application_package_content:
                 zip_archive.writestr(file_path, application_package_content[file_path])
         return buffer
 
-    def _start_deployment(self, instance: str, job: str, disk_folder: str) -> int:
+    def _start_deployment(
+        self,
+        instance: str,
+        job: str,
+        disk_folder: str,
+        application_package: ApplicationPackage,
+    ) -> int:
         deploy_path = (
             "/application/v4/tenant/{}/application/{}/instance/{}/deploy/{}".format(
                 self.tenant, self.application, instance, job
             )
         )
 
-        application_zip_bytes = self._to_application_zip()
+        application_zip_bytes = self._to_application_zip(
+            application_package=application_package
+        )
 
         Path(disk_folder).mkdir(parents=True, exist_ok=True)
 
@@ -815,10 +832,13 @@ class VespaCloud(object):
                 file=self.output,
             )
 
-    def deploy(self, instance: str, disk_folder: str) -> Vespa:
+    def deploy(
+        self, application_package: ApplicationPackage, instance: str, disk_folder: str
+    ) -> Vespa:
         """
         Deploy the given application package as the given instance in the Vespa Cloud dev environment.
 
+        :param application_package: ApplicationPackage to be deployed.
         :param instance: Name of this instance of the application, in the Vespa Cloud.
         :param disk_folder: Disk folder to save the required Vespa config files.
 
@@ -826,9 +846,13 @@ class VespaCloud(object):
         """
         region = self._get_dev_region()
         job = "dev-" + region
-        run = self._start_deployment(instance, job, disk_folder)
+        run = self._start_deployment(
+            instance, job, disk_folder, application_package=application_package
+        )
         self._follow_deployment(instance, job, run)
-        endpoint_url = self._get_endpoint(instance=instance, region=region)
+        endpoint_url = self._get_endpoint(
+            instance=instance, region=region, application_package=application_package
+        )
         return Vespa(
             url=endpoint_url,
             cert=os.path.join(disk_folder, self.private_cert_file_name),
