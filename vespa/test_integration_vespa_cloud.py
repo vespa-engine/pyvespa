@@ -43,24 +43,18 @@ class TestCloudDeployment(unittest.TestCase):
                 RankProfile(name="default", first_phase="nativeRank(title, body)")
             ],
         )
-        app_package = ApplicationPackage(name="msmarco", schema=msmarco_schema)
-        #
-        # Deploy on Vespa Cloud
-        #
-        self.vespa_cloud = VespaCloud(
+        self.app_package = ApplicationPackage(name="msmarco", schema=msmarco_schema)
+        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+
+    def test_deploy(self):
+        vespa_cloud = VespaCloud(
             tenant="vespa-team",
             application="pyvespa-integration",
             key_content=os.getenv("VESPA_CLOUD_USER_KEY").replace(r"\n", "\n"),
-            application_package=app_package,
+            application_package=self.app_package,
         )
-        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-        self.instance_name = "test"
-        self.app = self.vespa_cloud.deploy(
-            instance=self.instance_name, disk_folder=self.disk_folder
-        )
-
-    def test_deployment_message(self):
-        self.assertIsInstance(self.app, Vespa)
+        app = vespa_cloud.deploy(instance="test", disk_folder=self.disk_folder)
+        self.assertIsInstance(app, Vespa)
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
