@@ -69,7 +69,9 @@ class TestCloudDeployment(unittest.TestCase):
             dir_path=self.disk_folder, application_package=self.app_package
         )
         app = vespa_cloud.deploy_from_disk(
-            application_name=self.app_package.name, disk_folder=self.disk_folder
+            application_name=self.app_package.name,
+            instance="test",
+            disk_folder=self.disk_folder,
         )
         self.assertIsInstance(app, Vespa)
 
