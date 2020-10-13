@@ -727,8 +727,12 @@ class VespaCloud(object):
         for file_path in application_package_content:
             file_name = os.path.join(dir_path, file_path)
             os.makedirs(os.path.dirname(file_name), exist_ok=True)
-            with open(file_name, "w") as f:
-                f.write(application_package_content[file_path])
+            try:
+                with open(file_name, "w") as f:
+                    f.write(application_package_content[file_path])
+            except TypeError:
+                with open(file_name, "wb") as f:
+                    f.write(application_package_content[file_path])
 
     def _to_application_zip(self, application_package: ApplicationPackage) -> BytesIO:
         application_package_content = self._create_application_package_content(
