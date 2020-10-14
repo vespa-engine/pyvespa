@@ -38,19 +38,33 @@ class TestDockerDeployment(unittest.TestCase):
                 RankProfile(name="default", first_phase="nativeRank(title, body)")
             ],
         )
-        app_package = ApplicationPackage(name="msmarco", schema=msmarco_schema)
-        #
-        # Deploy in a Docker container
-        #
-        vespa_docker = VespaDocker(application_package=app_package)
+        self.app_package = ApplicationPackage(name="msmarco", schema=msmarco_schema)
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-        self.app = vespa_docker.deploy(
-            disk_folder=self.disk_folder
+
+    def test_deploy(self):
+        self.vespa_docker = VespaDocker()
+        app = self.vespa_docker.deploy(
+            application_package=self.app_package, disk_folder=self.disk_folder
         )
 
-    def test_deployment_message(self):
-        self.assertTrue(any(re.match("Generation: [0-9]+", line) for line in self.app.deployment_message))
+        self.assertTrue(
+            any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
+        )
+
+    def test_deploy_from_disk(self):
+        self.vespa_docker = VespaDocker()
+        self.vespa_docker.export_application_package(
+            dir_path=self.disk_folder, application_package=self.app_package
+        )
+        app = self.vespa_docker.deploy_from_disk(
+            application_name=self.app_package.name, disk_folder=self.disk_folder
+        )
+
+        self.assertTrue(
+            any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
+        )
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
-
+        self.vespa_docker.container.stop()
+        self.vespa_docker.container.remove()
