@@ -12,6 +12,7 @@ Vespa python API
    install
    quickstart
    howto
+   usecases
    reference-api
 
 Vespa_ is the scalable open-sourced serving engine that enable us to store, compute and rank big data at user
@@ -52,6 +53,11 @@ How-to guides
 - :doc:`query`
 - :doc:`evaluation`
 - :doc:`collect-training-data`
+
+Use cases
++++++++++
+
+- :doc:`use_cases/cord19/cord19`
 
 Indices and tables
 ==================
