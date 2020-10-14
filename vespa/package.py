@@ -425,7 +425,6 @@ class VespaDocker(object):
     def _check_configuration_server(self) -> bool:
         """
         Check if configuration server is running and ready for deployment
-
         :return: True if configuration server is running.
         """
         return (

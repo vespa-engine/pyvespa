@@ -66,7 +66,5 @@ class TestDockerDeployment(unittest.TestCase):
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
-        # todo: rm docker conttainer after each test
         self.vespa_docker.container.stop()
         self.vespa_docker.container.remove()
-
