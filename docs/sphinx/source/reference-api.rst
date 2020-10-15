@@ -17,6 +17,7 @@ vespa.evaluation module
    :members:
    :undoc-members:
    :show-inheritance:
+   :special-members: __init__
 
 vespa.package module
 --------------------
@@ -25,6 +26,7 @@ vespa.package module
    :members:
    :undoc-members:
    :show-inheritance:
+   :special-members: __init__
 
 vespa.query module
 ------------------
@@ -33,3 +35,4 @@ vespa.query module
    :members:
    :undoc-members:
    :show-inheritance:
+   :special-members: __init__
