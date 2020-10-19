@@ -228,20 +228,16 @@ class Vespa(object):
         training_data = []
         number_queries = len(labelled_data)
         idx_total = 0
-        idx_query = 0
-        for query_data in labelled_data:
-            idx_query += 1
-            idx_doc = 0
+        for query_idx, query_data in enumerate(labelled_data):
             number_relevant_docs = len(query_data["relevant_docs"])
-            for doc_data in query_data["relevant_docs"]:
+            for doc_idx, doc_data in enumerate(query_data["relevant_docs"]):
                 idx_total += 1
-                idx_doc += 1
                 if (show_progress is not None) and (idx_total % show_progress == 0):
                     print(
                         "Query {}/{}, Doc {}/{}. Query id: {}. Doc id: {}".format(
-                            idx_query,
+                            query_idx,
                             number_queries,
-                            idx_doc,
+                            doc_idx,
                             number_relevant_docs,
                             query_data["query_id"],
                             doc_data["id"],
