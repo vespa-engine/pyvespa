@@ -179,13 +179,14 @@ class Vespa(object):
         hits = relevant_id_result.hits
         features = []
         if len(hits) == 1 and hits[0]["fields"][id_field] == relevant_id:
-            random_hits_result = self.query(
-                query=query,
-                query_model=query_model,
-                hits=number_additional_docs,
-                **kwargs
-            )
-            hits.extend(random_hits_result.hits)
+            if number_additional_docs > 0:
+                random_hits_result = self.query(
+                    query=query,
+                    query_model=query_model,
+                    hits=number_additional_docs,
+                    **kwargs
+                )
+                hits.extend(random_hits_result.hits)
 
             features = self.annotate_data(
                 hits=hits,
