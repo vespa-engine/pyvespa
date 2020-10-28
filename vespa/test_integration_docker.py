@@ -6,7 +6,7 @@ import shutil
 from random import random
 
 from vespa.application import Vespa
-from vespa.query import Union, WeakAnd, ANN, Query, RankProfile
+from vespa.query import Union, WeakAnd, ANN, Query, RankProfile as Ranking
 from vespa.package import Document, Field
 from vespa.package import Schema, FieldSet, RankProfile
 from vespa.package import ApplicationPackage
@@ -45,6 +45,7 @@ class TestDockerDeployment(unittest.TestCase):
         )
         self.app_package = ApplicationPackage(name="msmarco", schema=msmarco_schema)
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.vespa_docker = None
 
     def test_deploy(self):
         self.vespa_docker = VespaDocker()
@@ -87,7 +88,7 @@ class TestDockerDeployment(unittest.TestCase):
                 label="title",
             ),
         )
-        rank_profile = RankProfile(name="bm25", list_features=True)
+        rank_profile = Ranking(name="bm25", list_features=True)
         query_model = Query(match_phase=match_phase, rank_profile=rank_profile)
         #
         # Query Vespa app
@@ -135,5 +136,6 @@ class TestDockerDeployment(unittest.TestCase):
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
-        self.vespa_docker.container.stop()
-        self.vespa_docker.container.remove()
+        if self.vespa_docker:
+            self.vespa_docker.container.stop()
+            self.vespa_docker.container.remove()
