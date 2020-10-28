@@ -26,6 +26,9 @@ Machine Learning experiments for Vespa applications.
 Install
 +++++++
 
+.. warning::
+    The library is under active development and backward incompatible changes may occur.
+
 You can install ``pyvespa`` via ``pip``:
 
 .. code:: bash
