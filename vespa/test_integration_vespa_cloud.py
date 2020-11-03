@@ -61,6 +61,19 @@ class TestCloudDeployment(unittest.TestCase):
 
     def test_deployment_message(self):
         self.assertIsInstance(self.app, Vespa)
+        #
+        # Feed a data point
+        #
+        response = self.app.feed_data_point(
+            schema="msmarco",
+            data_id="1",
+            fields={
+                "id": "1",
+                "title": "this is my first title",
+                "body": "this is my first body",
+            },
+        )
+        self.assertEqual(response.json()["id"], "id:msmarco:msmarco::1")
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
