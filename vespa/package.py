@@ -418,7 +418,7 @@ class VespaDocker(object):
                     hostname=application_name,
                     privileged=True,
                     volumes={disk_folder: {"bind": "/app", "mode": "rw"}},
-                    ports={self.local_port: self.local_port, 19112: 19112},
+                    ports={self.local_port: self.local_port},
                 )
 
     def _check_configuration_server(self) -> bool:
