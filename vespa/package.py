@@ -389,6 +389,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
 class VespaDocker(object):
     def __init__(
         self,
+        port: int = 8080,
         output_file: IO = sys.stdout,
     ) -> None:
         """
@@ -396,7 +397,7 @@ class VespaDocker(object):
         :param output_file: Output file to write output messages.
         """
         self.container = None
-        self.local_port = 8080
+        self.local_port = port
         self.output = output_file
 
     def _run_vespa_engine_container(
@@ -418,7 +419,7 @@ class VespaDocker(object):
                     hostname=application_name,
                     privileged=True,
                     volumes={disk_folder: {"bind": "/app", "mode": "rw"}},
-                    ports={self.local_port: self.local_port},
+                    ports={8080: self.local_port},
                 )
 
     def _check_configuration_server(self) -> bool:
