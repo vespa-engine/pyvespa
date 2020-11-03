@@ -2,6 +2,7 @@ import unittest
 import os
 import re
 import shutil
+from time import sleep
 from vespa.package import Document, Field
 from vespa.package import Schema, FieldSet, RankProfile
 from vespa.package import ApplicationPackage
@@ -46,10 +47,30 @@ class TestDockerDeployment(unittest.TestCase):
         app = self.vespa_docker.deploy(
             application_package=self.app_package, disk_folder=self.disk_folder
         )
-
         self.assertTrue(
             any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
         )
+
+    def test_data_operation(self):
+        self.vespa_docker = VespaDocker(port=8089)
+        app = self.vespa_docker.deploy(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+        # todo: wait until app.get_application_status() returns 200
+        sleep(5) # It takes time until I can send data
+        #
+        # Feed a data point
+        #
+        response = app.feed_data_point(
+            schema="msmarco",
+            data_id="1",
+            fields={
+                "id": "1",
+                "title": "this is my first title",
+                "body": "this is my first body",
+            },
+        )
+        self.assertEqual(response.json()["id"], "id:msmarco:msmarco::1")
 
     def test_deploy_from_disk(self):
         self.vespa_docker = VespaDocker(port=8089)
