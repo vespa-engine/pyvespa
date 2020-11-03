@@ -59,7 +59,7 @@ class TestCloudDeployment(unittest.TestCase):
             instance=self.instance_name, disk_folder=self.disk_folder
         )
 
-    def test_deployment_message(self):
+    def test_data_operation(self):
         self.assertIsInstance(self.app, Vespa)
         #
         # Feed a data point
