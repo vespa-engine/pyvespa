@@ -13,3 +13,4 @@ In this tutorial we illustrate how to evaluate and improve this application.
    :maxdepth: 1
 
    cord19_download_parse_trec_covid
+   cord19_connect_evaluate
