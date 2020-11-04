@@ -51,6 +51,8 @@ class TestDockerDeployment(unittest.TestCase):
             any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
         )
 
+        self.assertEqual(app.get_application_status().status_code, 200)
+
     def test_deploy_from_disk(self):
         self.vespa_docker = VespaDocker(port=8089)
         self.vespa_docker.export_application_package(
