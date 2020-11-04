@@ -3,7 +3,7 @@
 import sys
 from typing import Optional, Dict, Tuple, List, IO
 from pandas import DataFrame
-from requests import post, get
+from requests import post, delete, get, put
 from requests.models import Response
 from requests.exceptions import ConnectionError
 
@@ -126,6 +126,51 @@ class Vespa(object):
         )
         vespa_format = {"fields": fields}
         response = post(end_point, json=vespa_format, cert=self.cert)
+        return response
+
+    def delete_data(self, schema: str, data_id: str) -> Response:
+        """
+        Delete a data point from a Vespa app.
+
+        :param schema: The schema that we are deleting data from.
+        :param data_id: Unique id associated with this data point.
+        :return: Response of the HTTP DELETE request.
+        """
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.end_point, schema, schema, str(data_id)
+        )
+        response = delete(end_point, cert=self.cert)
+        return response
+
+    def get_data(self, schema: str, data_id: str) -> Response:
+        """
+        Get a data point from a Vespa app.
+
+        :param schema: The schema that we are getting data from.
+        :param data_id: Unique id associated with this data point.
+        :return: Response of the HTTP GET request.
+        """
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.end_point, schema, schema, str(data_id)
+        )
+        response = get(end_point, cert=self.cert)
+        return response
+
+    def update_data(self, schema: str, data_id: str, fields: Dict) -> Response:
+        """
+        Update a data point in a Vespa app.
+
+        :param schema: The schema that we are updating data.
+        :param data_id: Unique id associated with this data point.
+        :param fields: Dict containing all the fields you want to update.
+        :return: Response of the HTTP PUT request.
+        """
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.end_point, schema, schema, str(data_id)
+        )
+
+        vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
+        response = put(end_point, json=vespa_format, cert=self.cert)
         return response
 
     @staticmethod
