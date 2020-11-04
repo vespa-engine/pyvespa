@@ -2,7 +2,6 @@ import unittest
 import os
 import re
 import shutil
-from time import sleep
 from vespa.package import Document, Field
 from vespa.package import Schema, FieldSet, RankProfile
 from vespa.package import ApplicationPackage
