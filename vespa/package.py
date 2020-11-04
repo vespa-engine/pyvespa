@@ -489,11 +489,17 @@ class VespaDocker(object):
         if not any(re.match("Generation: [0-9]+", line) for line in deployment_message):
             raise RuntimeError(deployment_message)
 
-        return Vespa(
+        app = Vespa(
             url="http://localhost",
             port=self.local_port,
             deployment_message=deployment_message,
         )
+
+        while not app.get_application_status():
+            print("Waiting for application status.", file=self.output)
+            sleep(10)
+
+        return app
 
     def deploy(
         self,
