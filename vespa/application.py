@@ -3,8 +3,9 @@
 import sys
 from typing import Optional, Dict, Tuple, List, IO
 from pandas import DataFrame
-from requests import post
+from requests import post, get
 from requests.models import Response
+from requests.exceptions import ConnectionError
 
 from vespa.query import Query, VespaResult
 from vespa.evaluation import EvalMetric
@@ -50,6 +51,19 @@ class Vespa(object):
             return "Vespa({}, {})".format(self.url, self.port)
         else:
             return "Vespa({})".format(self.url)
+
+    def get_application_status(self) -> Optional[Response]:
+        """
+        Get application status.
+
+        :return:
+        """
+        end_point = "{}/ApplicationStatus".format(self.end_point)
+        try:
+            response = get(end_point, cert=self.cert)
+        except ConnectionError:
+            response = None
+        return response
 
     def query(
         self,
