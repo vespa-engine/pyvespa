@@ -3,8 +3,9 @@
 import sys
 from typing import Optional, Dict, Tuple, List, IO
 from pandas import DataFrame
-from requests import post
+from requests import post, delete, get, put
 from requests.models import Response
+from requests.exceptions import ConnectionError
 
 from vespa.query import Query, VespaResult
 from vespa.evaluation import EvalMetric
@@ -50,6 +51,19 @@ class Vespa(object):
             return "Vespa({}, {})".format(self.url, self.port)
         else:
             return "Vespa({})".format(self.url)
+
+    def get_application_status(self) -> Optional[Response]:
+        """
+        Get application status.
+
+        :return:
+        """
+        end_point = "{}/ApplicationStatus".format(self.end_point)
+        try:
+            response = get(end_point, cert=self.cert)
+        except ConnectionError:
+            response = None
+        return response
 
     def query(
         self,
@@ -112,6 +126,51 @@ class Vespa(object):
         )
         vespa_format = {"fields": fields}
         response = post(end_point, json=vespa_format, cert=self.cert)
+        return response
+
+    def delete_data(self, schema: str, data_id: str) -> Response:
+        """
+        Delete a data point from a Vespa app.
+
+        :param schema: The schema that we are deleting data from.
+        :param data_id: Unique id associated with this data point.
+        :return: Response of the HTTP DELETE request.
+        """
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.end_point, schema, schema, str(data_id)
+        )
+        response = delete(end_point, cert=self.cert)
+        return response
+
+    def get_data(self, schema: str, data_id: str) -> Response:
+        """
+        Get a data point from a Vespa app.
+
+        :param schema: The schema that we are getting data from.
+        :param data_id: Unique id associated with this data point.
+        :return: Response of the HTTP GET request.
+        """
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.end_point, schema, schema, str(data_id)
+        )
+        response = get(end_point, cert=self.cert)
+        return response
+
+    def update_data(self, schema: str, data_id: str, fields: Dict) -> Response:
+        """
+        Update a data point in a Vespa app.
+
+        :param schema: The schema that we are updating data.
+        :param data_id: Unique id associated with this data point.
+        :param fields: Dict containing all the fields you want to update.
+        :return: Response of the HTTP PUT request.
+        """
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.end_point, schema, schema, str(data_id)
+        )
+
+        vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
+        response = put(end_point, json=vespa_format, cert=self.cert)
         return response
 
     @staticmethod
@@ -179,13 +238,14 @@ class Vespa(object):
         hits = relevant_id_result.hits
         features = []
         if len(hits) == 1 and hits[0]["fields"][id_field] == relevant_id:
-            random_hits_result = self.query(
-                query=query,
-                query_model=query_model,
-                hits=number_additional_docs,
-                **kwargs
-            )
-            hits.extend(random_hits_result.hits)
+            if number_additional_docs > 0:
+                random_hits_result = self.query(
+                    query=query,
+                    query_model=query_model,
+                    hits=number_additional_docs,
+                    **kwargs
+                )
+                hits.extend(random_hits_result.hits)
 
             features = self.annotate_data(
                 hits=hits,
@@ -200,7 +260,7 @@ class Vespa(object):
 
     def collect_training_data(
         self,
-        labelled_data: List[Dict],
+        labeled_data: List[Dict],
         id_field: str,
         query_model: Query,
         number_additional_docs: int,
@@ -212,7 +272,7 @@ class Vespa(object):
         """
         Collect training data based on a set of labelled data.
 
-        :param labelled_data: Labelled data containing query, query_id and relevant ids.
+        :param labeled_data: Labelled data containing query, query_id and relevant ids.
         :param id_field: The Vespa field representing the document id.
         :param query_model: Query model.
         :param number_additional_docs: Number of additional documents to retrieve for each relevant document.
@@ -226,9 +286,9 @@ class Vespa(object):
         """
 
         training_data = []
-        number_queries = len(labelled_data)
+        number_queries = len(labeled_data)
         idx_total = 0
-        for query_idx, query_data in enumerate(labelled_data):
+        for query_idx, query_data in enumerate(labeled_data):
             number_relevant_docs = len(query_data["relevant_docs"])
             for doc_idx, doc_data in enumerate(query_data["relevant_docs"]):
                 idx_total += 1
@@ -296,7 +356,7 @@ class Vespa(object):
 
     def evaluate(
         self,
-        labelled_data: List[Dict],
+        labeled_data: List[Dict],
         eval_metrics: List[EvalMetric],
         query_model: Query,
         id_field: str,
@@ -305,7 +365,7 @@ class Vespa(object):
     ) -> DataFrame:
         """
 
-        :param labelled_data: Labelled data containing query, query_id and relevant ids.
+        :param labeled_data: Labelled data containing query, query_id and relevant ids.
         :param eval_metrics: A list of evaluation metrics.
         :param query_model: Query model.
         :param id_field: The Vespa field representing the document id.
@@ -314,7 +374,7 @@ class Vespa(object):
         :return: DataFrame containing query_id and metrics according to the selected evaluation metrics.
         """
         evaluation = []
-        for query_data in labelled_data:
+        for query_data in labeled_data:
             evaluation_query = self.evaluate_query(
                 eval_metrics=eval_metrics,
                 query_model=query_model,

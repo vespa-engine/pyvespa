@@ -14,7 +14,7 @@ from vespa.evaluation import (
 
 class TestEvalMetric(unittest.TestCase):
     def setUp(self) -> None:
-        self.labelled_data = [
+        self.labeled_data = [
             {
                 "query_id": 0,
                 "query": "Intrauterine virus infections and congenital heart disease",
@@ -64,7 +64,7 @@ class TestEvalMetric(unittest.TestCase):
             }
         }
 
-        self.labelled_data2 = [
+        self.labeled_data2 = [
             {
                 "query_id": 0,
                 "query": "Intrauterine virus infections and congenital heart disease",
@@ -131,7 +131,7 @@ class TestEvalMetric(unittest.TestCase):
 
         evaluation = metric.evaluate_query(
             query_results=VespaResult(self.query_results),
-            relevant_docs=self.labelled_data[0]["relevant_docs"],
+            relevant_docs=self.labeled_data[0]["relevant_docs"],
             id_field="vespa_id_field",
             default_score=0,
         )
@@ -162,7 +162,7 @@ class TestEvalMetric(unittest.TestCase):
                     }
                 }
             ),
-            relevant_docs=self.labelled_data[0]["relevant_docs"],
+            relevant_docs=self.labeled_data[0]["relevant_docs"],
             id_field="vespa_id_field",
             default_score=0,
         )
@@ -193,7 +193,7 @@ class TestEvalMetric(unittest.TestCase):
                     }
                 }
             ),
-            relevant_docs=self.labelled_data[0]["relevant_docs"],
+            relevant_docs=self.labeled_data[0]["relevant_docs"],
             id_field="vespa_id_field",
             default_score=0,
         )
@@ -211,7 +211,7 @@ class TestEvalMetric(unittest.TestCase):
         metric = Recall(at=2)
         evaluation = metric.evaluate_query(
             query_results=VespaResult(self.query_results),
-            relevant_docs=self.labelled_data[0]["relevant_docs"],
+            relevant_docs=self.labeled_data[0]["relevant_docs"],
             id_field="vespa_id_field",
             default_score=0,
         )
@@ -225,7 +225,7 @@ class TestEvalMetric(unittest.TestCase):
         metric = Recall(at=1)
         evaluation = metric.evaluate_query(
             query_results=VespaResult(self.query_results),
-            relevant_docs=self.labelled_data[0]["relevant_docs"],
+            relevant_docs=self.labeled_data[0]["relevant_docs"],
             id_field="vespa_id_field",
             default_score=0,
         )
@@ -239,7 +239,7 @@ class TestEvalMetric(unittest.TestCase):
         metric = Recall(at=3)
         evaluation = metric.evaluate_query(
             query_results=VespaResult(self.query_results2),
-            relevant_docs=self.labelled_data2[0]["relevant_docs"],
+            relevant_docs=self.labeled_data2[0]["relevant_docs"],
             id_field="vespa_id_field",
             default_score=0,
         )
@@ -254,7 +254,7 @@ class TestEvalMetric(unittest.TestCase):
         metric = ReciprocalRank(at=2)
         evaluation = metric.evaluate_query(
             query_results=VespaResult(self.query_results),
-            relevant_docs=self.labelled_data[0]["relevant_docs"],
+            relevant_docs=self.labeled_data[0]["relevant_docs"],
             id_field="vespa_id_field",
             default_score=0,
         )
@@ -268,7 +268,7 @@ class TestEvalMetric(unittest.TestCase):
         metric = ReciprocalRank(at=1)
         evaluation = metric.evaluate_query(
             query_results=VespaResult(self.query_results),
-            relevant_docs=self.labelled_data[0]["relevant_docs"],
+            relevant_docs=self.labeled_data[0]["relevant_docs"],
             id_field="vespa_id_field",
             default_score=0,
         )
@@ -282,7 +282,7 @@ class TestEvalMetric(unittest.TestCase):
         metric = ReciprocalRank(at=3)
         evaluation = metric.evaluate_query(
             query_results=VespaResult(self.query_results2),
-            relevant_docs=self.labelled_data2[0]["relevant_docs"],
+            relevant_docs=self.labeled_data2[0]["relevant_docs"],
             id_field="vespa_id_field",
             default_score=0,
         )
@@ -298,7 +298,7 @@ class TestEvalMetric(unittest.TestCase):
         metric = NormalizedDiscountedCumulativeGain(at=2)
         evaluation = metric.evaluate_query(
             query_results=VespaResult(self.query_results),
-            relevant_docs=self.labelled_data[0]["relevant_docs"],
+            relevant_docs=self.labeled_data[0]["relevant_docs"],
             id_field="vespa_id_field",
             default_score=0,
         )
@@ -317,7 +317,7 @@ class TestEvalMetric(unittest.TestCase):
         metric = NormalizedDiscountedCumulativeGain(at=1)
         evaluation = metric.evaluate_query(
             query_results=VespaResult(self.query_results),
-            relevant_docs=self.labelled_data[0]["relevant_docs"],
+            relevant_docs=self.labeled_data[0]["relevant_docs"],
             id_field="vespa_id_field",
             default_score=0,
         )
@@ -336,7 +336,7 @@ class TestEvalMetric(unittest.TestCase):
         metric = NormalizedDiscountedCumulativeGain(at=3)
         evaluation = metric.evaluate_query(
             query_results=VespaResult(self.query_results2),
-            relevant_docs=self.labelled_data2[0]["relevant_docs"],
+            relevant_docs=self.labeled_data2[0]["relevant_docs"],
             id_field="vespa_id_field",
             default_score=0,
         )
