@@ -339,7 +339,7 @@ class TestVespaCollectData(unittest.TestCase):
             },
         ]
         self.app.collect_training_data_point = Mock(return_value=mock_return_value)
-        labelled_data = [
+        labeled_data = [
             {
                 "query_id": 123,
                 "query": "this is a query",
@@ -348,7 +348,7 @@ class TestVespaCollectData(unittest.TestCase):
         ]
         query_model = Query(rank_profile=RankProfile(list_features=True))
         data = self.app.collect_training_data(
-            labelled_data=labelled_data,
+            labeled_data=labeled_data,
             id_field="vespa_id_field",
             query_model=query_model,
             number_additional_docs=2,
@@ -376,7 +376,7 @@ class TestVespaEvaluate(unittest.TestCase):
     def setUp(self) -> None:
         self.app = Vespa(url="http://localhost", port=8080)
 
-        self.labelled_data = [
+        self.labeled_data = [
             {
                 "query_id": 0,
                 "query": "Intrauterine virus infections and congenital heart disease",
@@ -439,7 +439,7 @@ class TestVespaEvaluate(unittest.TestCase):
             query_id="0",
             query="this is a test",
             id_field="vespa_id_field",
-            relevant_docs=self.labelled_data[0]["relevant_docs"],
+            relevant_docs=self.labeled_data[0]["relevant_docs"],
             default_score=0,
             hits=10,
         )
@@ -452,7 +452,7 @@ class TestVespaEvaluate(unittest.TestCase):
         self.assertEqual(eval_metric.evaluate_query.call_count, 1)
         eval_metric.evaluate_query.assert_has_calls(
             [
-                call({}, self.labelled_data[0]["relevant_docs"], "vespa_id_field", 0),
+                call({}, self.labeled_data[0]["relevant_docs"], "vespa_id_field", 0),
             ]
         )
         self.assertDictEqual(evaluation, {"query_id": "0", "metric": 1, "metric_2": 2})
@@ -464,7 +464,7 @@ class TestVespaEvaluate(unittest.TestCase):
             ]
         )
         evaluation = self.app.evaluate(
-            labelled_data=self.labelled_data,
+            labeled_data=self.labeled_data,
             eval_metrics=[Mock()],
             query_model=Mock(),
             id_field="mock",

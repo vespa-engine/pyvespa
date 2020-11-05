@@ -260,7 +260,7 @@ class Vespa(object):
 
     def collect_training_data(
         self,
-        labelled_data: List[Dict],
+        labeled_data: List[Dict],
         id_field: str,
         query_model: Query,
         number_additional_docs: int,
@@ -272,7 +272,7 @@ class Vespa(object):
         """
         Collect training data based on a set of labelled data.
 
-        :param labelled_data: Labelled data containing query, query_id and relevant ids.
+        :param labeled_data: Labelled data containing query, query_id and relevant ids.
         :param id_field: The Vespa field representing the document id.
         :param query_model: Query model.
         :param number_additional_docs: Number of additional documents to retrieve for each relevant document.
@@ -286,9 +286,9 @@ class Vespa(object):
         """
 
         training_data = []
-        number_queries = len(labelled_data)
+        number_queries = len(labeled_data)
         idx_total = 0
-        for query_idx, query_data in enumerate(labelled_data):
+        for query_idx, query_data in enumerate(labeled_data):
             number_relevant_docs = len(query_data["relevant_docs"])
             for doc_idx, doc_data in enumerate(query_data["relevant_docs"]):
                 idx_total += 1
@@ -356,7 +356,7 @@ class Vespa(object):
 
     def evaluate(
         self,
-        labelled_data: List[Dict],
+        labeled_data: List[Dict],
         eval_metrics: List[EvalMetric],
         query_model: Query,
         id_field: str,
@@ -365,7 +365,7 @@ class Vespa(object):
     ) -> DataFrame:
         """
 
-        :param labelled_data: Labelled data containing query, query_id and relevant ids.
+        :param labeled_data: Labelled data containing query, query_id and relevant ids.
         :param eval_metrics: A list of evaluation metrics.
         :param query_model: Query model.
         :param id_field: The Vespa field representing the document id.
@@ -374,7 +374,7 @@ class Vespa(object):
         :return: DataFrame containing query_id and metrics according to the selected evaluation metrics.
         """
         evaluation = []
-        for query_data in labelled_data:
+        for query_data in labeled_data:
             evaluation_query = self.evaluate_query(
                 eval_metrics=eval_metrics,
                 query_model=query_model,

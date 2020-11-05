@@ -40,7 +40,7 @@ class TestRunningInstance(unittest.TestCase):
         #
         # Define labelled data
         #
-        labelled_data = [
+        labeled_data = [
             {
                 "query_id": 0,
                 "query": "Intrauterine virus infections and congenital heart disease",
@@ -56,7 +56,7 @@ class TestRunningInstance(unittest.TestCase):
         # Collect training data
         #
         training_data_batch = app.collect_training_data(
-            labelled_data=labelled_data,
+            labeled_data=labeled_data,
             id_field="id",
             query_model=query_model,
             number_additional_docs=2,
@@ -76,7 +76,7 @@ class TestRunningInstance(unittest.TestCase):
         #
         eval_metrics = [MatchRatio(), Recall(at=10), ReciprocalRank(at=10)]
         evaluation = app.evaluate(
-            labelled_data=labelled_data,
+            labeled_data=labeled_data,
             eval_metrics=eval_metrics,
             query_model=query_model,
             id_field="id",
