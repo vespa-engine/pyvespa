@@ -1,9 +1,10 @@
 import unittest
 
 from random import random
+from pandas import DataFrame
 
 from vespa.application import Vespa
-from vespa.query import Union, WeakAnd, ANN, Query, RankProfile as Ranking
+from vespa.query import Union, WeakAnd, ANN, Query, OR, RankProfile as Ranking
 from vespa.evaluation import MatchRatio, Recall, ReciprocalRank
 
 
@@ -82,3 +83,50 @@ class TestRunningInstance(unittest.TestCase):
             id_field="id",
         )
         self.assertEqual(evaluation.shape, (2, 6))
+
+    def test_collect_training_data(self):
+        app = Vespa(url="https://api.cord19.vespa.ai")
+        query_model = Query(
+            match_phase=OR(), rank_profile=Ranking(name="bm25", list_features=True)
+        )
+        labeled_data = [
+            {
+                "query_id": 0,
+                "query": "Intrauterine virus infections and congenital heart disease",
+                "relevant_docs": [{"id": 0, "score": 1}, {"id": 3, "score": 1}],
+            },
+            {
+                "query_id": 1,
+                "query": "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus",
+                "relevant_docs": [{"id": 1, "score": 1}, {"id": 5, "score": 1}],
+            },
+        ]
+        training_data_batch = app.collect_training_data(
+            labeled_data=labeled_data,
+            id_field="id",
+            query_model=query_model,
+            number_additional_docs=2,
+            fields=["rankfeatures"],
+        )
+        self.assertEqual(training_data_batch.shape[0], 12)
+        # It should have at least one rank feature in addition to document_id, query_id and	label
+        self.assertTrue(training_data_batch.shape[1] > 3)
+
+        training_data = []
+        for query_data in labeled_data:
+            for doc_data in query_data["relevant_docs"]:
+                training_data_point = app.collect_training_data_point(
+                    query=query_data["query"],
+                    query_id=query_data["query_id"],
+                    relevant_id=doc_data["id"],
+                    id_field="id",
+                    query_model=query_model,
+                    number_additional_docs=2,
+                    fields=["rankfeatures"],
+                )
+                training_data.extend(training_data_point)
+        training_data = DataFrame.from_records(training_data)
+
+        self.assertEqual(training_data.shape[0], 12)
+        # It should have at least one rank feature in addition to document_id, query_id and	label
+        self.assertTrue(training_data.shape[1] > 3)
