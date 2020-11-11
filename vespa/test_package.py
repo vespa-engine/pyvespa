@@ -241,3 +241,13 @@ class TestApplicationPackage(unittest.TestCase):
         )
 
         self.assertEqual(self.app_package.services_to_text, expected_result)
+
+    def test_query_profile_to_text(self):
+        expected_result = (
+            '<query-profile id="default" type="root">\n' "</query-profile>"
+        )
+        self.assertEqual(self.app_package.query_profile_to_text, expected_result)
+
+    def test_query_profile_type_to_text(self):
+        expected_result = '<query-profile-type id="root">\n' "</query-profile-type>"
+        self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)

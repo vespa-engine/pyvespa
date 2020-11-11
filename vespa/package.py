@@ -329,6 +329,36 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         )
 
     @property
+    def query_profile_to_text(self):
+        env = Environment(
+            loader=PackageLoader("vespa", "templates"),
+            autoescape=select_autoescape(
+                disabled_extensions=("txt",),
+                default_for_string=True,
+                default=True,
+            ),
+        )
+        env.trim_blocks = True
+        env.lstrip_blocks = True
+        schema_template = env.get_template("query_profile.xml")
+        return schema_template.render()
+
+    @property
+    def query_profile_type_to_text(self):
+        env = Environment(
+            loader=PackageLoader("vespa", "templates"),
+            autoescape=select_autoescape(
+                disabled_extensions=("txt",),
+                default_for_string=True,
+                default=True,
+            ),
+        )
+        env.trim_blocks = True
+        env.lstrip_blocks = True
+        schema_template = env.get_template("query_profile_type.xml")
+        return schema_template.render()
+
+    @property
     def hosts_to_text(self):
         env = Environment(
             loader=PackageLoader("vespa", "templates"),
