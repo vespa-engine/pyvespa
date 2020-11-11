@@ -251,3 +251,14 @@ class TestApplicationPackage(unittest.TestCase):
     def test_query_profile_type_to_text(self):
         expected_result = '<query-profile-type id="root">\n' "</query-profile-type>"
         self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)
+
+    def test_add_query_profile_type_fields_to_text(self):
+        self.app_package.add_query_profile_type_field(
+            name="ranking.features.query(query_bert)", type="tensor<float>(x[768])"
+        )
+        expected_result = (
+            '<query-profile-type id="root">\n'
+            '    <field name="ranking.features.query(query_bert)" type="tensor&lt;float&gt;(x[768])" />\n'
+            "</query-profile-type>"
+        )
+        self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)

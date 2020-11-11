@@ -306,6 +306,10 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         """
         self.name = name
         self.schema = schema
+        self.query_profile_type_fields = []
+
+    def add_query_profile_type_field(self, name, type):
+        self.query_profile_type_fields.append({"name": name, "type": type})
 
     @property
     def schema_to_text(self):
@@ -356,7 +360,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         env.trim_blocks = True
         env.lstrip_blocks = True
         schema_template = env.get_template("query_profile_type.xml")
-        return schema_template.render()
+        return schema_template.render(fields=self.query_profile_type_fields)
 
     @property
     def hosts_to_text(self):
