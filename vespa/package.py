@@ -755,6 +755,14 @@ class VespaCloud(object):
                 self.application_package.schema_to_text,
             )
             zip_archive.writestr(
+                "application/search/query-profiles/default.xml",
+                self.application_package.query_profile_to_text,
+            )
+            zip_archive.writestr(
+                "application/search/query-profiles/types/root.xml",
+                self.application_package.query_profile_type_to_text,
+            )
+            zip_archive.writestr(
                 "application/services.xml", self.application_package.services_to_text
             )
             zip_archive.writestr(
