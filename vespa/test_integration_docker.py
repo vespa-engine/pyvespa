@@ -138,7 +138,7 @@ class TestDockerDeployment(unittest.TestCase):
         )
 
     def test_data_operations(self):
-        self.vespa_docker = VespaDocker()
+        self.vespa_docker = VespaDocker(port=8089)
         app = self.vespa_docker.deploy(
             application_package=self.app_package, disk_folder=self.disk_folder
         )
