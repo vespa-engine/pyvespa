@@ -488,6 +488,26 @@ class VespaDocker(object):
             "w",
         ) as f:
             f.write(application_package.schema_to_text)
+
+        Path(os.path.join(dir_path, "application/search/query-profiles/types")).mkdir(
+            parents=True, exist_ok=True
+        )
+        with open(
+            os.path.join(
+                dir_path,
+                "application/search/query-profiles/default.xml",
+            ),
+            "w",
+        ) as f:
+            f.write(application_package.query_profile_to_text)
+        with open(
+            os.path.join(
+                dir_path,
+                "application/search/query-profiles/types/root.xml",
+            ),
+            "w",
+        ) as f:
+            f.write(application_package.query_profile_type_to_text)
         with open(os.path.join(dir_path, "application/hosts.xml"), "w") as f:
             f.write(application_package.hosts_to_text)
         with open(os.path.join(dir_path, "application/services.xml"), "w") as f:
