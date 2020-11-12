@@ -61,6 +61,7 @@ Use cases
 +++++++++
 
 - :doc:`use_cases/cord19/cord19`
+- :doc:`use_cases/msmarco/msmarco`
 
 Indices and tables
 ==================
