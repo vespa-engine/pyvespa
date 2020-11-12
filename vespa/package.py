@@ -329,6 +329,36 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         )
 
     @property
+    def query_profile_to_text(self):
+        env = Environment(
+            loader=PackageLoader("vespa", "templates"),
+            autoescape=select_autoescape(
+                disabled_extensions=("txt",),
+                default_for_string=True,
+                default=True,
+            ),
+        )
+        env.trim_blocks = True
+        env.lstrip_blocks = True
+        schema_template = env.get_template("query_profile.xml")
+        return schema_template.render()
+
+    @property
+    def query_profile_type_to_text(self):
+        env = Environment(
+            loader=PackageLoader("vespa", "templates"),
+            autoescape=select_autoescape(
+                disabled_extensions=("txt",),
+                default_for_string=True,
+                default=True,
+            ),
+        )
+        env.trim_blocks = True
+        env.lstrip_blocks = True
+        schema_template = env.get_template("query_profile_type.xml")
+        return schema_template.render()
+
+    @property
     def hosts_to_text(self):
         env = Environment(
             loader=PackageLoader("vespa", "templates"),
@@ -458,6 +488,26 @@ class VespaDocker(object):
             "w",
         ) as f:
             f.write(application_package.schema_to_text)
+
+        Path(os.path.join(dir_path, "application/search/query-profiles/types")).mkdir(
+            parents=True, exist_ok=True
+        )
+        with open(
+            os.path.join(
+                dir_path,
+                "application/search/query-profiles/default.xml",
+            ),
+            "w",
+        ) as f:
+            f.write(application_package.query_profile_to_text)
+        with open(
+            os.path.join(
+                dir_path,
+                "application/search/query-profiles/types/root.xml",
+            ),
+            "w",
+        ) as f:
+            f.write(application_package.query_profile_type_to_text)
         with open(os.path.join(dir_path, "application/hosts.xml"), "w") as f:
             f.write(application_package.hosts_to_text)
         with open(os.path.join(dir_path, "application/services.xml"), "w") as f:
@@ -703,6 +753,14 @@ class VespaCloud(object):
                     self.application_package.schema.name
                 ),
                 self.application_package.schema_to_text,
+            )
+            zip_archive.writestr(
+                "application/search/query-profiles/default.xml",
+                self.application_package.query_profile_to_text,
+            )
+            zip_archive.writestr(
+                "application/search/query-profiles/types/root.xml",
+                self.application_package.query_profile_type_to_text,
             )
             zip_archive.writestr(
                 "application/services.xml", self.application_package.services_to_text
