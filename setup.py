@@ -33,6 +33,8 @@ setuptools.setup(
                 "vespa/templates/hosts.xml",
                 "vespa/templates/services.xml",
                 "vespa/templates/schema.txt",
+                "vespa/templates/query_profile.xml",
+                "vespa/templates/query_profile_type.xml",
             ],
         )
     ],
