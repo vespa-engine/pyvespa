@@ -13,6 +13,10 @@ jobs:
       script:
         - pip install -e .
         - travis_wait 30 pytest
+    - stage: run notebooks
+      script:
+        - pip install nbdev
+        - nbdev_test_nbs --fname docs/sphinx/source/create-and-deploy-vespa-docker.ipynb
     - stage: deploy test server
       if: branch = master AND type = push
       script: skip
