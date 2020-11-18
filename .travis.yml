@@ -17,8 +17,7 @@ jobs:
       script:
         - pip install notebook nbconvert
         - pip install -e .
-        - find docs -name '*.ipynb' -exec ls -alh {} +
-        #- jupyter nbconvert --to notebook --execute docs/sphinx/source/create-and-deploy-vespa-docker.ipynb
+        - find docs -name '*.ipynb' -exec jupyter nbconvert --to notebook --execute {} +
     - stage: deploy test server
       if: branch = master AND type = push
       script: skip
