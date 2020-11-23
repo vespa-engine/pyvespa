@@ -1,4 +1,7 @@
 language: python
+os:
+  - linux
+  - osx
 env:
   global:
     - WORK_DIR=/home/travis/build/vespa-engine/pyvespa
