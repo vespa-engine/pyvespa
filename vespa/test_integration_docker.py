@@ -137,13 +137,6 @@ class TestDockerDeployment(unittest.TestCase):
             any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
         )
 
-    def test_data_operations(self):
-        self.vespa_docker = VespaDocker(port=8089)
-        app = self.vespa_docker.deploy(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
-        print(app.get_data(schema="test", data_id="1"))
-
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_docker.container.stop()
