@@ -3,12 +3,25 @@
 import sys
 from typing import Optional, Dict, Tuple, List, IO
 from pandas import DataFrame
-from requests import post, delete, get, put
+from requests import Session
 from requests.models import Response
 from requests.exceptions import ConnectionError
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 
 from vespa.query import Query, VespaResult
 from vespa.evaluation import EvalMetric
+
+retry_strategy = Retry(
+    total=3,
+    backoff_factor=1,
+    status_forcelist=[429, 500, 502, 503, 504],
+    method_whitelist=["POST", "GET", "DELETE", "PUT"],
+)
+adapter = HTTPAdapter(max_retries=retry_strategy)
+http = Session()
+http.mount("https://", adapter)
+http.mount("http://", adapter)
 
 
 class Vespa(object):
@@ -60,7 +73,7 @@ class Vespa(object):
         """
         end_point = "{}/ApplicationStatus".format(self.end_point)
         try:
-            response = get(end_point, cert=self.cert)
+            response = http.get(end_point, cert=self.cert)
         except ConnectionError:
             response = None
         return response
@@ -109,7 +122,7 @@ class Vespa(object):
         if debug_request:
             return VespaResult(vespa_result={}, request_body=body)
         else:
-            r = post(self.search_end_point, json=body, cert=self.cert)
+            r = http.post(self.search_end_point, json=body, cert=self.cert)
             return VespaResult(vespa_result=r.json())
 
     def feed_data_point(self, schema: str, data_id: str, fields: Dict) -> Response:
@@ -125,7 +138,7 @@ class Vespa(object):
             self.end_point, schema, schema, str(data_id)
         )
         vespa_format = {"fields": fields}
-        response = post(end_point, json=vespa_format, cert=self.cert)
+        response = http.post(end_point, json=vespa_format, cert=self.cert)
         return response
 
     def delete_data(self, schema: str, data_id: str) -> Response:
@@ -139,7 +152,7 @@ class Vespa(object):
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
             self.end_point, schema, schema, str(data_id)
         )
-        response = delete(end_point, cert=self.cert)
+        response = http.delete(end_point, cert=self.cert)
         return response
 
     def get_data(self, schema: str, data_id: str) -> Response:
@@ -153,7 +166,7 @@ class Vespa(object):
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
             self.end_point, schema, schema, str(data_id)
         )
-        response = get(end_point, cert=self.cert)
+        response = http.get(end_point, cert=self.cert)
         return response
 
     def update_data(self, schema: str, data_id: str, fields: Dict) -> Response:
@@ -170,7 +183,7 @@ class Vespa(object):
         )
 
         vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
-        response = put(end_point, json=vespa_format, cert=self.cert)
+        response = http.put(end_point, json=vespa_format, cert=self.cert)
         return response
 
     @staticmethod
