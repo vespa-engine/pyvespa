@@ -19,6 +19,7 @@ jobs:
         - pip install -e .
         - pip install -r docs/sphinx/source/notebook_requirements.txt
         - find docs -name '*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=600 --execute {} +
+        - find docs -name '*.nbconvert.ipynb' -exec rm {} +
     - stage: deploy test server
       if: branch = master AND type = push
       script: skip
