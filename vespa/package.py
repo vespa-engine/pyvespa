@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from time import sleep, strftime, gmtime
-from typing import List, Mapping, Optional, IO
+from typing import List, Mapping, Optional, IO, Union
 
 import docker
 from cryptography import x509
@@ -308,6 +308,169 @@ class Schema(ToJson, FromJson["Schema"]):
                 if self.rank_profiles
                 else None
             ),
+        )
+
+
+class QueryTypeField(ToJson, FromJson["QueryTypeField"]):
+    def __init__(
+        self,
+        name: str,
+        type: str,
+    ) -> None:
+        """
+        Object representing a Query Profile Type field.
+
+        :param name: Field name.
+        :param type: Field type.
+        """
+        self.name = name
+        self.type = type
+
+    @staticmethod
+    def from_dict(mapping: Mapping) -> "QueryTypeField":
+        return QueryTypeField(
+            name=mapping["name"],
+            type=mapping["type"],
+        )
+
+    @property
+    def to_dict(self) -> Mapping:
+        map = {"name": self.name, "type": self.type}
+        return map
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return self.name == other.name and self.type == other.type
+
+    def __repr__(self):
+        return "{0}({1}, {2})".format(
+            self.__class__.__name__,
+            repr(self.name),
+            repr(self.type),
+        )
+
+
+class QueryProfileType(ToJson, FromJson["QueryProfileType"]):
+    def __init__(self, fields: Optional[List[QueryTypeField]] = None) -> None:
+        """
+        Object representing a Query Profile Type.
+
+        :param fields: Query type fields.
+        """
+        self.name = "root"
+        self.fields = [] if not fields else fields
+
+    def add_fields(self, *fields: QueryTypeField) -> None:
+        """
+        Add QueryTypeField's to the Query Profile Type.
+
+        :param fields: fields to be added
+        :return:
+        """
+        self.fields.extend(fields)
+
+    @staticmethod
+    def from_dict(mapping: Mapping) -> "QueryProfileType":
+        return QueryProfileType(
+            fields=[FromJson.map(field) for field in mapping.get("fields")]
+        )
+
+    @property
+    def to_dict(self) -> Mapping:
+        map = {"fields": [field.to_envelope for field in self.fields]}
+        return map
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return self.fields == other.fields
+
+    def __repr__(self):
+        return "{0}({1})".format(
+            self.__class__.__name__, repr(self.fields) if self.fields else None
+        )
+
+
+class QueryField(ToJson, FromJson["QueryField"]):
+    def __init__(
+        self,
+        name: str,
+        value: Union[str, int, float],
+    ) -> None:
+        """
+        Object representing a Query Profile field.
+
+        :param name: Field name.
+        :param value: Field value.
+        """
+        self.name = name
+        self.value = value
+
+    @staticmethod
+    def from_dict(mapping: Mapping) -> "QueryField":
+        return QueryField(
+            name=mapping["name"],
+            value=mapping["value"],
+        )
+
+    @property
+    def to_dict(self) -> Mapping:
+        map = {"name": self.name, "value": self.value}
+        return map
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return self.name == other.name and self.value == other.value
+
+    def __repr__(self):
+        return "{0}({1}, {2})".format(
+            self.__class__.__name__,
+            repr(self.name),
+            repr(self.value),
+        )
+
+
+class QueryProfile(ToJson, FromJson["QueryProfile"]):
+    def __init__(self, fields: Optional[List[QueryField]] = None) -> None:
+        """
+        Object representing a Query Profile.
+
+        :param fields: Query fields.
+        """
+        self.name = "default"
+        self.type = "root"
+        self.fields = [] if not fields else fields
+
+    def add_fields(self, *fields: QueryField) -> None:
+        """
+        Add QueryField's to the Query Profile.
+
+        :param fields: fields to be added
+        :return:
+        """
+        self.fields.extend(fields)
+
+    @staticmethod
+    def from_dict(mapping: Mapping) -> "QueryProfile":
+        return QueryProfile(
+            fields=[FromJson.map(field) for field in mapping.get("fields")]
+        )
+
+    @property
+    def to_dict(self) -> Mapping:
+        map = {"fields": [field.to_envelope for field in self.fields]}
+        return map
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return self.fields == other.fields
+
+    def __repr__(self):
+        return "{0}({1})".format(
+            self.__class__.__name__, repr(self.fields) if self.fields else None
         )
 
 

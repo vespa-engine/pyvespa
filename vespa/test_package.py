@@ -6,6 +6,10 @@ from vespa.package import (
     FieldSet,
     RankProfile,
     Schema,
+    QueryTypeField,
+    QueryProfileType,
+    QueryField,
+    QueryProfile,
     ApplicationPackage,
 )
 
@@ -135,6 +139,88 @@ class TestSchema(unittest.TestCase):
                 "default": RankProfile(name="default", first_phase="NativeRank(title)"),
             },
         )
+
+
+class TestQueryTypeField(unittest.TestCase):
+    def test_field_name_type(self):
+        field = QueryTypeField(name="test_name", type="string")
+        self.assertEqual(field.name, "test_name")
+        self.assertEqual(field.type, "string")
+        self.assertEqual(field.to_dict, {"name": "test_name", "type": "string"})
+        self.assertEqual(field, QueryTypeField(name="test_name", type="string"))
+        self.assertEqual(field, QueryTypeField.from_dict(field.to_dict))
+
+
+class TestQueryProfileType(unittest.TestCase):
+    def test_empty(self):
+        query_profile_type = QueryProfileType()
+        self.assertEqual(query_profile_type.fields, [])
+        self.assertEqual(query_profile_type.to_dict, {"fields": []})
+        self.assertEqual(
+            query_profile_type, QueryProfileType.from_dict(query_profile_type.to_dict)
+        )
+
+    def test_one_field(self):
+        query_profile_type = QueryProfileType()
+        field = QueryTypeField(name="test_name", type="string")
+        query_profile_type.add_fields(field)
+        self.assertEqual(query_profile_type.fields, [field])
+        self.assertEqual(
+            query_profile_type, QueryProfileType.from_dict(query_profile_type.to_dict)
+        )
+        self.assertEqual(query_profile_type, QueryProfileType([field]))
+
+    def test_two_fields(self):
+        query_profile_type = QueryProfileType()
+        field_1 = QueryTypeField(name="test_name", type="string")
+        field_2 = QueryTypeField(
+            name="test_name_2",
+            type="string",
+        )
+        query_profile_type.add_fields(field_1, field_2)
+        self.assertEqual(query_profile_type.fields, [field_1, field_2])
+        self.assertEqual(
+            query_profile_type, QueryProfileType.from_dict(query_profile_type.to_dict)
+        )
+        self.assertEqual(query_profile_type, QueryProfileType([field_1, field_2]))
+
+
+class TestQueryField(unittest.TestCase):
+    def test_field_name_type(self):
+        field = QueryField(name="test_name", value=1)
+        self.assertEqual(field.name, "test_name")
+        self.assertEqual(field.value, 1)
+        self.assertEqual(field.to_dict, {"name": "test_name", "value": 1})
+        self.assertEqual(field, QueryField(name="test_name", value=1))
+        self.assertEqual(field, QueryField.from_dict(field.to_dict))
+
+
+class TestQueryProfile(unittest.TestCase):
+    def test_empty(self):
+        query_profile = QueryProfile()
+        self.assertEqual(query_profile.fields, [])
+        self.assertEqual(query_profile.to_dict, {"fields": []})
+        self.assertEqual(query_profile, QueryProfile.from_dict(query_profile.to_dict))
+
+    def test_one_field(self):
+        query_profile = QueryProfile()
+        field = QueryField(name="test_name", value=2.0)
+        query_profile.add_fields(field)
+        self.assertEqual(query_profile.fields, [field])
+        self.assertEqual(query_profile, QueryProfile.from_dict(query_profile.to_dict))
+        self.assertEqual(query_profile, QueryProfile([field]))
+
+    def test_two_fields(self):
+        query_profile = QueryProfile()
+        field_1 = QueryField(name="test_name", value=2.0)
+        field_2 = QueryField(
+            name="test_name_2",
+            value="string",
+        )
+        query_profile.add_fields(field_1, field_2)
+        self.assertEqual(query_profile.fields, [field_1, field_2])
+        self.assertEqual(query_profile, QueryProfile.from_dict(query_profile.to_dict))
+        self.assertEqual(query_profile, QueryProfile([field_1, field_2]))
 
 
 class TestApplicationPackage(unittest.TestCase):
