@@ -251,3 +251,119 @@ class TestApplicationPackage(unittest.TestCase):
     def test_query_profile_type_to_text(self):
         expected_result = '<query-profile-type id="root">\n' "</query-profile-type>"
         self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)
+
+
+class TestSimplifiedApplicationPackage(unittest.TestCase):
+    def setUp(self) -> None:
+        self.app_package = ApplicationPackage(name="test_app")
+
+        self.app_package.schema.add_fields(
+            Field(name="id", type="string", indexing=["attribute", "summary"]),
+            Field(
+                name="title",
+                type="string",
+                indexing=["index", "summary"],
+                index="enable-bm25",
+            ),
+            Field(
+                name="body",
+                type="string",
+                indexing=["index", "summary"],
+                index="enable-bm25",
+            ),
+        )
+        self.app_package.schema.add_field_set(
+            FieldSet(name="default", fields=["title", "body"])
+        )
+        self.app_package.schema.add_rank_profile(
+            RankProfile(name="default", first_phase="nativeRank(title, body)")
+        )
+        self.app_package.schema.add_rank_profile(
+            RankProfile(
+                name="bm25",
+                first_phase="bm25(title) + bm25(body)",
+                inherits="default",
+            )
+        )
+
+    def test_application_package(self):
+        self.assertEqual(
+            self.app_package, ApplicationPackage.from_dict(self.app_package.to_dict)
+        )
+
+    def test_schema_to_text(self):
+        expected_result = (
+            "schema default {\n"
+            "    document default {\n"
+            "        field id type string {\n"
+            "            indexing: attribute | summary\n"
+            "        }\n"
+            "        field title type string {\n"
+            "            indexing: index | summary\n"
+            "            index: enable-bm25\n"
+            "        }\n"
+            "        field body type string {\n"
+            "            indexing: index | summary\n"
+            "            index: enable-bm25\n"
+            "        }\n"
+            "    }\n"
+            "    fieldset default {\n"
+            "        fields: title, body\n"
+            "    }\n"
+            "    rank-profile default {\n"
+            "        first-phase {\n"
+            "            expression: nativeRank(title, body)\n"
+            "        }\n"
+            "    }\n"
+            "    rank-profile bm25 inherits default {\n"
+            "        first-phase {\n"
+            "            expression: bm25(title) + bm25(body)\n"
+            "        }\n"
+            "    }\n"
+            "}"
+        )
+        self.assertEqual(self.app_package.schema_to_text, expected_result)
+
+    def test_hosts_to_text(self):
+        expected_result = (
+            '<?xml version="1.0" encoding="utf-8" ?>\n'
+            "<!-- Copyright 2019 Oath Inc. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->\n"
+            "<hosts>\n"
+            '    <host name="localhost">\n'
+            "        <alias>node1</alias>\n"
+            "    </host>\n"
+            "</hosts>"
+        )
+        self.assertEqual(self.app_package.hosts_to_text, expected_result)
+
+    def test_services_to_text(self):
+        expected_result = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<services version="1.0">\n'
+            '    <container id="test_app_container" version="1.0">\n'
+            "        <search></search>\n"
+            "        <document-api></document-api>\n"
+            "    </container>\n"
+            '    <content id="test_app_content" version="1.0">\n'
+            '        <redundancy reply-after="1">1</redundancy>\n'
+            "        <documents>\n"
+            '            <document type="default" mode="index"></document>\n'
+            "        </documents>\n"
+            "        <nodes>\n"
+            '            <node distribution-key="0" hostalias="node1"></node>\n'
+            "        </nodes>\n"
+            "    </content>\n"
+            "</services>"
+        )
+
+        self.assertEqual(self.app_package.services_to_text, expected_result)
+
+    def test_query_profile_to_text(self):
+        expected_result = (
+            '<query-profile id="default" type="root">\n' "</query-profile>"
+        )
+        self.assertEqual(self.app_package.query_profile_to_text, expected_result)
+
+    def test_query_profile_type_to_text(self):
+        expected_result = '<query-profile-type id="root">\n' "</query-profile-type>"
+        self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)

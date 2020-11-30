@@ -95,7 +95,7 @@ class Document(ToJson, FromJson["Document"]):
         """
         self.fields = [] if not fields else fields
 
-    def add_fields(self, *fields: Field):
+    def add_fields(self, *fields: Field) -> None:
         """
         Add Fields to the document.
 
@@ -236,6 +236,21 @@ class Schema(ToJson, FromJson["Schema"]):
                 rank_profile.name: rank_profile for rank_profile in rank_profiles
             }
 
+    def add_fields(self, *fields: Field) -> None:
+        """
+        Add `Field` to the Schema's document.
+
+        :param fields: fields to be added.
+        """
+        self.document.add_fields(*fields)
+
+    def add_field_set(self, field_set: FieldSet) -> None:
+        """
+        Add a `FieldSet` to the `Schema`.
+        :param field_set: `FieldSet` to be added.
+        """
+        self.fieldsets[field_set.name] = field_set
+
     def add_rank_profile(self, rank_profile: RankProfile) -> None:
         """
         Add a `RankProfile` to the `Schema`.
@@ -297,14 +312,16 @@ class Schema(ToJson, FromJson["Schema"]):
 
 
 class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
-    def __init__(self, name: str, schema: Schema) -> None:
+    def __init__(self, name: str, schema: Optional[Schema] = None) -> None:
         """
         Vespa Application Package.
 
         :param name: Application name.
-        :param schema: Schema of the application.
+        :param schema: Schema of the application. If None, a 'default' Schema will be created by default.
         """
         self.name = name
+        if not schema:
+            schema = Schema(name="default", document=Document())
         self.schema = schema
 
     @property
