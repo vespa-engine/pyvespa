@@ -293,8 +293,8 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
 
     def test_schema_to_text(self):
         expected_result = (
-            "schema default {\n"
-            "    document default {\n"
+            "schema test_app {\n"
+            "    document test_app {\n"
             "        field id type string {\n"
             "            indexing: attribute | summary\n"
             "        }\n"
@@ -347,7 +347,7 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
             '    <content id="test_app_content" version="1.0">\n'
             '        <redundancy reply-after="1">1</redundancy>\n'
             "        <documents>\n"
-            '            <document type="default" mode="index"></document>\n'
+            '            <document type="test_app" mode="index"></document>\n'
             "        </documents>\n"
             "        <nodes>\n"
             '            <node distribution-key="0" hostalias="node1"></node>\n'

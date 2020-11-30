@@ -321,7 +321,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         """
         self.name = name
         if not schema:
-            schema = Schema(name="default", document=Document())
+            schema = Schema(name=self.name, document=Document())
         self.schema = schema
 
     @property
