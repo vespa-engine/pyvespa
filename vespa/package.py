@@ -475,17 +475,32 @@ class QueryProfile(ToJson, FromJson["QueryProfile"]):
 
 
 class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
-    def __init__(self, name: str, schema: Optional[Schema] = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        schema: Optional[Schema] = None,
+        query_profile: Optional[QueryProfile] = None,
+        query_profile_type: Optional[QueryProfileType] = None,
+    ) -> None:
         """
         Vespa Application Package.
 
         :param name: Application name.
-        :param schema: Schema of the application. If None, a 'default' Schema will be created by default.
+        :param schema: Schema of the application. If None, a Schema will be created by default.
+        :param query_profile: Query Profile of the application. If None, a QueryProfile will be created by default.
+        :param query_profile_type: Query Profile Type of the application. If None, a QueryProfileType will be
+            created by default.
         """
         self.name = name
         if not schema:
             schema = Schema(name=self.name, document=Document())
         self.schema = schema
+        if not query_profile:
+            query_profile = QueryProfile()
+        self.query_profile = query_profile
+        if not query_profile_type:
+            query_profile_type = QueryProfileType()
+        self.query_profile_type = query_profile_type
 
     @property
     def schema_to_text(self):
