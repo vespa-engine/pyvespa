@@ -535,8 +535,8 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         )
         env.trim_blocks = True
         env.lstrip_blocks = True
-        schema_template = env.get_template("query_profile.xml")
-        return schema_template.render()
+        query_profile_template = env.get_template("query_profile.xml")
+        return query_profile_template.render(fields=self.query_profile.fields)
 
     @property
     def query_profile_type_to_text(self):
@@ -550,8 +550,8 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         )
         env.trim_blocks = True
         env.lstrip_blocks = True
-        schema_template = env.get_template("query_profile_type.xml")
-        return schema_template.render()
+        query_profile_type_template = env.get_template("query_profile_type.xml")
+        return query_profile_type_template.render(fields=self.query_profile_type.fields)
 
     @property
     def hosts_to_text(self):
