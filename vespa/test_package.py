@@ -254,7 +254,26 @@ class TestApplicationPackage(unittest.TestCase):
                 ),
             ],
         )
-        self.app_package = ApplicationPackage(name="test_app", schema=test_schema)
+        test_query_profile_type = QueryProfileType(
+            fields=[
+                QueryTypeField(
+                    name="ranking.features.query(query_bert)",
+                    type="tensor<float>(x[768])",
+                )
+            ]
+        )
+        test_query_profile = QueryProfile(
+            fields=[
+                QueryField(name="maxHits", value=100),
+                QueryField(name="anotherField", value="string_value"),
+            ]
+        )
+        self.app_package = ApplicationPackage(
+            name="test_app",
+            schema=test_schema,
+            query_profile=test_query_profile,
+            query_profile_type=test_query_profile_type,
+        )
 
     def test_application_package(self):
         self.assertEqual(
@@ -330,12 +349,20 @@ class TestApplicationPackage(unittest.TestCase):
 
     def test_query_profile_to_text(self):
         expected_result = (
-            '<query-profile id="default" type="root">\n' "</query-profile>"
+            '<query-profile id="default" type="root">\n'
+            '    <field name="maxHits">100</field>\n'
+            '    <field name="anotherField">string_value</field>\n'
+            "</query-profile>"
         )
+
         self.assertEqual(self.app_package.query_profile_to_text, expected_result)
 
     def test_query_profile_type_to_text(self):
-        expected_result = '<query-profile-type id="root">\n' "</query-profile-type>"
+        expected_result = (
+            '<query-profile-type id="root">\n'
+            '    <field name="ranking.features.query(query_bert)" type="tensor&lt;float&gt;(x[768])" />\n'
+            "</query-profile-type>"
+        )
         self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)
 
 
@@ -370,6 +397,16 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
                 first_phase="bm25(title) + bm25(body)",
                 inherits="default",
             )
+        )
+        self.app_package.query_profile_type.add_fields(
+            QueryTypeField(
+                name="ranking.features.query(query_bert)",
+                type="tensor<float>(x[768])",
+            )
+        )
+        self.app_package.query_profile.add_fields(
+            QueryField(name="maxHits", value=100),
+            QueryField(name="anotherField", value="string_value"),
         )
 
     def test_application_package(self):
@@ -446,10 +483,18 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
 
     def test_query_profile_to_text(self):
         expected_result = (
-            '<query-profile id="default" type="root">\n' "</query-profile>"
+            '<query-profile id="default" type="root">\n'
+            '    <field name="maxHits">100</field>\n'
+            '    <field name="anotherField">string_value</field>\n'
+            "</query-profile>"
         )
+
         self.assertEqual(self.app_package.query_profile_to_text, expected_result)
 
     def test_query_profile_type_to_text(self):
-        expected_result = '<query-profile-type id="root">\n' "</query-profile-type>"
+        expected_result = (
+            '<query-profile-type id="root">\n'
+            '    <field name="ranking.features.query(query_bert)" type="tensor&lt;float&gt;(x[768])" />\n'
+            "</query-profile-type>"
+        )
         self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)
