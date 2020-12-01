@@ -6,6 +6,10 @@ from vespa.package import (
     FieldSet,
     RankProfile,
     Schema,
+    QueryTypeField,
+    QueryProfileType,
+    QueryField,
+    QueryProfile,
     ApplicationPackage,
 )
 
@@ -137,6 +141,88 @@ class TestSchema(unittest.TestCase):
         )
 
 
+class TestQueryTypeField(unittest.TestCase):
+    def test_field_name_type(self):
+        field = QueryTypeField(name="test_name", type="string")
+        self.assertEqual(field.name, "test_name")
+        self.assertEqual(field.type, "string")
+        self.assertEqual(field.to_dict, {"name": "test_name", "type": "string"})
+        self.assertEqual(field, QueryTypeField(name="test_name", type="string"))
+        self.assertEqual(field, QueryTypeField.from_dict(field.to_dict))
+
+
+class TestQueryProfileType(unittest.TestCase):
+    def test_empty(self):
+        query_profile_type = QueryProfileType()
+        self.assertEqual(query_profile_type.fields, [])
+        self.assertEqual(query_profile_type.to_dict, {"fields": []})
+        self.assertEqual(
+            query_profile_type, QueryProfileType.from_dict(query_profile_type.to_dict)
+        )
+
+    def test_one_field(self):
+        query_profile_type = QueryProfileType()
+        field = QueryTypeField(name="test_name", type="string")
+        query_profile_type.add_fields(field)
+        self.assertEqual(query_profile_type.fields, [field])
+        self.assertEqual(
+            query_profile_type, QueryProfileType.from_dict(query_profile_type.to_dict)
+        )
+        self.assertEqual(query_profile_type, QueryProfileType([field]))
+
+    def test_two_fields(self):
+        query_profile_type = QueryProfileType()
+        field_1 = QueryTypeField(name="test_name", type="string")
+        field_2 = QueryTypeField(
+            name="test_name_2",
+            type="string",
+        )
+        query_profile_type.add_fields(field_1, field_2)
+        self.assertEqual(query_profile_type.fields, [field_1, field_2])
+        self.assertEqual(
+            query_profile_type, QueryProfileType.from_dict(query_profile_type.to_dict)
+        )
+        self.assertEqual(query_profile_type, QueryProfileType([field_1, field_2]))
+
+
+class TestQueryField(unittest.TestCase):
+    def test_field_name_type(self):
+        field = QueryField(name="test_name", value=1)
+        self.assertEqual(field.name, "test_name")
+        self.assertEqual(field.value, 1)
+        self.assertEqual(field.to_dict, {"name": "test_name", "value": 1})
+        self.assertEqual(field, QueryField(name="test_name", value=1))
+        self.assertEqual(field, QueryField.from_dict(field.to_dict))
+
+
+class TestQueryProfile(unittest.TestCase):
+    def test_empty(self):
+        query_profile = QueryProfile()
+        self.assertEqual(query_profile.fields, [])
+        self.assertEqual(query_profile.to_dict, {"fields": []})
+        self.assertEqual(query_profile, QueryProfile.from_dict(query_profile.to_dict))
+
+    def test_one_field(self):
+        query_profile = QueryProfile()
+        field = QueryField(name="test_name", value=2.0)
+        query_profile.add_fields(field)
+        self.assertEqual(query_profile.fields, [field])
+        self.assertEqual(query_profile, QueryProfile.from_dict(query_profile.to_dict))
+        self.assertEqual(query_profile, QueryProfile([field]))
+
+    def test_two_fields(self):
+        query_profile = QueryProfile()
+        field_1 = QueryField(name="test_name", value=2.0)
+        field_2 = QueryField(
+            name="test_name_2",
+            value="string",
+        )
+        query_profile.add_fields(field_1, field_2)
+        self.assertEqual(query_profile.fields, [field_1, field_2])
+        self.assertEqual(query_profile, QueryProfile.from_dict(query_profile.to_dict))
+        self.assertEqual(query_profile, QueryProfile([field_1, field_2]))
+
+
 class TestApplicationPackage(unittest.TestCase):
     def setUp(self) -> None:
         test_schema = Schema(
@@ -168,7 +254,26 @@ class TestApplicationPackage(unittest.TestCase):
                 ),
             ],
         )
-        self.app_package = ApplicationPackage(name="test_app", schema=test_schema)
+        test_query_profile_type = QueryProfileType(
+            fields=[
+                QueryTypeField(
+                    name="ranking.features.query(query_bert)",
+                    type="tensor<float>(x[768])",
+                )
+            ]
+        )
+        test_query_profile = QueryProfile(
+            fields=[
+                QueryField(name="maxHits", value=100),
+                QueryField(name="anotherField", value="string_value"),
+            ]
+        )
+        self.app_package = ApplicationPackage(
+            name="test_app",
+            schema=test_schema,
+            query_profile=test_query_profile,
+            query_profile_type=test_query_profile_type,
+        )
 
     def test_application_package(self):
         self.assertEqual(
@@ -244,12 +349,20 @@ class TestApplicationPackage(unittest.TestCase):
 
     def test_query_profile_to_text(self):
         expected_result = (
-            '<query-profile id="default" type="root">\n' "</query-profile>"
+            '<query-profile id="default" type="root">\n'
+            '    <field name="maxHits">100</field>\n'
+            '    <field name="anotherField">string_value</field>\n'
+            "</query-profile>"
         )
+
         self.assertEqual(self.app_package.query_profile_to_text, expected_result)
 
     def test_query_profile_type_to_text(self):
-        expected_result = '<query-profile-type id="root">\n' "</query-profile-type>"
+        expected_result = (
+            '<query-profile-type id="root">\n'
+            '    <field name="ranking.features.query(query_bert)" type="tensor&lt;float&gt;(x[768])" />\n'
+            "</query-profile-type>"
+        )
         self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)
 
 
@@ -284,6 +397,16 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
                 first_phase="bm25(title) + bm25(body)",
                 inherits="default",
             )
+        )
+        self.app_package.query_profile_type.add_fields(
+            QueryTypeField(
+                name="ranking.features.query(query_bert)",
+                type="tensor<float>(x[768])",
+            )
+        )
+        self.app_package.query_profile.add_fields(
+            QueryField(name="maxHits", value=100),
+            QueryField(name="anotherField", value="string_value"),
         )
 
     def test_application_package(self):
@@ -360,10 +483,18 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
 
     def test_query_profile_to_text(self):
         expected_result = (
-            '<query-profile id="default" type="root">\n' "</query-profile>"
+            '<query-profile id="default" type="root">\n'
+            '    <field name="maxHits">100</field>\n'
+            '    <field name="anotherField">string_value</field>\n'
+            "</query-profile>"
         )
+
         self.assertEqual(self.app_package.query_profile_to_text, expected_result)
 
     def test_query_profile_type_to_text(self):
-        expected_result = '<query-profile-type id="root">\n' "</query-profile-type>"
+        expected_result = (
+            '<query-profile-type id="root">\n'
+            '    <field name="ranking.features.query(query_bert)" type="tensor&lt;float&gt;(x[768])" />\n'
+            "</query-profile-type>"
+        )
         self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)

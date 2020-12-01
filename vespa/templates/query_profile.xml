@@ -1,2 +1,5 @@
 <query-profile id="default" type="root">
+{% for field in fields %}
+    <field name="{{ field.name }}">{{ field.value }}</field>
+{% endfor %}
 </query-profile>
