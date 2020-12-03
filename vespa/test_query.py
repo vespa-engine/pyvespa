@@ -2,7 +2,7 @@
 
 import unittest
 
-from vespa.query import Query, OR, AND, WeakAnd, ANN, Union, RankProfile, VespaResult
+from vespa.query import QueryModel, OR, AND, WeakAnd, ANN, Union, RankProfile, VespaResult
 
 
 class TestMatchFilter(unittest.TestCase):
@@ -87,7 +87,7 @@ class TestQuery(unittest.TestCase):
         self.query = "this is  a test"
 
     def test_default(self):
-        query = Query()
+        query = QueryModel()
         self.assertDictEqual(
             query.create_body(query=self.query),
             {
@@ -97,7 +97,7 @@ class TestQuery(unittest.TestCase):
         )
 
     def test_match_and_rank(self):
-        query = Query(
+        query = QueryModel(
             match_phase=ANN(
                 doc_vector="doc_vector",
                 query_vector="query_vector",

@@ -9,7 +9,7 @@ from requests.exceptions import ConnectionError
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
-from vespa.query import Query, VespaResult
+from vespa.query import QueryModel, VespaResult
 from vespa.evaluation import EvalMetric
 
 retry_strategy = Retry(
@@ -82,7 +82,7 @@ class Vespa(object):
         self,
         body: Optional[Dict] = None,
         query: Optional[str] = None,
-        query_model: Optional[Query] = None,
+        query_model: Optional[QueryModel] = None,
         debug_request: bool = False,
         recall: Optional[Tuple] = None,
         **kwargs
@@ -218,7 +218,7 @@ class Vespa(object):
         query_id: str,
         relevant_id: str,
         id_field: str,
-        query_model: Query,
+        query_model: QueryModel,
         number_additional_docs: int,
         fields: List[str],
         relevant_score: int = 1,
@@ -275,7 +275,7 @@ class Vespa(object):
         self,
         labeled_data: List[Dict],
         id_field: str,
-        query_model: Query,
+        query_model: QueryModel,
         number_additional_docs: int,
         relevant_score: int = 1,
         default_score: int = 0,
@@ -335,7 +335,7 @@ class Vespa(object):
     def evaluate_query(
         self,
         eval_metrics: List[EvalMetric],
-        query_model: Query,
+        query_model: QueryModel,
         query_id: str,
         query: str,
         id_field: str,
@@ -371,7 +371,7 @@ class Vespa(object):
         self,
         labeled_data: List[Dict],
         eval_metrics: List[EvalMetric],
-        query_model: Query,
+        query_model: QueryModel,
         id_field: str,
         default_score: int = 0,
         **kwargs
