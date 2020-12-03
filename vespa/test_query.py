@@ -2,7 +2,31 @@
 
 import unittest
 
-from vespa.query import QueryModel, OR, AND, WeakAnd, ANN, Union, RankProfile, VespaResult
+from vespa.query import (
+    QueryModel,
+    QueryRankingFeature,
+    OR,
+    AND,
+    WeakAnd,
+    ANN,
+    Union,
+    RankProfile,
+    VespaResult,
+)
+
+
+class TestQueryProperty(unittest.TestCase):
+    def setUp(self) -> None:
+        self.query = "this is  a test"
+
+    def test_query_ranking_feature(self):
+        query_property = QueryRankingFeature(
+            name="query_vector", mapping=lambda x: [1, 2, 3]
+        )
+        self.assertDictEqual(
+            query_property.get_query_properties(query=self.query),
+            {"ranking.features.query(query_vector)": "[1, 2, 3]"},
+        )
 
 
 class TestMatchFilter(unittest.TestCase):
@@ -38,7 +62,6 @@ class TestMatchFilter(unittest.TestCase):
         match_filter = ANN(
             doc_vector="doc_vector",
             query_vector="query_vector",
-            embedding_model=lambda x: [1, 2, 3],
             hits=10,
             label="label",
         )
@@ -48,7 +71,7 @@ class TestMatchFilter(unittest.TestCase):
         )
         self.assertDictEqual(
             match_filter.get_query_properties(query=self.query),
-            {"ranking.features.query(query_vector)": "[1, 2, 3]"},
+            {},
         )
 
     def test_union(self):
@@ -57,7 +80,6 @@ class TestMatchFilter(unittest.TestCase):
             ANN(
                 doc_vector="doc_vector",
                 query_vector="query_vector",
-                embedding_model=lambda x: [1, 2, 3],
                 hits=10,
                 label="label",
             ),
@@ -71,7 +93,7 @@ class TestMatchFilter(unittest.TestCase):
         )
         self.assertDictEqual(
             match_filter.get_query_properties(query=self.query),
-            {"ranking.features.query(query_vector)": "[1, 2, 3]"},
+            {},
         )
 
 
@@ -96,19 +118,38 @@ class TestQuery(unittest.TestCase):
             },
         )
 
-    def test_match_and_rank(self):
-        query = QueryModel(
+    def test_query_properties_match_and_rank(self):
+
+        query_model = QueryModel(
+            query_properties=[
+                QueryRankingFeature(name="query_vector", mapping=lambda x: [1, 2, 3])
+            ],
+            match_phase=OR(),
+            rank_profile=RankProfile(name="bm25", list_features=True),
+        )
+        self.assertDictEqual(
+            query_model.create_body(query=self.query),
+            {
+                "yql": 'select * from sources * where ([{"grammar": "any"}]userInput("this is  a test"));',
+                "ranking": {"profile": "bm25", "listFeatures": "true"},
+                "ranking.features.query(query_vector)": "[1, 2, 3]",
+            },
+        )
+
+        query_model = QueryModel(
+            query_properties=[
+                QueryRankingFeature(name="query_vector", mapping=lambda x: [1, 2, 3])
+            ],
             match_phase=ANN(
                 doc_vector="doc_vector",
                 query_vector="query_vector",
-                embedding_model=lambda x: [1, 2, 3],
                 hits=10,
                 label="label",
             ),
             rank_profile=RankProfile(name="bm25", list_features=True),
         )
         self.assertDictEqual(
-            query.create_body(query=self.query),
+            query_model.create_body(query=self.query),
             {
                 "yql": 'select * from sources * where ([{"targetNumHits": 10, "label": "label"}]nearestNeighbor(doc_vector, query_vector));',
                 "ranking": {"profile": "bm25", "listFeatures": "true"},
