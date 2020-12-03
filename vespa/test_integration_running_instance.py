@@ -4,7 +4,15 @@ from random import random
 from pandas import DataFrame
 
 from vespa.application import Vespa
-from vespa.query import Union, WeakAnd, ANN, QueryModel, OR, RankProfile as Ranking
+from vespa.query import (
+    QueryRankingFeature,
+    Union,
+    WeakAnd,
+    ANN,
+    QueryModel,
+    OR,
+    RankProfile as Ranking,
+)
 from vespa.evaluation import MatchRatio, Recall, ReciprocalRank
 
 
@@ -22,13 +30,21 @@ class TestRunningInstance(unittest.TestCase):
             ANN(
                 doc_vector="title_embedding",
                 query_vector="title_vector",
-                embedding_model=lambda x: [random() for x in range(768)],
                 hits=10,
                 label="title",
             ),
         )
         rank_profile = Ranking(name="bm25", list_features=True)
-        query_model = QueryModel(match_phase=match_phase, rank_profile=rank_profile)
+        query_model = QueryModel(
+            query_properties=[
+                QueryRankingFeature(
+                    name="title_vector",
+                    mapping=lambda x: [random() for x in range(768)],
+                )
+            ],
+            match_phase=match_phase,
+            rank_profile=rank_profile,
+        )
         #
         # Query Vespa app
         #
