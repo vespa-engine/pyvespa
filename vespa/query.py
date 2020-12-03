@@ -4,6 +4,45 @@ from typing import Callable, List, Optional, Dict
 
 
 #
+# Query property
+#
+class QueryProperty(object):
+    """
+    Abstract class for query property.
+    """
+
+    def get_query_properties(self, query: Optional[str] = None) -> Dict:
+        """
+        Extract query property syntax.
+
+        :param query: Query input.
+        :return: dict containing the relevant request properties to be included in the query.
+        """
+        raise NotImplementedError
+
+
+class QueryRankingFeature(QueryProperty):
+    def __init__(
+        self,
+        name: str,
+        mapping: Callable[[str], List[float]],
+    ) -> None:
+        """
+        Include ranking.feature.query into a Vespa query.
+
+        :param name: Name of the feature.
+        :param mapping: Function mapping a string to a list of floats.
+        """
+        super().__init__()
+        self.name = name
+        self.mapping = mapping
+
+    def get_query_properties(self, query: Optional[str] = None) -> Dict[str, str]:
+        value = self.mapping(query)
+        return {"ranking.features.query({})".format(self.name): str(value)}
+
+
+#
 # Match phase
 #
 class MatchFilter(object):
@@ -88,7 +127,6 @@ class ANN(MatchFilter):
         self,
         doc_vector: str,
         query_vector: str,
-        embedding_model: Callable[[str], List[float]],
         hits: int,
         label: str,
     ) -> None:
@@ -99,29 +137,24 @@ class ANN(MatchFilter):
 
         :param doc_vector: Name of the document field to be used in the distance calculation.
         :param query_vector: Name of the query field to be used in the distance calculation.
-        :param embedding_model: Model that takes query str as input and return list of floats as output.
         :param hits: Lower bound on the number of hits to return.
         :param label: A label to identify this specific operator instance.
         """
         super().__init__()
         self.doc_vector = doc_vector
         self.query_vector = query_vector
-        self.embedding_model = embedding_model
         self.hits = hits
         self.label = label
 
     def create_match_filter(self, query: str) -> str:
-        return '([{{"targetNumHits": {}, "label": "{}"}}]nearestNeighbor({}, {}))'.format(
-            self.hits, self.label, self.doc_vector, self.query_vector
+        return (
+            '([{{"targetNumHits": {}, "label": "{}"}}]nearestNeighbor({}, {}))'.format(
+                self.hits, self.label, self.doc_vector, self.query_vector
+            )
         )
 
     def get_query_properties(self, query: Optional[str] = None) -> Dict[str, str]:
-        embedding_vector = self.embedding_model(query)
-        return {
-            "ranking.features.query({})".format(self.query_vector): str(
-                embedding_vector
-            )
-        }
+        return {}
 
 
 class Union(MatchFilter):
@@ -169,15 +202,18 @@ class RankProfile(object):
 class QueryModel(object):
     def __init__(
         self,
+        query_properties: Optional[List[QueryProperty]] = None,
         match_phase: MatchFilter = AND(),
         rank_profile: RankProfile = RankProfile(),
     ) -> None:
         """
         Define a query model.
 
+        :param query_properties: Optional list of QueryProperty.
         :param match_phase: Define the match criteria. One of the MatchFilter options available.
         :param rank_profile: Define the rank criteria.
         """
+        self.query_properties = query_properties if query_properties is not None else []
         self.match_phase = match_phase
         self.rank_profile = rank_profile
 
@@ -189,8 +225,12 @@ class QueryModel(object):
         :return: dict representing the request body.
         """
 
+        query_properties = {}
+        for query_property in self.query_properties:
+            query_properties.update(query_property.get_query_properties(query=query))
+        query_properties.update(self.match_phase.get_query_properties(query=query))
+
         match_filter = self.match_phase.create_match_filter(query=query)
-        query_properties = self.match_phase.get_query_properties(query=query)
 
         body = {
             "yql": "select * from sources * where {};".format(match_filter),
@@ -226,4 +266,6 @@ class VespaResult(object):
 
     @property
     def number_documents_indexed(self) -> int:
-        return self._vespa_result.get("root", {}).get("coverage", {}).get("documents", 0)
+        return (
+            self._vespa_result.get("root", {}).get("coverage", {}).get("documents", 0)
+        )
