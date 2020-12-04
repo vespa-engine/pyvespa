@@ -4,7 +4,7 @@ from random import random
 from pandas import DataFrame
 
 from vespa.application import Vespa
-from vespa.query import Union, WeakAnd, ANN, Query, OR, RankProfile as Ranking
+from vespa.query import Union, WeakAnd, ANN, QueryModel, OR, RankProfile as Ranking
 from vespa.evaluation import MatchRatio, Recall, ReciprocalRank
 
 
@@ -28,7 +28,7 @@ class TestRunningInstance(unittest.TestCase):
             ),
         )
         rank_profile = Ranking(name="bm25", list_features=True)
-        query_model = Query(match_phase=match_phase, rank_profile=rank_profile)
+        query_model = QueryModel(match_phase=match_phase, rank_profile=rank_profile)
         #
         # Query Vespa app
         #
@@ -86,7 +86,7 @@ class TestRunningInstance(unittest.TestCase):
 
     def test_collect_training_data(self):
         app = Vespa(url="https://api.cord19.vespa.ai")
-        query_model = Query(
+        query_model = QueryModel(
             match_phase=OR(), rank_profile=Ranking(name="bm25", list_features=True)
         )
         labeled_data = [

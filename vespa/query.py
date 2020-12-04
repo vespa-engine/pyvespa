@@ -166,7 +166,7 @@ class RankProfile(object):
             self.list_features = "true"
 
 
-class Query(object):
+class QueryModel(object):
     def __init__(
         self,
         match_phase: MatchFilter = AND(),

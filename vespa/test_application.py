@@ -6,7 +6,7 @@ from pandas import DataFrame
 from pandas.testing import assert_frame_equal
 
 from vespa.application import Vespa
-from vespa.query import Query, OR, RankProfile, VespaResult
+from vespa.query import QueryModel, OR, RankProfile, VespaResult
 
 
 class TestVespa(unittest.TestCase):
@@ -34,7 +34,7 @@ class TestVespaQuery(unittest.TestCase):
         self.assertDictEqual(
             app.query(
                 query="this is a test",
-                query_model=Query(match_phase=OR(), rank_profile=RankProfile()),
+                query_model=QueryModel(match_phase=OR(), rank_profile=RankProfile()),
                 debug_request=True,
                 hits=10,
             ).request_body,
@@ -48,7 +48,7 @@ class TestVespaQuery(unittest.TestCase):
         self.assertDictEqual(
             app.query(
                 query="this is a test",
-                query_model=Query(match_phase=OR(), rank_profile=RankProfile()),
+                query_model=QueryModel(match_phase=OR(), rank_profile=RankProfile()),
                 debug_request=True,
                 hits=10,
                 recall=("id", [1, 5]),
@@ -145,7 +145,7 @@ class TestVespaCollectData(unittest.TestCase):
                 VespaResult(self.raw_vespa_result_additional),
             ]
         )
-        query_model = Query(rank_profile=RankProfile(list_features=True))
+        query_model = QueryModel(rank_profile=RankProfile(list_features=True))
         data = self.app.collect_training_data_point(
             query="this is a query",
             query_id="123",
@@ -210,7 +210,7 @@ class TestVespaCollectData(unittest.TestCase):
                 VespaResult(self.raw_vespa_result_additional),
             ]
         )
-        query_model = Query(rank_profile=RankProfile(list_features=True))
+        query_model = QueryModel(rank_profile=RankProfile(list_features=True))
         data = self.app.collect_training_data_point(
             query="this is a query",
             query_id="123",
@@ -287,7 +287,7 @@ class TestVespaCollectData(unittest.TestCase):
                 VespaResult(self.raw_vespa_result_additional),
             ]
         )
-        query_model = Query(rank_profile=RankProfile(list_features=True))
+        query_model = QueryModel(rank_profile=RankProfile(list_features=True))
         data = self.app.collect_training_data_point(
             query="this is a query",
             query_id="123",
@@ -346,7 +346,7 @@ class TestVespaCollectData(unittest.TestCase):
                 "relevant_docs": [{"id": "abc", "score": 1}],
             }
         ]
-        query_model = Query(rank_profile=RankProfile(list_features=True))
+        query_model = QueryModel(rank_profile=RankProfile(list_features=True))
         data = self.app.collect_training_data(
             labeled_data=labeled_data,
             id_field="vespa_id_field",
@@ -432,7 +432,7 @@ class TestVespaEvaluate(unittest.TestCase):
         eval_metric.evaluate_query = Mock(return_value={"metric": 1})
         eval_metric2 = Mock()
         eval_metric2.evaluate_query = Mock(return_value={"metric_2": 2})
-        query_model = Query()
+        query_model = QueryModel()
         evaluation = self.app.evaluate_query(
             eval_metrics=[eval_metric, eval_metric2],
             query_model=query_model,
