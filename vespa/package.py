@@ -483,13 +483,26 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         query_profile_type: Optional[QueryProfileType] = None,
     ) -> None:
         """
-        Vespa Application Package.
+        Create a Vespa Application Package.
+
+        Check the `Vespa documentation <https://docs.vespa.ai/documentation/cloudconfig/application-packages.html>`_
+        for more detailed information about application packages.
 
         :param name: Application name.
-        :param schema: Schema of the application. If None, a Schema will be created by default.
-        :param query_profile: Query Profile of the application. If None, a QueryProfile will be created by default.
-        :param query_profile_type: Query Profile Type of the application. If None, a QueryProfileType will be
-            created by default.
+        :param schema: :class:`Schema` of the application. If `None`, an empty :class:`Schema` with the same name of the
+            application will be created by default.
+        :param query_profile: :class:`QueryProfile` of the application. If `None`, a :class:`QueryProfile` named `default`
+         with :class:`QueryProfileType` named `root` will be created by default.
+        :param query_profile_type: :class:`QueryProfileType` of the application. If `None`, a empty
+            :class:`QueryProfileType` named `root` will be created by default.
+
+        The easiest way to get started is to create a default application package:
+
+        >>> ApplicationPackage(name="test_app")
+        ApplicationPackage('test_app', Schema('test_app', Document(None), None, None), QueryProfile(None), QueryProfileType(None))
+
+        It will create a default :class:`Schema`, :class:`QueryProfile` and :class:`QueryProfileType` that you can then
+        populate with specifics of your application.
         """
         self.name = name
         if not schema:
@@ -606,8 +619,12 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         return self.name == other.name and self.schema == other.schema
 
     def __repr__(self):
-        return "{0}({1}, {2})".format(
-            self.__class__.__name__, repr(self.name), repr(self.schema)
+        return "{0}({1}, {2}, {3}, {4})".format(
+            self.__class__.__name__,
+            repr(self.name),
+            repr(self.schema),
+            repr(self.query_profile),
+            repr(self.query_profile_type),
         )
 
 
