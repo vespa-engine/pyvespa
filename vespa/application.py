@@ -43,7 +43,10 @@ class Vespa(object):
         :param output_file: Output file to write output messages.
 
         >>> Vespa(url = "https://cord19.vespa.ai")  # doctest: +SKIP
+
         >>> Vespa(url = "http://localhost", port = 8080)
+        Vespa(http://localhost, 8080)
+        
         >>> Vespa(url = "https://api.vespa-external.aws.oath.cloud", port = 4443, cert = "/path/to/cert-and-key.pem")  # doctest: +SKIP
 
         """
