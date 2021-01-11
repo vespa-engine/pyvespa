@@ -32,12 +32,22 @@ class Field(ToJson, FromJson["Field"]):
         index: Optional[str] = None,
     ) -> None:
         """
-        Object representing a Vespa document field.
+        Create a Vespa field.
+
+        Check the `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#field>`_
+        for more detailed information about fields.
 
         :param name: Field name.
         :param type: Field data type.
         :param indexing: Configures how to process data of a field during indexing.
         :param index: Sets index parameters. Content in fields with index are normalized and tokenized by default.
+
+        >>> Field(name = "title", type = "string", indexing = ["index", "summary"], index = "enable-bm25")
+        Field('title', 'string', ['index', 'summary'], 'enable-bm25')
+
+        >>> Field(name = "title_bert", type = "tensor<float>(x[768])", indexing = ["attribute"])
+        Field('title_bert', 'tensor<float>(x[768])', ['attribute'], None)
+
         """
         self.name = name
         self.type = type
