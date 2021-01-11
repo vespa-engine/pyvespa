@@ -90,14 +90,27 @@ class Field(ToJson, FromJson["Field"]):
 class Document(ToJson, FromJson["Document"]):
     def __init__(self, fields: Optional[List[Field]] = None) -> None:
         """
-        Object representing a Vespa document.
+        Create a Vespa Document.
+
+        Check the `Vespa documentation <https://docs.vespa.ai/documentation/documents.html>`_
+        for more detailed information about documents.
+
+        :param fields: A list of :class:`Field` to include in the document's schema.
+
+        To create a Document:
+
+        >>> Document()
+        Document(None)
+
+        >>> Document(fields=[Field(name="title", type="string")])
+        Document([Field('title', 'string', None, None)])
 
         """
         self.fields = [] if not fields else fields
 
     def add_fields(self, *fields: Field) -> None:
         """
-        Add Fields to the document.
+        Add :class:`Field`'s to the document.
 
         :param fields: fields to be added
         :return:
@@ -218,10 +231,18 @@ class Schema(ToJson, FromJson["Schema"]):
         """
         Create a Vespa Schema.
 
+        Check the `Vespa documentation <https://docs.vespa.ai/documentation/schemas.html>`_
+        for more detailed information about schemas.
+
         :param name: Schema name.
-        :param document: Vespa document associated with the Schema.
-        :param fieldsets: A list of `FieldSet` associated with the Schema.
-        :param rank_profiles: A list of `RankProfile` associated with the Schema.
+        :param document: Vespa :class:`Document` associated with the Schema.
+        :param fieldsets: A list of :class:`FieldSet` associated with the Schema.
+        :param rank_profiles: A list of :class:`RankProfile` associated with the Schema.
+
+        To create a Schema:
+
+        >>> Schema(name="schema_name", document=Document())
+        Schema('schema_name', Document(None), None, None)
         """
         self.name = name
         self.document = document
@@ -238,7 +259,7 @@ class Schema(ToJson, FromJson["Schema"]):
 
     def add_fields(self, *fields: Field) -> None:
         """
-        Add `Field` to the Schema's document.
+        Add :class:`Field` to the Schema's :class:`Document`.
 
         :param fields: fields to be added.
         """
@@ -246,15 +267,17 @@ class Schema(ToJson, FromJson["Schema"]):
 
     def add_field_set(self, field_set: FieldSet) -> None:
         """
-        Add a `FieldSet` to the `Schema`.
-        :param field_set: `FieldSet` to be added.
+        Add a :class:`FieldSet` to the Schema.
+
+        :param field_set: field sets to be added.
         """
         self.fieldsets[field_set.name] = field_set
 
     def add_rank_profile(self, rank_profile: RankProfile) -> None:
         """
-        Add a `RankProfile` to the `Schema`.
-        :param rank_profile: `RankProfile` to be added.
+        Add a :class:`RankProfile` to the Schema.
+
+        :param rank_profile: rank profile to be added.
         :return: None.
         """
         self.rank_profiles[rank_profile.name] = rank_profile
