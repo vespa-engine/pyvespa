@@ -46,7 +46,7 @@ class Vespa(object):
 
         >>> Vespa(url = "http://localhost", port = 8080)
         Vespa(http://localhost, 8080)
-        
+
         >>> Vespa(url = "https://api.vespa-external.aws.oath.cloud", port = 4443, cert = "/path/to/cert-and-key.pem")  # doctest: +SKIP
 
         """
