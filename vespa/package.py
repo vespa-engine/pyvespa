@@ -195,10 +195,21 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
         self, name: str, first_phase: str, inherits: Optional[str] = None
     ) -> None:
         """
-        Define a Vespa rank profile
+        Create a Vespa rank profile.
+
+        Rank profiles are used to specify an alternative ranking of the same data for different purposes, and to
+        experiment with new rank settings. Check the
+        `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#rank-profile>`_
+        for more detailed information about rank profiles.
 
         :param name: Rank profile name.
-        :param first_phase: First phase ranking expression.
+        :param first_phase: The config specifying the first phase of ranking.
+        Check the
+        `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#firstphase-rank>`_
+        for more detailed information about first phase ranking.
+
+        >>> RankProfile(name = "default", first_phase = "nativeRank(title, body)")
+        RankProfile('default', 'nativeRank(title, body)', None)
         """
         self.name = name
         self.first_phase = first_phase
