@@ -150,10 +150,17 @@ class Document(ToJson, FromJson["Document"]):
 class FieldSet(ToJson, FromJson["FieldSet"]):
     def __init__(self, name: str, fields: List[str]) -> None:
         """
-        A fieldset groups fields together for searching.
+        Create a Vespa field set.
+
+        A fieldset groups fields together for searching. Check the
+        `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#fieldset>`_
+        for more detailed information about field sets.
 
         :param name: Name of the fieldset
         :param fields: Field names to be included in the fieldset.
+
+        >>> FieldSet(name="default", fields=["title", "body"])
+        FieldSet('default', ['title', 'body'])
         """
         self.name = name
         self.fields = fields
