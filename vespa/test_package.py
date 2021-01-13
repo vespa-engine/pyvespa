@@ -330,6 +330,16 @@ class TestApplicationPackage(unittest.TestCase):
             "            expression: bm25(title) + bm25(body)\n"
             "        }\n"
             "    }\n"
+            "    rank-profile bert inherits default {\n"
+            "        constants {\n"
+            "            TOKEN_NONE: 0\n"
+            "            TOKEN_CLS: 101\n"
+            "            TOKEN_SEP: 102\n"
+            "        }\n"
+            "        first-phase {\n"
+            "            expression: bm25(title) + bm25(body)\n"
+            "        }\n"
+            "    }\n"            
             "}"
         )
         self.assertEqual(self.app_package.schema_to_text, expected_result)
@@ -472,6 +482,16 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
             "            expression: bm25(title) + bm25(body)\n"
             "        }\n"
             "    }\n"
+            "    rank-profile bert inherits default {\n"
+            "        constants {\n"
+            "            TOKEN_NONE: 0\n"
+            "            TOKEN_CLS: 101\n"
+            "            TOKEN_SEP: 102\n"
+            "        }\n"
+            "        first-phase {\n"
+            "            expression: bm25(title) + bm25(body)\n"
+            "        }\n"
+            "    }\n"            
             "}"
         )
         self.assertEqual(self.app_package.schema_to_text, expected_result)
