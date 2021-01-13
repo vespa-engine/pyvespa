@@ -53,6 +53,27 @@ Create a RankProfile
 Query Profile
 -------------
 
+Create a QueryProfileType
++++++++++++++++++++++++++
+
+.. autoclass:: vespa.package.QueryTypeField
+   :members:
+   :special-members: __init__
+
+.. autoclass:: vespa.package.QueryProfileType
+   :members:
+   :special-members: __init__
+
+Create a QueryProfile
++++++++++++++++++++++
+
+.. autoclass:: vespa.package.QueryField
+   :members:
+   :special-members: __init__
+
+.. autoclass:: vespa.package.QueryProfile
+   :members:
+   :special-members: __init__
 
 
 vespa.application module
