@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from time import sleep, strftime, gmtime
-from typing import List, Mapping, Optional, IO, Union
+from typing import List, Mapping, Optional, IO, Union, Dict
 
 import docker
 from cryptography import x509
@@ -162,7 +162,11 @@ class FieldSet(ToJson, FromJson["FieldSet"]):
 
 class RankProfile(ToJson, FromJson["RankProfile"]):
     def __init__(
-        self, name: str, first_phase: str, inherits: Optional[str] = None
+        self,
+        name: str,
+        first_phase: str,
+        inherits: Optional[str] = None,
+        constants: Optional[Dict] = None,
     ) -> None:
         """
         Define a Vespa rank profile
