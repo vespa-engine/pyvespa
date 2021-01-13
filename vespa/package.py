@@ -204,12 +204,17 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
 
         :param name: Rank profile name.
         :param first_phase: The config specifying the first phase of ranking.
-        Check the
-        `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#firstphase-rank>`_
-        for more detailed information about first phase ranking.
+            Check the
+            `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#firstphase-rank>`_
+            for more detailed information about first phase ranking.
+        :param inherits: The inherits attribute is optional. If defined, it contains the name of one other
+            rank profile in the same schema. Values not defined in this rank profile will then be inherited.
 
         >>> RankProfile(name = "default", first_phase = "nativeRank(title, body)")
         RankProfile('default', 'nativeRank(title, body)', None)
+
+        >>> RankProfile(name = "new", first_phase = "BM25(title)", inherits = "default")
+        RankProfile('new', 'BM25(title)', 'default')
         """
         self.name = name
         self.first_phase = first_phase
