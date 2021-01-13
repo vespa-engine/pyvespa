@@ -111,6 +111,21 @@ class TestRankProfile(unittest.TestCase):
         self.assertEqual(rank_profile.first_phase, "bm25(title) + bm25(body)")
         self.assertEqual(rank_profile, RankProfile.from_dict(rank_profile.to_dict))
 
+    def test_rank_profile_bert_second_phase(self):
+        rank_profile = RankProfile(
+            name="bert",
+            first_phase="bm25(title) + bm25(body)",
+            inherits="default",
+            constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
+        )
+        self.assertEqual(rank_profile.name, "bert")
+        self.assertEqual(rank_profile.first_phase, "bm25(title) + bm25(body)")
+        self.assertDictEqual(
+            rank_profile.constants,
+            {"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
+        )
+        self.assertEqual(rank_profile, RankProfile.from_dict(rank_profile.to_dict))
+
 
 class TestSchema(unittest.TestCase):
     def test_schema(self):
@@ -251,6 +266,12 @@ class TestApplicationPackage(unittest.TestCase):
                     name="bm25",
                     first_phase="bm25(title) + bm25(body)",
                     inherits="default",
+                ),
+                RankProfile(
+                    name="bert",
+                    first_phase="bm25(title) + bm25(body)",
+                    inherits="default",
+                    constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
                 ),
             ],
         )
@@ -396,6 +417,14 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
                 name="bm25",
                 first_phase="bm25(title) + bm25(body)",
                 inherits="default",
+            )
+        )
+        self.app_package.schema.add_rank_profile(
+            RankProfile(
+                name="bert",
+                first_phase="bm25(title) + bm25(body)",
+                inherits="default",
+                constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
             )
         )
         self.app_package.query_profile_type.add_fields(
