@@ -18,6 +18,13 @@ schema {{ schema_name }} {
 {% endfor %}
 {% for key, value in rank_profiles.items() %}
     rank-profile {{ key }}{% if value.inherits %} inherits {{ value.inherits }}{% endif %} {
+        {% if value.constants %}
+        constants {
+        {% for constant_name, constant_value in value.constants.items() %}
+            {{ constant_name }}: {{ constant_value }}
+        {% endfor %}
+        }
+        {% endif %}
         {% if value.first_phase %}
         first-phase {
             expression: {{ value.first_phase }}
