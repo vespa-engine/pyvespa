@@ -208,21 +208,30 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
 
         :param name: Rank profile name.
         :param first_phase: The config specifying the first phase of ranking.
-            Check the
-            `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#firstphase-rank>`_
-            for more detailed information about first phase ranking.
+            `More info <https://docs.vespa.ai/documentation/reference/schema-reference.html#firstphase-rank>`_
+            about first phase ranking.
         :param inherits: The inherits attribute is optional. If defined, it contains the name of one other
             rank profile in the same schema. Values not defined in this rank profile will then be inherited.
+        :param constants: Dict of constants available in ranking expressions, resolved and optimized at
+            configuration time.
+            `More info <https://docs.vespa.ai/documentation/reference/schema-reference.html#constants>`_
+            about constants.
+
 
         >>> RankProfile(name = "default", first_phase = "nativeRank(title, body)")
         RankProfile('default', 'nativeRank(title, body)', None)
 
         >>> RankProfile(name = "new", first_phase = "BM25(title)", inherits = "default")
         RankProfile('new', 'BM25(title)', 'default')
+
+        >>> RankProfile(name = "new", first_phase = "BM25(title)", inherits = "default", constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102})
+        RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102})
+
         """
         self.name = name
         self.first_phase = first_phase
         self.inherits = inherits
+        self.constants = constants
 
     @staticmethod
     def from_dict(mapping: Mapping) -> "RankProfile":
@@ -230,6 +239,7 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
             name=mapping["name"],
             first_phase=mapping["first_phase"],
             inherits=mapping.get("inherits", None),
+            constants=mapping.get("constants", None),
         )
 
     @property
@@ -237,6 +247,8 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
         map = {"name": self.name, "first_phase": self.first_phase}
         if self.inherits is not None:
             map.update({"inherits": self.inherits})
+        if self.constants is not None:
+            map.update({"constants": self.constants})
         return map
 
     def __eq__(self, other):
@@ -246,14 +258,16 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
             self.name == other.name
             and self.first_phase == other.first_phase
             and self.inherits == other.inherits
+            and self.constants == other.constants
         )
 
     def __repr__(self):
-        return "{0}({1}, {2}, {3})".format(
+        return "{0}({1}, {2}, {3}, {4})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.first_phase),
             repr(self.inherits),
+            repr(self.constants),
         )
 
 
