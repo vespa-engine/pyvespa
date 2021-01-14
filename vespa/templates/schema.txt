@@ -25,6 +25,15 @@ schema {{ schema_name }} {
         {% endfor %}
         }
         {% endif %}
+        {% if value.functions %}
+        {% for function in value.functions %}
+        function {{ function.name }}({{ function.args_to_text }}) {
+            expression {
+                {{ function.expression | indent( width=16, first=False) }}
+            }
+        }
+        {% endfor %}
+        {% endif %}
         {% if value.first_phase %}
         first-phase {
             expression: {{ value.first_phase }}
