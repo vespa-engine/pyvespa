@@ -190,6 +190,65 @@ class FieldSet(ToJson, FromJson["FieldSet"]):
         )
 
 
+class Function(ToJson, FromJson["Function"]):
+    def __init__(
+        self, name: str, expression: str, args: Optional[List[str]] = None
+    ) -> None:
+        """
+        Create a Vespa rank function.
+
+        Define a named function that can be referenced as a part of the ranking expression, or (if having no arguments)
+        as a feature. Check the
+        `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#function-rank>`_
+        for more detailed information about rank functions.
+
+        :param name: Name of the function.
+        :param expression: String representing a Vespa expression.
+        :param args: Optional. List of arguments to be used in the function expression.
+
+        >>> Function(name="myfeature", expression="fieldMatch(bar) + freshness(foo)", args=["foo", "bar"])
+        Function('myfeature', 'fieldMatch(bar) + freshness(foo)', ['foo', 'bar'])
+        """
+        self.name = name
+        self.args = args
+        self.expression = expression
+
+    @property
+    def args_to_text(self) -> str:
+        if self.args is not None:
+            return ", ".join(self.args)
+        else:
+            return ""
+
+    @staticmethod
+    def from_dict(mapping: Mapping) -> "Function":
+        return Function(
+            name=mapping["name"], expression=mapping["expression"], args=mapping["args"]
+        )
+
+    @property
+    def to_dict(self) -> Mapping:
+        map = {"name": self.name, "expression": self.expression, "args": self.args}
+        return map
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return (
+            self.name == other.name
+            and self.expression == other.expression
+            and self.args == other.args
+        )
+
+    def __repr__(self):
+        return "{0}({1}, {2}, {3})".format(
+            self.__class__.__name__,
+            repr(self.name),
+            repr(self.expression),
+            repr(self.args),
+        )
+
+
 class RankProfile(ToJson, FromJson["RankProfile"]):
     def __init__(
         self,
@@ -197,6 +256,7 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
         first_phase: str,
         inherits: Optional[str] = None,
         constants: Optional[Dict] = None,
+        functions: Optional[List[Function]] = None,
     ) -> None:
         """
         Create a Vespa rank profile.
@@ -216,39 +276,84 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
             configuration time.
             `More info <https://docs.vespa.ai/documentation/reference/schema-reference.html#constants>`_
             about constants.
+        :param functions: Optional list of :class:`Function` representing rank functions to be included in the rank
+            profile.
 
 
         >>> RankProfile(name = "default", first_phase = "nativeRank(title, body)")
-        RankProfile('default', 'nativeRank(title, body)', None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None)
 
         >>> RankProfile(name = "new", first_phase = "BM25(title)", inherits = "default")
-        RankProfile('new', 'BM25(title)', 'default')
+        RankProfile('new', 'BM25(title)', 'default', None, None)
 
         >>> RankProfile(name = "new", first_phase = "BM25(title)", inherits = "default", constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102})
-        RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102})
+        RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None)
 
+        >>> RankProfile(
+                    name="bert",
+                    first_phase="bm25(title) + bm25(body)",
+                    inherits="default",
+                    constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
+                    functions=[
+                        Function(
+                            name="question_length",
+                            expression="sum(map(query(query_token_ids), f(a)(a > 0)))",
+                        ),
+                        Function(
+                            name="doc_length",
+                            expression="sum(map(attribute(doc_token_ids), f(a)(a > 0)))",
+                        ),
+                        Function(
+                            name="input_ids",
+                            expression="tensor<float>(d0[1],d1[128])(\n"
+                                       "    if (d1 == 0,\n"
+                                       "        TOKEN_CLS,\n"
+                                       "    if (d1 < question_length + 1,\n"
+                                       "        query(query_token_ids){d0:(d1-1)},\n"
+                                       "    if (d1 == question_length + 1,\n"
+                                       "        TOKEN_SEP,\n"
+                                       "    if (d1 < question_length + doc_length + 2,\n"
+                                       "        attribute(doc_token_ids){d0:(d1-question_length-2)},\n"
+                                       "    if (d1 == question_length + doc_length + 2,\n"
+                                       "        TOKEN_SEP,\n"
+                                       "        TOKEN_NONE\n"
+                                       "    ))))))"
+                        ),
+                    ],
+                )
         """
         self.name = name
         self.first_phase = first_phase
         self.inherits = inherits
         self.constants = constants
+        self.functions = functions
 
     @staticmethod
     def from_dict(mapping: Mapping) -> "RankProfile":
+        functions = mapping.get("functions", None)
+        if functions is not None:
+            functions = [FromJson.map(f) for f in functions]
         return RankProfile(
             name=mapping["name"],
             first_phase=mapping["first_phase"],
             inherits=mapping.get("inherits", None),
             constants=mapping.get("constants", None),
+            functions=functions,
         )
 
     @property
     def to_dict(self) -> Mapping:
-        map = {"name": self.name, "first_phase": self.first_phase}
+        map = {
+            "name": self.name,
+            "first_phase": self.first_phase,
+        }
         if self.inherits is not None:
             map.update({"inherits": self.inherits})
         if self.constants is not None:
             map.update({"constants": self.constants})
+        if self.functions is not None:
+            map.update({"functions": [f.to_envelope for f in self.functions]})
+
         return map
 
     def __eq__(self, other):
@@ -259,15 +364,17 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
             and self.first_phase == other.first_phase
             and self.inherits == other.inherits
             and self.constants == other.constants
+            and self.functions == other.functions
         )
 
     def __repr__(self):
-        return "{0}({1}, {2}, {3}, {4})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.first_phase),
             repr(self.inherits),
             repr(self.constants),
+            repr(self.functions),
         )
 
 
