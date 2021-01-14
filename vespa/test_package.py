@@ -4,6 +4,7 @@ from vespa.package import (
     Field,
     Document,
     FieldSet,
+    Function,
     RankProfile,
     Schema,
     QueryTypeField,
@@ -94,6 +95,73 @@ class TestFieldSet(unittest.TestCase):
         self.assertEqual(field_set.fields, ["title", "body"])
         self.assertEqual(field_set, FieldSet.from_dict(field_set.to_dict))
         self.assertEqual(field_set.fields_to_text, "title, body")
+
+
+class TestFunction(unittest.TestCase):
+    def test_function_no_argument(self):
+        function = Function(
+            name="myfeature", expression="fieldMatch(title) + freshness(timestamp)"
+        )
+        self.assertEqual(function.name, "myfeature")
+        self.assertEqual(
+            function.expression, "fieldMatch(title) + freshness(timestamp)"
+        )
+        self.assertEqual(function, Function.from_dict(function.to_dict))
+        self.assertEqual(function.args_to_text, "")
+
+    def test_function_one_argument(self):
+        function = Function(
+            name="myfeature",
+            expression="fieldMatch(title) + freshness(foo)",
+            args=["foo"],
+        )
+        self.assertEqual(function.name, "myfeature")
+        self.assertEqual(function.expression, "fieldMatch(title) + freshness(foo)")
+        self.assertEqual(function.args, ["foo"])
+        self.assertEqual(function, Function.from_dict(function.to_dict))
+        self.assertEqual(function.args_to_text, "foo")
+
+    def test_function_multiple_argument(self):
+        function = Function(
+            name="myfeature",
+            expression="fieldMatch(bar) + freshness(foo)",
+            args=["foo", "bar"],
+        )
+        self.assertEqual(function.name, "myfeature")
+        self.assertEqual(function.expression, "fieldMatch(bar) + freshness(foo)")
+        self.assertEqual(function.args, ["foo", "bar"])
+        self.assertEqual(function, Function.from_dict(function.to_dict))
+        self.assertEqual(function.args_to_text, "foo, bar")
+
+    def test_function_multiple_lines(self):
+        function = Function(
+            name="token_type_ids",
+            expression="""
+            tensor<float>(d0[1],d1[128])(
+               if (d1 < question_length,
+                 0,
+               if (d1 < question_length + doc_length,
+                 1,
+                 TOKEN_NONE
+               )))
+            """,
+        )
+        self.assertEqual(function.name, "token_type_ids")
+        self.assertEqual(
+            function.expression,
+            """
+            tensor<float>(d0[1],d1[128])(
+               if (d1 < question_length,
+                 0,
+               if (d1 < question_length + doc_length,
+                 1,
+                 TOKEN_NONE
+               )))
+            """,
+        )
+        self.assertEqual(function.args, None)
+        self.assertEqual(function, Function.from_dict(function.to_dict))
+        self.assertEqual(function.args_to_text, "")
 
 
 class TestRankProfile(unittest.TestCase):
@@ -272,6 +340,32 @@ class TestApplicationPackage(unittest.TestCase):
                     first_phase="bm25(title) + bm25(body)",
                     inherits="default",
                     constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
+                    functions=[
+                        Function(
+                            name="question_length",
+                            expression="sum(map(query(query_token_ids), f(a)(a > 0)))",
+                        ),
+                        Function(
+                            name="doc_length",
+                            expression="sum(map(attribute(doc_token_ids), f(a)(a > 0)))",
+                        ),
+                        Function(
+                            name="input_ids",
+                            expression="tensor<float>(d0[1],d1[128])(\n"
+                                       "    if (d1 == 0,\n"
+                                       "        TOKEN_CLS,\n"
+                                       "    if (d1 < question_length + 1,\n"
+                                       "        query(query_token_ids){d0:(d1-1)},\n"
+                                       "    if (d1 == question_length + 1,\n"
+                                       "        TOKEN_SEP,\n"
+                                       "    if (d1 < question_length + doc_length + 2,\n"
+                                       "        attribute(doc_token_ids){d0:(d1-question_length-2)},\n"
+                                       "    if (d1 == question_length + doc_length + 2,\n"
+                                       "        TOKEN_SEP,\n"
+                                       "        TOKEN_NONE\n"
+                                       "    ))))))"
+                        ),
+                    ],
                 ),
             ],
         )
@@ -336,10 +430,37 @@ class TestApplicationPackage(unittest.TestCase):
             "            TOKEN_CLS: 101\n"
             "            TOKEN_SEP: 102\n"
             "        }\n"
+            "        function question_length() {\n"
+            "            expression {\n"
+            "                sum(map(query(query_token_ids), f(a)(a > 0)))\n"
+            "            }\n"
+            "        }\n"
+            "        function doc_length() {\n"
+            "            expression {\n"
+            "                sum(map(attribute(doc_token_ids), f(a)(a > 0)))\n"
+            "            }\n"
+            "        }\n"
+            "        function input_ids() {\n"
+            "            expression {\n"
+            "                tensor<float>(d0[1],d1[128])(\n"
+            "                    if (d1 == 0,\n"
+            "                        TOKEN_CLS,\n"
+            "                    if (d1 < question_length + 1,\n"
+            "                        query(query_token_ids){d0:(d1-1)},\n"
+            "                    if (d1 == question_length + 1,\n"
+            "                        TOKEN_SEP,\n"
+            "                    if (d1 < question_length + doc_length + 2,\n"
+            "                        attribute(doc_token_ids){d0:(d1-question_length-2)},\n"
+            "                    if (d1 == question_length + doc_length + 2,\n"
+            "                        TOKEN_SEP,\n"
+            "                        TOKEN_NONE\n"
+            "                    ))))))\n"
+            "            }\n"
+            "        }\n"
             "        first-phase {\n"
             "            expression: bm25(title) + bm25(body)\n"
             "        }\n"
-            "    }\n"            
+            "    }\n"
             "}"
         )
         self.assertEqual(self.app_package.schema_to_text, expected_result)
@@ -491,7 +612,7 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
             "        first-phase {\n"
             "            expression: bm25(title) + bm25(body)\n"
             "        }\n"
-            "    }\n"            
+            "    }\n"
             "}"
         )
         self.assertEqual(self.app_package.schema_to_text, expected_result)
