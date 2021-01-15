@@ -5,6 +5,7 @@ from vespa.package import (
     Document,
     FieldSet,
     Function,
+    SecondPhaseRanking,
     RankProfile,
     Schema,
     QueryTypeField,
@@ -97,6 +98,17 @@ class TestFieldSet(unittest.TestCase):
         self.assertEqual(field_set.fields_to_text, "title, body")
 
 
+class TestSecondPhaseRanking(unittest.TestCase):
+    def test_second_phase_ranking(self):
+        second_phase_ranking = SecondPhaseRanking(
+            expression="sum(eval)", rerank_count=10
+        )
+        self.assertEqual(
+            second_phase_ranking,
+            SecondPhaseRanking.from_dict(second_phase_ranking.to_dict),
+        )
+
+
 class TestFunction(unittest.TestCase):
     def test_function_no_argument(self):
         function = Function(
@@ -183,6 +195,7 @@ class TestRankProfile(unittest.TestCase):
         rank_profile = RankProfile(
             name="bert",
             first_phase="bm25(title) + bm25(body)",
+            second_phase=SecondPhaseRanking(rerank_count=10, expression="sum(eval)"),
             inherits="default",
             constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
             functions=[
@@ -388,6 +401,7 @@ class TestApplicationPackage(unittest.TestCase):
                 RankProfile(
                     name="bert",
                     first_phase="bm25(title) + bm25(body)",
+                    second_phase=SecondPhaseRanking(rerank_count=10, expression="sum(eval)"),
                     inherits="default",
                     constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
                     functions=[
@@ -429,6 +443,11 @@ class TestApplicationPackage(unittest.TestCase):
                             "        TOKEN_NONE\n"
                             "    )))",
                         ),
+                        Function(
+                            name="eval",
+                            expression="tensor(x{}):{x1:onnxModel(bert).logits{d0:0,d1:0}}",
+                        ),
+
                     ],
                     summary_features=[
                         "onnxModel(bert).logits",
@@ -543,8 +562,17 @@ class TestApplicationPackage(unittest.TestCase):
             "                    )))\n"
             "            }\n"
             "        }\n"
+            "        function eval() {\n"
+            "            expression {\n"
+            "                tensor(x{}):{x1:onnxModel(bert).logits{d0:0,d1:0}}\n"
+            "            }\n"
+            "        }\n"
             "        first-phase {\n"
             "            expression: bm25(title) + bm25(body)\n"
+            "        }\n"
+            "        second-phase {\n"
+            "            rerank-count: 10\n"
+            "            expression: sum(eval)\n"
             "        }\n"
             "        summary-features {\n"
             "            onnxModel(bert).logits\n"
