@@ -289,7 +289,7 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
         >>> RankProfile(name = "new", first_phase = "BM25(title)", inherits = "default", constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102})
         RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None)
 
-        >>> RankProfile(name="bert", first_phase="bm25(title) + bm25(body)", inherits="default", constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102}, functions=[Function(name="question_length", expression="sum(map(query(query_token_ids), f(a)(a > 0)))"), Function(name="doc_length", expression="sum(map(attribute(doc_token_ids), f(a)(a > 0)))"))
+        >>> RankProfile(name="bert", first_phase="bm25(title) + bm25(body)", inherits="default", constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102}, functions=[Function(name="question_length", expression="sum(map(query(query_token_ids), f(a)(a > 0)))"), Function(name="doc_length", expression="sum(map(attribute(doc_token_ids), f(a)(a > 0)))")])
         RankProfile('bert', 'bm25(title) + bm25(body)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, [Function('question_length', 'sum(map(query(query_token_ids), f(a)(a > 0)))', None), Function('doc_length', 'sum(map(attribute(doc_token_ids), f(a)(a > 0)))', None)])
         """
         self.name = name
