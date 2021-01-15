@@ -289,38 +289,8 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
         >>> RankProfile(name = "new", first_phase = "BM25(title)", inherits = "default", constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102})
         RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None)
 
-        >>> RankProfile(
-                    name="bert",
-                    first_phase="bm25(title) + bm25(body)",
-                    inherits="default",
-                    constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
-                    functions=[
-                        Function(
-                            name="question_length",
-                            expression="sum(map(query(query_token_ids), f(a)(a > 0)))",
-                        ),
-                        Function(
-                            name="doc_length",
-                            expression="sum(map(attribute(doc_token_ids), f(a)(a > 0)))",
-                        ),
-                        Function(
-                            name="input_ids",
-                            expression="tensor<float>(d0[1],d1[128])(\n"
-                                       "    if (d1 == 0,\n"
-                                       "        TOKEN_CLS,\n"
-                                       "    if (d1 < question_length + 1,\n"
-                                       "        query(query_token_ids){d0:(d1-1)},\n"
-                                       "    if (d1 == question_length + 1,\n"
-                                       "        TOKEN_SEP,\n"
-                                       "    if (d1 < question_length + doc_length + 2,\n"
-                                       "        attribute(doc_token_ids){d0:(d1-question_length-2)},\n"
-                                       "    if (d1 == question_length + doc_length + 2,\n"
-                                       "        TOKEN_SEP,\n"
-                                       "        TOKEN_NONE\n"
-                                       "    ))))))"
-                        ),
-                    ],
-                )
+        >>> RankProfile(name="bert", first_phase="bm25(title) + bm25(body)", inherits="default", constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102}, functions=[Function(name="question_length", expression="sum(map(query(query_token_ids), f(a)(a > 0)))"), Function(name="doc_length", expression="sum(map(attribute(doc_token_ids), f(a)(a > 0)))"))
+        RankProfile('bert', 'bm25(title) + bm25(body)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, [Function('question_length', 'sum(map(query(query_token_ids), f(a)(a > 0)))', None), Function('doc_length', 'sum(map(attribute(doc_token_ids), f(a)(a > 0)))', None)])
         """
         self.name = name
         self.first_phase = first_phase
