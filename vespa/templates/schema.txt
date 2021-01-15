@@ -39,6 +39,12 @@ schema {{ schema_name }} {
             expression: {{ value.first_phase }}
         }
         {% endif %}
+        {% if value.second_phase %}
+        second-phase {
+            rerank-count: {{ value.second_phase.rerank_count }}
+            expression: {{ value.second_phase.expression }}
+        }
+        {% endif %}
         {% if value.summary_features %}
         summary-features {
         {% for feature in value.summary_features %}
