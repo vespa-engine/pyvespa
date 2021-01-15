@@ -39,6 +39,13 @@ schema {{ schema_name }} {
             expression: {{ value.first_phase }}
         }
         {% endif %}
+        {% if value.summary_features %}
+        summary-features {
+        {% for feature in value.summary_features %}
+            {{ feature }}
+        {% endfor %}
+        }
+        {% endif %}
     }
 {% endfor %}
 }
