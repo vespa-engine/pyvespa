@@ -194,7 +194,7 @@ class Function(ToJson, FromJson["Function"]):
     def __init__(
         self, name: str, expression: str, args: Optional[List[str]] = None
     ) -> None:
-        """
+        r"""
         Create a Vespa rank function.
 
         Define a named function that can be referenced as a part of the ranking expression, or (if having no arguments)
@@ -210,7 +210,7 @@ class Function(ToJson, FromJson["Function"]):
         Function('myfeature', 'fieldMatch(bar) + freshness(foo)', ['foo', 'bar'])
 
         It is possible to define functions with multi-line expressions:
-        
+
         >>> Function(name="token_type_ids",
                      expression="tensor<float>(d0[1],d1[128])(\n"
                             "    if (d1 < question_length,\n"
