@@ -352,18 +352,32 @@ class TestApplicationPackage(unittest.TestCase):
                         Function(
                             name="input_ids",
                             expression="tensor<float>(d0[1],d1[128])(\n"
-                                       "    if (d1 == 0,\n"
-                                       "        TOKEN_CLS,\n"
-                                       "    if (d1 < question_length + 1,\n"
-                                       "        query(query_token_ids){d0:(d1-1)},\n"
-                                       "    if (d1 == question_length + 1,\n"
-                                       "        TOKEN_SEP,\n"
-                                       "    if (d1 < question_length + doc_length + 2,\n"
-                                       "        attribute(doc_token_ids){d0:(d1-question_length-2)},\n"
-                                       "    if (d1 == question_length + doc_length + 2,\n"
-                                       "        TOKEN_SEP,\n"
-                                       "        TOKEN_NONE\n"
-                                       "    ))))))"
+                            "    if (d1 == 0,\n"
+                            "        TOKEN_CLS,\n"
+                            "    if (d1 < question_length + 1,\n"
+                            "        query(query_token_ids){d0:(d1-1)},\n"
+                            "    if (d1 == question_length + 1,\n"
+                            "        TOKEN_SEP,\n"
+                            "    if (d1 < question_length + doc_length + 2,\n"
+                            "        attribute(doc_token_ids){d0:(d1-question_length-2)},\n"
+                            "    if (d1 == question_length + doc_length + 2,\n"
+                            "        TOKEN_SEP,\n"
+                            "        TOKEN_NONE\n"
+                            "    ))))))",
+                        ),
+                        Function(
+                            name="attention_mask",
+                            expression="map(input_ids, f(a)(a > 0))",
+                        ),
+                        Function(
+                            name="token_type_ids",
+                            expression="tensor<float>(d0[1],d1[128])(\n"
+                            "    if (d1 < question_length,\n"
+                            "        0,\n"
+                            "    if (d1 < question_length + doc_length,\n"
+                            "        1,\n"
+                            "        TOKEN_NONE\n"
+                            "    )))",
                         ),
                     ],
                 ),
@@ -455,6 +469,22 @@ class TestApplicationPackage(unittest.TestCase):
             "                        TOKEN_SEP,\n"
             "                        TOKEN_NONE\n"
             "                    ))))))\n"
+            "            }\n"
+            "        }\n"
+            "        function attention_mask() {\n"
+            "            expression {\n"
+            "                map(input_ids, f(a)(a > 0))\n"
+            "            }\n"
+            "        }\n"
+            "        function token_type_ids() {\n"
+            "            expression {\n"
+            "                tensor<float>(d0[1],d1[128])(\n"
+            "                    if (d1 < question_length,\n"
+            "                        0,\n"
+            "                    if (d1 < question_length + doc_length,\n"
+            "                        1,\n"
+            "                        TOKEN_NONE\n"
+            "                    )))\n"
             "            }\n"
             "        }\n"
             "        first-phase {\n"
