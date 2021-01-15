@@ -208,6 +208,19 @@ class Function(ToJson, FromJson["Function"]):
 
         >>> Function(name="myfeature", expression="fieldMatch(bar) + freshness(foo)", args=["foo", "bar"])
         Function('myfeature', 'fieldMatch(bar) + freshness(foo)', ['foo', 'bar'])
+
+        It is possible to define functions with multi-line expressions:
+        
+        >>> Function(name="token_type_ids",
+                     expression="tensor<float>(d0[1],d1[128])(\n"
+                            "    if (d1 < question_length,\n"
+                            "        0,\n"
+                            "    if (d1 < question_length + doc_length,\n"
+                            "        1,\n"
+                            "        TOKEN_NONE\n"
+                            "    )))",
+                        )
+        Function('token_type_ids', 'tensor<float>(d0[1],d1[128])(\n    if (d1 < question_length,\n        0,\n    if (d1 < question_length + doc_length,\n        1,\n        TOKEN_NONE\n    )))', None)
         """
         self.name = name
         self.args = args
