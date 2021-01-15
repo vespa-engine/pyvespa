@@ -275,6 +275,7 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
         inherits: Optional[str] = None,
         constants: Optional[Dict] = None,
         functions: Optional[List[Function]] = None,
+        summary_features: Optional[List] = None,
     ) -> None:
         """
         Create a Vespa rank profile.
@@ -296,6 +297,9 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
             about constants.
         :param functions: Optional list of :class:`Function` representing rank functions to be included in the rank
             profile.
+        :param summary_features: List of rank features to be included with each hit.
+            `More info <https://docs.vespa.ai/documentation/reference/schema-reference.html#summary-features>`_
+            about summary features.
 
 
         >>> RankProfile(name = "default", first_phase = "nativeRank(title, body)")
@@ -308,9 +312,10 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
         ...     name = "new",
         ...     first_phase = "BM25(title)",
         ...     inherits = "default",
-        ...     constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102}
+        ...     constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
+        ...     summary_features=["BM25(title)"]
         ... )
-        RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None)
+        RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None, ["BM25(title)"])
 
         >>> RankProfile(
         ...     name="bert",
@@ -326,15 +331,17 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
         ...             name="doc_length",
         ...             expression="sum(map(attribute(doc_token_ids), f(a)(a > 0)))"
         ...         )
-        ...     ]
+        ...     ],
+        ...     summary_features=["question_length", "doc_length"]
         ... )
-        RankProfile('bert', 'bm25(title) + bm25(body)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, [Function('question_length', 'sum(map(query(query_token_ids), f(a)(a > 0)))', None), Function('doc_length', 'sum(map(attribute(doc_token_ids), f(a)(a > 0)))', None)])
+        RankProfile('bert', 'bm25(title) + bm25(body)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, [Function('question_length', 'sum(map(query(query_token_ids), f(a)(a > 0)))', None), Function('doc_length', 'sum(map(attribute(doc_token_ids), f(a)(a > 0)))', None)], ['question_length', 'doc_length'])
         """
         self.name = name
         self.first_phase = first_phase
         self.inherits = inherits
         self.constants = constants
         self.functions = functions
+        self.summary_features = summary_features
 
     @staticmethod
     def from_dict(mapping: Mapping) -> "RankProfile":
@@ -347,6 +354,7 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
             inherits=mapping.get("inherits", None),
             constants=mapping.get("constants", None),
             functions=functions,
+            summary_features=mapping.get("summary_features", None),
         )
 
     @property
@@ -361,6 +369,8 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
             map.update({"constants": self.constants})
         if self.functions is not None:
             map.update({"functions": [f.to_envelope for f in self.functions]})
+        if self.summary_features is not None:
+            map.update({"summary_features": self.summary_features})
 
         return map
 
@@ -373,16 +383,18 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
             and self.inherits == other.inherits
             and self.constants == other.constants
             and self.functions == other.functions
+            and self.summary_features == other.summary_features
         )
 
     def __repr__(self):
-        return "{0}({1}, {2}, {3}, {4}, {5})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.first_phase),
             repr(self.inherits),
             repr(self.constants),
             repr(self.functions),
+            repr(self.summary_features),
         )
 
 
