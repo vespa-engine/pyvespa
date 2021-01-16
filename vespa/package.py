@@ -353,10 +353,10 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
             See :class:`SecondPhaseRanking`.
 
         >>> RankProfile(name = "default", first_phase = "nativeRank(title, body)")
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None)
 
         >>> RankProfile(name = "new", first_phase = "BM25(title)", inherits = "default")
-        RankProfile('new', 'BM25(title)', 'default', None, None)
+        RankProfile('new', 'BM25(title)', 'default', None, None, None, None)
 
         >>> RankProfile(
         ...     name = "new",
@@ -365,7 +365,7 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
         ...     constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
         ...     summary_features=["BM25(title)"]
         ... )
-        RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None, ["BM25(title)"])
+        RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None, ['BM25(title)'], None)
 
         >>> RankProfile(
         ...     name="bert",
