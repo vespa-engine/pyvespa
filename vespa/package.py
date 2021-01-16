@@ -459,6 +459,87 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
         )
 
 
+class OnnxModel(ToJson, FromJson["OnnxModel"]):
+    def __init__(
+        self,
+        model_name: str,
+        file_path: str,
+        inputs: Dict[str, str],
+        outputs: Dict[str, str],
+    ) -> None:
+        """
+        Create a Vespa ONNX model config.
+
+        Vespa has support for advanced ranking models through it’s tensor API. If you have your model in the ONNX
+        format, Vespa can import the models and use them directly. Check the
+        `Vespa documentation <https://docs.vespa.ai/documentation/onnx.html>`_
+        for more detailed information about field sets.
+
+        :param model_name: Unique model name to use as id when referencing the model.
+        :param file_path: ONNX file path relative to the application folder.
+        :param inputs: Dict mapping the ONNX input names as specified in the ONNX file to valid Vespa inputs,
+            which can be a document field (`attribute(field_name)`), a query parameter (`query(query_param)`),
+            a constant (`constant(name)`) and a user-defined function (`function_name`).
+        :param outputs: Dict mapping the ONNX output names as specified in the ONNX file to the name used in Vespa to
+            specify the output. If this is omitted, the first output in the ONNX file will be used.
+
+        >>> OnnxModel(
+        ...     model_name="bert",
+        ...     file_path="files/bert.onnx",
+        ...     inputs={
+        ...         "input_ids": "input_ids",
+        ...         "token_type_ids": "token_type_ids",
+        ...         "attention_mask": "attention_mask",
+        ...     },
+        ...     outputs={"logits": "logits"},
+        ... )
+        OnnxModel('bert', 'files/bert.onnx', {'input_ids': 'input_ids', 'token_type_ids': 'token_type_ids', 'attention_mask': 'attention_mask'}, {'logits': 'logits'})
+
+        """
+        self.model_name = model_name
+        self.file_path = file_path
+        self.inputs = inputs
+        self.outputs = outputs
+
+    @staticmethod
+    def from_dict(mapping: Mapping) -> "OnnxModel":
+        return OnnxModel(
+            model_name=mapping["model_name"],
+            file_path=mapping["file_path"],
+            inputs=mapping["inputs"],
+            outputs=mapping["outputs"],
+        )
+
+    @property
+    def to_dict(self) -> Mapping:
+        map = {
+            "model_name": self.model_name,
+            "file_path": self.file_path,
+            "inputs": self.inputs,
+            "outputs": self.outputs,
+        }
+        return map
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return (
+            self.model_name == other.model_name
+            and self.file_path == other.file_path
+            and self.inputs == other.inputs
+            and self.outputs == other.outputs
+        )
+
+    def __repr__(self):
+        return "{0}({1}, {2}, {3}, {4})".format(
+            self.__class__.__name__,
+            repr(self.model_name),
+            repr(self.file_path),
+            repr(self.inputs),
+            repr(self.outputs),
+        )
+
+
 class Schema(ToJson, FromJson["Schema"]):
     def __init__(
         self,
@@ -466,6 +547,7 @@ class Schema(ToJson, FromJson["Schema"]):
         document: Document,
         fieldsets: Optional[List[FieldSet]] = None,
         rank_profiles: Optional[List[RankProfile]] = None,
+        models: Optional[List[OnnxModel]] = None,
     ) -> None:
         """
         Create a Vespa Schema.
@@ -477,6 +559,7 @@ class Schema(ToJson, FromJson["Schema"]):
         :param document: Vespa :class:`Document` associated with the Schema.
         :param fieldsets: A list of :class:`FieldSet` associated with the Schema.
         :param rank_profiles: A list of :class:`RankProfile` associated with the Schema.
+        :param models: A list of :class:`OnnxModel` associated with the Schema.
 
         To create a Schema:
 
@@ -495,6 +578,10 @@ class Schema(ToJson, FromJson["Schema"]):
             self.rank_profiles = {
                 rank_profile.name: rank_profile for rank_profile in rank_profiles
             }
+
+        self.models = []
+        if models is not None:
+            self.models = [x for x in models]
 
     def add_fields(self, *fields: Field) -> None:
         """
@@ -521,15 +608,35 @@ class Schema(ToJson, FromJson["Schema"]):
         """
         self.rank_profiles[rank_profile.name] = rank_profile
 
+    def add_model(self, model: OnnxModel) -> None:
+        """
+        Add a :class:`OnnxModel` to the Schema.
+
+        :param model: model to be added.
+        :return: None.
+        """
+        self.models.append(model)
+
     @staticmethod
     def from_dict(mapping: Mapping) -> "Schema":
+        fieldsets = mapping.get("fieldsets", None)
+        if fieldsets:
+            fieldsets = [FromJson.map(fieldset) for fieldset in mapping["fieldsets"]]
+        rank_profiles = mapping.get("rank_profiles", None)
+        if rank_profiles:
+            rank_profiles = [
+                FromJson.map(rank_profile) for rank_profile in mapping["rank_profiles"]
+            ]
+        models = mapping.get("models", None)
+        if models:
+            models = [FromJson.map(model) for model in mapping["models"]]
+
         return Schema(
             name=mapping["name"],
             document=FromJson.map(mapping["document"]),
-            fieldsets=[FromJson.map(fieldset) for fieldset in mapping["fieldsets"]],
-            rank_profiles=[
-                FromJson.map(rank_profile) for rank_profile in mapping["rank_profiles"]
-            ],
+            fieldsets=fieldsets,
+            rank_profiles=rank_profiles,
+            models=models,
         )
 
     @property
@@ -537,14 +644,19 @@ class Schema(ToJson, FromJson["Schema"]):
         map = {
             "name": self.name,
             "document": self.document.to_envelope,
-            "fieldsets": [
+        }
+        if self.fieldsets:
+            map["fieldsets"] = [
                 self.fieldsets[name].to_envelope for name in self.fieldsets.keys()
-            ],
-            "rank_profiles": [
+            ]
+        if self.rank_profiles:
+            map["rank_profiles"] = [
                 self.rank_profiles[name].to_envelope
                 for name in self.rank_profiles.keys()
-            ],
-        }
+            ]
+        if self.models:
+            map["models"] = [model.to_envelope for model in self.models]
+
         return map
 
     def __eq__(self, other):
@@ -555,10 +667,11 @@ class Schema(ToJson, FromJson["Schema"]):
             and self.document == other.document
             and self.fieldsets == other.fieldsets
             and self.rank_profiles == other.rank_profiles
+            and self.models == other.models
         )
 
     def __repr__(self):
-        return "{0}({1}, {2}, {3}, {4})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.document),
@@ -570,6 +683,7 @@ class Schema(ToJson, FromJson["Schema"]):
                 if self.rank_profiles
                 else None
             ),
+            repr(self.models),
         )
 
 
