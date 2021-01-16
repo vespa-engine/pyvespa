@@ -489,6 +489,18 @@ class TestApplicationPackage(unittest.TestCase):
                     ],
                 ),
             ],
+            models=[
+                OnnxModel(
+                    model_name="bert",
+                    file_path="files/bert.onnx",
+                    inputs={
+                        "input_ids": "input_ids",
+                        "token_type_ids": "token_type_ids",
+                        "attention_mask": "attention_mask",
+                    },
+                    outputs={"logits": "logits"},
+                )
+            ],
         )
         test_query_profile_type = QueryProfileType(
             fields=[
@@ -534,6 +546,13 @@ class TestApplicationPackage(unittest.TestCase):
             "    }\n"
             "    fieldset default {\n"
             "        fields: title, body\n"
+            "    }\n"
+            "    onnx-model bert {\n"
+            "        file: files/bert.onnx\n"
+            "        input input_ids: input_ids\n"
+            "        input token_type_ids: token_type_ids\n"
+            "        input attention_mask: attention_mask\n"
+            "        output logits: logits\n"
             "    }\n"
             "    rank-profile default {\n"
             "        first-phase {\n"
