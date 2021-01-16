@@ -7,6 +7,7 @@ from vespa.package import (
     Function,
     SecondPhaseRanking,
     RankProfile,
+    OnnxModel,
     Schema,
     QueryTypeField,
     QueryProfileType,
@@ -258,6 +259,24 @@ class TestRankProfile(unittest.TestCase):
         self.assertEqual(rank_profile, RankProfile.from_dict(rank_profile.to_dict))
 
 
+class TestOnnxModel(unittest.TestCase):
+    def test_onnx_model(self):
+        onnx_model = OnnxModel(
+            model_name="bert",
+            file_path="files/bert.onnx",
+            inputs={
+                "input_ids": "input_ids",
+                "token_type_ids": "token_type_ids",
+                "attention_mask": "attention_mask",
+            },
+            outputs={"logits": "logits"},
+        )
+        self.assertEqual(
+            onnx_model,
+            OnnxModel.from_dict(onnx_model.to_dict),
+        )
+
+
 class TestSchema(unittest.TestCase):
     def test_schema(self):
         schema = Schema(
@@ -266,6 +285,18 @@ class TestSchema(unittest.TestCase):
             fieldsets=[FieldSet(name="default", fields=["title", "body"])],
             rank_profiles=[
                 RankProfile(name="bm25", first_phase="bm25(title) + bm25(body)")
+            ],
+            models=[
+                OnnxModel(
+                    model_name="bert",
+                    file_path="files/bert.onnx",
+                    inputs={
+                        "input_ids": "input_ids",
+                        "token_type_ids": "token_type_ids",
+                        "attention_mask": "attention_mask",
+                    },
+                    outputs={"logits": "logits"},
+                )
             ],
         )
         self.assertEqual(schema, Schema.from_dict(schema.to_dict))
@@ -401,7 +432,9 @@ class TestApplicationPackage(unittest.TestCase):
                 RankProfile(
                     name="bert",
                     first_phase="bm25(title) + bm25(body)",
-                    second_phase=SecondPhaseRanking(rerank_count=10, expression="sum(eval)"),
+                    second_phase=SecondPhaseRanking(
+                        rerank_count=10, expression="sum(eval)"
+                    ),
                     inherits="default",
                     constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
                     functions=[
@@ -447,7 +480,6 @@ class TestApplicationPackage(unittest.TestCase):
                             name="eval",
                             expression="tensor(x{}):{x1:onnxModel(bert).logits{d0:0,d1:0}}",
                         ),
-
                     ],
                     summary_features=[
                         "onnxModel(bert).logits",
