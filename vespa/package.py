@@ -564,7 +564,7 @@ class Schema(ToJson, FromJson["Schema"]):
         To create a Schema:
 
         >>> Schema(name="schema_name", document=Document())
-        Schema('schema_name', Document(None), None, None)
+        Schema('schema_name', Document(None), None, None, [])
         """
         self.name = name
         self.document = document
