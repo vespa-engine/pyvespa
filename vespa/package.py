@@ -875,7 +875,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         The easiest way to get started is to create a default application package:
 
         >>> ApplicationPackage(name="test_app")
-        ApplicationPackage('test_app', Schema('test_app', Document(None), None, None), QueryProfile(None), QueryProfileType(None))
+        ApplicationPackage('test_app', Schema('test_app', Document(None), None, None, []), QueryProfile(None), QueryProfileType(None))
 
         It will create a default :class:`Schema`, :class:`QueryProfile` and :class:`QueryProfileType` that you can then
         populate with specifics of your application.
