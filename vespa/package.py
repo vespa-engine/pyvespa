@@ -267,6 +267,54 @@ class Function(ToJson, FromJson["Function"]):
         )
 
 
+class SecondPhaseRanking(ToJson, FromJson["SecondPhaseRanking"]):
+    def __init__(self, expression: str, rerank_count: int = 100) -> None:
+        r"""
+        Create a Vespa second phase ranking configuration.
+
+        This is the optional reranking performed on the best hits from the first phase. Check the
+        `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#secondphase-rank>`_
+        for more detailed information about second phase ranking configuration.
+
+        :param expression: Specify the ranking expression to be used for second phase of ranking. Check also the
+            `Vespa documentation <https://docs.vespa.ai/documentation/reference/ranking-expressions.html>`_
+            for ranking expression.
+        :param rerank_count: Specifies the number of hits to be reranked in the second phase. Default value is 100.
+
+        >>> SecondPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10)
+        SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10)
+
+        """
+        self.expression = expression
+        self.rerank_count = rerank_count
+
+    @staticmethod
+    def from_dict(mapping: Mapping) -> "SecondPhaseRanking":
+        return SecondPhaseRanking(
+            expression=mapping["expression"], rerank_count=mapping["rerank_count"]
+        )
+
+    @property
+    def to_dict(self) -> Mapping:
+        map = {"expression": self.expression, "rerank_count": self.rerank_count}
+        return map
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return (
+            self.expression == other.expression
+            and self.rerank_count == other.rerank_count
+        )
+
+    def __repr__(self):
+        return "{0}({1}, {2})".format(
+            self.__class__.__name__,
+            repr(self.expression),
+            repr(self.rerank_count),
+        )
+
+
 class RankProfile(ToJson, FromJson["RankProfile"]):
     def __init__(
         self,
@@ -276,6 +324,7 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
         constants: Optional[Dict] = None,
         functions: Optional[List[Function]] = None,
         summary_features: Optional[List] = None,
+        second_phase: Optional[SecondPhaseRanking] = None,
     ) -> None:
         """
         Create a Vespa rank profile.
@@ -300,10 +349,11 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
         :param summary_features: List of rank features to be included with each hit.
             `More info <https://docs.vespa.ai/documentation/reference/schema-reference.html#summary-features>`_
             about summary features.
-
+        :param second_phase: Optional config specifying the second phase of ranking.
+            See :class:`SecondPhaseRanking`.
 
         >>> RankProfile(name = "default", first_phase = "nativeRank(title, body)")
-        RankProfile('default', 'nativeRank(title, body)', None, None, None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None)
 
         >>> RankProfile(name = "new", first_phase = "BM25(title)", inherits = "default")
         RankProfile('new', 'BM25(title)', 'default', None, None)
@@ -320,6 +370,7 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
         >>> RankProfile(
         ...     name="bert",
         ...     first_phase="bm25(title) + bm25(body)",
+        ...     second_phase=SecondPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10),
         ...     inherits="default",
         ...     constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
         ...     functions=[
@@ -334,7 +385,7 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
         ...     ],
         ...     summary_features=["question_length", "doc_length"]
         ... )
-        RankProfile('bert', 'bm25(title) + bm25(body)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, [Function('question_length', 'sum(map(query(query_token_ids), f(a)(a > 0)))', None), Function('doc_length', 'sum(map(attribute(doc_token_ids), f(a)(a > 0)))', None)], ['question_length', 'doc_length'])
+        RankProfile('bert', 'bm25(title) + bm25(body)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, [Function('question_length', 'sum(map(query(query_token_ids), f(a)(a > 0)))', None), Function('doc_length', 'sum(map(attribute(doc_token_ids), f(a)(a > 0)))', None)], ['question_length', 'doc_length'], SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10))
         """
         self.name = name
         self.first_phase = first_phase
@@ -342,12 +393,17 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
         self.constants = constants
         self.functions = functions
         self.summary_features = summary_features
+        self.second_phase = second_phase
 
     @staticmethod
     def from_dict(mapping: Mapping) -> "RankProfile":
         functions = mapping.get("functions", None)
         if functions is not None:
             functions = [FromJson.map(f) for f in functions]
+        second_phase = mapping.get("second_phase", None)
+        if second_phase is not None:
+            second_phase = FromJson.map(second_phase)
+
         return RankProfile(
             name=mapping["name"],
             first_phase=mapping["first_phase"],
@@ -355,6 +411,7 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
             constants=mapping.get("constants", None),
             functions=functions,
             summary_features=mapping.get("summary_features", None),
+            second_phase=second_phase,
         )
 
     @property
@@ -371,6 +428,8 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
             map.update({"functions": [f.to_envelope for f in self.functions]})
         if self.summary_features is not None:
             map.update({"summary_features": self.summary_features})
+        if self.second_phase is not None:
+            map.update({"second_phase": self.second_phase.to_envelope})
 
         return map
 
@@ -384,10 +443,11 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
             and self.constants == other.constants
             and self.functions == other.functions
             and self.summary_features == other.summary_features
+            and self.second_phase == other.second_phase
         )
 
     def __repr__(self):
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.first_phase),
@@ -395,6 +455,7 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
             repr(self.constants),
             repr(self.functions),
             repr(self.summary_features),
+            repr(self.second_phase),
         )
 
 
