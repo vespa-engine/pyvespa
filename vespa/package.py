@@ -744,7 +744,6 @@ class QueryProfileType(ToJson, FromJson["QueryProfileType"]):
         :param fields: A list of :class:`QueryTypeField`.
 
         >>> QueryProfileType(
-        ...     id="root",
         ...     fields = [
         ...         QueryTypeField(
         ...             name="ranking.features.query(tensor_bert)",
@@ -764,7 +763,7 @@ class QueryProfileType(ToJson, FromJson["QueryProfileType"]):
         :param fields: fields to be added
 
         >>> query_profile_type = QueryProfileType()
-        ... query_profile_type.add_fields(
+        >>> query_profile_type.add_fields(
         ...     QueryTypeField(
         ...         name="age",
         ...         type="integer"
