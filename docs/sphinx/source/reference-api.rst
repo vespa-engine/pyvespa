@@ -58,6 +58,10 @@ request can specify a query profile whose parameters will be used as parameters 
 optionally be type checked. Type checking is turned on by referencing a :class:`QueryProfileType` from the query
 profile.
 
+An :class:`ApplicationPackage` instance comes with a default :class:`QueryProfile` named `default` that is associated
+with a :class:`QueryProfileType` named `root`, meaning that you usually do not need to create those yourself, only add
+fields to them when required.
+
 Create a QueryProfileType
 +++++++++++++++++++++++++
 
