@@ -805,10 +805,13 @@ class QueryField(ToJson, FromJson["QueryField"]):
         value: Union[str, int, float],
     ) -> None:
         """
-        Object representing a Query Profile field.
+        Create a field to be included in a :class:`QueryProfile`.
 
         :param name: Field name.
         :param value: Field value.
+
+        >>> QueryField(name="maxHits", value=1000)
+        QueryField('maxHits', 1000)
         """
         self.name = name
         self.value = value
@@ -841,9 +844,15 @@ class QueryField(ToJson, FromJson["QueryField"]):
 class QueryProfile(ToJson, FromJson["QueryProfile"]):
     def __init__(self, fields: Optional[List[QueryField]] = None) -> None:
         """
-        Object representing a Query Profile.
+        Create a Vespa Query Profile.
 
-        :param fields: Query fields.
+        Check the `Vespa documentation <https://docs.vespa.ai/documentation/query-profiles.html>`_
+        for more detailed information about query profiles.
+
+        :param fields: A list of :class:`QueryField`.
+
+        >>> QueryProfile(fields=[QueryField(name="maxHits", value=1000)])
+        QueryProfile([QueryField('maxHits', 1000)])
         """
         self.name = "default"
         self.type = "root"
@@ -851,10 +860,12 @@ class QueryProfile(ToJson, FromJson["QueryProfile"]):
 
     def add_fields(self, *fields: QueryField) -> None:
         """
-        Add QueryField's to the Query Profile.
+        Add :class:`QueryField`'s to the Query Profile.
 
         :param fields: fields to be added
-        :return:
+
+        >>> query_profile = QueryProfile()
+        >>> query_profile.add_fields(QueryField(name="maxHits", value=1000))
         """
         self.fields.extend(fields)
 
