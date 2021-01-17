@@ -53,6 +53,11 @@ Create a RankProfile
 Query Profile
 -------------
 
+A :class:`QueryProfile` is a named collection of search request parameters given in the configuration. The search
+request can specify a query profile whose parameters will be used as parameters of that request. The query profiles may
+optionally be type checked. Type checking is turned on by referencing a :class:`QueryProfileType` from the query
+profile.
+
 Create a QueryProfileType
 +++++++++++++++++++++++++
 
