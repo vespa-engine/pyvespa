@@ -263,7 +263,7 @@ class TestOnnxModel(unittest.TestCase):
     def test_onnx_model(self):
         onnx_model = OnnxModel(
             model_name="bert",
-            file_path="files/bert.onnx",
+            model_file_path="bert.onnx",
             inputs={
                 "input_ids": "input_ids",
                 "token_type_ids": "token_type_ids",
@@ -289,7 +289,7 @@ class TestSchema(unittest.TestCase):
             models=[
                 OnnxModel(
                     model_name="bert",
-                    file_path="files/bert.onnx",
+                    model_file_path="bert.onnx",
                     inputs={
                         "input_ids": "input_ids",
                         "token_type_ids": "token_type_ids",
@@ -492,7 +492,7 @@ class TestApplicationPackage(unittest.TestCase):
             models=[
                 OnnxModel(
                     model_name="bert",
-                    file_path="files/bert.onnx",
+                    model_file_path="bert.onnx",
                     inputs={
                         "input_ids": "input_ids",
                         "token_type_ids": "token_type_ids",
