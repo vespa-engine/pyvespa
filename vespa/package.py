@@ -10,6 +10,7 @@ from io import BytesIO
 from pathlib import Path
 from time import sleep, strftime, gmtime
 from typing import List, Mapping, Optional, IO, Union, Dict
+from shutil import copyfile
 
 import docker
 from cryptography import x509
@@ -463,7 +464,7 @@ class OnnxModel(ToJson, FromJson["OnnxModel"]):
     def __init__(
         self,
         model_name: str,
-        file_path: str,
+        model_file_path: str,
         inputs: Dict[str, str],
         outputs: Dict[str, str],
     ) -> None:
@@ -476,7 +477,7 @@ class OnnxModel(ToJson, FromJson["OnnxModel"]):
         for more detailed information about field sets.
 
         :param model_name: Unique model name to use as id when referencing the model.
-        :param file_path: ONNX file path relative to the application folder.
+        :param model_file_path: ONNX model file path.
         :param inputs: Dict mapping the ONNX input names as specified in the ONNX file to valid Vespa inputs,
             which can be a document field (`attribute(field_name)`), a query parameter (`query(query_param)`),
             a constant (`constant(name)`) and a user-defined function (`function_name`).
@@ -485,7 +486,7 @@ class OnnxModel(ToJson, FromJson["OnnxModel"]):
 
         >>> OnnxModel(
         ...     model_name="bert",
-        ...     file_path="files/bert.onnx",
+        ...     model_file_path="bert.onnx",
         ...     inputs={
         ...         "input_ids": "input_ids",
         ...         "token_type_ids": "token_type_ids",
@@ -497,15 +498,18 @@ class OnnxModel(ToJson, FromJson["OnnxModel"]):
 
         """
         self.model_name = model_name
-        self.file_path = file_path
+        self.model_file_path = model_file_path
         self.inputs = inputs
         self.outputs = outputs
+
+        self.model_file_name = self.model_name + ".onnx"
+        self.file_path = os.path.join("files", self.model_file_name)
 
     @staticmethod
     def from_dict(mapping: Mapping) -> "OnnxModel":
         return OnnxModel(
             model_name=mapping["model_name"],
-            file_path=mapping["file_path"],
+            model_file_path=mapping["model_file_path"],
             inputs=mapping["inputs"],
             outputs=mapping["outputs"],
         )
@@ -514,7 +518,7 @@ class OnnxModel(ToJson, FromJson["OnnxModel"]):
     def to_dict(self) -> Mapping:
         map = {
             "model_name": self.model_name,
-            "file_path": self.file_path,
+            "model_file_path": self.model_file_path,
             "inputs": self.inputs,
             "outputs": self.outputs,
         }
@@ -525,7 +529,7 @@ class OnnxModel(ToJson, FromJson["OnnxModel"]):
             return False
         return (
             self.model_name == other.model_name
-            and self.file_path == other.file_path
+            and self.model_file_path == other.model_file_path
             and self.inputs == other.inputs
             and self.outputs == other.outputs
         )
@@ -534,7 +538,7 @@ class OnnxModel(ToJson, FromJson["OnnxModel"]):
         return "{0}({1}, {2}, {3}, {4})".format(
             self.__class__.__name__,
             repr(self.model_name),
-            repr(self.file_path),
+            repr(self.model_file_path),
             repr(self.inputs),
             repr(self.outputs),
         )
@@ -951,7 +955,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
             fields=self.schema.document.fields,
             fieldsets=self.schema.fieldsets,
             rank_profiles=self.schema.rank_profiles,
-            models=self.schema.models
+            models=self.schema.models,
         )
 
     @property
@@ -1142,6 +1146,15 @@ class VespaDocker(object):
             f.write(application_package.hosts_to_text)
         with open(os.path.join(dir_path, "application/services.xml"), "w") as f:
             f.write(application_package.services_to_text)
+
+        Path(os.path.join(dir_path, "application/files")).mkdir(
+            parents=True, exist_ok=True
+        )
+        for model in application_package.schema.models:
+            copyfile(
+                model.model_file_path,
+                os.path.join(dir_path, "application/files", model.model_file_name),
+            )
 
     def _execute_deployment(
         self,
