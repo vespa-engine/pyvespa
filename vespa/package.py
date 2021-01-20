@@ -1412,6 +1412,11 @@ class VespaCloud(object):
                 "application/security/clients.pem",
                 self.data_certificate.public_bytes(serialization.Encoding.PEM),
             )
+            for model in self.application_package.schema.models:
+                zip_archive.write(
+                    model.model_file_path,
+                    os.path.join("application/files", model.model_file_name),
+                )
 
         return buffer
 
