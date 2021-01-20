@@ -171,7 +171,7 @@ class TestOnnxModelCloudDeployment(unittest.TestCase):
         self.app_package.schema.add_model(
             OnnxModel(
                 model_name="bert_tiny",
-                model_file_path="resources/bert_tiny.onnx",
+                model_file_path=os.path.join(os.getenv("RESOURCES_DIR"), "bert_tiny.onnx"),
                 inputs={
                     "input_ids": "input_ids",
                     "token_type_ids": "token_type_ids",
