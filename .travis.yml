@@ -13,7 +13,7 @@ jobs:
     - stage: run tests
       script:
         - pip install -e .
-        - travis_wait 60 pytest --doctest-modules
+        - travis_wait 600 pytest --doctest-modules
     - stage: run notebooks
       script:
         - pip install notebook nbconvert
