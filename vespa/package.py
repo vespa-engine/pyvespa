@@ -494,8 +494,7 @@ class OnnxModel(ToJson, FromJson["OnnxModel"]):
         ...     },
         ...     outputs={"logits": "logits"},
         ... )
-        OnnxModel('bert', 'files/bert.onnx', {'input_ids': 'input_ids', 'token_type_ids': 'token_type_ids', 'attention_mask': 'attention_mask'}, {'logits': 'logits'})
-
+        OnnxModel('bert', 'bert.onnx', {'input_ids': 'input_ids', 'token_type_ids': 'token_type_ids', 'attention_mask': 'attention_mask'}, {'logits': 'logits'})
         """
         self.model_name = model_name
         self.model_file_path = model_file_path
