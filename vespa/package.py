@@ -340,10 +340,13 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
             about summary features.
         :param second_phase: Optional config specifying the second phase of ranking.
             See :class:`SecondPhaseRanking`.
+
         >>> RankProfile(name = "default", first_phase = "nativeRank(title, body)")
         RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None)
+
         >>> RankProfile(name = "new", first_phase = "BM25(title)", inherits = "default")
         RankProfile('new', 'BM25(title)', 'default', None, None, None, None)
+
         >>> RankProfile(
         ...     name = "new",
         ...     first_phase = "BM25(title)",
@@ -352,6 +355,7 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
         ...     summary_features=["BM25(title)"]
         ... )
         RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None, ['BM25(title)'], None)
+        
         >>> RankProfile(
         ...     name="bert",
         ...     first_phase="bm25(title) + bm25(body)",
