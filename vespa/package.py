@@ -32,12 +32,22 @@ class Field(ToJson, FromJson["Field"]):
         index: Optional[str] = None,
     ) -> None:
         """
-        Object representing a Vespa document field.
+        Create a Vespa field.
+
+        Check the `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#field>`_
+        for more detailed information about fields.
 
         :param name: Field name.
         :param type: Field data type.
         :param indexing: Configures how to process data of a field during indexing.
         :param index: Sets index parameters. Content in fields with index are normalized and tokenized by default.
+
+        >>> Field(name = "title", type = "string", indexing = ["index", "summary"], index = "enable-bm25")
+        Field('title', 'string', ['index', 'summary'], 'enable-bm25')
+
+        >>> Field(name = "title_bert", type = "tensor<float>(x[768])", indexing = ["attribute"])
+        Field('title_bert', 'tensor<float>(x[768])', ['attribute'], None)
+
         """
         self.name = name
         self.type = type
@@ -90,14 +100,27 @@ class Field(ToJson, FromJson["Field"]):
 class Document(ToJson, FromJson["Document"]):
     def __init__(self, fields: Optional[List[Field]] = None) -> None:
         """
-        Object representing a Vespa document.
+        Create a Vespa Document.
+
+        Check the `Vespa documentation <https://docs.vespa.ai/documentation/documents.html>`_
+        for more detailed information about documents.
+
+        :param fields: A list of :class:`Field` to include in the document's schema.
+
+        To create a Document:
+
+        >>> Document()
+        Document(None)
+
+        >>> Document(fields=[Field(name="title", type="string")])
+        Document([Field('title', 'string', None, None)])
 
         """
         self.fields = [] if not fields else fields
 
     def add_fields(self, *fields: Field) -> None:
         """
-        Add Fields to the document.
+        Add :class:`Field`'s to the document.
 
         :param fields: fields to be added
         :return:
@@ -127,10 +150,17 @@ class Document(ToJson, FromJson["Document"]):
 class FieldSet(ToJson, FromJson["FieldSet"]):
     def __init__(self, name: str, fields: List[str]) -> None:
         """
-        A fieldset groups fields together for searching.
+        Create a Vespa field set.
+
+        A fieldset groups fields together for searching. Check the
+        `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#fieldset>`_
+        for more detailed information about field sets.
 
         :param name: Name of the fieldset
         :param fields: Field names to be included in the fieldset.
+
+        >>> FieldSet(name="default", fields=["title", "body"])
+        FieldSet('default', ['title', 'body'])
         """
         self.name = name
         self.fields = fields
@@ -165,10 +195,26 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
         self, name: str, first_phase: str, inherits: Optional[str] = None
     ) -> None:
         """
-        Define a Vespa rank profile
+        Create a Vespa rank profile.
+
+        Rank profiles are used to specify an alternative ranking of the same data for different purposes, and to
+        experiment with new rank settings. Check the
+        `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#rank-profile>`_
+        for more detailed information about rank profiles.
 
         :param name: Rank profile name.
-        :param first_phase: First phase ranking expression.
+        :param first_phase: The config specifying the first phase of ranking.
+            Check the
+            `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#firstphase-rank>`_
+            for more detailed information about first phase ranking.
+        :param inherits: The inherits attribute is optional. If defined, it contains the name of one other
+            rank profile in the same schema. Values not defined in this rank profile will then be inherited.
+
+        >>> RankProfile(name = "default", first_phase = "nativeRank(title, body)")
+        RankProfile('default', 'nativeRank(title, body)', None)
+
+        >>> RankProfile(name = "new", first_phase = "BM25(title)", inherits = "default")
+        RankProfile('new', 'BM25(title)', 'default')
         """
         self.name = name
         self.first_phase = first_phase
@@ -218,10 +264,18 @@ class Schema(ToJson, FromJson["Schema"]):
         """
         Create a Vespa Schema.
 
+        Check the `Vespa documentation <https://docs.vespa.ai/documentation/schemas.html>`_
+        for more detailed information about schemas.
+
         :param name: Schema name.
-        :param document: Vespa document associated with the Schema.
-        :param fieldsets: A list of `FieldSet` associated with the Schema.
-        :param rank_profiles: A list of `RankProfile` associated with the Schema.
+        :param document: Vespa :class:`Document` associated with the Schema.
+        :param fieldsets: A list of :class:`FieldSet` associated with the Schema.
+        :param rank_profiles: A list of :class:`RankProfile` associated with the Schema.
+
+        To create a Schema:
+
+        >>> Schema(name="schema_name", document=Document())
+        Schema('schema_name', Document(None), None, None)
         """
         self.name = name
         self.document = document
@@ -238,7 +292,7 @@ class Schema(ToJson, FromJson["Schema"]):
 
     def add_fields(self, *fields: Field) -> None:
         """
-        Add `Field` to the Schema's document.
+        Add :class:`Field` to the Schema's :class:`Document`.
 
         :param fields: fields to be added.
         """
@@ -246,15 +300,17 @@ class Schema(ToJson, FromJson["Schema"]):
 
     def add_field_set(self, field_set: FieldSet) -> None:
         """
-        Add a `FieldSet` to the `Schema`.
-        :param field_set: `FieldSet` to be added.
+        Add a :class:`FieldSet` to the Schema.
+
+        :param field_set: field sets to be added.
         """
         self.fieldsets[field_set.name] = field_set
 
     def add_rank_profile(self, rank_profile: RankProfile) -> None:
         """
-        Add a `RankProfile` to the `Schema`.
-        :param rank_profile: `RankProfile` to be added.
+        Add a :class:`RankProfile` to the Schema.
+
+        :param rank_profile: rank profile to be added.
         :return: None.
         """
         self.rank_profiles[rank_profile.name] = rank_profile
@@ -483,13 +539,26 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         query_profile_type: Optional[QueryProfileType] = None,
     ) -> None:
         """
-        Vespa Application Package.
+        Create a Vespa Application Package.
+
+        Check the `Vespa documentation <https://docs.vespa.ai/documentation/cloudconfig/application-packages.html>`_
+        for more detailed information about application packages.
 
         :param name: Application name.
-        :param schema: Schema of the application. If None, a Schema will be created by default.
-        :param query_profile: Query Profile of the application. If None, a QueryProfile will be created by default.
-        :param query_profile_type: Query Profile Type of the application. If None, a QueryProfileType will be
-            created by default.
+        :param schema: :class:`Schema` of the application. If `None`, an empty :class:`Schema` with the same name of the
+            application will be created by default.
+        :param query_profile: :class:`QueryProfile` of the application. If `None`, a :class:`QueryProfile` named `default`
+         with :class:`QueryProfileType` named `root` will be created by default.
+        :param query_profile_type: :class:`QueryProfileType` of the application. If `None`, a empty
+            :class:`QueryProfileType` named `root` will be created by default.
+
+        The easiest way to get started is to create a default application package:
+
+        >>> ApplicationPackage(name="test_app")
+        ApplicationPackage('test_app', Schema('test_app', Document(None), None, None), QueryProfile(None), QueryProfileType(None))
+
+        It will create a default :class:`Schema`, :class:`QueryProfile` and :class:`QueryProfileType` that you can then
+        populate with specifics of your application.
         """
         self.name = name
         if not schema:
@@ -606,8 +675,12 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         return self.name == other.name and self.schema == other.schema
 
     def __repr__(self):
-        return "{0}({1}, {2})".format(
-            self.__class__.__name__, repr(self.name), repr(self.schema)
+        return "{0}({1}, {2}, {3}, {4})".format(
+            self.__class__.__name__,
+            repr(self.name),
+            repr(self.schema),
+            repr(self.query_profile),
+            repr(self.query_profile_type),
         )
 
 
