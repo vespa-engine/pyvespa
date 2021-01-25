@@ -84,6 +84,17 @@ Create a QueryProfile
    :members:
    :special-members: __init__
 
+Deploying your application
+++++++++++++++++++++++++++
+
+.. autoclass:: vespa.package.VespaDocker
+   :members:
+   :special-members: __init__
+
+.. autoclass:: vespa.package.VespaCloud
+   :members:
+   :special-members: __init__
+
 
 vespa.application module
 ------------------------
@@ -98,15 +109,6 @@ vespa.evaluation module
 -----------------------
 
 .. automodule:: vespa.evaluation
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :special-members: __init__
-
-vespa.package module
---------------------
-
-.. automodule:: vespa.package
    :members:
    :undoc-members:
    :show-inheritance:
