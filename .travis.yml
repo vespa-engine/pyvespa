@@ -2,6 +2,7 @@ language: python
 env:
   global:
     - WORK_DIR=/home/travis/build/vespa-engine/pyvespa
+    - RESOURCES_DIR=/home/travis/build/vespa-engine/pyvespa/vespa/resources
     - PYVESPA_VERSION=0.2
 services:
   - docker
