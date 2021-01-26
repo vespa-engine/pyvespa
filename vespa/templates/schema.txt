@@ -16,6 +16,19 @@ schema {{ schema_name }} {
         fields: {{ value.fields_to_text }}
     }
 {% endfor %}
+{% if models %}
+{% for model in models %}
+    onnx-model {{ model.model_name }} {
+        file: {{ model.file_path }}
+        {% for key_input, value_input in model.inputs.items() %}
+        input {{ key_input }}: {{ value_input }}
+        {% endfor %}
+        {% for key_output, value_output in model.outputs.items() %}
+        output {{ key_output }}: {{ value_output }}
+        {% endfor %}
+    }
+{% endfor %}
+{% endif %}
 {% for key, value in rank_profiles.items() %}
     rank-profile {{ key }}{% if value.inherits %} inherits {{ value.inherits }}{% endif %} {
         {% if value.constants %}
