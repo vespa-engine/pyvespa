@@ -196,20 +196,25 @@ class Function(ToJson, FromJson["Function"]):
     ) -> None:
         r"""
         Create a Vespa rank function.
+
         Define a named function that can be referenced as a part of the ranking expression, or (if having no arguments)
         as a feature. Check the
         `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#function-rank>`_
         for more detailed information about rank functions.
+
         :param name: Name of the function.
         :param expression: String representing a Vespa expression.
         :param args: Optional. List of arguments to be used in the function expression.
+
         >>> Function(
         ...     name="myfeature",
         ...     expression="fieldMatch(bar) + freshness(foo)",
         ...     args=["foo", "bar"]
         ... )
         Function('myfeature', 'fieldMatch(bar) + freshness(foo)', ['foo', 'bar'])
+
         It is possible to define functions with multi-line expressions:
+
         >>> Function(
         ...     name="token_type_ids",
         ...     expression="tensor<float>(d0[1],d1[128])(\n"
@@ -266,13 +271,16 @@ class SecondPhaseRanking(ToJson, FromJson["SecondPhaseRanking"]):
     def __init__(self, expression: str, rerank_count: int = 100) -> None:
         r"""
         Create a Vespa second phase ranking configuration.
+
         This is the optional reranking performed on the best hits from the first phase. Check the
         `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#secondphase-rank>`_
         for more detailed information about second phase ranking configuration.
+
         :param expression: Specify the ranking expression to be used for second phase of ranking. Check also the
             `Vespa documentation <https://docs.vespa.ai/documentation/reference/ranking-expressions.html>`_
             for ranking expression.
         :param rerank_count: Specifies the number of hits to be reranked in the second phase. Default value is 100.
+
         >>> SecondPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10)
         SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10)
         """
@@ -319,10 +327,12 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
     ) -> None:
         """
         Create a Vespa rank profile.
+
         Rank profiles are used to specify an alternative ranking of the same data for different purposes, and to
         experiment with new rank settings. Check the
         `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#rank-profile>`_
         for more detailed information about rank profiles.
+        
         :param name: Rank profile name.
         :param first_phase: The config specifying the first phase of ranking.
             `More info <https://docs.vespa.ai/documentation/reference/schema-reference.html#firstphase-rank>`_
@@ -355,7 +365,7 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
         ...     summary_features=["BM25(title)"]
         ... )
         RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None, ['BM25(title)'], None)
-        
+
         >>> RankProfile(
         ...     name="bert",
         ...     first_phase="bm25(title) + bm25(body)",
