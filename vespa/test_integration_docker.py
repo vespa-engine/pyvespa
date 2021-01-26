@@ -2,10 +2,19 @@ import unittest
 import os
 import re
 import shutil
-from vespa.package import Document, Field
-from vespa.package import Schema, FieldSet, RankProfile
-from vespa.package import ApplicationPackage
-from vespa.package import VespaDocker
+from vespa.package import (
+    Document,
+    Field,
+    Schema,
+    QueryTypeField,
+    FieldSet,
+    OnnxModel,
+    Function,
+    SecondPhaseRanking,
+    RankProfile,
+    ApplicationPackage,
+    VespaDocker,
+)
 
 
 class TestDockerDeployment(unittest.TestCase):
@@ -136,6 +145,128 @@ class TestDockerDeployment(unittest.TestCase):
         self.assertTrue(
             any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
         )
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.disk_folder, ignore_errors=True)
+        self.vespa_docker.container.stop()
+        self.vespa_docker.container.remove()
+
+
+class TestOnnxModelDockerDeployment(unittest.TestCase):
+    def setUp(self) -> None:
+        #
+        # Create application package
+        #
+        self.app_package = ApplicationPackage(name="cord19")
+        self.app_package.schema.add_fields(
+            Field(name="cord_uid", type="string", indexing=["attribute", "summary"]),
+            Field(
+                name="title",
+                type="string",
+                indexing=["index", "summary"],
+                index="enable-bm25",
+            ),
+            Field(
+                name="doc_token_ids",
+                type="tensor<float>(d0[96])",
+                indexing=["attribute", "summary"],
+            ),
+        )
+        self.app_package.schema.add_field_set(
+            FieldSet(name="default", fields=["title"])
+        )
+        self.app_package.query_profile_type.add_fields(
+            QueryTypeField(
+                name="ranking.features.query(query_token_ids)",
+                type="tensor<float>(d0[32])",
+            )
+        )
+        self.app_package.schema.add_model(
+            OnnxModel(
+                model_name="bert_tiny",
+                model_file_path=os.path.join(
+                    os.getenv("RESOURCES_DIR"), "bert_tiny.onnx"
+                ),
+                inputs={
+                    "input_ids": "input_ids",
+                    "token_type_ids": "token_type_ids",
+                    "attention_mask": "attention_mask",
+                },
+                outputs={"logits": "logits"},
+            )
+        )
+        self.app_package.schema.add_rank_profile(
+            RankProfile(
+                name="bert",
+                inherits="default",
+                constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
+                functions=[
+                    Function(
+                        name="question_length",
+                        expression="sum(map(query(query_token_ids), f(a)(a > 0)))",
+                    ),
+                    Function(
+                        name="doc_length",
+                        expression="sum(map(attribute(doc_token_ids), f(a)(a > 0)))",
+                    ),
+                    Function(
+                        name="input_ids",
+                        expression="tensor<float>(d0[1],d1[128])(\n"
+                        "    if (d1 == 0,\n"
+                        "        TOKEN_CLS,\n"
+                        "    if (d1 < question_length + 1,\n"
+                        "        query(query_token_ids){d0:(d1-1)},\n"
+                        "    if (d1 == question_length + 1,\n"
+                        "        TOKEN_SEP,\n"
+                        "    if (d1 < question_length + doc_length + 2,\n"
+                        "        attribute(doc_token_ids){d0:(d1-question_length-2)},\n"
+                        "    if (d1 == question_length + doc_length + 2,\n"
+                        "        TOKEN_SEP,\n"
+                        "        TOKEN_NONE\n"
+                        "    ))))))",
+                    ),
+                    Function(
+                        name="attention_mask",
+                        expression="map(input_ids, f(a)(a > 0)) ",
+                    ),
+                    Function(
+                        name="token_type_ids",
+                        expression="tensor<float>(d0[1],d1[128])(\n"
+                        "    if (d1 < question_length,\n"
+                        "        0,\n"
+                        "    if (d1 < question_length + doc_length,\n"
+                        "        1,\n"
+                        "        TOKEN_NONE\n"
+                        "    )))",
+                    ),
+                    Function(
+                        name="eval",
+                        expression="tensor(x{}):{x1:onnxModel(bert_tiny).logits{d0:0,d1:0}}",
+                    ),
+                ],
+                first_phase="bm25(title)",
+                second_phase=SecondPhaseRanking(
+                    rerank_count=10, expression="sum(eval)"
+                ),
+                summary_features=[
+                    "onnxModel(bert_tiny).logits",
+                    "input_ids",
+                    "attention_mask",
+                    "token_type_ids",
+                ],
+            )
+        )
+        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+
+    def test_deploy(self):
+        self.vespa_docker = VespaDocker(port=8089)
+        app = self.vespa_docker.deploy(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+        self.assertTrue(
+            any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
+        )
+        self.assertEqual(app.get_application_status().status_code, 200)
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
