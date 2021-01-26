@@ -18,9 +18,38 @@ schema {{ schema_name }} {
 {% endfor %}
 {% for key, value in rank_profiles.items() %}
     rank-profile {{ key }}{% if value.inherits %} inherits {{ value.inherits }}{% endif %} {
+        {% if value.constants %}
+        constants {
+        {% for constant_name, constant_value in value.constants.items() %}
+            {{ constant_name }}: {{ constant_value }}
+        {% endfor %}
+        }
+        {% endif %}
+        {% if value.functions %}
+        {% for function in value.functions %}
+        function {{ function.name }}({{ function.args_to_text }}) {
+            expression {
+                {{ function.expression | indent( width=16, first=False) }}
+            }
+        }
+        {% endfor %}
+        {% endif %}
         {% if value.first_phase %}
         first-phase {
             expression: {{ value.first_phase }}
+        }
+        {% endif %}
+        {% if value.second_phase %}
+        second-phase {
+            rerank-count: {{ value.second_phase.rerank_count }}
+            expression: {{ value.second_phase.expression }}
+        }
+        {% endif %}
+        {% if value.summary_features %}
+        summary-features {
+        {% for feature in value.summary_features %}
+            {{ feature }}
+        {% endfor %}
         }
         {% endif %}
     }

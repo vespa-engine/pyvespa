@@ -4,6 +4,8 @@ from vespa.package import (
     Field,
     Document,
     FieldSet,
+    Function,
+    SecondPhaseRanking,
     RankProfile,
     Schema,
     QueryTypeField,
@@ -96,6 +98,84 @@ class TestFieldSet(unittest.TestCase):
         self.assertEqual(field_set.fields_to_text, "title, body")
 
 
+class TestSecondPhaseRanking(unittest.TestCase):
+    def test_second_phase_ranking(self):
+        second_phase_ranking = SecondPhaseRanking(
+            expression="sum(eval)", rerank_count=10
+        )
+        self.assertEqual(
+            second_phase_ranking,
+            SecondPhaseRanking.from_dict(second_phase_ranking.to_dict),
+        )
+
+
+class TestFunction(unittest.TestCase):
+    def test_function_no_argument(self):
+        function = Function(
+            name="myfeature", expression="fieldMatch(title) + freshness(timestamp)"
+        )
+        self.assertEqual(function.name, "myfeature")
+        self.assertEqual(
+            function.expression, "fieldMatch(title) + freshness(timestamp)"
+        )
+        self.assertEqual(function, Function.from_dict(function.to_dict))
+        self.assertEqual(function.args_to_text, "")
+
+    def test_function_one_argument(self):
+        function = Function(
+            name="myfeature",
+            expression="fieldMatch(title) + freshness(foo)",
+            args=["foo"],
+        )
+        self.assertEqual(function.name, "myfeature")
+        self.assertEqual(function.expression, "fieldMatch(title) + freshness(foo)")
+        self.assertEqual(function.args, ["foo"])
+        self.assertEqual(function, Function.from_dict(function.to_dict))
+        self.assertEqual(function.args_to_text, "foo")
+
+    def test_function_multiple_argument(self):
+        function = Function(
+            name="myfeature",
+            expression="fieldMatch(bar) + freshness(foo)",
+            args=["foo", "bar"],
+        )
+        self.assertEqual(function.name, "myfeature")
+        self.assertEqual(function.expression, "fieldMatch(bar) + freshness(foo)")
+        self.assertEqual(function.args, ["foo", "bar"])
+        self.assertEqual(function, Function.from_dict(function.to_dict))
+        self.assertEqual(function.args_to_text, "foo, bar")
+
+    def test_function_multiple_lines(self):
+        function = Function(
+            name="token_type_ids",
+            expression="""
+            tensor<float>(d0[1],d1[128])(
+               if (d1 < question_length,
+                 0,
+               if (d1 < question_length + doc_length,
+                 1,
+                 TOKEN_NONE
+               )))
+            """,
+        )
+        self.assertEqual(function.name, "token_type_ids")
+        self.assertEqual(
+            function.expression,
+            """
+            tensor<float>(d0[1],d1[128])(
+               if (d1 < question_length,
+                 0,
+               if (d1 < question_length + doc_length,
+                 1,
+                 TOKEN_NONE
+               )))
+            """,
+        )
+        self.assertEqual(function.args, None)
+        self.assertEqual(function, Function.from_dict(function.to_dict))
+        self.assertEqual(function.args_to_text, "")
+
+
 class TestRankProfile(unittest.TestCase):
     def test_rank_profile(self):
         rank_profile = RankProfile(name="bm25", first_phase="bm25(title) + bm25(body)")
@@ -109,6 +189,72 @@ class TestRankProfile(unittest.TestCase):
         )
         self.assertEqual(rank_profile.name, "bm25")
         self.assertEqual(rank_profile.first_phase, "bm25(title) + bm25(body)")
+        self.assertEqual(rank_profile, RankProfile.from_dict(rank_profile.to_dict))
+
+    def test_rank_profile_bert_second_phase(self):
+        rank_profile = RankProfile(
+            name="bert",
+            first_phase="bm25(title) + bm25(body)",
+            second_phase=SecondPhaseRanking(rerank_count=10, expression="sum(eval)"),
+            inherits="default",
+            constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
+            functions=[
+                Function(
+                    name="question_length",
+                    expression="sum(map(query(query_token_ids), f(a)(a > 0)))",
+                ),
+                Function(
+                    name="doc_length",
+                    expression="sum(map(attribute(doc_token_ids), f(a)(a > 0)))",
+                ),
+                Function(
+                    name="input_ids",
+                    expression="tensor<float>(d0[1],d1[128])(\n"
+                    "    if (d1 == 0,\n"
+                    "        TOKEN_CLS,\n"
+                    "    if (d1 < question_length + 1,\n"
+                    "        query(query_token_ids){d0:(d1-1)},\n"
+                    "    if (d1 == question_length + 1,\n"
+                    "        TOKEN_SEP,\n"
+                    "    if (d1 < question_length + doc_length + 2,\n"
+                    "        attribute(doc_token_ids){d0:(d1-question_length-2)},\n"
+                    "    if (d1 == question_length + doc_length + 2,\n"
+                    "        TOKEN_SEP,\n"
+                    "        TOKEN_NONE\n"
+                    "    ))))))",
+                ),
+                Function(
+                    name="attention_mask",
+                    expression="map(input_ids, f(a)(a > 0))",
+                ),
+                Function(
+                    name="token_type_ids",
+                    expression="tensor<float>(d0[1],d1[128])(\n"
+                    "    if (d1 < question_length,\n"
+                    "        0,\n"
+                    "    if (d1 < question_length + doc_length,\n"
+                    "        1,\n"
+                    "        TOKEN_NONE\n"
+                    "    )))",
+                ),
+            ],
+            summary_features=[
+                "onnxModel(bert).logits",
+                "input_ids",
+                "attention_mask",
+                "token_type_ids",
+            ],
+        )
+        self.assertEqual(rank_profile.name, "bert")
+        self.assertEqual(rank_profile.first_phase, "bm25(title) + bm25(body)")
+        self.assertDictEqual(
+            rank_profile.constants,
+            {"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
+        )
+        self.assertEqual(
+            rank_profile.summary_features,
+            ["onnxModel(bert).logits", "input_ids", "attention_mask", "token_type_ids"],
+        )
         self.assertEqual(rank_profile, RankProfile.from_dict(rank_profile.to_dict))
 
 
