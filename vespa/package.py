@@ -911,6 +911,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
             fields=self.schema.document.fields,
             fieldsets=self.schema.fieldsets,
             rank_profiles=self.schema.rank_profiles,
+            models=self.schema.models,
         )
 
     @property
