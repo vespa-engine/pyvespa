@@ -239,17 +239,13 @@ class TestOnnxModelDockerDeployment(unittest.TestCase):
                         "        TOKEN_NONE\n"
                         "    )))",
                     ),
-                    Function(
-                        name="eval",
-                        expression="tensor(x{}):{x1:onnxModel(bert_tiny).logits{d0:0,d1:0}}",
-                    ),
                 ],
                 first_phase="bm25(title)",
                 second_phase=SecondPhaseRanking(
-                    rerank_count=10, expression="sum(eval)"
+                    rerank_count=10, expression="sum(onnx(bert_tiny).logits{d0:0,d1:0})"
                 ),
                 summary_features=[
-                    "onnxModel(bert_tiny).logits",
+                    "onnx(bert_tiny).logits",
                     "input_ids",
                     "attention_mask",
                     "token_type_ids",

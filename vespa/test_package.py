@@ -196,7 +196,7 @@ class TestRankProfile(unittest.TestCase):
         rank_profile = RankProfile(
             name="bert",
             first_phase="bm25(title) + bm25(body)",
-            second_phase=SecondPhaseRanking(rerank_count=10, expression="sum(eval)"),
+            second_phase=SecondPhaseRanking(rerank_count=10, expression="sum(onnx(bert_tiny).logits{d0:0,d1:0})"),
             inherits="default",
             constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
             functions=[
@@ -240,7 +240,7 @@ class TestRankProfile(unittest.TestCase):
                 ),
             ],
             summary_features=[
-                "onnxModel(bert).logits",
+                "onnx(bert).logits",
                 "input_ids",
                 "attention_mask",
                 "token_type_ids",
@@ -254,7 +254,7 @@ class TestRankProfile(unittest.TestCase):
         )
         self.assertEqual(
             rank_profile.summary_features,
-            ["onnxModel(bert).logits", "input_ids", "attention_mask", "token_type_ids"],
+            ["onnx(bert).logits", "input_ids", "attention_mask", "token_type_ids"],
         )
         self.assertEqual(rank_profile, RankProfile.from_dict(rank_profile.to_dict))
 
@@ -433,7 +433,7 @@ class TestApplicationPackage(unittest.TestCase):
                     name="bert",
                     first_phase="bm25(title) + bm25(body)",
                     second_phase=SecondPhaseRanking(
-                        rerank_count=10, expression="sum(eval)"
+                        rerank_count=10, expression="sum(onnx(bert).logits{d0:0,d1:0})"
                     ),
                     inherits="default",
                     constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
@@ -476,13 +476,9 @@ class TestApplicationPackage(unittest.TestCase):
                             "        TOKEN_NONE\n"
                             "    )))",
                         ),
-                        Function(
-                            name="eval",
-                            expression="tensor(x{}):{x1:onnxModel(bert).logits{d0:0,d1:0}}",
-                        ),
                     ],
                     summary_features=[
-                        "onnxModel(bert).logits",
+                        "onnx(bert).logits",
                         "input_ids",
                         "attention_mask",
                         "token_type_ids",
@@ -613,20 +609,15 @@ class TestApplicationPackage(unittest.TestCase):
             "                    )))\n"
             "            }\n"
             "        }\n"
-            "        function eval() {\n"
-            "            expression {\n"
-            "                tensor(x{}):{x1:onnxModel(bert).logits{d0:0,d1:0}}\n"
-            "            }\n"
-            "        }\n"
             "        first-phase {\n"
             "            expression: bm25(title) + bm25(body)\n"
             "        }\n"
             "        second-phase {\n"
             "            rerank-count: 10\n"
-            "            expression: sum(eval)\n"
+            "            expression: sum(onnx(bert).logits{d0:0,d1:0})\n"
             "        }\n"
             "        summary-features {\n"
-            "            onnxModel(bert).logits\n"
+            "            onnx(bert).logits\n"
             "            input_ids\n"
             "            attention_mask\n"
             "            token_type_ids\n"
