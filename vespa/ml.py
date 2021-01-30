@@ -38,7 +38,7 @@ class BertModelConfig(ModelConfig, ToJson, FromJson["BertModelConfig"]):
         ...     query_input_size=32,
         ...     doc_input_size=96,
         ...     tokenizer="google/bert_uncased_L-2_H-128_A-2",
-        ... )
+        ... )  # doctest: +SKIP
         BertModelConfig('pretrained_bert_tiny', 32, 96, 'google/bert_uncased_L-2_H-128_A-2', None)
 
         >>> bert_config = BertModelConfig(
@@ -47,7 +47,7 @@ class BertModelConfig(ModelConfig, ToJson, FromJson["BertModelConfig"]):
         ...     doc_input_size=96,
         ...     tokenizer="google/bert_uncased_L-2_H-128_A-2",
         ...     model="google/bert_uncased_L-2_H-128_A-2",
-        ... )
+        ... )  # doctest: +SKIP
         BertModelConfig('pretrained_bert_tiny', 32, 96, 'google/bert_uncased_L-2_H-128_A-2', 'google/bert_uncased_L-2_H-128_A-2')
         """
         super().__init__(model_id=model_id)
