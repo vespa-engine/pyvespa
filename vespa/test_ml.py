@@ -109,7 +109,10 @@ class TestBertModelConfig(unittest.TestCase):
             queries=["this is one query", "this is another query"],
             docs=["this is one document", "this is another document"],
         )
-        self.assertEqual(len(prediction.logits.shape), 2)
+        self.assertEqual(len(prediction), 2)
+        self.assertEqual(len(prediction[0]), 2)
+        self.assertEqual(len(prediction[1]), 2)
+
 
     def _predict_with_onnx(self, onnx_file_path, model_inputs):
         os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
