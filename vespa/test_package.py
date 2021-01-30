@@ -7,6 +7,7 @@ from vespa.package import (
     Function,
     SecondPhaseRanking,
     RankProfile,
+    OnnxModel,
     Schema,
     QueryTypeField,
     QueryProfileType,
@@ -195,7 +196,7 @@ class TestRankProfile(unittest.TestCase):
         rank_profile = RankProfile(
             name="bert",
             first_phase="bm25(title) + bm25(body)",
-            second_phase=SecondPhaseRanking(rerank_count=10, expression="sum(eval)"),
+            second_phase=SecondPhaseRanking(rerank_count=10, expression="sum(onnx(bert_tiny).logits{d0:0,d1:0})"),
             inherits="default",
             constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
             functions=[
@@ -239,7 +240,7 @@ class TestRankProfile(unittest.TestCase):
                 ),
             ],
             summary_features=[
-                "onnxModel(bert).logits",
+                "onnx(bert).logits",
                 "input_ids",
                 "attention_mask",
                 "token_type_ids",
@@ -253,9 +254,27 @@ class TestRankProfile(unittest.TestCase):
         )
         self.assertEqual(
             rank_profile.summary_features,
-            ["onnxModel(bert).logits", "input_ids", "attention_mask", "token_type_ids"],
+            ["onnx(bert).logits", "input_ids", "attention_mask", "token_type_ids"],
         )
         self.assertEqual(rank_profile, RankProfile.from_dict(rank_profile.to_dict))
+
+
+class TestOnnxModel(unittest.TestCase):
+    def test_onnx_model(self):
+        onnx_model = OnnxModel(
+            model_name="bert",
+            model_file_path="bert.onnx",
+            inputs={
+                "input_ids": "input_ids",
+                "token_type_ids": "token_type_ids",
+                "attention_mask": "attention_mask",
+            },
+            outputs={"logits": "logits"},
+        )
+        self.assertEqual(
+            onnx_model,
+            OnnxModel.from_dict(onnx_model.to_dict),
+        )
 
 
 class TestSchema(unittest.TestCase):
@@ -266,6 +285,18 @@ class TestSchema(unittest.TestCase):
             fieldsets=[FieldSet(name="default", fields=["title", "body"])],
             rank_profiles=[
                 RankProfile(name="bm25", first_phase="bm25(title) + bm25(body)")
+            ],
+            models=[
+                OnnxModel(
+                    model_name="bert",
+                    model_file_path="bert.onnx",
+                    inputs={
+                        "input_ids": "input_ids",
+                        "token_type_ids": "token_type_ids",
+                        "attention_mask": "attention_mask",
+                    },
+                    outputs={"logits": "logits"},
+                )
             ],
         )
         self.assertEqual(schema, Schema.from_dict(schema.to_dict))
@@ -398,6 +429,73 @@ class TestApplicationPackage(unittest.TestCase):
                     first_phase="bm25(title) + bm25(body)",
                     inherits="default",
                 ),
+                RankProfile(
+                    name="bert",
+                    first_phase="bm25(title) + bm25(body)",
+                    second_phase=SecondPhaseRanking(
+                        rerank_count=10, expression="sum(onnx(bert).logits{d0:0,d1:0})"
+                    ),
+                    inherits="default",
+                    constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
+                    functions=[
+                        Function(
+                            name="question_length",
+                            expression="sum(map(query(query_token_ids), f(a)(a > 0)))",
+                        ),
+                        Function(
+                            name="doc_length",
+                            expression="sum(map(attribute(doc_token_ids), f(a)(a > 0)))",
+                        ),
+                        Function(
+                            name="input_ids",
+                            expression="tensor<float>(d0[1],d1[128])(\n"
+                            "    if (d1 == 0,\n"
+                            "        TOKEN_CLS,\n"
+                            "    if (d1 < question_length + 1,\n"
+                            "        query(query_token_ids){d0:(d1-1)},\n"
+                            "    if (d1 == question_length + 1,\n"
+                            "        TOKEN_SEP,\n"
+                            "    if (d1 < question_length + doc_length + 2,\n"
+                            "        attribute(doc_token_ids){d0:(d1-question_length-2)},\n"
+                            "    if (d1 == question_length + doc_length + 2,\n"
+                            "        TOKEN_SEP,\n"
+                            "        TOKEN_NONE\n"
+                            "    ))))))",
+                        ),
+                        Function(
+                            name="attention_mask",
+                            expression="map(input_ids, f(a)(a > 0))",
+                        ),
+                        Function(
+                            name="token_type_ids",
+                            expression="tensor<float>(d0[1],d1[128])(\n"
+                            "    if (d1 < question_length,\n"
+                            "        0,\n"
+                            "    if (d1 < question_length + doc_length,\n"
+                            "        1,\n"
+                            "        TOKEN_NONE\n"
+                            "    )))",
+                        ),
+                    ],
+                    summary_features=[
+                        "onnx(bert).logits",
+                        "input_ids",
+                        "attention_mask",
+                        "token_type_ids",
+                    ],
+                ),
+            ],
+            models=[
+                OnnxModel(
+                    model_name="bert",
+                    model_file_path="bert.onnx",
+                    inputs={
+                        "input_ids": "input_ids",
+                        "token_type_ids": "token_type_ids",
+                        "attention_mask": "attention_mask",
+                    },
+                    outputs={"logits": "logits"},
+                )
             ],
         )
         test_query_profile_type = QueryProfileType(
@@ -445,6 +543,13 @@ class TestApplicationPackage(unittest.TestCase):
             "    fieldset default {\n"
             "        fields: title, body\n"
             "    }\n"
+            "    onnx-model bert {\n"
+            "        file: files/bert.onnx\n"
+            "        input input_ids: input_ids\n"
+            "        input token_type_ids: token_type_ids\n"
+            "        input attention_mask: attention_mask\n"
+            "        output logits: logits\n"
+            "    }\n"
             "    rank-profile default {\n"
             "        first-phase {\n"
             "            expression: nativeRank(title, body)\n"
@@ -453,6 +558,69 @@ class TestApplicationPackage(unittest.TestCase):
             "    rank-profile bm25 inherits default {\n"
             "        first-phase {\n"
             "            expression: bm25(title) + bm25(body)\n"
+            "        }\n"
+            "    }\n"
+            "    rank-profile bert inherits default {\n"
+            "        constants {\n"
+            "            TOKEN_NONE: 0\n"
+            "            TOKEN_CLS: 101\n"
+            "            TOKEN_SEP: 102\n"
+            "        }\n"
+            "        function question_length() {\n"
+            "            expression {\n"
+            "                sum(map(query(query_token_ids), f(a)(a > 0)))\n"
+            "            }\n"
+            "        }\n"
+            "        function doc_length() {\n"
+            "            expression {\n"
+            "                sum(map(attribute(doc_token_ids), f(a)(a > 0)))\n"
+            "            }\n"
+            "        }\n"
+            "        function input_ids() {\n"
+            "            expression {\n"
+            "                tensor<float>(d0[1],d1[128])(\n"
+            "                    if (d1 == 0,\n"
+            "                        TOKEN_CLS,\n"
+            "                    if (d1 < question_length + 1,\n"
+            "                        query(query_token_ids){d0:(d1-1)},\n"
+            "                    if (d1 == question_length + 1,\n"
+            "                        TOKEN_SEP,\n"
+            "                    if (d1 < question_length + doc_length + 2,\n"
+            "                        attribute(doc_token_ids){d0:(d1-question_length-2)},\n"
+            "                    if (d1 == question_length + doc_length + 2,\n"
+            "                        TOKEN_SEP,\n"
+            "                        TOKEN_NONE\n"
+            "                    ))))))\n"
+            "            }\n"
+            "        }\n"
+            "        function attention_mask() {\n"
+            "            expression {\n"
+            "                map(input_ids, f(a)(a > 0))\n"
+            "            }\n"
+            "        }\n"
+            "        function token_type_ids() {\n"
+            "            expression {\n"
+            "                tensor<float>(d0[1],d1[128])(\n"
+            "                    if (d1 < question_length,\n"
+            "                        0,\n"
+            "                    if (d1 < question_length + doc_length,\n"
+            "                        1,\n"
+            "                        TOKEN_NONE\n"
+            "                    )))\n"
+            "            }\n"
+            "        }\n"
+            "        first-phase {\n"
+            "            expression: bm25(title) + bm25(body)\n"
+            "        }\n"
+            "        second-phase {\n"
+            "            rerank-count: 10\n"
+            "            expression: sum(onnx(bert).logits{d0:0,d1:0})\n"
+            "        }\n"
+            "        summary-features {\n"
+            "            onnx(bert).logits\n"
+            "            input_ids\n"
+            "            attention_mask\n"
+            "            token_type_ids\n"
             "        }\n"
             "    }\n"
             "}"
