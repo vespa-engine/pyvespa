@@ -581,9 +581,7 @@ class Schema(ToJson, FromJson["Schema"]):
                 rank_profile.name: rank_profile for rank_profile in rank_profiles
             }
 
-        self.models = []
-        if models is not None:
-            self.models = [x for x in models]
+        self.models = [] if models is None else list(models)
 
     def add_fields(self, *fields: Field) -> None:
         """
