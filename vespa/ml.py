@@ -1,12 +1,22 @@
 from os import PathLike
 from typing import List, Optional, Union, Mapping, Dict
 from pathlib import Path
-
-from torch import tensor
-from transformers import BertForSequenceClassification, BertTokenizerFast, Pipeline
-from transformers.convert_graph_to_onnx import convert_pytorch
+from importlib.util import find_spec
 
 from vespa.json_serialization import ToJson, FromJson
+
+#
+# Optional ML dependencies
+#
+_torch_available = find_spec("torch") is not None
+_transformers_available = find_spec("torch") is not None
+
+if not _torch_available or not _transformers_available:
+    raise Exception("Use pip install pyvespa[ml] to install ml dependencies.")
+else:
+    from torch import tensor
+    from transformers import BertForSequenceClassification, BertTokenizerFast, Pipeline
+    from transformers.convert_graph_to_onnx import convert_pytorch
 
 
 class ModelConfig(object):
