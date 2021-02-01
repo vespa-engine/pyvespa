@@ -1,9 +1,10 @@
 from os import PathLike
 from typing import List, Optional, Union, Mapping, Dict
+from pathlib import Path
 
 from torch import tensor
-from torch.onnx import export
-from transformers import BertForSequenceClassification, BertTokenizerFast
+from transformers import BertForSequenceClassification, BertTokenizerFast, Pipeline
+from transformers.convert_graph_to_onnx import convert_pytorch
 
 from vespa.json_serialization import ToJson, FromJson
 
@@ -230,22 +231,11 @@ class BertModelConfig(ModelConfig, ToJson, FromJson["BertModelConfig"]):
         :param output_path: Relative output path for the onnx model, should end in '.onnx'
         :return: None.
         """
+
         if self._model:
-            dummy_input = self._generate_dummy_inputs()
-            input_names = ["input_ids", "token_type_ids", "attention_mask"]
-            output_names = ["logits"]
-            export(
-                self._model,
-                (
-                    dummy_input["input_ids"],
-                    dummy_input["token_type_ids"],
-                    dummy_input["attention_mask"],
-                ),
-                output_path,
-                input_names=input_names,
-                output_names=output_names,
-                verbose=False,
-                opset_version=11,
+            pipeline = Pipeline(model=self._model, tokenizer=self._tokenizer)
+            convert_pytorch(
+                pipeline, opset=11, output=Path(output_path), use_external_format=False
             )
         else:
             raise ValueError("No BERT model found to be exported.")
