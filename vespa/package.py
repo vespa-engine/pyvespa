@@ -930,7 +930,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
                     "token_type_ids": "token_type_ids",
                     "attention_mask": "attention_mask",
                 },
-                outputs={"logits": "logits"},
+                outputs={"output_0": "logits"},
             )
         )
 
