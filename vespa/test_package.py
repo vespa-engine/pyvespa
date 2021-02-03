@@ -1,4 +1,4 @@
-import unittest
+import unittest, os
 
 from vespa.package import (
     Field,
@@ -15,6 +15,7 @@ from vespa.package import (
     QueryProfile,
     ApplicationPackage,
 )
+from vespa.ml import BertModelConfig
 
 
 class TestField(unittest.TestCase):
@@ -196,7 +197,9 @@ class TestRankProfile(unittest.TestCase):
         rank_profile = RankProfile(
             name="bert",
             first_phase="bm25(title) + bm25(body)",
-            second_phase=SecondPhaseRanking(rerank_count=10, expression="sum(onnx(bert_tiny).logits{d0:0,d1:0})"),
+            second_phase=SecondPhaseRanking(
+                rerank_count=10, expression="sum(onnx(bert_tiny).logits{d0:0,d1:0})"
+            ),
             inherits="default",
             constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
             functions=[
@@ -721,6 +724,155 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
         self.app_package.query_profile.add_fields(
             QueryField(name="maxHits", value=100),
             QueryField(name="anotherField", value="string_value"),
+        )
+
+    def test_application_package(self):
+        self.assertEqual(
+            self.app_package, ApplicationPackage.from_dict(self.app_package.to_dict)
+        )
+
+    def test_schema_to_text(self):
+        expected_result = (
+            "schema test_app {\n"
+            "    document test_app {\n"
+            "        field id type string {\n"
+            "            indexing: attribute | summary\n"
+            "        }\n"
+            "        field title type string {\n"
+            "            indexing: index | summary\n"
+            "            index: enable-bm25\n"
+            "        }\n"
+            "        field body type string {\n"
+            "            indexing: index | summary\n"
+            "            index: enable-bm25\n"
+            "        }\n"
+            "    }\n"
+            "    fieldset default {\n"
+            "        fields: title, body\n"
+            "    }\n"
+            "    rank-profile default {\n"
+            "        first-phase {\n"
+            "            expression: nativeRank(title, body)\n"
+            "        }\n"
+            "    }\n"
+            "    rank-profile bm25 inherits default {\n"
+            "        first-phase {\n"
+            "            expression: bm25(title) + bm25(body)\n"
+            "        }\n"
+            "    }\n"
+            "}"
+        )
+        self.assertEqual(self.app_package.schema_to_text, expected_result)
+
+    def test_hosts_to_text(self):
+        expected_result = (
+            '<?xml version="1.0" encoding="utf-8" ?>\n'
+            "<!-- Copyright 2019 Oath Inc. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->\n"
+            "<hosts>\n"
+            '    <host name="localhost">\n'
+            "        <alias>node1</alias>\n"
+            "    </host>\n"
+            "</hosts>"
+        )
+        self.assertEqual(self.app_package.hosts_to_text, expected_result)
+
+    def test_services_to_text(self):
+        expected_result = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<services version="1.0">\n'
+            '    <container id="test_app_container" version="1.0">\n'
+            "        <search></search>\n"
+            "        <document-api></document-api>\n"
+            "    </container>\n"
+            '    <content id="test_app_content" version="1.0">\n'
+            '        <redundancy reply-after="1">1</redundancy>\n'
+            "        <documents>\n"
+            '            <document type="test_app" mode="index"></document>\n'
+            "        </documents>\n"
+            "        <nodes>\n"
+            '            <node distribution-key="0" hostalias="node1"></node>\n'
+            "        </nodes>\n"
+            "    </content>\n"
+            "</services>"
+        )
+
+        self.assertEqual(self.app_package.services_to_text, expected_result)
+
+    def test_query_profile_to_text(self):
+        expected_result = (
+            '<query-profile id="default" type="root">\n'
+            '    <field name="maxHits">100</field>\n'
+            '    <field name="anotherField">string_value</field>\n'
+            "</query-profile>"
+        )
+
+        self.assertEqual(self.app_package.query_profile_to_text, expected_result)
+
+    def test_query_profile_type_to_text(self):
+        expected_result = (
+            '<query-profile-type id="root">\n'
+            '    <field name="ranking.features.query(query_bert)" type="tensor&lt;float&gt;(x[768])" />\n'
+            "</query-profile-type>"
+        )
+        self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)
+
+
+class TestSimplifiedApplicationPackageAddBertRanking(unittest.TestCase):
+    def setUp(self) -> None:
+        self.app_package = ApplicationPackage(name="test_app")
+
+        self.app_package.schema.add_fields(
+            Field(name="id", type="string", indexing=["attribute", "summary"]),
+            Field(
+                name="title",
+                type="string",
+                indexing=["index", "summary"],
+                index="enable-bm25",
+            ),
+            Field(
+                name="body",
+                type="string",
+                indexing=["index", "summary"],
+                index="enable-bm25",
+            ),
+        )
+        self.app_package.schema.add_field_set(
+            FieldSet(name="default", fields=["title", "body"])
+        )
+        self.app_package.schema.add_rank_profile(
+            RankProfile(name="default", first_phase="nativeRank(title, body)")
+        )
+        self.app_package.schema.add_rank_profile(
+            RankProfile(
+                name="bm25",
+                first_phase="bm25(title) + bm25(body)",
+                inherits="default",
+            )
+        )
+        self.app_package.query_profile_type.add_fields(
+            QueryTypeField(
+                name="ranking.features.query(query_bert)",
+                type="tensor<float>(x[768])",
+            )
+        )
+        self.app_package.query_profile.add_fields(
+            QueryField(name="maxHits", value=100),
+            QueryField(name="anotherField", value="string_value"),
+        )
+
+        bert_config = BertModelConfig(
+            model_id="bert_tiny",
+            query_input_size=4,
+            doc_input_size=8,
+            tokenizer=os.path.join(os.environ["RESOURCES_DIR"], "bert_tiny_tokenizer"),
+            model=os.path.join(os.environ["RESOURCES_DIR"], "bert_tiny_model"),
+        )
+
+        self.app_package.add_model_ranking(
+            model_config=bert_config,
+            inherits="default",
+            first_phase="bm25(title)",
+            second_phase=SecondPhaseRanking(rerank_count=10, expression="logit1"),
         )
 
     def test_application_package(self):
