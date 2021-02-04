@@ -961,6 +961,7 @@ class TestSimplifiedApplicationPackageAddBertRanking(unittest.TestCase):
         expected_result = (
             '<query-profile-type id="root">\n'
             '    <field name="ranking.features.query(query_bert)" type="tensor&lt;float&gt;(x[768])" />\n'
+            '    <field name="ranking.features.query(bert_tiny_query_token_ids)" type="tensor&lt;float&gt;(d0[2])" />\n'            
             "</query-profile-type>"
         )
         self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)
