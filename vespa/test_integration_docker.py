@@ -13,6 +13,7 @@ from vespa.package import (
     VespaDocker,
 )
 from vespa.ml import BertModelConfig
+from vespa.query import QueryModel, RankProfile as Ranking, OR, QueryRankingFeature
 
 
 class TestDockerDeployment(unittest.TestCase):
@@ -185,26 +186,27 @@ class TestOnnxModelDockerDeployment(unittest.TestCase):
             second_phase=SecondPhaseRanking(rerank_count=10, expression="logit1"),
         )
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.vespa_docker = VespaDocker(port=8089)
+        self.app = self.vespa_docker.deploy(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
 
     def test_deploy(self):
-        self.vespa_docker = VespaDocker(port=8089)
-        app = self.vespa_docker.deploy(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
         self.assertTrue(
-            any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
+            any(
+                re.match("Generation: [0-9]+", line)
+                for line in self.app.deployment_message
+            )
         )
-        self.assertEqual(app.get_application_status().status_code, 200)
+        self.assertEqual(self.app.get_application_status().status_code, 200)
 
     def test_data_operation(self):
-        self.vespa_docker = VespaDocker(port=8089)
-        app = self.vespa_docker.deploy(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
         #
         # Get data that does not exist
         #
-        self.assertEqual(app.get_data(schema="cord19", data_id="1").status_code, 404)
+        self.assertEqual(
+            self.app.get_data(schema="cord19", data_id="1").status_code, 404
+        )
         #
         # Feed a data point
         #
@@ -213,7 +215,7 @@ class TestOnnxModelDockerDeployment(unittest.TestCase):
             "title": "this is my first title",
         }
         fields.update(self.bert_config.doc_fields(text=str(fields["title"])))
-        response = app.feed_data_point(
+        response = self.app.feed_data_point(
             schema="cord19",
             data_id="1",
             fields=fields,
@@ -222,7 +224,7 @@ class TestOnnxModelDockerDeployment(unittest.TestCase):
         #
         # Get data that exist
         #
-        response = app.get_data(schema="cord19", data_id="1")
+        response = self.app.get_data(schema="cord19", data_id="1")
         self.assertEqual(response.status_code, 200)
         embedding_values = fields["pretrained_bert_tiny_doc_token_ids"]["values"]
         self.assertDictEqual(
@@ -250,12 +252,12 @@ class TestOnnxModelDockerDeployment(unittest.TestCase):
         #
         fields = {"title": "this is my updated title"}
         fields.update(self.bert_config.doc_fields(text=str(fields["title"])))
-        response = app.update_data(schema="cord19", data_id="1", fields=fields)
+        response = self.app.update_data(schema="cord19", data_id="1", fields=fields)
         self.assertEqual(response.json()["id"], "id:cord19:cord19::1")
         #
         # Get the updated data point
         #
-        response = app.get_data(schema="cord19", data_id="1")
+        response = self.app.get_data(schema="cord19", data_id="1")
         self.assertEqual(response.status_code, 200)
         embedding_values = fields["pretrained_bert_tiny_doc_token_ids"]["values"]
         self.assertDictEqual(
@@ -281,12 +283,79 @@ class TestOnnxModelDockerDeployment(unittest.TestCase):
         #
         # Delete a data point
         #
-        response = app.delete_data(schema="cord19", data_id="1")
+        response = self.app.delete_data(schema="cord19", data_id="1")
         self.assertEqual(response.json()["id"], "id:cord19:cord19::1")
         #
         # Deleted data should be gone
         #
-        self.assertEqual(app.get_data(schema="cord19", data_id="1").status_code, 404)
+        self.assertEqual(
+            self.app.get_data(schema="cord19", data_id="1").status_code, 404
+        )
+
+    def _parse_vespa_tensor(self, hit, feature):
+        return [x["value"] for x in hit["fields"]["summaryfeatures"][feature]["cells"]]
+
+    def test_rank_input_output(self):
+        #
+        # Feed a data point
+        #
+        fields = {
+            "cord_uid": "1",
+            "title": "this is my first title",
+        }
+        fields.update(self.bert_config.doc_fields(text=str(fields["title"])))
+        response = self.app.feed_data_point(
+            schema="cord19",
+            data_id="1",
+            fields=fields,
+        )
+        self.assertEqual(response.json()["id"], "id:cord19:cord19::1")
+        #
+        # Run a test query
+        #
+        result = self.app.query(
+            query="this is a test",
+            query_model=QueryModel(
+                query_properties=[
+                    QueryRankingFeature(
+                        name=self.bert_config.query_token_ids_name,
+                        mapping=self.bert_config.query_tensor_mapping,
+                    )
+                ],
+                match_phase=OR(),
+                rank_profile=Ranking(name="pretrained_bert_tiny"),
+            ),
+        )
+        vespa_input_ids = self._parse_vespa_tensor(
+            result.hits[0], "rankingExpression(input_ids)"
+        )
+        vespa_attention_mask = self._parse_vespa_tensor(
+            result.hits[0], "rankingExpression(attention_mask)"
+        )
+        vespa_token_type_ids = self._parse_vespa_tensor(
+            result.hits[0], "rankingExpression(token_type_ids)"
+        )
+
+        expected_inputs = self.bert_config.create_encodings(
+            queries=["this is a test"], docs=["this is my first title"]
+        )
+        self.assertEqual(vespa_input_ids, expected_inputs["input_ids"][0])
+        self.assertEqual(vespa_attention_mask, expected_inputs["attention_mask"][0])
+        self.assertEqual(vespa_token_type_ids, expected_inputs["token_type_ids"][0])
+
+        expected_logits = self.bert_config.predict(
+            queries=["this is a test"], docs=["this is my first title"]
+        )
+        self.assertAlmostEqual(
+            result.hits[0]["fields"]["summaryfeatures"]["rankingExpression(logit0)"],
+            expected_logits[0][0],
+            5,
+        )
+        self.assertAlmostEqual(
+            result.hits[0]["fields"]["summaryfeatures"]["rankingExpression(logit1)"],
+            expected_logits[0][1],
+            5,
+        )
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
