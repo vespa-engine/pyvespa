@@ -22,7 +22,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 
 from vespa.json_serialization import ToJson, FromJson
 from vespa.application import Vespa
-from vespa.ml import ModelConfig, BertModelConfig   
+from vespa.ml import ModelConfig, BertModelConfig
 
 
 class Field(ToJson, FromJson["Field"]):
@@ -985,22 +985,30 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
             ),
             Function(
                 name="input_ids",
-                expression="tensor<float>(d0[1],d1[128])(\n"
-                "    if (d1 == 0,\n"
-                "        TOKEN_CLS,\n"
-                "    if (d1 < question_length + 1,\n"
-                "        query(" + model_config.query_token_ids_name + "){d0:(d1-1)},\n"
-                "    if (d1 == question_length + 1,\n"
-                "        TOKEN_SEP,\n"
-                "    if (d1 < question_length + doc_length + 2,\n"
-                "        attribute("
-                + model_config.doc_token_ids_name
-                + "){d0:(d1-question_length-2)},\n"
-                "    if (d1 == question_length + doc_length + 2,\n"
-                "        TOKEN_SEP,\n"
-                "        TOKEN_NONE\n"
-                "    ))))))",
+                expression="tokenInputIds({}, query({}), attribute({}))".format(
+                    model_config.input_size,
+                    model_config.query_token_ids_name,
+                    model_config.doc_token_ids_name,
+                ),
             ),
+            # Function(
+            #     name="input_ids",
+            #     expression="tensor<float>(d0[1],d1[128])(\n"
+            #     "    if (d1 == 0,\n"
+            #     "        TOKEN_CLS,\n"
+            #     "    if (d1 < question_length + 1,\n"
+            #     "        query(" + model_config.query_token_ids_name + "){d0:(d1-1)},\n"
+            #     "    if (d1 == question_length + 1,\n"
+            #     "        TOKEN_SEP,\n"
+            #     "    if (d1 < question_length + doc_length + 2,\n"
+            #     "        attribute("
+            #     + model_config.doc_token_ids_name
+            #     + "){d0:(d1-question_length-2)},\n"
+            #     "    if (d1 == question_length + doc_length + 2,\n"
+            #     "        TOKEN_SEP,\n"
+            #     "        TOKEN_NONE\n"
+            #     "    ))))))",
+            # ),
             Function(
                 name="attention_mask",
                 expression="map(input_ids, f(a)(a > 0))",
@@ -1008,9 +1016,9 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
             Function(
                 name="token_type_ids",
                 expression="tensor<float>(d0[1],d1[128])(\n"
-                "    if (d1 < question_length,\n"
+                "    if (d1 < question_length + 2,\n"
                 "        0,\n"
-                "    if (d1 < question_length + doc_length,\n"
+                "    if (d1 < question_length + doc_length + 3,\n"
                 "        1,\n"
                 "        TOKEN_NONE\n"
                 "    )))",
