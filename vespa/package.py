@@ -997,15 +997,11 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
             ),
             Function(
                 name="logit0",
-                expression="sum(tensor(x{}):{x1:onnxModel("
-                + model_id
-                + ").logits{d0:0,d1:0}})",
+                expression="onnx(" + model_id + ").logits{d0:0,d1:0}",
             ),
             Function(
                 name="logit1",
-                expression="sum(tensor(x{}):{x1:onnxModel("
-                + model_id
-                + ").logits{d0:0,d1:1}})",
+                expression="onnx(" + model_id + ").logits{d0:0,d1:1}",
             ),
         ]
         if "functions" in kwargs:
