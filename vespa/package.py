@@ -972,18 +972,6 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
 
         functions = [
             Function(
-                name="question_length",
-                expression="sum(map(query({}), f(a)(a > 0)))".format(
-                    model_config.query_token_ids_name
-                ),
-            ),
-            Function(
-                name="doc_length",
-                expression="sum(map(attribute({}), f(a)(a > 0)))".format(
-                    model_config.doc_token_ids_name
-                ),
-            ),
-            Function(
                 name="input_ids",
                 expression="tokenInputIds({}, query({}), attribute({}))".format(
                     model_config.input_size,
