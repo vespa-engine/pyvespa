@@ -1001,13 +1001,13 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
             ),
             Function(
                 name="token_type_ids",
-                expression="tensor<float>(d0[1],d1[128])(\n"
+                expression="tensor<float>(d0[1],d1[{}])(\n"
                 "    if (d1 < question_length + 2,\n"
                 "        0,\n"
                 "    if (d1 < question_length + doc_length + 3,\n"
                 "        1,\n"
                 "        TOKEN_NONE\n"
-                "    )))",
+                "    )))".format(model_config.input_size),
             ),
             Function(
                 name="logit0",
