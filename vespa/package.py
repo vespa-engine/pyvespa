@@ -993,7 +993,11 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
             ),
             Function(
                 name="attention_mask",
-                expression="map(input_ids, f(a)(a > 0))",
+                expression="tokenAttentionMask({}, query({}), attribute({}))".format(
+                    model_config.input_size,
+                    model_config.query_token_ids_name,
+                    model_config.doc_token_ids_name,
+                ),
             ),
             Function(
                 name="token_type_ids",
