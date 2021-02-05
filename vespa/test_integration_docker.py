@@ -176,8 +176,8 @@ class TestOnnxModelDockerDeployment(unittest.TestCase):
             model_id="pretrained_bert_tiny",
             tokenizer="google/bert_uncased_L-2_H-128_A-2",
             model="google/bert_uncased_L-2_H-128_A-2",
-            query_input_size=32,
-            doc_input_size=96,
+            query_input_size=5,
+            doc_input_size=10,
         )
         self.app_package.add_model_ranking(
             model_config=self.bert_config,
