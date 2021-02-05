@@ -947,7 +947,7 @@ class TestSimplifiedApplicationPackageAddBertRanking(unittest.TestCase):
             "        }\n"
             "        function token_type_ids() {\n"
             "            expression {\n"
-            "                tensor<float>(d0[1],d1[128])(\n"
+            "                tensor<float>(d0[1],d1[12])(\n"
             "                    if (d1 < question_length + 2,\n"
             "                        0,\n"
             "                    if (d1 < question_length + doc_length + 3,\n"
