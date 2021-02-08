@@ -22,6 +22,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 
 from vespa.json_serialization import ToJson, FromJson
 from vespa.application import Vespa
+from vespa.ml import ModelConfig, BertModelConfig
 
 
 class Field(ToJson, FromJson["Field"]):
@@ -889,6 +890,180 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         if not query_profile_type:
             query_profile_type = QueryProfileType()
         self.query_profile_type = query_profile_type
+        self.model_ids = []
+        self.model_configs = {}
+
+    def add_model_ranking(
+        self, model_config: ModelConfig, include_model_summary_features=False, **kwargs
+    ) -> None:
+        """
+        Add ranking profile based on a specific model config.
+
+        :param model_config: Model config instance specifying the model to be used on the RankProfile.
+        :param include_model_summary_features: True to include model specific summary features, such as
+            inputs and outputs that are useful for debugging. Default to False as this requires an extra model
+            evaluation when fetching summary features.
+        :param kwargs: Further arguments to be passed to RankProfile.
+        :return: None
+        """
+
+        model_id = model_config.model_id
+        #
+        # Validate and persist config
+        #
+        if model_id in self.model_ids:
+            raise ValueError("model_id must be unique: {}".format(model_id))
+        self.model_ids.append(model_id)
+        self.model_configs[model_id] = model_config
+
+        if isinstance(model_config, BertModelConfig):
+            self._add_bert_rank_profile(
+                model_config=model_config,
+                include_model_summary_features=include_model_summary_features,
+                **kwargs
+            )
+        else:
+            raise ValueError("Unknown model configuration type")
+
+    def _add_bert_rank_profile(
+        self,
+        model_config: BertModelConfig,
+        include_model_summary_features,
+        doc_token_ids_indexing=None,
+        **kwargs
+    ) -> None:
+
+        model_id = model_config.model_id
+
+        #
+        # export model
+        #
+        model_file_path = model_id + ".onnx"
+        model_config.export_to_onnx(output_path=model_file_path)
+
+        self.schema.add_model(
+            OnnxModel(
+                model_name=model_id,
+                model_file_path=model_file_path,
+                inputs={
+                    "input_ids": "input_ids",
+                    "token_type_ids": "token_type_ids",
+                    "attention_mask": "attention_mask",
+                },
+                outputs={"output_0": "logits"},
+            )
+        )
+
+        #
+        # Add query profile type for query token ids
+        #
+        self.query_profile_type.add_fields(
+            QueryTypeField(
+                name="ranking.features.query({})".format(
+                    model_config.query_token_ids_name
+                ),
+                type="tensor<float>(d0[{}])".format(
+                    int(model_config.actual_query_input_size)
+                ),
+            )
+        )
+
+        #
+        # Add field for doc token ids
+        #
+        if not doc_token_ids_indexing:
+            doc_token_ids_indexing = ["attribute", "summary"]
+        self.schema.add_fields(
+            Field(
+                name=model_config.doc_token_ids_name,
+                type="tensor<float>(d0[{}])".format(
+                    int(model_config.actual_doc_input_size)
+                ),
+                indexing=doc_token_ids_indexing,
+            ),
+        )
+
+        #
+        # Add rank profiles
+        #
+        constants = {"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102}
+        if "contants" in kwargs:
+            constants.update(kwargs.pop("contants"))
+
+        functions = [
+            Function(
+                name="question_length",
+                expression="sum(map(query({}), f(a)(a > 0)))".format(
+                    model_config.query_token_ids_name
+                ),
+            ),
+            Function(
+                name="doc_length",
+                expression="sum(map(attribute({}), f(a)(a > 0)))".format(
+                    model_config.doc_token_ids_name
+                ),
+            ),
+            Function(
+                name="input_ids",
+                expression="tokenInputIds({}, query({}), attribute({}))".format(
+                    model_config.input_size,
+                    model_config.query_token_ids_name,
+                    model_config.doc_token_ids_name,
+                ),
+            ),
+            Function(
+                name="attention_mask",
+                expression="tokenAttentionMask({}, query({}), attribute({}))".format(
+                    model_config.input_size,
+                    model_config.query_token_ids_name,
+                    model_config.doc_token_ids_name,
+                ),
+            ),
+            Function(
+                name="token_type_ids",
+                expression="tensor<float>(d0[1],d1[{}])(\n"
+                "    if (d1 < question_length + 2,\n"
+                "        0,\n"
+                "    if (d1 < question_length + doc_length + 3,\n"
+                "        1,\n"
+                "        TOKEN_NONE\n"
+                "    )))".format(model_config.input_size),
+            ),
+            Function(
+                name="logit0",
+                expression="onnx(" + model_id + ").logits{d0:0,d1:0}",
+            ),
+            Function(
+                name="logit1",
+                expression="onnx(" + model_id + ").logits{d0:0,d1:1}",
+            ),
+        ]
+        if "functions" in kwargs:
+            functions.extend(kwargs.pop("functions"))
+
+        summary_features = []
+        if include_model_summary_features:
+            summary_features.extend(
+                [
+                    "logit0",
+                    "logit1",
+                    "input_ids",
+                    "attention_mask",
+                    "token_type_ids",
+                ]
+            )
+        if "summary_features" in kwargs:
+            summary_features.extend(kwargs.pop("summary_features"))
+
+        self.schema.add_rank_profile(
+            RankProfile(
+                name=model_id,
+                constants=constants,
+                functions=functions,
+                summary_features=summary_features,
+                **kwargs
+            )
+        )
 
     @property
     def schema_to_text(self):
