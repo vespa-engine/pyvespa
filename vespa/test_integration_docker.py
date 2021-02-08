@@ -181,6 +181,7 @@ class TestOnnxModelDockerDeployment(unittest.TestCase):
         )
         self.app_package.add_model_ranking(
             model_config=self.bert_config,
+            include_model_summary_features=True,
             inherits="default",
             first_phase="bm25(title)",
             second_phase=SecondPhaseRanking(rerank_count=10, expression="logit1"),
