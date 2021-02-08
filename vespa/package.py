@@ -893,7 +893,19 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         self.model_ids = []
         self.model_configs = {}
 
-    def add_model_ranking(self, model_config: ModelConfig, **kwargs) -> None:
+    def add_model_ranking(
+        self, model_config: ModelConfig, include_model_summary_features=False, **kwargs
+    ) -> None:
+        """
+        Add ranking profile based on a specific model config.
+
+        :param model_config: Model config instance specifying the model to be used on the RankProfile.
+        :param include_model_summary_features: True to include model specific summary features, such as
+            inputs and outputs that are useful for debugging. Default to False as this requires an extra model
+            evaluation when fetching summary features.
+        :param kwargs: Further arguments to be passed to RankProfile.
+        :return: None
+        """
 
         model_id = model_config.model_id
         #
@@ -905,12 +917,20 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         self.model_configs[model_id] = model_config
 
         if isinstance(model_config, BertModelConfig):
-            self._add_bert_rank_profile(model_config=model_config, **kwargs)
+            self._add_bert_rank_profile(
+                model_config=model_config,
+                include_model_summary_features=include_model_summary_features,
+                **kwargs
+            )
         else:
             raise ValueError("Unknown model configuration type")
 
     def _add_bert_rank_profile(
-        self, model_config: BertModelConfig, doc_token_ids_indexing=None, **kwargs
+        self,
+        model_config: BertModelConfig,
+        include_model_summary_features,
+        doc_token_ids_indexing=None,
+        **kwargs
     ) -> None:
 
         model_id = model_config.model_id
@@ -1021,13 +1041,17 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         if "functions" in kwargs:
             functions.extend(kwargs.pop("functions"))
 
-        summary_features = [
-            "logit0",
-            "logit1",
-            "input_ids",
-            "attention_mask",
-            "token_type_ids",
-        ]
+        summary_features = []
+        if include_model_summary_features:
+            summary_features.extend(
+                [
+                    "logit0",
+                    "logit1",
+                    "input_ids",
+                    "attention_mask",
+                    "token_type_ids",
+                ]
+            )
         if "summary_features" in kwargs:
             summary_features.extend(kwargs.pop("summary_features"))
 
