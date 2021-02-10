@@ -25,7 +25,7 @@ from transformers import BertForSequenceClassification
 
 from vespa.json_serialization import ToJson, FromJson
 from vespa.application import Vespa
-from vespa.ml import BertModelConfig
+from vespa.ml import ModelConfig, BertModelConfig
 
 
 class Field(ToJson, FromJson["Field"]):
@@ -288,7 +288,6 @@ class SecondPhaseRanking(ToJson, FromJson["SecondPhaseRanking"]):
 
         >>> SecondPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10)
         SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10)
-
         """
         self.expression = expression
         self.rerank_count = rerank_count
@@ -586,9 +585,7 @@ class Schema(ToJson, FromJson["Schema"]):
                 rank_profile.name: rank_profile for rank_profile in rank_profiles
             }
 
-        self.models = []
-        if models is not None:
-            self.models = [x for x in models]
+        self.models = [] if models is None else list(models)
 
     def add_fields(self, *fields: Field) -> None:
         """
@@ -618,7 +615,6 @@ class Schema(ToJson, FromJson["Schema"]):
     def add_model(self, model: OnnxModel) -> None:
         """
         Add a :class:`OnnxModel` to the Schema.
-
         :param model: model to be added.
         :return: None.
         """
@@ -941,13 +937,19 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         self.model_ids = []
         self.model_configs = {}
 
-    def add_bert_ranking(
-        self,
-        model_config: BertModelConfig,
-        model: Module,
-        doc_token_ids_indexing=None,
-        **kwargs
+    def add_model_ranking(
+        self, model_config: ModelConfig, include_model_summary_features=False, **kwargs
     ) -> None:
+        """
+        Add ranking profile based on a specific model config.
+
+        :param model_config: Model config instance specifying the model to be used on the RankProfile.
+        :param include_model_summary_features: True to include model specific summary features, such as
+            inputs and outputs that are useful for debugging. Default to False as this requires an extra model
+            evaluation when fetching summary features.
+        :param kwargs: Further arguments to be passed to RankProfile.
+        :return: None
+        """
 
         model_id = model_config.model_id
         #
@@ -958,17 +960,30 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         self.model_ids.append(model_id)
         self.model_configs[model_id] = model_config
 
+        if isinstance(model_config, BertModelConfig):
+            self._add_bert_rank_profile(
+                model_config=model_config,
+                include_model_summary_features=include_model_summary_features,
+                **kwargs
+            )
+        else:
+            raise ValueError("Unknown model configuration type")
+
+    def _add_bert_rank_profile(
+        self,
+        model_config: BertModelConfig,
+        include_model_summary_features,
+        doc_token_ids_indexing=None,
+        **kwargs
+    ) -> None:
+
+        model_id = model_config.model_id
+
         #
-        # Validate and export model
+        # export model
         #
-        if not isinstance(model, BertForSequenceClassification):
-            raise ValueError("We only support BertForSequenceClassification for now.")
-        model_output = model(**model_config._generate_dummy_inputs(), return_dict = True)
-        assert (
-            len(model_output.logits.shape) == 2
-        ), "Model output expected to be logits vector of size 2"
         model_file_path = model_id + ".onnx"
-        model_config.export_to_onnx(model=model, output_path=model_file_path)
+        model_config.export_to_onnx(output_path=model_file_path)
 
         self.schema.add_model(
             OnnxModel(
@@ -979,7 +994,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
                     "token_type_ids": "token_type_ids",
                     "attention_mask": "attention_mask",
                 },
-                outputs={"logits": "logits"},
+                outputs={"output_0": "logits"},
             )
         )
 
@@ -988,8 +1003,12 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         #
         self.query_profile_type.add_fields(
             QueryTypeField(
-                name="ranking.features.query({})".format(model_config.query_token_ids_name),
-                type="tensor<float>(d0[{}])".format(int(model_config.actual_query_input_size)),
+                name="ranking.features.query({})".format(
+                    model_config.query_token_ids_name
+                ),
+                type="tensor<float>(d0[{}])".format(
+                    int(model_config.actual_query_input_size)
+                ),
             )
         )
 
@@ -1001,7 +1020,9 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         self.schema.add_fields(
             Field(
                 name=model_config.doc_token_ids_name,
-                type="tensor<float>(d0[{}])".format(int(model_config.actual_doc_input_size)),
+                type="tensor<float>(d0[{}])".format(
+                    int(model_config.actual_doc_input_size)
+                ),
                 indexing=doc_token_ids_indexing,
             ),
         )
@@ -1016,65 +1037,65 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         functions = [
             Function(
                 name="question_length",
-                expression="sum(map(query({}), f(a)(a > 0)))".format(model_config.query_token_ids_name),
+                expression="sum(map(query({}), f(a)(a > 0)))".format(
+                    model_config.query_token_ids_name
+                ),
             ),
             Function(
                 name="doc_length",
-                expression="sum(map(attribute({}), f(a)(a > 0)))".format(model_config.doc_token_ids_name),
+                expression="sum(map(attribute({}), f(a)(a > 0)))".format(
+                    model_config.doc_token_ids_name
+                ),
             ),
             Function(
                 name="input_ids",
-                expression="tensor<float>(d0[1],d1[128])(\n"
-                "    if (d1 == 0,\n"
-                "        TOKEN_CLS,\n"
-                "    if (d1 < question_length + 1,\n"
-                "        query(" + model_config.query_token_ids_name + "){d0:(d1-1)},\n"
-                "    if (d1 == question_length + 1,\n"
-                "        TOKEN_SEP,\n"
-                "    if (d1 < question_length + doc_length + 2,\n"
-                "        attribute(" + model_config.doc_token_ids_name + "){d0:(d1-question_length-2)},\n"
-                "    if (d1 == question_length + doc_length + 2,\n"
-                "        TOKEN_SEP,\n"
-                "        TOKEN_NONE\n"
-                "    ))))))",
+                expression="tokenInputIds({}, query({}), attribute({}))".format(
+                    model_config.input_size,
+                    model_config.query_token_ids_name,
+                    model_config.doc_token_ids_name,
+                ),
             ),
             Function(
                 name="attention_mask",
-                expression="map(input_ids, f(a)(a > 0))",
+                expression="tokenAttentionMask({}, query({}), attribute({}))".format(
+                    model_config.input_size,
+                    model_config.query_token_ids_name,
+                    model_config.doc_token_ids_name,
+                ),
             ),
             Function(
                 name="token_type_ids",
-                expression="tensor<float>(d0[1],d1[128])(\n"
-                "    if (d1 < question_length,\n"
+                expression="tensor<float>(d0[1],d1[{}])(\n"
+                "    if (d1 < question_length + 2,\n"
                 "        0,\n"
-                "    if (d1 < question_length + doc_length,\n"
+                "    if (d1 < question_length + doc_length + 3,\n"
                 "        1,\n"
                 "        TOKEN_NONE\n"
-                "    )))",
+                "    )))".format(model_config.input_size),
             ),
             Function(
                 name="logit0",
-                expression="sum(tensor(x{}):{x1:onnxModel("
-                + model_id
-                + ").logits{d0:0,d1:0}})",
+                expression="onnx(" + model_id + ").logits{d0:0,d1:0}",
             ),
             Function(
                 name="logit1",
-                expression="sum(tensor(x{}):{x1:onnxModel("
-                + model_id
-                + ").logits{d0:0,d1:1}})",
+                expression="onnx(" + model_id + ").logits{d0:0,d1:1}",
             ),
         ]
         if "functions" in kwargs:
             functions.extend(kwargs.pop("functions"))
 
-        summary_features = [
-            "logit0",
-            "logit1",
-            "input_ids",
-            "attention_mask",
-            "token_type_ids",
-        ]
+        summary_features = []
+        if include_model_summary_features:
+            summary_features.extend(
+                [
+                    "logit0",
+                    "logit1",
+                    "input_ids",
+                    "attention_mask",
+                    "token_type_ids",
+                ]
+            )
         if "summary_features" in kwargs:
             summary_features.extend(kwargs.pop("summary_features"))
 

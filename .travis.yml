@@ -12,12 +12,12 @@ jobs:
   include:
     - stage: run tests
       script:
-        - pip install -e .
+        - pip install -e .[full]
         - travis_wait 600 pytest --doctest-modules
     - stage: run notebooks
       script:
         - pip install notebook nbconvert
-        - pip install -e .
+        - pip install -e .[full]
         - pip install -r docs/sphinx/source/notebook_requirements.txt
         - find docs -name '*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=600 --execute {} +
         - find docs -name '*.nbconvert.ipynb' -exec rm {} +
@@ -32,7 +32,7 @@ jobs:
     - stage: retrieve, install and test
       if: branch = master AND type = push
       script:
-        - pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa==$PYVESPA_VERSION.$TRAVIS_BUILD_NUMBER
+        - pip install --quiet --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa[full]==$PYVESPA_VERSION.$TRAVIS_BUILD_NUMBER
         - travis_wait 600 pytest --doctest-modules
 
 
