@@ -20,9 +20,6 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives import serialization
 from jinja2 import Environment, PackageLoader, select_autoescape
 
-from torch.nn import Module
-from transformers import BertForSequenceClassification
-
 from vespa.json_serialization import ToJson, FromJson
 from vespa.application import Vespa
 from vespa.ml import ModelConfig, BertModelConfig
