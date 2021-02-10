@@ -715,14 +715,6 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
                 inherits="default",
             )
         )
-        self.app_package.schema.add_rank_profile(
-            RankProfile(
-                name="bert",
-                first_phase="bm25(title) + bm25(body)",
-                inherits="default",
-                constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
-            )
-        )
         self.app_package.query_profile_type.add_fields(
             QueryTypeField(
                 name="ranking.features.query(query_bert)",
@@ -764,16 +756,6 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
             "        }\n"
             "    }\n"
             "    rank-profile bm25 inherits default {\n"
-            "        first-phase {\n"
-            "            expression: bm25(title) + bm25(body)\n"
-            "        }\n"
-            "    }\n"
-            "    rank-profile bert inherits default {\n"
-            "        constants {\n"
-            "            TOKEN_NONE: 0\n"
-            "            TOKEN_CLS: 101\n"
-            "            TOKEN_SEP: 102\n"
-            "        }\n"
             "        first-phase {\n"
             "            expression: bm25(title) + bm25(body)\n"
             "        }\n"
