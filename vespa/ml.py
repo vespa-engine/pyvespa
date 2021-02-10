@@ -220,7 +220,6 @@ class BertModelConfig(ModelConfig, ToJson, FromJson["BertModelConfig"]):
             input_ids = tensor(input_ids)
             token_type_ids = tensor(token_type_ids)
             attention_mask = tensor(attention_mask)
-
         encodings = {
             "input_ids": input_ids,
             "token_type_ids": token_type_ids,

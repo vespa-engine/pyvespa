@@ -1,7 +1,6 @@
 import unittest
 import os
 import shutil
-
 from vespa.package import (
     Document,
     Field,

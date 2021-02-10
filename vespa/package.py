@@ -694,10 +694,16 @@ class QueryTypeField(ToJson, FromJson["QueryTypeField"]):
         type: str,
     ) -> None:
         """
-        Object representing a Query Profile Type field.
+        Create a field to be included in a :class:`QueryProfileType`.
 
         :param name: Field name.
         :param type: Field type.
+
+        >>> QueryTypeField(
+        ...     name="ranking.features.query(title_bert)",
+        ...     type="tensor<float>(x[768])"
+        ... )
+        QueryTypeField('ranking.features.query(title_bert)', 'tensor<float>(x[768])')
         """
         self.name = name
         self.type = type
@@ -730,19 +736,43 @@ class QueryTypeField(ToJson, FromJson["QueryTypeField"]):
 class QueryProfileType(ToJson, FromJson["QueryProfileType"]):
     def __init__(self, fields: Optional[List[QueryTypeField]] = None) -> None:
         """
-        Object representing a Query Profile Type.
+        Create a Vespa Query Profile Type.
 
-        :param fields: Query type fields.
+        Check the `Vespa documentation <https://docs.vespa.ai/documentation/query-profiles.html#query-profile-types>`_
+        for more detailed information about query profile types.
+
+        :param fields: A list of :class:`QueryTypeField`.
+
+        >>> QueryProfileType(
+        ...     fields = [
+        ...         QueryTypeField(
+        ...             name="ranking.features.query(tensor_bert)",
+        ...             type="tensor<float>(x[768])"
+        ...         )
+        ...     ]
+        ... )
+        QueryProfileType([QueryTypeField('ranking.features.query(tensor_bert)', 'tensor<float>(x[768])')])
         """
         self.name = "root"
         self.fields = [] if not fields else fields
 
     def add_fields(self, *fields: QueryTypeField) -> None:
         """
-        Add QueryTypeField's to the Query Profile Type.
+        Add :class:`QueryTypeField`'s to the Query Profile Type.
 
         :param fields: fields to be added
-        :return:
+
+        >>> query_profile_type = QueryProfileType()
+        >>> query_profile_type.add_fields(
+        ...     QueryTypeField(
+        ...         name="age",
+        ...         type="integer"
+        ...     ),
+        ...     QueryTypeField(
+        ...         name="profession",
+        ...         type="string"
+        ...     )
+        ... )
         """
         self.fields.extend(fields)
 
@@ -775,10 +805,13 @@ class QueryField(ToJson, FromJson["QueryField"]):
         value: Union[str, int, float],
     ) -> None:
         """
-        Object representing a Query Profile field.
+        Create a field to be included in a :class:`QueryProfile`.
 
         :param name: Field name.
         :param value: Field value.
+
+        >>> QueryField(name="maxHits", value=1000)
+        QueryField('maxHits', 1000)
         """
         self.name = name
         self.value = value
@@ -811,9 +844,15 @@ class QueryField(ToJson, FromJson["QueryField"]):
 class QueryProfile(ToJson, FromJson["QueryProfile"]):
     def __init__(self, fields: Optional[List[QueryField]] = None) -> None:
         """
-        Object representing a Query Profile.
+        Create a Vespa Query Profile.
 
-        :param fields: Query fields.
+        Check the `Vespa documentation <https://docs.vespa.ai/documentation/query-profiles.html>`_
+        for more detailed information about query profiles.
+
+        :param fields: A list of :class:`QueryField`.
+
+        >>> QueryProfile(fields=[QueryField(name="maxHits", value=1000)])
+        QueryProfile([QueryField('maxHits', 1000)])
         """
         self.name = "default"
         self.type = "root"
@@ -821,10 +860,12 @@ class QueryProfile(ToJson, FromJson["QueryProfile"]):
 
     def add_fields(self, *fields: QueryField) -> None:
         """
-        Add QueryField's to the Query Profile.
+        Add :class:`QueryField`'s to the Query Profile.
 
         :param fields: fields to be added
-        :return:
+
+        >>> query_profile = QueryProfile()
+        >>> query_profile.add_fields(QueryField(name="maxHits", value=1000))
         """
         self.fields.extend(fields)
 
