@@ -25,20 +25,23 @@ class QueryRankingFeature(QueryProperty):
     def __init__(
         self,
         name: str,
-        mapping: Callable[[str], List[float]],
+        mapping: Optional[Callable[[str], List[float]]] = None,
+        value: Optional[List[float]] = None,
     ) -> None:
         """
         Include ranking.feature.query into a Vespa query.
 
         :param name: Name of the feature.
         :param mapping: Function mapping a string to a list of floats.
+        :param value: list of floats to be sent directly as query ranking feature value.
         """
         super().__init__()
         self.name = name
         self.mapping = mapping
+        self.value = value
 
     def get_query_properties(self, query: Optional[str] = None) -> Dict[str, str]:
-        value = self.mapping(query)
+        value = self.mapping(query) if not self.value else self.value
         return {"ranking.features.query({})".format(self.name): str(value)}
 
 
