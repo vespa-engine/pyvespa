@@ -28,6 +28,13 @@ class TestQueryProperty(unittest.TestCase):
             {"ranking.features.query(query_vector)": "[1, 2, 3]"},
         )
 
+    def test_query_ranking_feature_value(self):
+        query_property = QueryRankingFeature(name="query_vector", value=[1, 2, 3])
+        self.assertDictEqual(
+            query_property.get_query_properties(query=self.query),
+            {"ranking.features.query(query_vector)": "[1, 2, 3]"},
+        )
+
 
 class TestMatchFilter(unittest.TestCase):
     def setUp(self) -> None:
