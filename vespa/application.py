@@ -106,7 +106,6 @@ class Vespa(object):
         """
 
         if body is None:
-            assert query is not None, "No 'query' specified."
             assert query_model is not None, "No 'query_model' specified."
             body = query_model.create_body(query=query)
             if recall is not None:
