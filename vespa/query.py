@@ -129,6 +129,7 @@ class ANN(MatchFilter):
         query_vector: str,
         hits: int,
         label: str,
+        approximate: bool = True
     ) -> None:
         """
         Match documents according to the nearest neighbor operator.
@@ -139,17 +140,20 @@ class ANN(MatchFilter):
         :param query_vector: Name of the query field to be used in the distance calculation.
         :param hits: Lower bound on the number of hits to return.
         :param label: A label to identify this specific operator instance.
+        :param approximate: True to use approximate nearest neighbor and False to use brute force. Default to True.
         """
         super().__init__()
         self.doc_vector = doc_vector
         self.query_vector = query_vector
         self.hits = hits
         self.label = label
+        self.approximate = approximate
+        self._approximate = "true" if self.approximate is True else "false"
 
     def create_match_filter(self, query: str) -> str:
         return (
-            '([{{"targetNumHits": {}, "label": "{}"}}]nearestNeighbor({}, {}))'.format(
-                self.hits, self.label, self.doc_vector, self.query_vector
+            '([{{"targetNumHits": {}, "label": "{}", "approximate": {}}}]nearestNeighbor({}, {}))'.format(
+                self.hits, self.label, self._approximate, self.doc_vector, self.query_vector
             )
         )
 
