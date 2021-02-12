@@ -14,10 +14,10 @@ jobs:
       script:
         - pip install -e .[full]
         - travis_wait 600 pytest --doctest-modules --ignore-glob=vespa/test_*.py
-#    - stage: run unit tests
-#      script:
-#        - pip install -e .[full]
-#        - travis_wait 600 pytest --doctest-modules
+    - stage: run unit tests
+      script:
+        - pip install -e .[full]
+        - travis_wait 600 pytest --ignore-glob=vespa/test_integration*.py
     - stage: run notebooks
       script:
         - pip install notebook nbconvert
