@@ -103,10 +103,10 @@ class Field(ToJson, FromJson["Field"]):
         :param ann: Add configuration for approximate nearest neighbor.
 
         >>> Field(name = "title", type = "string", indexing = ["index", "summary"], index = "enable-bm25")
-        Field('title', 'string', ['index', 'summary'], 'enable-bm25')
+        Field('title', 'string', ['index', 'summary'], 'enable-bm25', None)
 
         >>> Field(name = "title_bert", type = "tensor<float>(x[768])", indexing = ["attribute"])
-        Field('title_bert', 'tensor<float>(x[768])', ['attribute'], None)
+        Field('title_bert', 'tensor<float>(x[768])', ['attribute'], None, None)
 
         >>> Field(name="tensor_field",
         ...     type="tensor<float>(x[128])",
@@ -117,6 +117,7 @@ class Field(ToJson, FromJson["Field"]):
         ...         neighbors_to_explore_at_insert=200,
         ...     ),
         ... ),
+        Field('tensor_field', 'tensor<float>(x[128])', ['attribute'], None, HNSW('enclidean', 16, 200))
 
         """
         self.name = name
@@ -190,7 +191,7 @@ class Document(ToJson, FromJson["Document"]):
         Document(None)
 
         >>> Document(fields=[Field(name="title", type="string")])
-        Document([Field('title', 'string', None, None)])
+        Document([Field('title', 'string', None, None, None)])
 
         """
         self.fields = [] if not fields else fields
