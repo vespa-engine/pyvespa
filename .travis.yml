@@ -10,10 +10,14 @@ before_install:
   - docker pull vespaengine/vespa
 jobs:
   include:
-    - stage: run tests
+    - stage: run doc tests
       script:
         - pip install -e .[full]
-        - travis_wait 600 pytest --doctest-modules
+        - travis_wait 600 pytest --doctest-modules --ignore-glob=vespa/test_*.py
+    - stage: run unit tests
+      script:
+        - pip install -e .[full]
+        - travis_wait 600 pytest --ignore-glob=vespa/test_integration*.py
     - stage: run notebooks
       script:
         - pip install notebook nbconvert
@@ -21,6 +25,18 @@ jobs:
         - pip install -r docs/sphinx/source/notebook_requirements.txt
         - find docs -name '*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=600 --execute {} +
         - find docs -name '*.nbconvert.ipynb' -exec rm {} +
+    - stage: run integration running instance
+      script:
+        - pip install -e .[full]
+        - travis_wait 600 pytest vespa/test_integration_running_instance.py
+    - stage: run integration docker
+      script:
+        - pip install -e .[full]
+        - travis_wait 600 pytest vespa/test_integration_docker.py
+    - stage: run integration cloud
+      script:
+        - pip install -e .[full]
+        - travis_wait 600 pytest vespa/test_integration_cloud.py
     - stage: deploy test server
       if: branch = master AND type = push
       script: skip
