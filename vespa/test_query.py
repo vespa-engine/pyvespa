@@ -164,6 +164,29 @@ class TestQuery(unittest.TestCase):
             },
         )
 
+    def test_vector_search_without_explicit_query(self):
+        query_model = QueryModel(
+            match_phase=ANN(
+                doc_vector="doc_vector",
+                query_vector="query_vector",
+                hits=10,
+                label="label",
+            ),
+            rank_profile=RankProfile(name="bm25", list_features=True),
+        )
+        self.assertDictEqual(
+            query_model.create_body(
+                query_properties=[
+                    QueryRankingFeature(name="query_vector", value=[1, 2, 3])
+                ],
+            ),
+            {
+                "yql": 'select * from sources * where ([{"targetNumHits": 10, "label": "label"}]nearestNeighbor(doc_vector, query_vector));',
+                "ranking": {"profile": "bm25", "listFeatures": "true"},
+                "ranking.features.query(query_vector)": "[1, 2, 3]",
+            },
+        )
+
 
 class TestVespaResult(unittest.TestCase):
     def setUp(self) -> None:
