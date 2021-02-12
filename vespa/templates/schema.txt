@@ -8,10 +8,19 @@ schema {{ schema_name }} {
             {% if field.index %}
             index: {{ field.index }}
             {% endif %}
-            {% if field.ann %}
+            {% if field.ann or field.attribute %}
             attribute {
+                {% if field.ann %}
                 distance-metric: {{ field.ann.distance_metric }}
+                {% endif %}
+                {% if field.attribute %}
+                {% for attribute in field.attribute %}
+                {{ attribute }}
+                {% endfor %}
+                {% endif %}
             }
+            {% endif %}
+            {% if field.ann %}
             index {
                 hnsw {
                     max-links-per-node: {{ field.ann.max_links_per_node }}
