@@ -66,6 +66,7 @@ class TestField(unittest.TestCase):
             name="tensor_field",
             type="tensor<float>(x[128])",
             indexing=["attribute"],
+            attribute=["fast-search", "fast-access"],
             ann=HNSW(
                 distance_metric="enclidean",
                 max_links_per_node=16,
@@ -436,6 +437,12 @@ class TestApplicationPackage(unittest.TestCase):
                         indexing=["index", "summary"],
                         index="enable-bm25",
                     ),
+                    Field(
+                        name="embedding",
+                        type="tensor<float>(x[128])",
+                        indexing=["attribute", "summary"],
+                        attribute=["fast-search", "fast-access"],
+                    ),
                 ]
             ),
             fieldsets=[FieldSet(name="default", fields=["title", "body"])],
@@ -555,6 +562,13 @@ class TestApplicationPackage(unittest.TestCase):
             "        field body type string {\n"
             "            indexing: index | summary\n"
             "            index: enable-bm25\n"
+            "        }\n"
+            "        field embedding type tensor<float>(x[128]) {\n"
+            "            indexing: attribute | summary\n"
+            "            attribute {\n"
+            "                fast-search\n"
+            "                fast-access\n"
+            "            }\n"
             "        }\n"
             "    }\n"
             "    fieldset default {\n"
@@ -719,6 +733,7 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
                 name="tensor_field",
                 type="tensor<float>(x[128])",
                 indexing=["attribute"],
+                attribute=["fast-search", "fast-access"],
                 ann=HNSW(
                     distance_metric="euclidean",
                     max_links_per_node=16,
@@ -774,6 +789,8 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
             "            indexing: attribute\n"
             "            attribute {\n"
             "                distance-metric: euclidean\n"
+            "                fast-search\n"
+            "                fast-access\n"
             "            }\n"
             "            index {\n"
             "                hnsw {\n"
