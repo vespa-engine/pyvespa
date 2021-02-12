@@ -9,7 +9,7 @@ from requests.exceptions import ConnectionError
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
-from vespa.query import QueryModel, VespaResult
+from vespa.query import QueryModel, VespaResult, QueryProperty
 from vespa.evaluation import EvalMetric
 
 retry_strategy = Retry(
@@ -86,6 +86,7 @@ class Vespa(object):
         body: Optional[Dict] = None,
         query: Optional[str] = None,
         query_model: Optional[QueryModel] = None,
+        query_properties: Optional[List[QueryProperty]] = None,
         debug_request: bool = False,
         recall: Optional[Tuple] = None,
         **kwargs
@@ -98,6 +99,7 @@ class Vespa(object):
         :param body: Dict containing all the request parameters.
         :param query: Query string
         :param query_model: Query model
+        :param query_properties: Query properties that do not belong to the query model.
         :param debug_request: return request body for debugging instead of sending the request.
         :param recall: Tuple of size 2 where the first element is the name of the field to use to recall and the
             second element is a list of the values to be recalled.
@@ -107,7 +109,7 @@ class Vespa(object):
 
         if body is None:
             assert query_model is not None, "No 'query_model' specified."
-            body = query_model.create_body(query=query)
+            body = query_model.create_body(query=query, query_properties= query_properties)
             if recall is not None:
                 body.update(
                     {
