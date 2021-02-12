@@ -88,6 +88,7 @@ class Field(ToJson, FromJson["Field"]):
         type: str,
         indexing: Optional[List[str]] = None,
         index: Optional[str] = None,
+        attribute: Optional[List[str]] = None,
         ann: Optional[HNSW] = None,
     ) -> None:
         """
@@ -100,13 +101,19 @@ class Field(ToJson, FromJson["Field"]):
         :param type: Field data type.
         :param indexing: Configures how to process data of a field during indexing.
         :param index: Sets index parameters. Content in fields with index are normalized and tokenized by default.
+        :param attribute:  Specifies a property of an index structure attribute.
         :param ann: Add configuration for approximate nearest neighbor.
 
         >>> Field(name = "title", type = "string", indexing = ["index", "summary"], index = "enable-bm25")
-        Field('title', 'string', ['index', 'summary'], 'enable-bm25', None)
+        Field('title', 'string', ['index', 'summary'], 'enable-bm25', None, None)
 
-        >>> Field(name = "title_bert", type = "tensor<float>(x[768])", indexing = ["attribute"])
-        Field('title_bert', 'tensor<float>(x[768])', ['attribute'], None, None)
+        >>> Field(
+        ...     name = "title_bert",
+        ...     type = "tensor<float>(x[768])",
+        ...     indexing = ["attribute"],
+        ...     attribute=["fast-search", "fast-access"]
+        ... )
+        Field('title_bert', 'tensor<float>(x[768])', ['attribute'], None, ['fast-search', 'fast-access'], None)
 
         >>> Field(name="tensor_field",
         ...     type="tensor<float>(x[128])",
@@ -117,12 +124,13 @@ class Field(ToJson, FromJson["Field"]):
         ...         neighbors_to_explore_at_insert=200,
         ...     ),
         ... )
-        Field('tensor_field', 'tensor<float>(x[128])', ['attribute'], None, HNSW('enclidean', 16, 200))
+        Field('tensor_field', 'tensor<float>(x[128])', ['attribute'], None, None, HNSW('enclidean', 16, 200))
 
         """
         self.name = name
         self.type = type
         self.indexing = indexing
+        self.attribute = attribute
         self.index = index
         self.ann = ann
 
@@ -139,6 +147,7 @@ class Field(ToJson, FromJson["Field"]):
             type=mapping["type"],
             indexing=mapping.get("indexing", None),
             index=mapping.get("index", None),
+            attribute=mapping.get("attribute", None),
             ann=FromJson.map(ann) if ann is not None else None,
         )
 
@@ -149,6 +158,8 @@ class Field(ToJson, FromJson["Field"]):
             map.update(indexing=self.indexing)
         if self.index is not None:
             map.update(index=self.index)
+        if self.attribute is not None:
+            map.update(attribute=self.attribute)
         if self.ann is not None:
             map.update(ann=self.ann.to_envelope)
         return map
@@ -161,16 +172,18 @@ class Field(ToJson, FromJson["Field"]):
             and self.type == other.type
             and self.indexing == other.indexing
             and self.index == other.index
+            and self.attribute == other.attribute
             and self.ann == other.ann
         )
 
     def __repr__(self):
-        return "{0}({1}, {2}, {3}, {4}, {5})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.type),
             repr(self.indexing),
             repr(self.index),
+            repr(self.attribute),
             repr(self.ann),
         )
 
@@ -191,7 +204,7 @@ class Document(ToJson, FromJson["Document"]):
         Document(None)
 
         >>> Document(fields=[Field(name="title", type="string")])
-        Document([Field('title', 'string', None, None, None)])
+        Document([Field('title', 'string', None, None, None, None)])
 
         """
         self.fields = [] if not fields else fields
