@@ -25,6 +25,62 @@ from vespa.application import Vespa
 from vespa.ml import ModelConfig, BertModelConfig
 
 
+class HNSW(ToJson, FromJson["HNSW"]):
+    def __init__(
+        self,
+        distance_metric="euclidean",
+        max_links_per_node=16,
+        neighbors_to_explore_at_insert=200,
+    ):
+        """
+        Configure Vespa HNSW indexes
+
+        :param distance_metric: Distance metric to use when computing distance between vectors. Default is 'euclidean'.
+        :param max_links_per_node: Specifies how many links per HNSW node to select when building the graph.
+            Default is 16.
+        :param neighbors_to_explore_at_insert: Specifies how many neighbors to explore when inserting a document in
+            the HNSW graph. Default is 200.
+        """
+        self.distance_metric = distance_metric
+        self.max_links_per_node = max_links_per_node
+        self.neighbors_to_explore_at_insert = neighbors_to_explore_at_insert
+
+    @staticmethod
+    def from_dict(mapping: Mapping) -> "HNSW":
+        return HNSW(
+            distance_metric=mapping["distance_metric"],
+            max_links_per_node=mapping["max_links_per_node"],
+            neighbors_to_explore_at_insert=mapping["neighbors_to_explore_at_insert"],
+        )
+
+    @property
+    def to_dict(self) -> Mapping:
+        map = {
+            "distance_metric": self.distance_metric,
+            "max_links_per_node": self.max_links_per_node,
+            "neighbors_to_explore_at_insert": self.neighbors_to_explore_at_insert,
+        }
+        return map
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return (
+            self.distance_metric == other.distance_metric
+            and self.max_links_per_node == other.max_links_per_node
+            and self.neighbors_to_explore_at_insert
+            == other.neighbors_to_explore_at_insert
+        )
+
+    def __repr__(self):
+        return "{0}({1}, {2}, {3})".format(
+            self.__class__.__name__,
+            repr(self.distance_metric),
+            repr(self.max_links_per_node),
+            repr(self.neighbors_to_explore_at_insert),
+        )
+
+
 class Field(ToJson, FromJson["Field"]):
     def __init__(
         self,
@@ -32,6 +88,7 @@ class Field(ToJson, FromJson["Field"]):
         type: str,
         indexing: Optional[List[str]] = None,
         index: Optional[str] = None,
+        ann: Optional[HNSW] = None,
     ) -> None:
         """
         Create a Vespa field.
@@ -43,6 +100,7 @@ class Field(ToJson, FromJson["Field"]):
         :param type: Field data type.
         :param indexing: Configures how to process data of a field during indexing.
         :param index: Sets index parameters. Content in fields with index are normalized and tokenized by default.
+        :param ann: Add configuration for approximate nearest neighbor.
 
         >>> Field(name = "title", type = "string", indexing = ["index", "summary"], index = "enable-bm25")
         Field('title', 'string', ['index', 'summary'], 'enable-bm25')
@@ -50,11 +108,22 @@ class Field(ToJson, FromJson["Field"]):
         >>> Field(name = "title_bert", type = "tensor<float>(x[768])", indexing = ["attribute"])
         Field('title_bert', 'tensor<float>(x[768])', ['attribute'], None)
 
+        >>> Field(name="tensor_field",
+        ...     type="tensor<float>(x[128])",
+        ...     indexing=["attribute"],
+        ...     ann=HNSW(
+        ...         distance_metric="enclidean",
+        ...         max_links_per_node=16,
+        ...         neighbors_to_explore_at_insert=200,
+        ...     ),
+        ... ),
+
         """
         self.name = name
         self.type = type
         self.indexing = indexing
         self.index = index
+        self.ann = ann
 
     @property
     def indexing_to_text(self) -> Optional[str]:
@@ -63,11 +132,13 @@ class Field(ToJson, FromJson["Field"]):
 
     @staticmethod
     def from_dict(mapping: Mapping) -> "Field":
+        ann = mapping.get("ann", None)
         return Field(
             name=mapping["name"],
             type=mapping["type"],
             indexing=mapping.get("indexing", None),
             index=mapping.get("index", None),
+            ann=FromJson.map(ann) if ann is not None else None,
         )
 
     @property
@@ -77,6 +148,8 @@ class Field(ToJson, FromJson["Field"]):
             map.update(indexing=self.indexing)
         if self.index is not None:
             map.update(index=self.index)
+        if self.ann is not None:
+            map.update(ann=self.ann.to_envelope)
         return map
 
     def __eq__(self, other):
@@ -87,15 +160,17 @@ class Field(ToJson, FromJson["Field"]):
             and self.type == other.type
             and self.indexing == other.indexing
             and self.index == other.index
+            and self.ann == other.ann
         )
 
     def __repr__(self):
-        return "{0}({1}, {2}, {3}, {4})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.type),
             repr(self.indexing),
             repr(self.index),
+            repr(self.ann),
         )
 
 
