@@ -37,6 +37,12 @@ class TestCloudDeployment(unittest.TestCase):
                     index="enable-bm25",
                 ),
                 Field(
+                    name="metadata",
+                    type="string",
+                    indexing=["attribute", "summary"],
+                    attribute=["fast-search", "fast-access"],
+                ),
+                Field(
                     name="tensor_field",
                     type="tensor<float>(x[128])",
                     indexing=["attribute"],
