@@ -116,7 +116,7 @@ class Field(ToJson, FromJson["Field"]):
         ...         max_links_per_node=16,
         ...         neighbors_to_explore_at_insert=200,
         ...     ),
-        ... ),
+        ... )
         Field('tensor_field', 'tensor<float>(x[128])', ['attribute'], None, HNSW('enclidean', 16, 200))
 
         """
