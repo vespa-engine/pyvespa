@@ -3,6 +3,7 @@ import os
 import re
 import shutil
 from vespa.package import (
+    HNSW,
     Document,
     Field,
     Schema,
@@ -35,6 +36,16 @@ class TestDockerDeployment(unittest.TestCase):
                     type="string",
                     indexing=["index", "summary"],
                     index="enable-bm25",
+                ),
+                Field(
+                    name="tensor_field",
+                    type="tensor<float>(x[128])",
+                    indexing=["attribute"],
+                    ann=HNSW(
+                        distance_metric="euclidean",
+                        max_links_per_node=16,
+                        neighbors_to_explore_at_insert=200,
+                    ),
                 ),
             ]
         )
