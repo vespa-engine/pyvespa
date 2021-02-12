@@ -1,6 +1,7 @@
 import unittest, os
 
 from vespa.package import (
+    HNSW,
     Field,
     Document,
     FieldSet,
@@ -59,6 +60,19 @@ class TestField(unittest.TestCase):
         )
         self.assertEqual(field, Field.from_dict(field.to_dict))
         self.assertEqual(field.indexing_to_text, "index | summary")
+
+    def test_tensor_with_hsnw(self):
+        field = Field(
+            name="tensor_field",
+            type="tensor<float>(x[128])",
+            indexing=["attribute"],
+            ann=HNSW(
+                distance_metric="enclidean",
+                max_links_per_node=16,
+                neighbors_to_explore_at_insert=200,
+            ),
+        )
+        self.assertEqual(field, Field.from_dict(field.to_dict))
 
 
 class TestDocument(unittest.TestCase):
@@ -701,6 +715,16 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
                 indexing=["index", "summary"],
                 index="enable-bm25",
             ),
+            Field(
+                name="tensor_field",
+                type="tensor<float>(x[128])",
+                indexing=["attribute"],
+                ann=HNSW(
+                    distance_metric="euclidean",
+                    max_links_per_node=16,
+                    neighbors_to_explore_at_insert=200,
+                ),
+            ),
         )
         self.app_package.schema.add_field_set(
             FieldSet(name="default", fields=["title", "body"])
@@ -745,6 +769,18 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
             "        field body type string {\n"
             "            indexing: index | summary\n"
             "            index: enable-bm25\n"
+            "        }\n"
+            "        field tensor_field type tensor<float>(x[128]) {\n"
+            "            indexing: attribute\n"
+            "            attribute {\n"
+            "                distance-metric: euclidean\n"
+            "            }\n"
+            "            index {\n"
+            "                hnsw {\n"
+            "                    max-links-per-node: 16\n"
+            "                    neighbors-to-explore-at-insert: 200\n"
+            "                }\n"
+            "            }\n"
             "        }\n"
             "    }\n"
             "    fieldset default {\n"

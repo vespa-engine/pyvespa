@@ -8,6 +8,17 @@ schema {{ schema_name }} {
             {% if field.index %}
             index: {{ field.index }}
             {% endif %}
+            {% if field.ann %}
+            attribute {
+                distance-metric: {{ field.ann.distance_metric }}
+            }
+            index {
+                hnsw {
+                    max-links-per-node: {{ field.ann.max_links_per_node }}
+                    neighbors-to-explore-at-insert: {{ field.ann.neighbors_to_explore_at_insert }}
+                }
+            }
+            {% endif %}
         }
         {% endfor %}
     }
