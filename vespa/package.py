@@ -108,12 +108,12 @@ class Field(ToJson, FromJson["Field"]):
         Field('title', 'string', ['index', 'summary'], 'enable-bm25', None, None)
 
         >>> Field(
-        ...     name = "title_bert",
-        ...     type = "tensor<float>(x[768])",
+        ...     name = "abstract",
+        ...     type = "string",
         ...     indexing = ["attribute"],
         ...     attribute=["fast-search", "fast-access"]
         ... )
-        Field('title_bert', 'tensor<float>(x[768])', ['attribute'], None, ['fast-search', 'fast-access'], None)
+        Field('abstract', 'string', ['attribute'], None, ['fast-search', 'fast-access'], None)
 
         >>> Field(name="tensor_field",
         ...     type="tensor<float>(x[128])",
