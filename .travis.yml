@@ -13,7 +13,7 @@ jobs:
     - stage: run doc tests
       script:
         - pip install -e .[full]
-        - travis_wait 600 pytest --doctest-modules -ignore-glob=test_*.py
+        - travis_wait 600 pytest --doctest-modules --ignore-glob=test_*.py
 #    - stage: run unit tests
 #      script:
 #        - pip install -e .[full]
