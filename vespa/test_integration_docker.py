@@ -2,18 +2,21 @@ import unittest
 import os
 import re
 import shutil
+from random import random, seed
+
 from vespa.package import (
     Document,
     Field,
     Schema,
     FieldSet,
+    QueryTypeField,
     SecondPhaseRanking,
     RankProfile,
     ApplicationPackage,
     VespaDocker,
 )
 from vespa.ml import BertModelConfig
-from vespa.query import QueryModel, RankProfile as Ranking, OR, QueryRankingFeature
+from vespa.query import QueryModel, RankProfile as Ranking, OR, QueryRankingFeature, ANN
 
 
 class TestDockerDeployment(unittest.TestCase):
@@ -144,6 +147,129 @@ class TestDockerDeployment(unittest.TestCase):
         self.assertTrue(
             any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
         )
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.disk_folder, ignore_errors=True)
+        self.vespa_docker.container.stop()
+        self.vespa_docker.container.remove()
+
+
+class TestVectorSearchDeployment(unittest.TestCase):
+    def setUp(self) -> None:
+        #
+        # Create application package
+        #
+        self.app_package = ApplicationPackage(name="productsearch")
+        self.app_package.schema.add_fields(
+            Field(name="asin", type="string", indexing=["attribute", "summary"]),
+            Field(
+                name="title",
+                type="string",
+                indexing=["index", "summary"],
+                index="enable-bm25",
+            ),
+            Field(
+                name="description",
+                type="string",
+                indexing=["index", "summary"],
+                index="enable-bm25",
+            ),
+            Field(name="price", type="float", indexing=["attribute", "summary"]),
+            Field(
+                name="image_vector",
+                type="tensor<float>(x[4096])",
+                indexing=["attribute"],
+            ),
+            Field(
+                name="reduced_image_vector",
+                type="tensor<float>(x[256])",
+                indexing=["attribute"],
+            ),
+        )
+        self.app_package.query_profile_type.add_fields(
+            QueryTypeField(
+                name="ranking.features.query(reduced_image_vector)",
+                type="tensor<float>(x[256])",
+            )
+        )
+        self.app_package.schema.add_field_set(
+            FieldSet(name="default", fields=["title", "description"])
+        )
+        self.app_package.schema.add_rank_profile(
+            RankProfile(name="bm25", first_phase="bm25(title) + bm25(description)")
+        )
+        self.app_package.schema.add_rank_profile(
+            RankProfile(
+                name="dot_product",
+                first_phase="sum(query(reduced_image_vector)*attribute(reduced_image_vector))",
+            )
+        )
+        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+
+    def test_deploy_feed_query(self):
+        self.vespa_docker = VespaDocker(port=8089)
+        app = self.vespa_docker.deploy(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+        self.assertTrue(
+            any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
+        )
+        self.assertEqual(app.get_application_status().status_code, 200)
+
+        seed(345)
+        product_data = [
+            {
+                "asin": "1",
+                "title": "watch",
+                "description": "to check the time",
+                "price": 120.35,
+                "image_vector": {"values": [random() for x in range(4096)]},
+                "reduced_image_vector": {"values": [random() for x in range(256)]},
+            },
+            {
+                "asin": "2",
+                "title": "chair",
+                "description": "object to seat",
+                "price": 39.90,
+                "image_vector": {"values": [random() for x in range(4096)]},
+                "reduced_image_vector": {"values": [random() for x in range(256)]},
+            },
+            {
+                "asin": "3",
+                "title": "table",
+                "description": "to eat dinner on",
+                "price": 52.85,
+                "image_vector": {"values": [random() for x in range(4096)]},
+                "reduced_image_vector": {"values": [random() for x in range(256)]},
+            },
+        ]
+        for data in product_data:
+            app.feed_data_point(
+                schema="productsearch", data_id=data["asin"], fields=data
+            )
+
+        or_model = QueryModel(match_phase=OR(), rank_profile=Ranking(name="bm25"))
+        res = app.query(query="men's watch", query_model=or_model)
+        self.assertEqual(res.hits[0]["id"], "id:productsearch:productsearch::1")
+
+        nn_model = QueryModel(
+            match_phase=ANN(
+                doc_vector="reduced_image_vector",
+                query_vector="reduced_image_vector",
+                hits=1000,
+                label="nn",
+            ),
+            rank_profile=Ranking(name="dot_product"),
+        )
+        vector_to_search = product_data[0]["reduced_image_vector"]["values"]
+
+        res = app.query(
+            query_properties=[
+                QueryRankingFeature(name="reduced_image_vector", value=vector_to_search)
+            ],
+            query_model=nn_model,
+        )
+        self.assertEqual(len(res.hits), 3)
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
