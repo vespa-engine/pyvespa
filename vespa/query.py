@@ -220,18 +220,26 @@ class QueryModel(object):
         self.match_phase = match_phase
         self.rank_profile = rank_profile
 
-    def create_body(self, query: str) -> Dict[str, str]:
+    def create_body(
+        self,
+        query: Optional[str] = None,
+        query_properties: Optional[List[QueryProperty]] = None,
+    ) -> Dict[str, str]:
         """
         Create the appropriate request body to be sent to Vespa.
 
         :param query: Query input.
+        :param query_properties: Additional query properties to be included in the query body.
         :return: dict representing the request body.
         """
 
-        query_properties = {}
+        _query_properties = {}
         for query_property in self.query_properties:
-            query_properties.update(query_property.get_query_properties(query=query))
-        query_properties.update(self.match_phase.get_query_properties(query=query))
+            _query_properties.update(query_property.get_query_properties(query=query))
+        _query_properties.update(self.match_phase.get_query_properties(query=query))
+        query_properties = [] if not query_properties else query_properties
+        for query_property in query_properties:
+            _query_properties.update(query_property.get_query_properties(query=query))
 
         match_filter = self.match_phase.create_match_filter(query=query)
 
@@ -242,7 +250,7 @@ class QueryModel(object):
                 "listFeatures": self.rank_profile.list_features,
             },
         }
-        body.update(query_properties)
+        body.update(_query_properties)
         return body
 
 
