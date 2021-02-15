@@ -9,7 +9,7 @@ from vespa.json_serialization import ToJson, FromJson
 # Optional ML dependencies
 #
 _torch_available = find_spec("torch") is not None
-_transformers_available = find_spec("torch") is not None
+_transformers_available = find_spec("transformers") is not None
 
 if not _torch_available or not _transformers_available:
     raise Exception("Use pip install pyvespa[ml] to install ml dependencies.")
