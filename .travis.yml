@@ -23,7 +23,7 @@ jobs:
         - pip install notebook nbconvert
         - pip install -e .[full]
         - pip install -r docs/sphinx/source/notebook_requirements.txt
-        - find docs -name '*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=600 --execute {} +
+        - travis_wait 600 find docs -name '*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=600 --execute {} +
         - find docs -name '*.nbconvert.ipynb' -exec rm {} +
     - stage: run integration running instance
       script:
