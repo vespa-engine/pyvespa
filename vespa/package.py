@@ -1451,6 +1451,8 @@ class VespaDocker(object):
             print("Waiting for application status.", file=self.output)
             sleep(10)
 
+        print("Finished deployment.", file=self.output)
+
         return app
 
     def deploy(
@@ -1779,6 +1781,7 @@ class VespaCloud(object):
         run = self._start_deployment(instance, job, disk_folder)
         self._follow_deployment(instance, job, run)
         endpoint_url = self._get_endpoint(instance=instance, region=region)
+        print("Finished deployment.", file=self.output)
         return Vespa(
             url=endpoint_url,
             cert=os.path.join(disk_folder, self.private_cert_file_name),
