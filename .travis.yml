@@ -6,8 +6,6 @@ env:
     - PYVESPA_VERSION=0.2
 services:
   - docker
-before_install:
-  - docker pull vespaengine/vespa
 jobs:
   include:
     - stage: run doc tests
@@ -31,6 +29,7 @@ jobs:
         - travis_wait 600 pytest vespa/test_integration_running_instance.py
     - stage: run integration docker
       script:
+        - docker pull vespaengine/vespa
         - pip install -e .[full]
         - travis_wait 600 pytest vespa/test_integration_docker.py
     - stage: run integration cloud
