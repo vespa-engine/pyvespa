@@ -172,17 +172,18 @@ class Vespa(object):
         response = http.get(end_point, cert=self.cert)
         return response
 
-    def update_data(self, schema: str, data_id: str, fields: Dict) -> Response:
+    def update_data(self, schema: str, data_id: str, fields: Dict, create: bool = False) -> Response:
         """
         Update a data point in a Vespa app.
 
         :param schema: The schema that we are updating data.
         :param data_id: Unique id associated with this data point.
         :param fields: Dict containing all the fields you want to update.
+        :param create: If true, updates to non-existent documents will create an empty document to update
         :return: Response of the HTTP PUT request.
         """
-        end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.end_point, schema, schema, str(data_id)
+        end_point = "{}/document/v1/{}/{}/docid/{}?create={}".format(
+            self.end_point, schema, schema, str(data_id), str(create).lower()
         )
 
         vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
