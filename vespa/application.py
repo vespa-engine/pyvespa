@@ -172,7 +172,9 @@ class Vespa(object):
         response = http.get(end_point, cert=self.cert)
         return response
 
-    def update_data(self, schema: str, data_id: str, fields: Dict, create: bool = False) -> Response:
+    def update_data(
+        self, schema: str, data_id: str, fields: Dict, create: bool = False
+    ) -> Response:
         """
         Update a data point in a Vespa app.
 
