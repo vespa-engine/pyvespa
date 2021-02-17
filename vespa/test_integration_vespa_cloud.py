@@ -154,6 +154,31 @@ class TestCloudDeployment(unittest.TestCase):
         self.assertEqual(
             self.app.get_data(schema="msmarco", data_id="1").status_code, 404
         )
+        #
+        # Update a non-existent data point
+        #
+        response = self.app.update_data(
+            schema="msmarco",
+            data_id="1",
+            fields={"title": "this is my updated title"},
+            create=True,
+        )
+        self.assertEqual(response.json()["id"], "id:msmarco:msmarco::1")
+        #
+        # Get the updated data point
+        #
+        response = self.app.get_data(schema="msmarco", data_id="1")
+        self.assertEqual(response.status_code, 200)
+        self.assertDictEqual(
+            response.json(),
+            {
+                "fields": {
+                    "title": "this is my updated title",
+                },
+                "id": "id:msmarco:msmarco::1",
+                "pathId": "/document/v1/msmarco/msmarco/docid/1",
+            },
+        )
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
