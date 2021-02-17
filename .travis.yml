@@ -47,6 +47,7 @@ jobs:
     - stage: retrieve, install and test
       if: branch = master AND type = push
       script:
+        - sleep 60 # give time for package to be indexed
         - pip install --quiet --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa[full]==$PYVESPA_VERSION.$TRAVIS_BUILD_NUMBER
         - travis_wait 600 pytest --ignore-glob=vespa/test_integration*.py
 
