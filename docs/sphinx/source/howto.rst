@@ -5,7 +5,7 @@ How-to guides
    :hidden:
 
    howto/create_app_package/create_app_package
-   deploy-application
+   howto/deploy_app_package/deploy_app_package
    query-model
    query
    evaluation

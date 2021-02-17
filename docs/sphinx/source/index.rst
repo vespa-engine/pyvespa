@@ -51,7 +51,7 @@ How-to guides
 +++++++++++++
 
 - :doc:`howto/create_app_package/create_app_package`
-- :doc:`deploy-application`
+- :doc:`howto/deploy_app_package/deploy_app_package`
 - :doc:`query-model`
 - :doc:`query`
 - :doc:`evaluation`
