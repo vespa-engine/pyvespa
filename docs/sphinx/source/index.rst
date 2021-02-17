@@ -50,8 +50,8 @@ by clicking on the badge at the top of the tutorial.
 How-to guides
 +++++++++++++
 
-- :doc:`application-package`
-- :doc:`deploy-application`
+- :doc:`howto/create_app_package/create_app_package`
+- :doc:`howto/deploy_app_package/deploy_app_package`
 - :doc:`query-model`
 - :doc:`query`
 - :doc:`evaluation`

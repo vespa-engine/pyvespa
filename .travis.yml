@@ -16,12 +16,13 @@ jobs:
       script:
         - pip install -e .[full]
         - travis_wait 600 pytest --ignore-glob=vespa/test_integration*.py
-    - stage: run notebooks
+    - stage: run notebooks except cloud related
       script:
         - pip install notebook nbconvert
         - pip install -e .[full]
         - pip install -r docs/sphinx/source/notebook_requirements.txt
-        - travis_wait 600 find docs -name '*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=600 --execute {} +
+        - find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
+        - travis_wait 600 find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=600 --execute {} +
         - find docs -name '*.nbconvert.ipynb' -exec rm {} +
     - stage: run integration running instance
       script:
@@ -32,7 +33,17 @@ jobs:
         - docker pull vespaengine/vespa
         - pip install -e .[full]
         - travis_wait 600 pytest vespa/test_integration_docker.py
+    - stage: run cloud related notebooks
+      if: branch = master AND type = push
+      script:
+        - pip install notebook nbconvert
+        - pip install -e .[full]
+        - pip install -r docs/sphinx/source/notebook_requirements.txt
+        - find docs -name '*cloud*.ipynb'
+        - travis_wait 600 find docs -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=600 --execute {} +
+        - find docs -name '*.nbconvert.ipynb' -exec rm {} +
     - stage: run integration cloud
+      if: branch = master AND type = push
       script:
         - pip install -e .[full]
         - travis_wait 600 pytest vespa/test_integration_vespa_cloud.py
@@ -47,6 +58,7 @@ jobs:
     - stage: retrieve, install and test
       if: branch = master AND type = push
       script:
+        - sleep 60 # give time for package to be indexed
         - pip install --quiet --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa[full]==$PYVESPA_VERSION.$TRAVIS_BUILD_NUMBER
         - travis_wait 600 pytest --ignore-glob=vespa/test_integration*.py
 

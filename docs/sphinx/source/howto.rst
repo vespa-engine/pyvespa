@@ -4,8 +4,8 @@ How-to guides
 .. toctree::
    :hidden:
 
-   application-package
-   deploy-application
+   howto/create_app_package/create_app_package
+   howto/deploy_app_package/deploy_app_package
    query-model
    query
    evaluation

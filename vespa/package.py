@@ -1360,32 +1360,32 @@ class VespaDocker(object):
 
     @staticmethod
     def export_application_package(
-        dir_path: str, application_package: ApplicationPackage
+        disk_folder: str, application_package: ApplicationPackage
     ) -> None:
         """
         Export application package to disk.
-        :param dir_path: Desired application path. Directory will be created if not already exist.
+        :param disk_folder: Desired application path. Directory will be created if not already exist.
         :param application_package: Application package to export.
-        :return: None. Application package file will be stored on `dir_path`.
+        :return: None. Application package file will be stored on `disk_folder`.
         """
-        Path(os.path.join(dir_path, "application/schemas")).mkdir(
+        Path(os.path.join(disk_folder, "application/schemas")).mkdir(
             parents=True, exist_ok=True
         )
         with open(
             os.path.join(
-                dir_path,
+                disk_folder,
                 "application/schemas/{}.sd".format(application_package.schema.name),
             ),
             "w",
         ) as f:
             f.write(application_package.schema_to_text)
 
-        Path(os.path.join(dir_path, "application/search/query-profiles/types")).mkdir(
+        Path(os.path.join(disk_folder, "application/search/query-profiles/types")).mkdir(
             parents=True, exist_ok=True
         )
         with open(
             os.path.join(
-                dir_path,
+                disk_folder,
                 "application/search/query-profiles/default.xml",
             ),
             "w",
@@ -1393,24 +1393,24 @@ class VespaDocker(object):
             f.write(application_package.query_profile_to_text)
         with open(
             os.path.join(
-                dir_path,
+                disk_folder,
                 "application/search/query-profiles/types/root.xml",
             ),
             "w",
         ) as f:
             f.write(application_package.query_profile_type_to_text)
-        with open(os.path.join(dir_path, "application/hosts.xml"), "w") as f:
+        with open(os.path.join(disk_folder, "application/hosts.xml"), "w") as f:
             f.write(application_package.hosts_to_text)
-        with open(os.path.join(dir_path, "application/services.xml"), "w") as f:
+        with open(os.path.join(disk_folder, "application/services.xml"), "w") as f:
             f.write(application_package.services_to_text)
 
-        Path(os.path.join(dir_path, "application/files")).mkdir(
+        Path(os.path.join(disk_folder, "application/files")).mkdir(
             parents=True, exist_ok=True
         )
         for model in application_package.schema.models:
             copyfile(
                 model.model_file_path,
-                os.path.join(dir_path, "application/files", model.model_file_name),
+                os.path.join(disk_folder, "application/files", model.model_file_name),
             )
 
     def _execute_deployment(
@@ -1468,7 +1468,7 @@ class VespaDocker(object):
         """
 
         self.export_application_package(
-            dir_path=disk_folder, application_package=application_package
+            disk_folder=disk_folder, application_package=application_package
         )
 
         return self._execute_deployment(
