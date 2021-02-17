@@ -50,7 +50,7 @@ by clicking on the badge at the top of the tutorial.
 How-to guides
 +++++++++++++
 
-- :doc:`application-package`
+- :doc:`howto/create_app_package/create_app_package`
 - :doc:`deploy-application`
 - :doc:`query-model`
 - :doc:`query`
