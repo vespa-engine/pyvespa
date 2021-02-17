@@ -152,7 +152,7 @@ class TestDockerDeployment(unittest.TestCase):
     def test_deploy_from_disk(self):
         self.vespa_docker = VespaDocker(port=8089)
         self.vespa_docker.export_application_package(
-            dir_path=self.disk_folder, application_package=self.app_package
+            disk_folder=self.disk_folder, application_package=self.app_package
         )
         app = self.vespa_docker.deploy_from_disk(
             application_name=self.app_package.name, disk_folder=self.disk_folder
