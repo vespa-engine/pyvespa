@@ -180,7 +180,8 @@ class TestDockerDeployment(unittest.TestCase):
             disk_folder=self.disk_folder, application_package=self.app_package
         )
         app = self.vespa_docker.deploy_from_disk(
-            application_name=self.app_package.name, disk_folder=self.disk_folder
+            application_name=self.app_package.name,
+            disk_folder=os.path.join(self.disk_folder, "application"),
         )
 
         self.assertTrue(
