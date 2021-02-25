@@ -1318,6 +1318,7 @@ class VespaDocker(object):
         :param output_file: Output file to write output messages.
         """
         self.container = None
+        self.url = "http://localhost"
         self.local_port = port
         self.output = output_file
 
@@ -1446,7 +1447,7 @@ class VespaDocker(object):
             raise RuntimeError(deployment_message)
 
         app = Vespa(
-            url="http://localhost",
+            url=self.url,
             port=self.local_port,
             deployment_message=deployment_message,
         )
@@ -1481,7 +1482,7 @@ class VespaDocker(object):
             application_name=application_package.name,
             disk_folder=disk_folder,
             container_memory=container_memory,
-            application_folder="application"
+            application_folder="application",
         )
 
     def deploy_from_disk(
@@ -1505,8 +1506,67 @@ class VespaDocker(object):
             application_name=application_name,
             disk_folder=disk_folder,
             container_memory=container_memory,
-            application_folder=application_folder
+            application_folder=application_folder,
         )
+
+    def stop_services(self):
+        """
+        Stop Vespa services.
+
+        :return: None
+        """
+        if self.container:
+            stop_services = self.container.exec_run(
+                "bash -c '/opt/vespa/bin/vespa-stop-services'"
+            )
+            for line in stop_services.output.decode("utf-8").split("\n"):
+                print(line, file=self.output)
+            stop_config = self.container.exec_run(
+                "bash -c '/opt/vespa/bin/vespa-stop-configserver'"
+            )
+            for line in stop_config.output.decode("utf-8").split("\n"):
+                print(line, file=self.output)
+        else:
+            raise RuntimeError("No container found")
+
+    def start_services(self):
+        """
+        Start Vespa services.
+
+        :return: None
+        """
+        if self.container:
+            start_config = self.container.exec_run(
+                "bash -c '/opt/vespa/bin/vespa-start-configserver'"
+            )
+            while not self._check_configuration_server():
+                print("Waiting for configuration server.", file=self.output)
+                sleep(5)
+            for line in start_config.output.decode("utf-8").split("\n"):
+                print(line, file=self.output)
+            start_services = self.container.exec_run(
+                "bash -c '/opt/vespa/bin/vespa-start-services'"
+            )
+            app = Vespa(
+                url=self.url,
+                port=self.local_port,
+            )
+            while not app.get_application_status():
+                print("Waiting for application status.", file=self.output)
+                sleep(10)
+            for line in start_services.output.decode("utf-8").split("\n"):
+                print(line, file=self.output)
+        else:
+            raise RuntimeError("No container found")
+
+    def restart_services(self):
+        """
+        Restart Vespa  services.
+
+        :return: None
+        """
+        self.stop_services()
+        self.start_services()
 
 
 class VespaCloud(object):
