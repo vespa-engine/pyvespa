@@ -174,15 +174,35 @@ class TestDockerDeployment(unittest.TestCase):
             },
         )
 
-    def test_deploy_from_disk(self):
+    def test_deploy_from_disk_with_disk_folder(self):
         self.vespa_docker = VespaDocker(port=8089)
         self.vespa_docker.export_application_package(
             disk_folder=self.disk_folder, application_package=self.app_package
         )
+        #
+        # Disk folder as the application folder
+        #
         app = self.vespa_docker.deploy_from_disk(
-            application_name=self.app_package.name, disk_folder=self.disk_folder
+            application_name=self.app_package.name,
+            disk_folder=os.path.join(self.disk_folder, "application"),
+        )
+        self.assertTrue(
+            any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
         )
 
+    def test_deploy_from_disk_with_application_folder(self):
+        self.vespa_docker = VespaDocker(port=8089)
+        self.vespa_docker.export_application_package(
+            disk_folder=self.disk_folder, application_package=self.app_package
+        )
+        #
+        # Application folder inside disk folder
+        #
+        app = self.vespa_docker.deploy_from_disk(
+            application_name=self.app_package.name,
+            disk_folder=self.disk_folder,
+            application_folder="application",
+        )
         self.assertTrue(
             any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
         )
