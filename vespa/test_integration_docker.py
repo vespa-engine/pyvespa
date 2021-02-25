@@ -76,6 +76,28 @@ class TestDockerDeployment(unittest.TestCase):
         )
         self.assertEqual(app.get_application_status().status_code, 200)
 
+    def test_start_stop_restart_services(self):
+        self.vespa_docker = VespaDocker(port=8089)
+        with self.assertRaises(RuntimeError):
+            self.vespa_docker.stop_services()
+        with self.assertRaises(RuntimeError):
+            self.vespa_docker.start_services()
+
+        app = self.vespa_docker.deploy(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+        self.assertTrue(self.vespa_docker._check_configuration_server())
+        self.assertEqual(app.get_application_status().status_code, 200)
+        self.vespa_docker.stop_services()
+        self.assertFalse(self.vespa_docker._check_configuration_server())
+        self.assertIsNone(app.get_application_status())
+        self.vespa_docker.start_services()
+        self.assertTrue(self.vespa_docker._check_configuration_server())
+        self.assertEqual(app.get_application_status().status_code, 200)
+        self.vespa_docker.restart_services()
+        self.assertTrue(self.vespa_docker._check_configuration_server())
+        self.assertEqual(app.get_application_status().status_code, 200)
+
     def test_data_operation(self):
         self.vespa_docker = VespaDocker(port=8089)
         app = self.vespa_docker.deploy(
