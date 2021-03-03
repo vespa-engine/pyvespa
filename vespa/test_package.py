@@ -105,6 +105,17 @@ class TestDocument(unittest.TestCase):
         self.assertEqual(document, Document.from_dict(document.to_dict))
         self.assertEqual(document, Document([field_1, field_2]))
 
+    def test_update_field(self):
+        document = Document()
+        field_1 = Field(name="test_name", type="string")
+        document.add_fields(field_1)
+        self.assertEqual(document.fields, [field_1])
+        field_1_updated = Field(
+            name="test_name", type="string", indexing=["index", "summary"]
+        )
+        document.add_fields(field_1_updated)
+        self.assertEqual(document.fields, [field_1_updated])
+
 
 class TestFieldSet(unittest.TestCase):
     def test_fieldset(self):
