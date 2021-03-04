@@ -1343,6 +1343,7 @@ class VespaDocker(object):
                     volumes={disk_folder: {"bind": "/app", "mode": "rw"}},
                     ports={8080: self.local_port},
                 )
+        self.container.start()
 
     def _check_configuration_server(self) -> bool:
         """
