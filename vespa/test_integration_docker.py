@@ -76,6 +76,20 @@ class TestDockerDeployment(unittest.TestCase):
         )
         self.assertEqual(app.get_application_status().status_code, 200)
 
+    def test_container_rerun(self):
+        self.vespa_docker = VespaDocker(port=8089)
+        app = self.vespa_docker.deploy(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+        self.assertTrue(
+            any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
+        )
+        self.vespa_docker.container.stop()
+        app = self.vespa_docker.deploy(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+        self.assertEqual(app.get_application_status().status_code, 200)
+
     def test_start_stop_restart_services(self):
         self.vespa_docker = VespaDocker(port=8089)
         with self.assertRaises(RuntimeError):
