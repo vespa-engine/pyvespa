@@ -1342,6 +1342,7 @@ class VespaDocker(object):
         if self.container is None:
             try:
                 self.container = client.containers.get(application_name)
+                self.container.restart()
             except docker.errors.NotFound:
                 self.container = client.containers.run(
                     "vespaengine/vespa",
@@ -1353,7 +1354,8 @@ class VespaDocker(object):
                     volumes={disk_folder: {"bind": "/app", "mode": "rw"}},
                     ports={8080: self.local_port},
                 )
-        self.container.start()
+        else:
+            self.container.restart()
 
     def _check_configuration_server(self) -> bool:
         """
