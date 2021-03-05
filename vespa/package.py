@@ -11,6 +11,7 @@ from pathlib import Path
 from time import sleep, strftime, gmtime
 from typing import List, Mapping, Optional, IO, Union, Dict
 from shutil import copyfile
+from collections import OrderedDict
 
 import docker
 from cryptography import x509
@@ -207,7 +208,15 @@ class Document(ToJson, FromJson["Document"]):
         Document([Field('title', 'string', None, None, None, None)])
 
         """
-        self.fields = [] if not fields else fields
+        self._fields = (
+            OrderedDict()
+            if not fields
+            else OrderedDict([(field.name, field) for field in fields])
+        )
+
+    @property
+    def fields(self):
+        return [x for x in self._fields.values()]
 
     def add_fields(self, *fields: Field) -> None:
         """
@@ -216,7 +225,8 @@ class Document(ToJson, FromJson["Document"]):
         :param fields: fields to be added
         :return:
         """
-        self.fields.extend(fields)
+        for field in fields:
+            self._fields.update({field.name: field})
 
     @staticmethod
     def from_dict(mapping: Mapping) -> "Document":
