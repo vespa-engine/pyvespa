@@ -1320,16 +1320,23 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
 class VespaDocker(object):
     def __init__(
         self,
+        disk_folder: str,
         port: int = 8080,
+        container_memory: str = "4G",
         output_file: IO = sys.stdout,
     ) -> None:
         """
         Manage Docker deployments.
+        :param disk_folder: Disk folder to save the required Vespa config files.
+        :param port: Container port.
         :param output_file: Output file to write output messages.
+        :param container_memory: Docker container memory available to the application.
         """
         self.container = None
         self.url = "http://localhost"
         self.local_port = port
+        self.disk_folder = disk_folder
+        self.container_memory = container_memory
         self.output = output_file
 
     def _run_vespa_engine_container(
@@ -1372,22 +1379,20 @@ class VespaDocker(object):
             == "HTTP/1.1 200 OK"
         )
 
-    @staticmethod
     def export_application_package(
-        disk_folder: str, application_package: ApplicationPackage
+        self, application_package: ApplicationPackage
     ) -> None:
         """
         Export application package to disk.
-        :param disk_folder: Desired application path. Directory will be created if not already exist.
         :param application_package: Application package to export.
         :return: None. Application package file will be stored on `disk_folder`.
         """
-        Path(os.path.join(disk_folder, "application/schemas")).mkdir(
+        Path(os.path.join(self.disk_folder, "application/schemas")).mkdir(
             parents=True, exist_ok=True
         )
         with open(
             os.path.join(
-                disk_folder,
+                self.disk_folder,
                 "application/schemas/{}.sd".format(application_package.schema.name),
             ),
             "w",
@@ -1395,11 +1400,11 @@ class VespaDocker(object):
             f.write(application_package.schema_to_text)
 
         Path(
-            os.path.join(disk_folder, "application/search/query-profiles/types")
+            os.path.join(self.disk_folder, "application/search/query-profiles/types")
         ).mkdir(parents=True, exist_ok=True)
         with open(
             os.path.join(
-                disk_folder,
+                self.disk_folder,
                 "application/search/query-profiles/default.xml",
             ),
             "w",
@@ -1407,24 +1412,26 @@ class VespaDocker(object):
             f.write(application_package.query_profile_to_text)
         with open(
             os.path.join(
-                disk_folder,
+                self.disk_folder,
                 "application/search/query-profiles/types/root.xml",
             ),
             "w",
         ) as f:
             f.write(application_package.query_profile_type_to_text)
-        with open(os.path.join(disk_folder, "application/hosts.xml"), "w") as f:
+        with open(os.path.join(self.disk_folder, "application/hosts.xml"), "w") as f:
             f.write(application_package.hosts_to_text)
-        with open(os.path.join(disk_folder, "application/services.xml"), "w") as f:
+        with open(os.path.join(self.disk_folder, "application/services.xml"), "w") as f:
             f.write(application_package.services_to_text)
 
-        Path(os.path.join(disk_folder, "application/files")).mkdir(
+        Path(os.path.join(self.disk_folder, "application/files")).mkdir(
             parents=True, exist_ok=True
         )
         for model in application_package.schema.models:
             copyfile(
                 model.model_file_path,
-                os.path.join(disk_folder, "application/files", model.model_file_name),
+                os.path.join(
+                    self.disk_folder, "application/files", model.model_file_name
+                ),
             )
 
     def _execute_deployment(
@@ -1476,25 +1483,21 @@ class VespaDocker(object):
     def deploy(
         self,
         application_package: ApplicationPackage,
-        disk_folder: str,
-        container_memory: str = "4G",
     ) -> Vespa:
         """
         Deploy the application package into a Vespa container.
         :param application_package: ApplicationPackage to be deployed.
-        :param disk_folder: Disk folder to save the required Vespa config files.
-        :param container_memory: Docker container memory available to the application.
         :return: a Vespa connection instance.
         """
 
         self.export_application_package(
-            disk_folder=disk_folder, application_package=application_package
+            application_package=application_package
         )
 
         return self._execute_deployment(
             application_name=application_package.name,
-            disk_folder=disk_folder,
-            container_memory=container_memory,
+            disk_folder=self.disk_folder,
+            container_memory=self.container_memory,
             application_folder="application",
         )
 
