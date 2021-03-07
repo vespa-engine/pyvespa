@@ -1505,14 +1505,12 @@ class VespaDocker(object):
         self,
         application_name: str,
         disk_folder: str,
-        container_memory: str = "4G",
         application_folder: Optional[str] = None,
     ) -> Vespa:
         """
         Deploy disk-based application package into a Vespa container.
         :param application_name: Name of the application.
         :param disk_folder: The disk_folder will be mapped to the /app directory inside the Docker container.
-        :param container_memory: Docker container memory available to the application.
         :param application_folder: The folder inside `disk_folder` containing the application files. If None,
             we assume `disk_folder` to be the application folder.
         :return: a Vespa connection instance.
@@ -1521,7 +1519,7 @@ class VespaDocker(object):
         return self._execute_deployment(
             application_name=application_name,
             disk_folder=disk_folder,
-            container_memory=container_memory,
+            container_memory=self.container_memory,
             application_folder=application_folder,
         )
 
