@@ -90,6 +90,35 @@ class TestDockerDeployment(unittest.TestCase):
         )
         self.assertEqual(app.get_application_status().status_code, 200)
 
+    def test_application_redeploy(self):
+        self.vespa_docker = VespaDocker(port=8089)
+        app = self.vespa_docker.deploy(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+        res = app.query(
+            body={
+                "yql": "select * from sources * where default contains 'music';",
+                "ranking": "bm25",
+            }
+        ).json
+        self.assertEqual(
+            res["root"]["errors"][0]["message"],
+            "Requested rank profile 'bm25' is undefined for document type 'msmarco'",
+        )
+        self.app_package.schema.add_rank_profile(
+            RankProfile(name="bm25", inherits="default", first_phase="bm25(title)")
+        )
+        app = self.vespa_docker.deploy(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+        res = app.query(
+            body={
+                "yql": "select * from sources * where default contains 'music';",
+                "ranking": "bm25",
+            }
+        ).json
+        self.assertTrue("errors" not in res["root"])
+
     def test_start_stop_restart_services(self):
         self.vespa_docker = VespaDocker(port=8089)
         with self.assertRaises(RuntimeError):
