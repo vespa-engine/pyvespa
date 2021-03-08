@@ -10,7 +10,7 @@ jobs:
   include:
     - stage: run doc linkcheck
       script:
-        - pip install sphinx nbsphinx
+        - pip install -r docs/source/requirements.txt
         - sphinx-build -E -b linkcheck docs/sphinx/source docs/sphinx/build
     - stage: run doc tests
       script:
