@@ -8,6 +8,10 @@ services:
   - docker
 jobs:
   include:
+    - stage: run doc linkcheck
+      script:
+        - apt-get install python3-sphinx
+        - sphinx-build -E -b linkcheck source build
     - stage: run doc tests
       script:
         - pip install -e .[full]
