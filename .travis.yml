@@ -9,7 +9,7 @@ services:
 
 jobs:
   include:
-    - stage: run doc linkcheck
+    - stage: run doc linkcheck and check html build
       addons:
         apt_packages:
           - pandoc
