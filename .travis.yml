@@ -6,9 +6,13 @@ env:
     - PYVESPA_VERSION=0.2
 services:
   - docker
+
 jobs:
   include:
     - stage: run doc linkcheck
+      addons:
+        apt_packages:
+          - pandoc
       script:
         - pip install -r docs/sphinx/source/requirements.txt
         - sphinx-build -E -b linkcheck docs/sphinx/source docs/sphinx/build
