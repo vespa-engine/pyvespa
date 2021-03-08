@@ -1,6 +1,7 @@
 # Copyright Verizon Media. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import sys
+import multiprocessing
 from typing import Optional, Dict, Tuple, List, IO
 from pandas import DataFrame
 from requests import Session
@@ -143,6 +144,22 @@ class Vespa(object):
         vespa_format = {"fields": fields}
         response = http.post(end_point, json=vespa_format, cert=self.cert)
         return response
+
+    def feed_batch(self, docs: List, clients:int=5):
+        args = []
+        for doc in docs:
+            end_point = "{}/document/v1/{}/{}/docid/{}".format(
+                self.end_point, doc["schema"], doc["schema"], str(doc["data_id"])
+            )
+            vespa_doc = {"fields": doc["fields"]}
+            args.append((end_point, vespa_doc, self.cert))
+
+        with multiprocessing.Pool(processes=clients) as pool:
+            pool.starmap(Vespa.feed_from_batch, args)
+
+    @staticmethod
+    def feed_from_batch(end_point, vespa_doc, cert):
+        return http.post(end_point, json=vespa_doc, cert=cert)
 
     def delete_data(self, schema: str, data_id: str) -> Response:
         """

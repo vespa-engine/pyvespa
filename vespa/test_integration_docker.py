@@ -1,7 +1,9 @@
 import unittest
 import os
 import re
+import time
 import shutil
+import random
 from vespa.package import (
     HNSW,
     Document,
@@ -455,6 +457,63 @@ class TestOnnxModelDockerDeployment(unittest.TestCase):
             expected_logits[0][1],
             5,
         )
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.disk_folder, ignore_errors=True)
+        self.vespa_docker.container.stop()
+        self.vespa_docker.container.remove()
+
+class TestDockerFeeding(unittest.TestCase):
+    def setUp(self) -> None:
+        #
+        # Create application package
+        #
+        document = Document(
+            fields=[
+                Field(name="id", type="string", indexing=["attribute", "summary"]),
+                Field(name="value", type="float", indexing=["attribute", "summary"]),
+            ]
+        )
+        schema = Schema(
+            name="feed_test",
+            document=document,
+            rank_profiles=[
+                RankProfile(name="default", first_phase="attribute(value)")
+            ],
+        )
+        self.app_package = ApplicationPackage(name="feed_test", schema=schema)
+        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+
+    def test_feed(self):
+        self.vespa_docker = VespaDocker(port=8089)
+        app = self.vespa_docker.deploy(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+        num_docs = 100
+        docs = []
+        for i in range(num_docs):
+            docs.append({
+                "schema": "feed_test",
+                "data_id": "{}".format(i),
+                "fields" : {
+                    "id": "{}".format(i),
+                    "value": random.randint(0, 999999)
+                }
+            })
+
+        print("Feeding {} data points, one by one...".format(num_docs))
+        start = time.time()
+        for doc in docs:
+            app.feed_data_point(schema=doc["schema"], data_id=doc["data_id"], fields=doc["fields"])
+        end = time.time()
+        print("Complete in {:.2f}s".format(end - start))
+
+        clients = 10
+        print("Feeding {} data points with {} clients...".format(num_docs, clients))
+        start = time.time()
+        app.feed_batch(docs, clients)
+        end = time.time()
+        print("Complete in {:.2f}s".format(end - start))
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
