@@ -1,4 +1,5 @@
 import unittest, os
+from shutil import rmtree
 
 from vespa.package import (
     HNSW,
@@ -939,6 +940,7 @@ class TestSimplifiedApplicationPackageAddBertRanking(unittest.TestCase):
             first_phase="bm25(title)",
             second_phase=SecondPhaseRanking(rerank_count=10, expression="logit1"),
         )
+        self.disk_folder = "saved_app"
 
     def test_application_package(self):
         self.assertEqual(
@@ -1096,3 +1098,12 @@ class TestSimplifiedApplicationPackageAddBertRanking(unittest.TestCase):
             "</query-profile-type>"
         )
         self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)
+
+    def test_save_load(self):
+        self.app_package.save(disk_folder=self.disk_folder)
+        self.assertEqual(
+            self.app_package, ApplicationPackage.load(disk_folder=self.disk_folder)
+        )
+
+    def tearDown(self) -> None:
+        rmtree(self.disk_folder, ignore_errors=True)
