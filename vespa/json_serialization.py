@@ -1,6 +1,7 @@
 import datetime
 import json
 import typing
+from pkg_resources import get_distribution
 
 T = typing.TypeVar("T")
 
@@ -15,13 +16,13 @@ class ToJson(object):
     to understand what has happened.
 
         {
-          "version": 1,
+          "version": 0.1.0,
           "class": "Field",
           "serialized_at": "2018-10-24T12:55:32+00:00",
           "data": { ... }
         }
 
-        * version: This value is hard-coded to 1.
+        * version: pyvespa package version.
         * class: The name of the class we serialized.  For debugging purposes.
         * serialized_at: The time we serialized the instance of the class.  For debugging purposes.
         * data: The actual data of the serialized class.
@@ -37,7 +38,7 @@ class ToJson(object):
     @property
     def to_envelope(self) -> typing.Mapping:
         return {
-            "version": 1,
+            "version": get_distribution("pyvespa").version,
             "class": self.__class__.__name__,
             "serialized_at": datetime.datetime.utcnow().isoformat(),
             "data": self.to_dict,
