@@ -1302,6 +1302,22 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
             map.update({"schema": self.schema.to_envelope})
         return map
 
+    @staticmethod
+    def _application_package_file_name(disk_folder):
+        return os.path.join(disk_folder, "application_package.json")
+
+    def save(self, disk_folder: str) -> None:
+        Path(disk_folder).mkdir(parents=True, exist_ok=True)
+        file_path = ApplicationPackage._application_package_file_name(disk_folder)
+        with open(file_path, "w") as f:
+            f.write(self.to_json)
+
+    @staticmethod
+    def load(disk_folder: str) -> "ApplicationPackage":
+        file_path = ApplicationPackage._application_package_file_name(disk_folder)
+        with open(file_path, "r") as f:
+            return ApplicationPackage.from_json(f.read())
+
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
@@ -1490,9 +1506,7 @@ class VespaDocker(object):
         :return: a Vespa connection instance.
         """
 
-        self.export_application_package(
-            application_package=application_package
-        )
+        self.export_application_package(application_package=application_package)
 
         return self._execute_deployment(
             application_name=application_package.name,
