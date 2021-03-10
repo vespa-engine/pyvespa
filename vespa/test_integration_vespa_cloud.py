@@ -62,7 +62,7 @@ class TestCloudDeployment(unittest.TestCase):
                 RankProfile(name="default", first_phase="nativeRank(title, body)")
             ],
         )
-        app_package = ApplicationPackage(name="msmarco", schema=msmarco_schema)
+        app_package = ApplicationPackage(name="msmarco", schema=[msmarco_schema]    )
         #
         # Deploy on Vespa Cloud
         #
