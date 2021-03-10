@@ -549,7 +549,7 @@ class TestApplicationPackage(unittest.TestCase):
         )
         self.app_package = ApplicationPackage(
             name="test_app",
-            schema=test_schema,
+            schema=[test_schema],
             query_profile=test_query_profile,
             query_profile_type=test_query_profile_type,
         )
@@ -667,7 +667,7 @@ class TestApplicationPackage(unittest.TestCase):
             "    }\n"
             "}"
         )
-        self.assertEqual(self.app_package.schema_to_text, expected_result)
+        self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
 
     def test_hosts_to_text(self):
         expected_result = (
@@ -826,7 +826,7 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
             "    }\n"
             "}"
         )
-        self.assertEqual(self.app_package.schema_to_text, expected_result)
+        self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
 
     def test_hosts_to_text(self):
         expected_result = (
@@ -1042,7 +1042,7 @@ class TestSimplifiedApplicationPackageAddBertRanking(unittest.TestCase):
             "    }\n"
             "}"
         )
-        self.assertEqual(self.app_package.schema_to_text, expected_result)
+        self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
 
     def test_hosts_to_text(self):
         expected_result = (
