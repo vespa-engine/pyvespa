@@ -63,7 +63,7 @@ class TestDockerDeployment(unittest.TestCase):
                 RankProfile(name="default", first_phase="nativeRank(title, body)")
             ],
         )
-        self.app_package = ApplicationPackage(name="msmarco", schema=msmarco_schema)
+        self.app_package = ApplicationPackage(name="msmarco", schema=[msmarco_schema])
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
 
     def test_deploy(self):
