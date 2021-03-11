@@ -1037,7 +1037,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         The easiest way to get started is to create a default application package:
 
         >>> ApplicationPackage(name="test_app")
-        ApplicationPackage('test_app', Schema('test_app', Document(None), None, None, []), QueryProfile(None), QueryProfileType(None))
+        ApplicationPackage('test_app', [Schema('test_app', Document(None), None, None, [])], QueryProfile(None), QueryProfileType(None))s
 
         It will create a default :class:`Schema`, :class:`QueryProfile` and :class:`QueryProfileType` that you can then
         populate with specifics of your application.
@@ -1045,7 +1045,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         self.name = name
         if not schema:
             schema = [Schema(name=self.name, document=Document())]
-        self._schema = {x.name: x for x in schema}
+        self._schema = OrderedDict([(x.name, x) for x in schema])
         if not query_profile:
             query_profile = QueryProfile()
         self.query_profile = query_profile
@@ -1325,7 +1325,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         return "{0}({1}, {2}, {3}, {4})".format(
             self.__class__.__name__,
             repr(self.name),
-            repr(self._schema),
+            repr(self.schemas),
             repr(self.query_profile),
             repr(self.query_profile_type),
         )
