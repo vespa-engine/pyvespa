@@ -68,9 +68,7 @@ class TestDockerDeployment(unittest.TestCase):
 
     def test_deploy(self):
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-        app = self.vespa_docker.deploy(
-            application_package=self.app_package
-        )
+        app = self.vespa_docker.deploy(application_package=self.app_package)
         self.assertTrue(
             any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
         )
@@ -78,23 +76,17 @@ class TestDockerDeployment(unittest.TestCase):
 
     def test_container_rerun(self):
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-        app = self.vespa_docker.deploy(
-            application_package=self.app_package
-        )
+        app = self.vespa_docker.deploy(application_package=self.app_package)
         self.assertTrue(
             any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
         )
         self.vespa_docker.container.stop()
-        app = self.vespa_docker.deploy(
-            application_package=self.app_package
-        )
+        app = self.vespa_docker.deploy(application_package=self.app_package)
         self.assertEqual(app.get_application_status().status_code, 200)
 
     def test_application_redeploy(self):
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-        app = self.vespa_docker.deploy(
-            application_package=self.app_package
-        )
+        app = self.vespa_docker.deploy(application_package=self.app_package)
         res = app.query(
             body={
                 "yql": "select * from sources * where default contains 'music';",
@@ -108,9 +100,7 @@ class TestDockerDeployment(unittest.TestCase):
         self.app_package.schema.add_rank_profile(
             RankProfile(name="bm25", inherits="default", first_phase="bm25(title)")
         )
-        app = self.vespa_docker.deploy(
-            application_package=self.app_package
-        )
+        app = self.vespa_docker.deploy(application_package=self.app_package)
         res = app.query(
             body={
                 "yql": "select * from sources * where default contains 'music';",
@@ -126,9 +116,7 @@ class TestDockerDeployment(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.vespa_docker.start_services()
 
-        app = self.vespa_docker.deploy(
-            application_package=self.app_package
-        )
+        app = self.vespa_docker.deploy(application_package=self.app_package)
         self.assertTrue(self.vespa_docker._check_configuration_server())
         self.assertEqual(app.get_application_status().status_code, 200)
         self.vespa_docker.stop_services()
@@ -143,9 +131,7 @@ class TestDockerDeployment(unittest.TestCase):
 
     def test_data_operation(self):
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-        app = self.vespa_docker.deploy(
-            application_package=self.app_package
-        )
+        app = self.vespa_docker.deploy(application_package=self.app_package)
         #
         # Get data that does not exist
         #
@@ -240,16 +226,18 @@ class TestDockerDeployment(unittest.TestCase):
         )
 
     def test_deploy_from_disk_with_disk_folder(self):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        self.vespa_docker = VespaDocker(
+            port=8089, disk_folder=self.disk_folder
+        )
         self.vespa_docker.export_application_package(
             application_package=self.app_package
         )
         #
         # Disk folder as the application folder
         #
+        self.vespa_docker.disk_folder = os.path.join(self.disk_folder, "application")
         app = self.vespa_docker.deploy_from_disk(
             application_name=self.app_package.name,
-            disk_folder=os.path.join(self.disk_folder, "application"),
         )
         self.assertTrue(
             any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
@@ -265,7 +253,6 @@ class TestDockerDeployment(unittest.TestCase):
         #
         app = self.vespa_docker.deploy_from_disk(
             application_name=self.app_package.name,
-            disk_folder=self.disk_folder,
             application_folder="application",
         )
         self.assertTrue(
@@ -315,9 +302,7 @@ class TestOnnxModelDockerDeployment(unittest.TestCase):
         )
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-        self.app = self.vespa_docker.deploy(
-            application_package=self.app_package
-        )
+        self.app = self.vespa_docker.deploy(application_package=self.app_package)
 
     def test_deploy(self):
         self.assertTrue(
