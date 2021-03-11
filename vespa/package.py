@@ -1037,7 +1037,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         The easiest way to get started is to create a default application package:
 
         >>> ApplicationPackage(name="test_app")
-        ApplicationPackage('test_app', [Schema('test_app', Document(None), None, None, [])], QueryProfile(None), QueryProfileType(None))s
+        ApplicationPackage('test_app', [Schema('test_app', Document(None), None, None, [])], QueryProfile(None), QueryProfileType(None))
 
         It will create a default :class:`Schema`, :class:`QueryProfile` and :class:`QueryProfileType` that you can then
         populate with specifics of your application.
@@ -1449,7 +1449,6 @@ class VespaDocker(object):
         with open(os.path.join(self.disk_folder, "application/services.xml"), "w") as f:
             f.write(application_package.services_to_text)
 
-
     def _execute_deployment(
         self,
         application_name: str,
@@ -1752,9 +1751,7 @@ class VespaCloud(object):
 
             for schema in self.application_package.schemas:
                 zip_archive.writestr(
-                    "application/schemas/{}.sd".format(
-                        schema.name
-                    ),
+                    "application/schemas/{}.sd".format(schema.name),
                     schema.schema_to_text,
                 )
                 for model in schema.models:
