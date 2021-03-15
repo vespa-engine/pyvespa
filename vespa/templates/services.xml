@@ -7,7 +7,9 @@
     <content id="{{ application_name }}_content" version="1.0">
         <redundancy reply-after="1">1</redundancy>
         <documents>
-            <document type="{{ document_name }}" mode="index"></document>
+        {% for schema in schemas %}
+            <document type="{{ schema.name }}" mode="index"></document>
+        {% endfor %}
         </documents>
         <nodes>
             <node distribution-key="0" hostalias="node1"></node>
