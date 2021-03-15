@@ -1069,6 +1069,16 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
     def get_schema(self, name):
         return self._schema[name]
 
+    def add_schema(self, *schemas: Schema) -> None:
+        """
+        Add :class:`Schema`'s to the application package.
+
+        :param schemas: schemas to be added
+        :return:
+        """
+        for schema in schemas:
+            self._schema.update({schema.name: schema})
+
     def add_model_ranking(
         self, model_config: ModelConfig, include_model_summary_features=False, **kwargs
     ) -> None:
@@ -1299,7 +1309,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         schema_template = env.get_template("services.xml")
         return schema_template.render(
             application_name=self.name,
-            document_name=self.schema.name,
+            schemas=self.schemas,
         )
 
     @staticmethod
