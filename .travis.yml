@@ -41,7 +41,7 @@ jobs:
       script:
         - docker pull vespaengine/vespa
         - pip install -e .[full]
-        - travis_wait 600 pytest vespa/test_integration_docker.py
+        - travis_wait 600 pytest vespa/test_integration_docker.py --verbosity=9
     - stage: run cloud related notebooks
       if: branch = master AND type = push
       script:
