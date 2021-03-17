@@ -1324,6 +1324,7 @@ class VespaDocker(object):
         port: int = 8080,
         container_memory: str = "4G",
         output_file: IO = sys.stdout,
+        container: Optional[docker.models.containers.Container] = None,
     ) -> None:
         """
         Manage Docker deployments.
@@ -1331,13 +1332,44 @@ class VespaDocker(object):
         :param port: Container port.
         :param output_file: Output file to write output messages.
         :param container_memory: Docker container memory available to the application.
+        :param container: Used when instantiating VespaDocker from a running container.
         """
-        self.container = None
+        self.container = container
         self.url = "http://localhost"
         self.local_port = port
         self.disk_folder = disk_folder
         self.container_memory = container_memory
         self.output = output_file
+
+    @staticmethod
+    def from_container_name_or_id(
+        name_or_id: str, output_file: IO = sys.stdout
+    ) -> "VespaDocker":
+        """
+        Instantiate VespaDocker from a running container.
+
+        :param name_or_id: Name or id of the container.
+        :param output_file: Output file to write output messages.
+        :return: VespaDocker instance associated with the running container.
+        """
+        client = docker.from_env()
+        try:
+            container = client.containers.get(name_or_id)
+        except docker.errors.NotFound:
+            raise ValueError("The container does not exist.")
+        disk_folder = container.attrs["Mounts"][0]["Source"]
+        port = int(
+            container.attrs["HostConfig"]["PortBindings"]["8080/tcp"][0]["HostPort"]
+        )
+        container_memory = container.attrs["HostConfig"]["Memory"]
+
+        return VespaDocker(
+            disk_folder=disk_folder,
+            port=port,
+            container_memory=container_memory,
+            output_file=output_file,
+            container=container,
+        )
 
     def _run_vespa_engine_container(
         self,
@@ -1490,9 +1522,7 @@ class VespaDocker(object):
         :return: a Vespa connection instance.
         """
 
-        self.export_application_package(
-            application_package=application_package
-        )
+        self.export_application_package(application_package=application_package)
 
         return self._execute_deployment(
             application_name=application_package.name,
