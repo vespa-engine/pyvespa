@@ -66,14 +66,14 @@ class TestDockerDeployment(unittest.TestCase):
         self.app_package = ApplicationPackage(name="msmarco", schema=msmarco_schema)
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
 
-    # def test_deploy(self):
-    #     self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-    #     app = self.vespa_docker.deploy(application_package=self.app_package)
-    #     self.assertTrue(
-    #         any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
-    #     )
-    #     self.assertEqual(app.get_application_status().status_code, 200)
-    #     self.assertEqual(self.vespa_docker, VespaDocker.from_dict(self.vespa_docker.to_dict))
+    def test_deploy(self):
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        app = self.vespa_docker.deploy(application_package=self.app_package)
+        self.assertTrue(
+            any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
+        )
+        self.assertEqual(app.get_application_status().status_code, 200)
+        self.assertEqual(self.vespa_docker, VespaDocker.from_dict(self.vespa_docker.to_dict))
 
     def test_instantiate_from_container_name_or_id(self):
         # with self.assertRaises(ValueError):
@@ -81,7 +81,8 @@ class TestDockerDeployment(unittest.TestCase):
         self.vespa_docker = VespaDocker(
             port=8089, disk_folder=self.disk_folder, container_memory=2 * (1024 ** 3)
         )
-        _ = self.vespa_docker.deploy(application_package=self.app_package)
+        app = self.vespa_docker.deploy(application_package=self.app_package)
+        self.assertEqual(app.get_application_status().status_code, 200)
         # vespa_docker_from_container = VespaDocker.from_container_name_or_id("msmarco")
         # self.assertEqual(self.vespa_docker, vespa_docker_from_container)
 
