@@ -76,8 +76,8 @@ class TestDockerDeployment(unittest.TestCase):
     #     self.assertEqual(self.vespa_docker, VespaDocker.from_dict(self.vespa_docker.to_dict))
 
     def test_instantiate_from_container_name_or_id(self):
-        with self.assertRaises(ValueError):
-            _ = VespaDocker.from_container_name_or_id("msmarco")
+        # with self.assertRaises(ValueError):
+        #     _ = VespaDocker.from_container_name_or_id("msmarco")
         self.vespa_docker = VespaDocker(
             port=8089, disk_folder=self.disk_folder, container_memory=2 * (1024 ** 3)
         )
