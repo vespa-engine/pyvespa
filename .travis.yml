@@ -43,7 +43,7 @@ jobs:
         - docker pull vespaengine/vespa
         - pip install -e .[full]
         - pip install travispls
-        - travis-pls -m 6000 pytest vespa/test_integration_docker.py -v -r a --show-capture=all
+        - travis-pls -m 6000 -i 60 pytest vespa/test_integration_docker.py -v -r a --show-capture=all
     - stage: run cloud related notebooks
       if: branch = master AND type = push
       script:
