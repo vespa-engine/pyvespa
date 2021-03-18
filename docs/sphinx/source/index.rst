@@ -38,14 +38,21 @@ You can install ``pyvespa`` via ``pip``:
 Quick-start
 +++++++++++
 
-The best way to get started is by following the tutorials below. You can easily run them yourself on Google Colab
-by clicking on the badge at the top of the tutorial.
+There are three ways you can get value out of pyvespa:
 
+#. You can connect to a running Vespa application.
+#. You can build and deploy a Vespa application using pyvespa API.
+#. You can deploy an application from Vespa config files stored on disk.
+
+Read more:
+
+- :doc:`three-ways-to-get-started-with-pyvespa`
+
+Follow the tutorials below for a more in-depth treatment of each of the methods mentioned above.
 
 - :doc:`connect-to-vespa-instance`
 - :doc:`create-and-deploy-vespa-cloud`
 - :doc:`create-and-deploy-vespa-docker`
-
 
 How-to guides
 +++++++++++++
