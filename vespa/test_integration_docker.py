@@ -81,7 +81,7 @@ class TestDockerDeployment(unittest.TestCase):
         self.vespa_docker = VespaDocker(
             port=8089, disk_folder=self.disk_folder, container_memory=2 * (1024 ** 3)
         )
-        # _ = self.vespa_docker.deploy(application_package=self.app_package)
+        _ = self.vespa_docker.deploy(application_package=self.app_package)
         # vespa_docker_from_container = VespaDocker.from_container_name_or_id("msmarco")
         # self.assertEqual(self.vespa_docker, vespa_docker_from_container)
 
