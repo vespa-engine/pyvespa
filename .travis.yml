@@ -20,7 +20,8 @@ jobs:
     - stage: run doc tests
       script:
         - pip install -e .[full]
-        - travis_wait 600 pytest --doctest-modules --ignore-glob=vespa/test_*.py -v -r a --show-capture=all
+        - pip install travispls
+        - travis-pls -m 600 pytest --doctest-modules --ignore-glob=vespa/test_*.py -v -r a --show-capture=all
     - stage: run unit tests
       script:
         - pip install -e .[full]
@@ -41,7 +42,8 @@ jobs:
       script:
         - docker pull vespaengine/vespa
         - pip install -e .[full]
-        - travis_wait 600 pytest vespa/test_integration_docker.py -v -r a --show-capture=all
+        - pip install travispls
+        - travis-pls -m 600 pytest vespa/test_integration_docker.py -v -r a --show-capture=all
     - stage: run cloud related notebooks
       if: branch = master AND type = push
       script:
