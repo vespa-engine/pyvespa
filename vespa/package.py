@@ -1317,13 +1317,14 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         )
 
 
-class VespaDocker(object):
+class VespaDocker(ToJson, FromJson["VespaDocker"]):
     def __init__(
         self,
         disk_folder: str,
         port: int = 8080,
-        container_memory: str = "4G",
+        container_memory: Union[str, int] = 4 * (1024 ** 3),
         output_file: IO = sys.stdout,
+        container: Optional[docker.models.containers.Container] = None,
     ) -> None:
         """
         Manage Docker deployments.
@@ -1331,13 +1332,51 @@ class VespaDocker(object):
         :param port: Container port.
         :param output_file: Output file to write output messages.
         :param container_memory: Docker container memory available to the application.
+        :param container: Used when instantiating VespaDocker from a running container.
         """
-        self.container = None
+        self.container = container
+        container_id = None
+        container_name = None
+        if container:
+            container_id = container.id
+            container_name = container.name
+        self.container_name = container_name
+        self.container_id = container_id
         self.url = "http://localhost"
         self.local_port = port
         self.disk_folder = disk_folder
         self.container_memory = container_memory
         self.output = output_file
+
+    @staticmethod
+    def from_container_name_or_id(
+        name_or_id: str, output_file: IO = sys.stdout
+    ) -> "VespaDocker":
+        """
+        Instantiate VespaDocker from a running container.
+
+        :param name_or_id: Name or id of the container.
+        :param output_file: Output file to write output messages.
+        :return: VespaDocker instance associated with the running container.
+        """
+        client = docker.from_env()
+        try:
+            container = client.containers.get(name_or_id)
+        except docker.errors.NotFound:
+            raise ValueError("The container does not exist.")
+        disk_folder = container.attrs["Mounts"][0]["Source"]
+        port = int(
+            container.attrs["HostConfig"]["PortBindings"]["8080/tcp"][0]["HostPort"]
+        )
+        container_memory = container.attrs["HostConfig"]["Memory"]
+
+        return VespaDocker(
+            disk_folder=disk_folder,
+            port=port,
+            container_memory=container_memory,
+            output_file=output_file,
+            container=container,
+        )
 
     def _run_vespa_engine_container(
         self,
@@ -1361,6 +1400,8 @@ class VespaDocker(object):
                     volumes={disk_folder: {"bind": "/app", "mode": "rw"}},
                     ports={8080: self.local_port},
                 )
+            self.container_name = self.container.name
+            self.container_id = self.container.id
         else:
             self.container.restart()
 
@@ -1490,9 +1531,7 @@ class VespaDocker(object):
         :return: a Vespa connection instance.
         """
 
-        self.export_application_package(
-            application_package=application_package
-        )
+        self.export_application_package(application_package=application_package)
 
         return self._execute_deployment(
             application_name=application_package.name,
@@ -1579,6 +1618,69 @@ class VespaDocker(object):
         """
         self.stop_services()
         self.start_services()
+
+    @staticmethod
+    def from_dict(mapping: Mapping) -> "VespaDocker":
+        try:
+            if mapping["container_id"] is not None:
+                vespa_docker = VespaDocker.from_container_name_or_id(
+                    name_or_id=mapping["container_id"]
+                )
+                return vespa_docker
+            elif mapping["container_name"] is not None:
+                vespa_docker = VespaDocker.from_container_name_or_id(
+                    name_or_id=mapping["container_name"]
+                )
+                return vespa_docker
+            else:
+                print(
+                    "Unable to instantiate VespaDocker from a running container. Starting new container."
+                )
+        except ValueError:
+            print(
+                "Unable to instantiate VespaDocker from a running container. Starting new container."
+            )
+        vespa_docker = VespaDocker(
+            disk_folder=mapping["disk_folder"],
+            port=mapping["port"],
+            container_memory=mapping["container_memory"],
+        )
+        return vespa_docker
+
+    @property
+    def to_dict(self) -> Mapping:
+        map = {
+            "container_id": self.container_id,
+            "container_name": self.container_name,
+            "url": self.url,
+            "port": self.local_port,
+            "disk_folder": self.disk_folder,
+            "container_memory": self.container_memory,
+        }
+        return map
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return (
+            self.container_id == other.container_id
+            and self.container_name == other.container_name
+            and self.url == other.url
+            and self.local_port == other.local_port
+            and self.disk_folder == other.disk_folder
+            and self.container_memory == other.container_memory
+        )
+
+    def __repr__(self):
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6})".format(
+            self.__class__.__name__,
+            repr(self.disk_folder),
+            repr(self.url),
+            repr(self.local_port),
+            repr(self.container_name),
+            repr(self.container_id),
+            repr(self.container_memory),
+        )
 
 
 class VespaCloud(object):
