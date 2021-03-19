@@ -1,6 +1,10 @@
 # Copyright Verizon Media. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import sys
+import ssl
+import aiohttp
+import asyncio
+
 from typing import Optional, Dict, Tuple, List, IO
 from pandas import DataFrame
 from requests import Session
@@ -143,6 +147,52 @@ class Vespa(object):
         vespa_format = {"fields": fields}
         response = http.post(end_point, json=vespa_format, cert=self.cert)
         return response
+
+    async def async_feed_data_point(self, session: aiohttp.ClientSession, schema: str, data_id: str, fields: Dict):
+        """
+        Feed a data point to a Vespa app using asyncio/aiohttp.
+
+        :param session: The aiohttp client session
+        :param schema: The schema that we are sending data to.
+        :param data_id: Unique id associated with this data point.
+        :param fields: Dict containing all the fields required by the `schema`.
+        :return: Response of the HTTP POST request.
+        """
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.end_point, schema, schema, str(data_id)
+        )
+        vespa_format = {"fields": fields}
+        sslcontext = False
+        if self.cert is not None:
+            sslcontext = ssl.create_default_context(cafile=self.cert)
+        response = await session.post(end_point, json=vespa_format, ssl=sslcontext)
+        return response
+
+    async def async_feed_batch(self, schema: str, docs: List):
+        """
+        Async feed a batch of data to a Vespa app.
+
+        :param schema: The schema that we are sending data to.
+        :param docs: A list of dicts with 'id' and 'fields'.
+        :return:
+        """
+        async with aiohttp.ClientSession() as session:
+            feed = [self.async_feed_data_point(session=session,
+                                               schema=schema,
+                                               data_id=doc["id"],
+                                               fields=doc["fields"]) for doc in docs]
+            await asyncio.gather(*feed)
+
+    def feed_batch(self, schema: str, docs: List):
+        """
+        Feed a batch of data to a Vespa app.
+
+        :param schema: The schema that we are sending data to.
+        :param docs: A list of dicts with 'id' and 'fields'.
+        :return:
+        """
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(self.async_feed_batch(schema, docs))
 
     def delete_data(self, schema: str, data_id: str) -> Response:
         """
