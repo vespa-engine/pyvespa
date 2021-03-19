@@ -257,7 +257,7 @@ class TestDockerDeployment(unittest.TestCase):
         app.feed_batch("msmarco", docs)
 
         # Verify that all documents are fed
-        result = app.query(query="sddocname:test", query_model=QueryModel())
+        result = app.query(query="sddocname:msmarco", query_model=QueryModel())
         self.assertEqual(result.number_documents_indexed, num_docs)
 
 
