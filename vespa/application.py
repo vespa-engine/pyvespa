@@ -168,31 +168,34 @@ class Vespa(object):
         response = await session.post(end_point, json=vespa_format, ssl=sslcontext)
         return response
 
-    async def async_feed_batch(self, schema: str, docs: List):
+    async def async_feed_batch(self, schema: str, docs: List, parallel:int=100):
         """
         Async feed a batch of data to a Vespa app.
 
         :param schema: The schema that we are sending data to.
         :param docs: A list of dicts with 'id' and 'fields'.
+        :param parallel: Number of parallel connections
         :return:
         """
-        async with aiohttp.ClientSession() as session:
+        conn = aiohttp.TCPConnector(limit=parallel)
+        async with aiohttp.ClientSession(connector=conn) as session:
             feed = [self.async_feed_data_point(session=session,
                                                schema=schema,
                                                data_id=doc["id"],
                                                fields=doc["fields"]) for doc in docs]
             await asyncio.gather(*feed)
 
-    def feed_batch(self, schema: str, docs: List):
+    def feed_batch(self, schema: str, docs: List, parallel:int=100):
         """
         Feed a batch of data to a Vespa app.
 
         :param schema: The schema that we are sending data to.
         :param docs: A list of dicts with 'id' and 'fields'.
+        :param parallel: Number of parallel connections
         :return:
         """
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.async_feed_batch(schema, docs))
+        loop.run_until_complete(self.async_feed_batch(schema, docs, parallel))
 
     def delete_data(self, schema: str, data_id: str) -> Response:
         """
