@@ -716,6 +716,28 @@ class Schema(ToJson, FromJson["Schema"]):
         """
         self.models.append(model)
 
+    @property
+    def schema_to_text(self):
+        env = Environment(
+            loader=PackageLoader("vespa", "templates"),
+            autoescape=select_autoescape(
+                disabled_extensions=("txt",),
+                default_for_string=True,
+                default=True,
+            ),
+        )
+        env.trim_blocks = True
+        env.lstrip_blocks = True
+        schema_template = env.get_template("schema.txt")
+        return schema_template.render(
+            schema_name=self.name,
+            document_name=self.name,
+            fields=self.document.fields,
+            fieldsets=self.fieldsets,
+            rank_profiles=self.rank_profiles,
+            models=self.models,
+        )
+
     @staticmethod
     def from_dict(mapping: Mapping) -> "Schema":
         fieldsets = mapping.get("fieldsets", None)
@@ -994,7 +1016,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
     def __init__(
         self,
         name: str,
-        schema: Optional[Schema] = None,
+        schema: Optional[List[Schema]] = None,
         query_profile: Optional[QueryProfile] = None,
         query_profile_type: Optional[QueryProfileType] = None,
     ) -> None:
@@ -1005,7 +1027,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         for more detailed information about application packages.
 
         :param name: Application name.
-        :param schema: :class:`Schema` of the application. If `None`, an empty :class:`Schema` with the same name of the
+        :param schema: List of :class:`Schema`s of the application. If `None`, an empty :class:`Schema` with the same name of the
             application will be created by default.
         :param query_profile: :class:`QueryProfile` of the application. If `None`, a :class:`QueryProfile` named `default`
          with :class:`QueryProfileType` named `root` will be created by default.
@@ -1015,15 +1037,15 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         The easiest way to get started is to create a default application package:
 
         >>> ApplicationPackage(name="test_app")
-        ApplicationPackage('test_app', Schema('test_app', Document(None), None, None, []), QueryProfile(None), QueryProfileType(None))
+        ApplicationPackage('test_app', [Schema('test_app', Document(None), None, None, [])], QueryProfile(None), QueryProfileType(None))
 
         It will create a default :class:`Schema`, :class:`QueryProfile` and :class:`QueryProfileType` that you can then
         populate with specifics of your application.
         """
         self.name = name
         if not schema:
-            schema = Schema(name=self.name, document=Document())
-        self.schema = schema
+            schema = [Schema(name=self.name, document=Document())]
+        self._schema = OrderedDict([(x.name, x) for x in schema])
         if not query_profile:
             query_profile = QueryProfile()
         self.query_profile = query_profile
@@ -1032,6 +1054,30 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         self.query_profile_type = query_profile_type
         self.model_ids = []
         self.model_configs = {}
+
+    @property
+    def schemas(self) -> List[Schema]:
+        return [x for x in self._schema.values()]
+
+    @property
+    def schema(self):
+        assert (
+            len(self.schemas) == 1
+        ), "Your application has more than one Schema, use get_schema instead."
+        return self.schemas[0]
+
+    def get_schema(self, name):
+        return self._schema[name]
+
+    def add_schema(self, *schemas: Schema) -> None:
+        """
+        Add :class:`Schema`'s to the application package.
+
+        :param schemas: schemas to be added
+        :return:
+        """
+        for schema in schemas:
+            self._schema.update({schema.name: schema})
 
     def add_model_ranking(
         self, model_config: ModelConfig, include_model_summary_features=False, **kwargs
@@ -1204,28 +1250,6 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         )
 
     @property
-    def schema_to_text(self):
-        env = Environment(
-            loader=PackageLoader("vespa", "templates"),
-            autoescape=select_autoescape(
-                disabled_extensions=("txt",),
-                default_for_string=True,
-                default=True,
-            ),
-        )
-        env.trim_blocks = True
-        env.lstrip_blocks = True
-        schema_template = env.get_template("schema.txt")
-        return schema_template.render(
-            schema_name=self.schema.name,
-            document_name=self.schema.name,
-            fields=self.schema.document.fields,
-            fieldsets=self.schema.fieldsets,
-            rank_profiles=self.schema.rank_profiles,
-            models=self.schema.models,
-        )
-
-    @property
     def query_profile_to_text(self):
         env = Environment(
             loader=PackageLoader("vespa", "templates"),
@@ -1285,33 +1309,33 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         schema_template = env.get_template("services.xml")
         return schema_template.render(
             application_name=self.name,
-            document_name=self.schema.name,
+            schemas=self.schemas,
         )
 
     @staticmethod
     def from_dict(mapping: Mapping) -> "ApplicationPackage":
         schema = mapping.get("schema", None)
         if schema is not None:
-            schema = FromJson.map(schema)
+            schema = [FromJson.map(x) for x in schema]
         return ApplicationPackage(name=mapping["name"], schema=schema)
 
     @property
     def to_dict(self) -> Mapping:
         map = {"name": self.name}
-        if self.schema is not None:
-            map.update({"schema": self.schema.to_envelope})
+        if self._schema is not None:
+            map.update({"schema": [x.to_envelope for x in self.schemas]})
         return map
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
-        return self.name == other.name and self.schema == other.schema
+        return self.name == other.name and self._schema == other._schema
 
     def __repr__(self):
         return "{0}({1}, {2}, {3}, {4})".format(
             self.__class__.__name__,
             repr(self.name),
-            repr(self.schema),
+            repr(self.schemas),
             repr(self.query_profile),
             repr(self.query_profile_type),
         )
@@ -1431,14 +1455,26 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         Path(os.path.join(self.disk_folder, "application/schemas")).mkdir(
             parents=True, exist_ok=True
         )
-        with open(
-            os.path.join(
-                self.disk_folder,
-                "application/schemas/{}.sd".format(application_package.schema.name),
-            ),
-            "w",
-        ) as f:
-            f.write(application_package.schema_to_text)
+        Path(os.path.join(self.disk_folder, "application/files")).mkdir(
+            parents=True, exist_ok=True
+        )
+
+        for schema in application_package.schemas:
+            with open(
+                os.path.join(
+                    self.disk_folder,
+                    "application/schemas/{}.sd".format(schema.name),
+                ),
+                "w",
+            ) as f:
+                f.write(schema.schema_to_text)
+            for model in schema.models:
+                copyfile(
+                    model.model_file_path,
+                    os.path.join(
+                        self.disk_folder, "application/files", model.model_file_name
+                    ),
+                )
 
         Path(
             os.path.join(self.disk_folder, "application/search/query-profiles/types")
@@ -1463,17 +1499,6 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             f.write(application_package.hosts_to_text)
         with open(os.path.join(self.disk_folder, "application/services.xml"), "w") as f:
             f.write(application_package.services_to_text)
-
-        Path(os.path.join(self.disk_folder, "application/files")).mkdir(
-            parents=True, exist_ok=True
-        )
-        for model in application_package.schema.models:
-            copyfile(
-                model.model_file_path,
-                os.path.join(
-                    self.disk_folder, "application/files", model.model_file_name
-                ),
-            )
 
     def _execute_deployment(
         self,
@@ -1835,12 +1860,18 @@ class VespaCloud(object):
     def _to_application_zip(self) -> BytesIO:
         buffer = BytesIO()
         with zipfile.ZipFile(buffer, "a") as zip_archive:
-            zip_archive.writestr(
-                "application/schemas/{}.sd".format(
-                    self.application_package.schema.name
-                ),
-                self.application_package.schema_to_text,
-            )
+
+            for schema in self.application_package.schemas:
+                zip_archive.writestr(
+                    "application/schemas/{}.sd".format(schema.name),
+                    schema.schema_to_text,
+                )
+                for model in schema.models:
+                    zip_archive.write(
+                        model.model_file_path,
+                        os.path.join("application/files", model.model_file_name),
+                    )
+
             zip_archive.writestr(
                 "application/search/query-profiles/default.xml",
                 self.application_package.query_profile_to_text,
@@ -1856,11 +1887,6 @@ class VespaCloud(object):
                 "application/security/clients.pem",
                 self.data_certificate.public_bytes(serialization.Encoding.PEM),
             )
-            for model in self.application_package.schema.models:
-                zip_archive.write(
-                    model.model_file_path,
-                    os.path.join("application/files", model.model_file_name),
-                )
 
         return buffer
 
