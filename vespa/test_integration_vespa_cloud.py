@@ -180,6 +180,36 @@ class TestCloudDeployment(unittest.TestCase):
             },
         )
 
+    def test_batch_feed(self):
+        #
+        # Create documents
+        #
+        num_docs = 100
+        docs = []
+        for i in range(num_docs):
+            docs.append({
+                "id": f"{i}",
+                "fields": {
+                    "id": f"{i}",
+                    "title": f"title for document {i}",
+                    "body": f"body for document {i}",
+                }
+            })
+
+        #
+        # Make sure documents don't exist
+        #
+        _ = self.app.delete_batch(schema="msmarco", doc_ids=[doc["id"] for doc in docs])
+
+        #
+        # Feed documents
+        #
+        self.app.feed_batch("msmarco", docs)
+
+        # Verify that all documents are fed
+        result = self.app.query(query=f"sddocname:msmarco&hits={num_docs}", query_model=QueryModel())
+        self.assertEqual(result.number_documents_retrieved, num_docs)
+
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
 

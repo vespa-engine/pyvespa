@@ -191,7 +191,7 @@ class Vespa(object):
 
         :param schema: The schema that we are sending data to.
         :param docs: A list of dicts with 'id' and 'fields'.
-        :param parallel: Number of parallel connections
+        :param parallel: Number of parallel connections.
         :return:
         """
         loop = asyncio.get_event_loop()
@@ -210,6 +210,52 @@ class Vespa(object):
         )
         response = http.delete(end_point, cert=self.cert)
         return response
+
+    async def async_delete_data(self, session: aiohttp.ClientSession, schema: str, data_id: str):
+        """
+        Delete a data point from a Vespa app using asyncio/aiohttp.
+
+        :param session: The aiohttp client session
+        :param schema: The schema that we are sending data to.
+        :param data_id: Unique id associated with this data point.
+        :return: Response of the HTTP POST request.
+        """
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.end_point, schema, schema, str(data_id)
+        )
+        sslcontext = False
+        if self.cert is not None:
+            sslcontext = ssl.create_default_context(cafile=self.cert)
+        response = await session.delete(end_point, ssl=sslcontext)
+        return response
+
+    async def async_delete_batch(self, schema: str, doc_ids: List, parallel:int=100):
+        """
+        Async delete a batch of data from a Vespa app.
+
+        :param schema: The schema that we are sending data to.
+        :param docs: A list of document ids.
+        :param parallel: Number of parallel connections.
+        :return:
+        """
+        conn = aiohttp.TCPConnector(limit=parallel)
+        async with aiohttp.ClientSession(connector=conn) as session:
+            feed = [self.async_delete_data_point(session=session,
+                                                 schema=schema,
+                                                 data_id=id) for id in doc_ids]
+            await asyncio.gather(*feed)
+
+    def delete_batch(self, schema: str, doc_ids: List, parallel:int=100):
+        """
+        Delete a batch of data from a Vespa app.
+
+        :param schema: The schema that we are sending data to.
+        :param docs: A list of document ids.
+        :param parallel: Number of parallel connections.
+        :return:
+        """
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(self.async_delete_batch(schema, doc_ids, parallel))
 
     def get_data(self, schema: str, data_id: str) -> Response:
         """
