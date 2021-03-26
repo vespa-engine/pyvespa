@@ -1,5 +1,6 @@
 import unittest
 import os
+import json
 import shutil
 from vespa.package import (
     HNSW,
@@ -199,7 +200,7 @@ class TestCloudDeployment(unittest.TestCase):
         #
         # Make sure documents don't exist
         #
-        _ = self.app.delete_batch(schema="msmarco", doc_ids=[doc["id"] for doc in docs])
+        self.app.delete_batch(schema="msmarco", doc_ids=[doc["id"] for doc in docs])
 
         #
         # Feed documents
@@ -207,7 +208,7 @@ class TestCloudDeployment(unittest.TestCase):
         self.app.feed_batch("msmarco", docs)
 
         # Verify that all documents are fed
-        result = self.app.query(query=f"sddocname:msmarco&hits={num_docs}", query_model=QueryModel())
+        result = self.app.query(query=f"sddocname:msmarco", query_model=QueryModel())
         self.assertEqual(result.number_documents_retrieved, num_docs)
 
     def tearDown(self) -> None:

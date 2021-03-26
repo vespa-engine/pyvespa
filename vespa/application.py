@@ -162,10 +162,7 @@ class Vespa(object):
             self.end_point, schema, schema, str(data_id)
         )
         vespa_format = {"fields": fields}
-        sslcontext = False
-        if self.cert is not None:
-            sslcontext = ssl.create_default_context(cafile=self.cert)
-        response = await session.post(end_point, json=vespa_format, ssl=sslcontext)
+        response = await session.post(end_point, json=vespa_format)
         return response
 
     async def async_feed_batch(self, schema: str, docs: List, parallel:int=100):
@@ -177,7 +174,10 @@ class Vespa(object):
         :param parallel: Number of parallel connections
         :return:
         """
-        conn = aiohttp.TCPConnector(limit=parallel)
+        sslcontext = False
+        if self.cert is not None:
+            sslcontext = ssl.create_default_context().load_cert_chain(self.cert)
+        conn = aiohttp.TCPConnector(limit=parallel, ssl=sslcontext)
         async with aiohttp.ClientSession(connector=conn) as session:
             feed = [self.async_feed_data_point(session=session,
                                                schema=schema,
@@ -223,10 +223,7 @@ class Vespa(object):
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
             self.end_point, schema, schema, str(data_id)
         )
-        sslcontext = False
-        if self.cert is not None:
-            sslcontext = ssl.create_default_context(cafile=self.cert)
-        response = await session.delete(end_point, ssl=sslcontext)
+        response = await session.delete(end_point)
         return response
 
     async def async_delete_batch(self, schema: str, doc_ids: List, parallel:int=100):
@@ -238,9 +235,12 @@ class Vespa(object):
         :param parallel: Number of parallel connections.
         :return:
         """
-        conn = aiohttp.TCPConnector(limit=parallel)
+        sslcontext = False
+        if self.cert is not None:
+            sslcontext = ssl.create_default_context().load_cert_chain(self.cert)
+        conn = aiohttp.TCPConnector(limit=parallel, ssl=sslcontext)
         async with aiohttp.ClientSession(connector=conn) as session:
-            feed = [self.async_delete_data_point(session=session,
+            feed = [self.async_delete_data(session=session,
                                                  schema=schema,
                                                  data_id=id) for id in doc_ids]
             await asyncio.gather(*feed)
