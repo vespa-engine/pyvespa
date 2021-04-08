@@ -190,7 +190,9 @@ class Field(ToJson, FromJson["Field"]):
 
 
 class Document(ToJson, FromJson["Document"]):
-    def __init__(self, fields: Optional[List[Field]] = None) -> None:
+    def __init__(
+        self, fields: Optional[List[Field]] = None, inherits: Optional[str] = None
+    ) -> None:
         """
         Create a Vespa Document.
 
@@ -202,12 +204,15 @@ class Document(ToJson, FromJson["Document"]):
         To create a Document:
 
         >>> Document()
-        Document(None)
+        Document(None, None)
 
         >>> Document(fields=[Field(name="title", type="string")])
-        Document([Field('title', 'string', None, None, None, None)])
+        Document([Field('title', 'string', None, None, None, None)], None)
 
+        >>> Document(fields=[Field(name="title", type="string")], inherits="context")
+        Document([Field('title', 'string', None, None, None, None)], context)
         """
+        self.inherits = inherits
         self._fields = (
             OrderedDict()
             if not fields
@@ -230,21 +235,29 @@ class Document(ToJson, FromJson["Document"]):
 
     @staticmethod
     def from_dict(mapping: Mapping) -> "Document":
-        return Document(fields=[FromJson.map(field) for field in mapping.get("fields")])
+        return Document(
+            fields=[FromJson.map(field) for field in mapping.get("fields")],
+            inherits=mapping.get("inherits", None),
+        )
 
     @property
     def to_dict(self) -> Mapping:
-        map = {"fields": [field.to_envelope for field in self.fields]}
+        map = {
+            "fields": [field.to_envelope for field in self.fields],
+            "inherits": self.inherits,
+        }
         return map
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
-        return self.fields == other.fields
+        return self.fields == other.fields and self.inherits == other.inherits
 
     def __repr__(self):
-        return "{0}({1})".format(
-            self.__class__.__name__, repr(self.fields) if self.fields else None
+        return "{0}({1}, {2})".format(
+            self.__class__.__name__,
+            repr(self.fields) if self.fields else None,
+            self.inherits,
         )
 
 
@@ -666,7 +679,7 @@ class Schema(ToJson, FromJson["Schema"]):
         To create a Schema:
 
         >>> Schema(name="schema_name", document=Document())
-        Schema('schema_name', Document(None), None, None, [])
+        Schema('schema_name', Document(None, None), None, None, [])
         """
         self.name = name
         self.document = document
@@ -732,7 +745,7 @@ class Schema(ToJson, FromJson["Schema"]):
         return schema_template.render(
             schema_name=self.name,
             document_name=self.name,
-            fields=self.document.fields,
+            document=self.document,
             fieldsets=self.fieldsets,
             rank_profiles=self.rank_profiles,
             models=self.models,
@@ -1037,7 +1050,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         The easiest way to get started is to create a default application package:
 
         >>> ApplicationPackage(name="test_app")
-        ApplicationPackage('test_app', [Schema('test_app', Document(None), None, None, [])], QueryProfile(None), QueryProfileType(None))
+        ApplicationPackage('test_app', [Schema('test_app', Document(None, None), None, None, [])], QueryProfile(None), QueryProfileType(None))
 
         It will create a default :class:`Schema`, :class:`QueryProfile` and :class:`QueryProfileType` that you can then
         populate with specifics of your application.
