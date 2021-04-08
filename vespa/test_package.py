@@ -81,16 +81,16 @@ class TestDocument(unittest.TestCase):
     def test_empty_document(self):
         document = Document()
         self.assertEqual(document.fields, [])
-        self.assertEqual(document.to_dict, {"fields": []})
+        self.assertEqual(document.to_dict, {"fields": [], "inherits": None})
         self.assertEqual(document, Document.from_dict(document.to_dict))
 
     def test_document_one_field(self):
-        document = Document()
+        document = Document(inherits="context")
         field = Field(name="test_name", type="string")
         document.add_fields(field)
         self.assertEqual(document.fields, [field])
         self.assertEqual(document, Document.from_dict(document.to_dict))
-        self.assertEqual(document, Document([field]))
+        self.assertEqual(document, Document([field], "context"))
 
     def test_document_two_fields(self):
         document = Document()
@@ -435,6 +435,7 @@ class TestApplicationPackage(unittest.TestCase):
         test_schema = Schema(
             name="msmarco",
             document=Document(
+                inherits="context",
                 fields=[
                     Field(name="id", type="string", indexing=["attribute", "summary"]),
                     Field(
@@ -563,7 +564,7 @@ class TestApplicationPackage(unittest.TestCase):
     def test_schema_to_text(self):
         expected_result = (
             "schema msmarco {\n"
-            "    document msmarco {\n"
+            "    document msmarco inherits context {\n"
             "        field id type string {\n"
             "            indexing: attribute | summary\n"
             "        }\n"
