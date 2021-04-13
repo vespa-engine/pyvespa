@@ -246,20 +246,17 @@ class TestDockerDeployment(unittest.TestCase):
         num_docs = 100
         docs = []
         for i in range(num_docs):
-            docs.append({
-                "id": f"{i}",
-                "fields": {
-                    "id": f"{i}",
-                    "title": f"title for document {i}",
-                    "body": f"body for document {i}",
-                }
-            })
-        app.feed_batch("msmarco", docs)
+            schema = "msmarco"
+            id = f"{id}"
+            title = f"title for document {i}"
+            body = f"body for document {i}"
+            fields = {"id": id, "title": title, "body": body}
+            docs.append((schema, id, fields))
+        app.feed_batch(docs)
 
         # Verify that all documents are fed
         result = app.query(query="sddocname:msmarco", query_model=QueryModel())
         self.assertEqual(result.number_documents_indexed, num_docs)
-
 
     def test_deploy_from_disk_with_disk_folder(self):
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)

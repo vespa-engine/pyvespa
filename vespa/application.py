@@ -22,10 +22,14 @@ retry_strategy = Retry(
     status_forcelist=[429, 500, 502, 503, 504],
     method_whitelist=["POST", "GET", "DELETE", "PUT"],
 )
-adapter = HTTPAdapter(max_retries=retry_strategy)
-http = Session()
-http.mount("https://", adapter)
-http.mount("http://", adapter)
+
+
+def in_event_loop():
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
 
 
 class Vespa(object):
@@ -59,6 +63,8 @@ class Vespa(object):
         self.port = port
         self.deployment_message = deployment_message
         self.cert = cert
+        self.http_session = None
+        self.aiohttp_session = None
 
         if port is None:
             self.end_point = self.url
@@ -66,11 +72,83 @@ class Vespa(object):
             self.end_point = str(url).rstrip("/") + ":" + str(port)
         self.search_end_point = self.end_point + "/search/"
 
+        self._open_http_session()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    async def __aenter__(self):
+        await self._open_aiohttp_session()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self._close_aiohttp_session()
+
+    def _open_http_session(self):
+        if self.http_session is not None:
+            return
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.http_session = Session()
+        self.http_session.mount("https://", adapter)
+        self.http_session.mount("http://", adapter)
+        return self.http_session
+
+    def _close_http_session(self):
+        if self.http_session is None:
+            return
+        self.http_session.close()
+
+    async def _open_aiohttp_session(self):
+        if self.aiohttp_session is not None and not self.aiohttp_session.closed:
+            return
+        sslcontext = False
+        if self.cert is not None:
+            sslcontext = ssl.create_default_context().load_cert_chain(self.cert)
+        conn = aiohttp.TCPConnector(ssl=sslcontext)
+        self.aiohttp_session = aiohttp.ClientSession(connector=conn)
+        return self.aiohttp_session
+
+    def _close_aiohttp_session(self):
+        if self.aiohttp_session is None:
+            return
+        return self.aiohttp_session.close()
+
+    def close(self):
+        self._close_http_session()
+        self._close_aiohttp_session()
+
     def __repr__(self):
         if self.port:
             return "Vespa({}, {})".format(self.url, self.port)
         else:
             return "Vespa({})".format(self.url)
+
+    async def _wrap_async(self, f, args):
+        session_closed = self.aiohttp_session is None or self.aiohttp_session.closed
+        try:
+            await self._open_aiohttp_session()
+
+            if type(args) == tuple:
+                return await f(*args)
+
+            if type(args) == list:
+                tasks = [asyncio.create_task(f(*arg)) for arg in args]
+                await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
+                return [result for result in map(lambda task: task.result(), tasks)]
+
+            raise ValueError("Unkown argument type to _wrap_async")
+
+        finally:
+            if session_closed:
+                await self._close_aiohttp_session()  # Only close if session was closed before calling this function
+
+    def _run_async(self, f, args):
+        if in_event_loop():
+            return self._wrap_async(f, args)
+        return asyncio.run(self._wrap_async(f, args))
 
     def get_application_status(self) -> Optional[Response]:
         """
@@ -80,7 +158,7 @@ class Vespa(object):
         """
         end_point = "{}/ApplicationStatus".format(self.end_point)
         try:
-            response = http.get(end_point, cert=self.cert)
+            response = self.http_session.get(end_point, cert=self.cert)
         except ConnectionError:
             response = None
         return response
@@ -129,10 +207,10 @@ class Vespa(object):
         if debug_request:
             return VespaResult(vespa_result={}, request_body=body)
         else:
-            r = http.post(self.search_end_point, json=body, cert=self.cert)
+            r = self.http_session.post(self.search_end_point, json=body, cert=self.cert)
             return VespaResult(vespa_result=r.json())
 
-    def feed_data_point(self, schema: str, data_id: str, fields: Dict) -> Response:
+    def feed_data_point(self, schema: str, data_id: str, fields: Dict):
         """
         Feed a data point to a Vespa app.
 
@@ -141,61 +219,23 @@ class Vespa(object):
         :param fields: Dict containing all the fields required by the `schema`.
         :return: Response of the HTTP POST request.
         """
-        end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.end_point, schema, schema, str(data_id)
-        )
-        vespa_format = {"fields": fields}
-        response = http.post(end_point, json=vespa_format, cert=self.cert)
-        return response
+        return self._run_async(self._feed_data_point, (schema, data_id, fields))
 
-    async def async_feed_data_point(self, session: aiohttp.ClientSession, schema: str, data_id: str, fields: Dict):
-        """
-        Feed a data point to a Vespa app using asyncio/aiohttp.
-
-        :param session: The aiohttp client session
-        :param schema: The schema that we are sending data to.
-        :param data_id: Unique id associated with this data point.
-        :param fields: Dict containing all the fields required by the `schema`.
-        :return: Response of the HTTP POST request.
-        """
-        end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.end_point, schema, schema, str(data_id)
-        )
-        vespa_format = {"fields": fields}
-        response = await session.post(end_point, json=vespa_format)
-        return response
-
-    async def async_feed_batch(self, schema: str, docs: List, parallel:int=100):
-        """
-        Async feed a batch of data to a Vespa app.
-
-        :param schema: The schema that we are sending data to.
-        :param docs: A list of dicts with 'id' and 'fields'.
-        :param parallel: Number of parallel connections
-        :return:
-        """
-        sslcontext = False
-        if self.cert is not None:
-            sslcontext = ssl.create_default_context().load_cert_chain(self.cert)
-        conn = aiohttp.TCPConnector(limit=parallel, ssl=sslcontext)
-        async with aiohttp.ClientSession(connector=conn) as session:
-            feed = [self.async_feed_data_point(session=session,
-                                               schema=schema,
-                                               data_id=doc["id"],
-                                               fields=doc["fields"]) for doc in docs]
-            await asyncio.gather(*feed)
-
-    def feed_batch(self, schema: str, docs: List, parallel:int=100):
+    def feed_batch(self, docs):
         """
         Feed a batch of data to a Vespa app.
 
-        :param schema: The schema that we are sending data to.
-        :param docs: A list of dicts with 'id' and 'fields'.
-        :param parallel: Number of parallel connections.
-        :return:
+        :param docs: A list of tuples with 'schema', 'id' and 'fields'.
+        :return: List of HTTP POST responses
         """
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.async_feed_batch(schema, docs, parallel))
+        return self._run_async(self._feed_data_point, docs)
+
+    async def _feed_data_point(self, schema: str, data_id: str, fields: Dict):
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.end_point, schema, schema, str(data_id)
+        )
+        vespa_format = {"fields": fields}
+        return await self.aiohttp_session.post(end_point, json=vespa_format)
 
     def delete_data(self, schema: str, data_id: str) -> Response:
         """
@@ -205,57 +245,23 @@ class Vespa(object):
         :param data_id: Unique id associated with this data point.
         :return: Response of the HTTP DELETE request.
         """
-        end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.end_point, schema, schema, str(data_id)
-        )
-        response = http.delete(end_point, cert=self.cert)
-        return response
+        return self._run_async(self._delete_data, (schema, data_id))
 
-    async def async_delete_data(self, session: aiohttp.ClientSession, schema: str, data_id: str):
-        """
-        Delete a data point from a Vespa app using asyncio/aiohttp.
-
-        :param session: The aiohttp client session
-        :param schema: The schema that we are sending data to.
-        :param data_id: Unique id associated with this data point.
-        :return: Response of the HTTP POST request.
-        """
-        end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.end_point, schema, schema, str(data_id)
-        )
-        response = await session.delete(end_point)
-        return response
-
-    async def async_delete_batch(self, schema: str, doc_ids: List, parallel:int=100):
+    def delete_batch(self, docs):
         """
         Async delete a batch of data from a Vespa app.
 
         :param schema: The schema that we are sending data to.
-        :param docs: A list of document ids.
-        :param parallel: Number of parallel connections.
+        :param docs: A list of tuples with 'schema' and 'id'.
         :return:
         """
-        sslcontext = False
-        if self.cert is not None:
-            sslcontext = ssl.create_default_context().load_cert_chain(self.cert)
-        conn = aiohttp.TCPConnector(limit=parallel, ssl=sslcontext)
-        async with aiohttp.ClientSession(connector=conn) as session:
-            feed = [self.async_delete_data(session=session,
-                                                 schema=schema,
-                                                 data_id=id) for id in doc_ids]
-            await asyncio.gather(*feed)
+        return self._run_async(self._delete_data, docs)
 
-    def delete_batch(self, schema: str, doc_ids: List, parallel:int=100):
-        """
-        Delete a batch of data from a Vespa app.
-
-        :param schema: The schema that we are sending data to.
-        :param docs: A list of document ids.
-        :param parallel: Number of parallel connections.
-        :return:
-        """
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.async_delete_batch(schema, doc_ids, parallel))
+    async def _delete_data(self, schema: str, data_id: str):
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.end_point, schema, schema, str(data_id)
+        )
+        return await self.aiohttp_session.delete(end_point)
 
     def get_data(self, schema: str, data_id: str) -> Response:
         """
@@ -268,7 +274,7 @@ class Vespa(object):
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
             self.end_point, schema, schema, str(data_id)
         )
-        response = http.get(end_point, cert=self.cert)
+        response = self.http_session.get(end_point, cert=self.cert)
         return response
 
     def update_data(
@@ -288,7 +294,7 @@ class Vespa(object):
         )
 
         vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
-        response = http.put(end_point, json=vespa_format, cert=self.cert)
+        response = self.http_session.put(end_point, json=vespa_format, cert=self.cert)
         return response
 
     @staticmethod

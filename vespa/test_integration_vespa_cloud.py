@@ -188,24 +188,22 @@ class TestCloudDeployment(unittest.TestCase):
         num_docs = 100
         docs = []
         for i in range(num_docs):
-            docs.append({
-                "id": f"{i}",
-                "fields": {
-                    "id": f"{i}",
-                    "title": f"title for document {i}",
-                    "body": f"body for document {i}",
-                }
-            })
+            schema = "msmarco"
+            id = f"{id}"
+            title = f"title for document {i}"
+            body = f"body for document {i}"
+            fields = {"id": id, "title": title, "body": body}
+            docs.append((schema, id, fields))
 
         #
         # Make sure documents don't exist
         #
-        self.app.delete_batch(schema="msmarco", doc_ids=[doc["id"] for doc in docs])
+        self.app.delete_batch([("msmarco", doc[1]) for doc in docs])
 
         #
         # Feed documents
         #
-        self.app.feed_batch("msmarco", docs)
+        self.app.feed_batch(docs)
 
         # Verify that all documents are fed
         result = self.app.query(query=f"sddocname:msmarco", query_model=QueryModel())
