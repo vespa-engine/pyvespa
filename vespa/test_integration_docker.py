@@ -247,7 +247,7 @@ class TestDockerDeployment(unittest.TestCase):
         docs = []
         for i in range(num_docs):
             schema = "msmarco"
-            id = f"{id}"
+            id = f"{i}"
             title = f"title for document {i}"
             body = f"body for document {i}"
             fields = {"id": id, "title": title, "body": body}
