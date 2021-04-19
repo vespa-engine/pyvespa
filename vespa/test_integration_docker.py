@@ -2,6 +2,7 @@ import unittest
 import os
 import re
 import shutil
+import asyncio
 from vespa.package import (
     HNSW,
     Document,
@@ -257,6 +258,106 @@ class TestDockerDeployment(unittest.TestCase):
         # Verify that all documents are fed
         result = app.query(query="sddocname:msmarco", query_model=QueryModel())
         self.assertEqual(result.number_documents_indexed, num_docs)
+
+    def test_data_operations_async(self):
+        asyncio.run(self.async_data_operations_test())
+
+    async def async_data_operations_test(self):
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        async with self.vespa_docker.deploy(application_package=self.app_package) as app:
+            #
+            # Get data that does not exist
+            #
+            response = await app.delete_data(schema="msmarco", data_id="1")
+            response = await app.get_data(schema="msmarco", data_id="1")
+            self.assertEqual(response.status_code, 404)
+
+            #
+            # Feed some data points
+            #
+            feed = []
+            for i in range(1, 101):
+                feed.append(asyncio.create_task(
+                    app.feed_data_point(
+                        schema="msmarco",
+                        data_id=f"{i}",
+                        fields={
+                            "id": f"{i}",
+                            "title": f"this is title {i}",
+                            "body": f"this is body {i}",
+                        },
+                    )))
+            await asyncio.wait(feed, return_when=asyncio.ALL_COMPLETED)
+            result = await feed[0].result().json()
+            self.assertEqual(result["id"], "id:msmarco:msmarco::1")
+
+            #
+            # Get data that exists
+            #
+            response = await app.get_data(schema="msmarco", data_id="1")
+            self.assertEqual(response.status_code, 200)
+            result = await response.json()
+            self.assertDictEqual(
+                result,
+                {
+                    "fields": {
+                        "id": "1",
+                        "title": "this is title 1",
+                        "body": "this is body 1",
+                    },
+                    "id": "id:msmarco:msmarco::1",
+                    "pathId": "/document/v1/msmarco/msmarco/docid/1",
+                },
+            )
+            #
+            # Update data
+            #
+            response = await app.update_data(
+                schema="msmarco", data_id="1", fields={"id": "this is my updated id"}
+            )
+            result = await response.json()
+            self.assertEqual(result["id"], "id:msmarco:msmarco::1")
+
+            #
+            # Get the updated data point
+            #
+            response = await app.get_data(schema="msmarco", data_id="1")
+            self.assertEqual(response.status_code, 200)
+            result = await response.json()
+            self.assertDictEqual(
+                result,
+                {
+                    "fields": {
+                        "id": "this is my updated id",
+                        "title": "this is title 1",
+                        "body": "this is body 1",
+                    },
+                    "id": "id:msmarco:msmarco::1",
+                    "pathId": "/document/v1/msmarco/msmarco/docid/1",
+                },
+            )
+            #
+            # Delete a data point
+            #
+            response = await app.delete_data(schema="msmarco", data_id="1")
+            result = await response.json()
+            self.assertEqual(result["id"], "id:msmarco:msmarco::1")
+            #
+            # Deleted data should be gone
+            #
+            response = await app.get_data(schema="msmarco", data_id="1")
+            self.assertEqual(response.status_code, 404)
+
+            #
+            # Issue a bunch of queries in parallel
+            #
+            queries = []
+            for i in range(10):
+                queries.append(asyncio.create_task(
+                    app.query(query="sddocname:msmarco", query_model=QueryModel(), timeout=5000)
+                ))
+            await asyncio.wait(queries, return_when=asyncio.ALL_COMPLETED)
+            self.assertEqual(queries[0].result().number_documents_indexed, 99)
 
     def test_deploy_from_disk_with_disk_folder(self):
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
