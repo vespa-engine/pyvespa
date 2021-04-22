@@ -24,45 +24,6 @@ retry_strategy = Retry(
 )
 
 
-async def await_coroutine(f, args=None, kwargs=None):
-    task = asyncio.ensure_future(f() if (args is None and kwargs is None) else f(*args, **kwargs))
-    await asyncio.wait([task], return_when=asyncio.ALL_COMPLETED)  # this is because aiohttp sometimes complains about the need for this being a task
-    return task.result()
-
-
-def wrap_coroutine(f, args=None, kwargs=None):
-    return asyncio.run(await_coroutine(f, args, kwargs)) if asyncio._get_running_loop() is None else await_coroutine(f, args, kwargs)
-
-
-def wrap_coroutine_with(await_func, f, args=None, kwargs=None):
-    return asyncio.run(await_func(f, args, kwargs)) if asyncio._get_running_loop() is None else await_func(f, args, kwargs)
-
-
-class ClientResponseProxy(object):
-    """
-    Wraps the coroutines of an aiohttp.ClientResponse object.
-    If in an event loop, awaits the response. If not, run them in an ad-hoc event loop.
-    """
-    def __init__(self, response):
-        self.response = response
-        self.status_code = response.status
-
-    def __getattr__(self, attr):
-        return getattr(self.response, attr)
-
-    def read(self, *args, **kwargs):
-        return wrap_coroutine(self.response.read, args, kwargs)
-
-    def release(self, *args, **kwargs):
-        return wrap_coroutine(self.response.release, args, kwargs)
-
-    def json(self, *args, **kwargs):
-        return wrap_coroutine(self.response.json, args, kwargs)
-
-    def text(self, *args, **kwargs):
-        return wrap_coroutine(self.response.text, args, kwargs)
-
-
 class Vespa(object):
     def __init__(
         self,
@@ -95,7 +56,6 @@ class Vespa(object):
         self.deployment_message = deployment_message
         self.cert = cert
         self.http_session = None
-        self.aiohttp_session = None
 
         if port is None:
             self.end_point = self.url
@@ -111,12 +71,8 @@ class Vespa(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    async def __aenter__(self):
-        await self._open_aiohttp_session()
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._close_aiohttp_session()
+    def asyncio(self):
+        return VespaAsync(self)
 
     def _open_http_session(self):
         if self.http_session is not None:
@@ -132,21 +88,6 @@ class Vespa(object):
             return
         self.http_session.close()
 
-    async def _open_aiohttp_session(self):
-        if self.aiohttp_session is not None and not self.aiohttp_session.closed:
-            return
-        sslcontext = False
-        if self.cert is not None:
-            sslcontext = ssl.create_default_context().load_cert_chain(self.cert)
-        conn = aiohttp.TCPConnector(ssl=sslcontext)
-        self.aiohttp_session = aiohttp.ClientSession(connector=conn)
-        return self.aiohttp_session
-
-    def _close_aiohttp_session(self):
-        if self.aiohttp_session is None:
-            return
-        return self.aiohttp_session.close()
-
     def close(self):
         self._close_http_session()
 
@@ -155,25 +96,6 @@ class Vespa(object):
             return "Vespa({}, {})".format(self.url, self.port)
         else:
             return "Vespa({})".format(self.url)
-
-    async def _wrap_async(self, f, args, kwargs=None):
-        session_closed = self.aiohttp_session is None or self.aiohttp_session.closed
-        try:
-            await self._open_aiohttp_session()
-
-            if type(args) == tuple:
-                return await f(*args)
-
-            if type(args) == list:
-                tasks = [asyncio.create_task(f(*arg)) for arg in args]
-                await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
-                return [result for result in map(lambda task: task.result(), tasks)]
-
-            raise ValueError("Unknown argument type to _wrap_async")
-
-        finally:
-            if session_closed:
-                await self._close_aiohttp_session()  # Only close if session was opened in this function
 
     def get_application_status(self) -> Optional[Response]:
         """
@@ -187,6 +109,29 @@ class Vespa(object):
         except ConnectionError:
             response = None
         return response
+
+    def _build_query_body(
+        self,
+        query: Optional[str] = None,
+        query_model: Optional[QueryModel] = None,
+        recall: Optional[Tuple] = None,
+        **kwargs
+    ) -> Dict:
+        assert query is not None, "No 'query' specified."
+        assert query_model is not None, "No 'query_model' specified."
+        body = query_model.create_body(query=query)
+        if recall is not None:
+            body.update(
+                {
+                    "recall": "+("
+                              + " ".join(
+                        ["{}:{}".format(recall[0], str(doc)) for doc in recall[1]]
+                    )
+                              + ")"
+                }
+            )
+        body.update(kwargs)
+        return body
 
     def query(
         self,
@@ -211,32 +156,12 @@ class Vespa(object):
         :param kwargs: Additional parameters to be sent along the request.
         :return: Either the request body if debug_request is True or the result from the Vespa application
         """
-
-        if body is None:
-            assert query is not None, "No 'query' specified."
-            assert query_model is not None, "No 'query_model' specified."
-            body = query_model.create_body(query=query)
-            if recall is not None:
-                body.update(
-                    {
-                        "recall": "+("
-                        + " ".join(
-                            ["{}:{}".format(recall[0], str(doc)) for doc in recall[1]]
-                        )
-                        + ")"
-                    }
-                )
-
-            body.update(kwargs)
-
+        body = self._build_query_body(query, query_model, recall, **kwargs) if body is None else body
         if debug_request:
             return VespaResult(vespa_result={}, request_body=body)
         else:
-            return wrap_coroutine_with(self._wrap_async, self._query, (body,))
-
-    async def _query(self, body: Dict) -> VespaResult:
-        r = await self.aiohttp_session.post(self.search_end_point, json=body)
-        return VespaResult(vespa_result=await r.json())
+            r = self.http_session.post(self.search_end_point, json=body, cert=self.cert)
+            return VespaResult(vespa_result=r.json())
 
     def feed_data_point(self, schema: str, data_id: str, fields: Dict):
         """
@@ -247,7 +172,12 @@ class Vespa(object):
         :param fields: Dict containing all the fields required by the `schema`.
         :return: Response of the HTTP POST request.
         """
-        return wrap_coroutine_with(self._wrap_async, self._feed_data_point, (schema, data_id, fields))
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.end_point, schema, schema, str(data_id)
+        )
+        vespa_format = {"fields": fields}
+        response = self.http_session.post(end_point, json=vespa_format, cert=self.cert)
+        return response
 
     def feed_batch(self, batch):
         """
@@ -256,14 +186,7 @@ class Vespa(object):
         :param batch: A list of tuples with 'schema', 'id' and 'fields'.
         :return: List of HTTP POST responses
         """
-        return wrap_coroutine_with(self._wrap_async, self._feed_data_point, batch)
-
-    async def _feed_data_point(self, schema: str, data_id: str, fields: Dict):
-        end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.end_point, schema, schema, str(data_id)
-        )
-        vespa_format = {"fields": fields}
-        return ClientResponseProxy(await self.aiohttp_session.post(end_point, json=vespa_format))
+        return [self.feed_data_point(schema, id, fields) for schema, id, fields in batch]
 
     def delete_data(self, schema: str, data_id: str) -> Response:
         """
@@ -273,7 +196,11 @@ class Vespa(object):
         :param data_id: Unique id associated with this data point.
         :return: Response of the HTTP DELETE request.
         """
-        return wrap_coroutine_with(self._wrap_async, self._delete_data, (schema, data_id))
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.end_point, schema, schema, str(data_id)
+        )
+        response = self.http_session.delete(end_point, cert=self.cert)
+        return response
 
     def delete_batch(self, batch: List):
         """
@@ -282,13 +209,7 @@ class Vespa(object):
         :param batch: A list of tuples with 'schema' and 'id'
         :return:
         """
-        return wrap_coroutine_with(self._wrap_async, self._delete_data, batch)
-
-    async def _delete_data(self, schema: str, data_id: str):
-        end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.end_point, schema, schema, str(data_id)
-        )
-        return ClientResponseProxy(await self.aiohttp_session.delete(end_point))
+        return [self.delete_data(schema, id) for schema, id in batch]
 
     def get_data(self, schema: str, data_id: str) -> Response:
         """
@@ -298,7 +219,11 @@ class Vespa(object):
         :param data_id: Unique id associated with this data point.
         :return: Response of the HTTP GET request.
         """
-        return wrap_coroutine_with(self._wrap_async, self._get_data, (schema, data_id))
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.end_point, schema, schema, str(data_id)
+        )
+        response = self.http_session.get(end_point, cert=self.cert)
+        return response
 
     def get_batch(self, batch: List):
         """
@@ -307,13 +232,7 @@ class Vespa(object):
         :param batch: A list of tuples with 'schema' and 'id'.
         :return:
         """
-        return wrap_coroutine_with(self._wrap_async, self._get_data, batch)
-
-    async def _get_data(self, schema: str, data_id: str):
-        end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.end_point, schema, schema, str(data_id)
-        )
-        return ClientResponseProxy(await self.aiohttp_session.get(end_point))
+        return [self.get_data(schema, id) for schema, id in batch]
 
     def update_data(
         self, schema: str, data_id: str, fields: Dict, create: bool = False
@@ -327,7 +246,12 @@ class Vespa(object):
         :param create: If true, updates to non-existent documents will create an empty document to update
         :return: Response of the HTTP PUT request.
         """
-        return wrap_coroutine_with(self._wrap_async, self._update_data, (schema, data_id, fields, create))
+        end_point = "{}/document/v1/{}/{}/docid/{}?create={}".format(
+            self.end_point, schema, schema, str(data_id), str(create).lower()
+        )
+        vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
+        response = self.http_session.put(end_point, json=vespa_format, cert=self.cert)
+        return response
 
     def update_batch(self, batch: List):
         """
@@ -336,14 +260,7 @@ class Vespa(object):
         :param batch: A list of tuples with 'schema', 'id', 'fields', and 'create'
         :return:
         """
-        return wrap_coroutine_with(self._wrap_async, self._update_data, batch)
-
-    async def _update_data(self, schema: str, data_id: str, fields: Dict, create: bool = False):
-        end_point = "{}/document/v1/{}/{}/docid/{}?create={}".format(
-            self.end_point, schema, schema, str(data_id), str(create).lower()
-        )
-        vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
-        return ClientResponseProxy(await self.aiohttp_session.put(end_point, json=vespa_format))
+        return [self.update_data(schema, id, fields, create) for schema, id, fields, create in batch]
 
     @staticmethod
     def annotate_data(
@@ -560,3 +477,91 @@ class Vespa(object):
             evaluation.append(evaluation_query)
         evaluation = DataFrame.from_records(evaluation)
         return evaluation
+
+
+class VespaAsync(object):
+
+    def __init__( self, app: Vespa) -> None:
+        self.app = app
+        self.aiohttp_session = None
+
+    async def __aenter__(self):
+        await self._open_aiohttp_session()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self._close_aiohttp_session()
+
+    async def _open_aiohttp_session(self):
+        if self.aiohttp_session is not None and not self.aiohttp_session.closed:
+            return
+        sslcontext = False
+        if self.app.cert is not None:
+            sslcontext = ssl.create_default_context().load_cert_chain(self.app.cert)
+        conn = aiohttp.TCPConnector(ssl=sslcontext)
+        self.aiohttp_session = aiohttp.ClientSession(connector=conn)
+        return self.aiohttp_session
+
+    async def _close_aiohttp_session(self):
+        if self.aiohttp_session is None:
+            return
+        return await self.aiohttp_session.close()
+
+    async def _wait(self, f, args):
+        tasks = [asyncio.create_task(f(*arg)) for arg in args]
+        await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
+        return [result for result in map(lambda task: task.result(), tasks)]
+
+    async def query(
+            self,
+            body: Optional[Dict] = None,
+            query: Optional[str] = None,
+            query_model: Optional[QueryModel] = None,
+            debug_request: bool = False,
+            recall: Optional[Tuple] = None,
+            **kwargs
+    ):
+        if debug_request:
+            return self.app.query(body, query, query_model, debug_request, recall, **kwargs)
+        body = self.app._build_query_body(query, query_model, recall, **kwargs) if body is None else body
+        r = await self.aiohttp_session.post(self.app.search_end_point, json=body)
+        return VespaResult(vespa_result=await r.json())
+
+    async def feed_data_point(self, schema: str, data_id: str, fields: Dict):
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.app.end_point, schema, schema, str(data_id)
+        )
+        vespa_format = {"fields": fields}
+        return await self.aiohttp_session.post(end_point, json=vespa_format)
+
+    async def feed_batch(self, batch):
+        return await self._wait(self.feed_data_point, batch)
+
+    async def delete_data(self, schema: str, data_id: str):
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.app.end_point, schema, schema, str(data_id)
+        )
+        return await self.aiohttp_session.delete(end_point)
+
+    async def delete_batch(self, batch):
+        return await self._wait(self.delete_data, batch)
+
+    async def get_data(self, schema: str, data_id: str):
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.app.end_point, schema, schema, str(data_id)
+        )
+        return await self.aiohttp_session.get(end_point)
+
+    async def get_batch(self, batch):
+        return await self._wait(self.get_data, batch)
+
+    async def update_data(self, schema: str, data_id: str, fields: Dict, create: bool = False):
+        end_point = "{}/document/v1/{}/{}/docid/{}?create={}".format(
+            self.app.end_point, schema, schema, str(data_id), str(create).lower()
+        )
+        vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
+        return await self.aiohttp_session.put(end_point, json=vespa_format)
+
+    async def update_batch(self, batch):
+        return await self._wait(self.update_data, batch)
+
