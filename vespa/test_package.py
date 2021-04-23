@@ -432,7 +432,7 @@ class TestQueryProfile(unittest.TestCase):
 
 class TestApplicationPackage(unittest.TestCase):
     def setUp(self) -> None:
-        test_schema = Schema(
+        self.test_schema = Schema(
             name="msmarco",
             document=Document(
                 inherits="context",
@@ -456,7 +456,7 @@ class TestApplicationPackage(unittest.TestCase):
                         indexing=["attribute", "summary"],
                         attribute=["fast-search", "fast-access"],
                     ),
-                ]
+                ],
             ),
             fieldsets=[FieldSet(name="default", fields=["title", "body"])],
             rank_profiles=[
@@ -551,7 +551,7 @@ class TestApplicationPackage(unittest.TestCase):
         )
         self.app_package = ApplicationPackage(
             name="test_app",
-            schema=[test_schema],
+            schema=[self.test_schema],
             query_profile=test_query_profile,
             query_profile_type=test_query_profile_type,
         )
@@ -560,6 +560,10 @@ class TestApplicationPackage(unittest.TestCase):
         self.assertEqual(
             self.app_package, ApplicationPackage.from_dict(self.app_package.to_dict)
         )
+
+    def test_get_schema(self):
+        self.assertEqual(self.app_package.schema, self.test_schema)
+        self.assertEqual(self.app_package.schema, self.app_package.get_schema())
 
     def test_schema_to_text(self):
         expected_result = (
@@ -726,7 +730,7 @@ class TestApplicationPackage(unittest.TestCase):
 
 class TestApplicationPackageMultipleSchema(unittest.TestCase):
     def setUp(self) -> None:
-        news_schema = Schema(
+        self.news_schema = Schema(
             name="news",
             document=Document(
                 fields=[
@@ -736,7 +740,7 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
                 ]
             ),
         )
-        user_schema = Schema(
+        self.user_schema = Schema(
             name="user",
             document=Document(
                 fields=[
@@ -748,13 +752,19 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
         )
         self.app_package = ApplicationPackage(
             name="test_app",
-            schema=[news_schema, user_schema],
+            schema=[self.news_schema, self.user_schema],
         )
 
     def test_application_package(self):
         self.assertEqual(
             self.app_package, ApplicationPackage.from_dict(self.app_package.to_dict)
         )
+
+    def test_get_schema(self):
+        self.assertEqual(self.app_package.get_schema(name="news"), self.news_schema)
+        self.assertEqual(self.app_package.get_schema(name="user"), self.user_schema)
+        with self.assertRaises(AssertionError):
+            self.app_package.get_schema()
 
     def test_schema_to_text(self):
         expected_news_result = (
@@ -802,6 +812,209 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
         )
 
         self.assertEqual(self.app_package.services_to_text, expected_result)
+
+
+class TestApplicationPackageAddBertRankingWithMultipleSchemas(unittest.TestCase):
+    def setUp(self) -> None:
+        news_schema = Schema(
+            name="news",
+            document=Document(
+                fields=[
+                    Field(
+                        name="news_id", type="string", indexing=["attribute", "summary"]
+                    ),
+                ]
+            ),
+        )
+        user_schema = Schema(
+            name="user",
+            document=Document(
+                fields=[
+                    Field(
+                        name="user_id", type="string", indexing=["attribute", "summary"]
+                    ),
+                ]
+            ),
+        )
+        self.app_package = ApplicationPackage(
+            name="test_app",
+            schema=[news_schema, user_schema],
+        )
+        bert_config = BertModelConfig(
+            model_id="bert_tiny",
+            query_input_size=4,
+            doc_input_size=8,
+            tokenizer=os.path.join(os.environ["RESOURCES_DIR"], "bert_tiny_tokenizer"),
+            model=os.path.join(os.environ["RESOURCES_DIR"], "bert_tiny_model"),
+        )
+        self.app_package.add_model_ranking(
+            model_config=bert_config,
+            schema="news",
+            include_model_summary_features=True,
+            inherits="default",
+            first_phase="bm25(title)",
+            second_phase=SecondPhaseRanking(rerank_count=10, expression="logit1"),
+        )
+
+        self.disk_folder = "saved_app"
+
+    def test_application_package(self):
+        self.assertEqual(
+            self.app_package, ApplicationPackage.from_dict(self.app_package.to_dict)
+        )
+
+    def test_news_schema_to_text(self):
+        expected_result = (
+            "schema news {\n"
+            "    document news {\n"
+            "        field news_id type string {\n"
+            "            indexing: attribute | summary\n"
+            "        }\n"
+            "        field bert_tiny_doc_token_ids type tensor<float>(d0[7]) {\n"
+            "            indexing: attribute | summary\n"
+            "        }\n"
+            "    }\n"
+            "    onnx-model bert_tiny {\n"
+            "        file: files/bert_tiny.onnx\n"
+            "        input input_ids: input_ids\n"
+            "        input token_type_ids: token_type_ids\n"
+            "        input attention_mask: attention_mask\n"
+            "        output output_0: logits\n"
+            "    }\n"
+            "    rank-profile bert_tiny inherits default {\n"
+            "        constants {\n"
+            "            TOKEN_NONE: 0\n"
+            "            TOKEN_CLS: 101\n"
+            "            TOKEN_SEP: 102\n"
+            "        }\n"
+            "        function question_length() {\n"
+            "            expression {\n"
+            "                sum(map(query(bert_tiny_query_token_ids), f(a)(a > 0)))\n"
+            "            }\n"
+            "        }\n"
+            "        function doc_length() {\n"
+            "            expression {\n"
+            "                sum(map(attribute(bert_tiny_doc_token_ids), f(a)(a > 0)))\n"
+            "            }\n"
+            "        }\n"
+            "        function input_ids() {\n"
+            "            expression {\n"
+            "                tokenInputIds(12, query(bert_tiny_query_token_ids), attribute(bert_tiny_doc_token_ids))\n"
+            "            }\n"
+            "        }\n"
+            "        function attention_mask() {\n"
+            "            expression {\n"
+            "                tokenAttentionMask(12, query(bert_tiny_query_token_ids), attribute(bert_tiny_doc_token_ids))\n"
+            "            }\n"
+            "        }\n"
+            "        function token_type_ids() {\n"
+            "            expression {\n"
+            "                tokenTypeIds(12, query(bert_tiny_query_token_ids), attribute(bert_tiny_doc_token_ids))\n"
+            "            }\n"
+            "        }\n"
+            "        function logit0() {\n"
+            "            expression {\n"
+            "                onnx(bert_tiny).logits{d0:0,d1:0}\n"
+            "            }\n"
+            "        }\n"
+            "        function logit1() {\n"
+            "            expression {\n"
+            "                onnx(bert_tiny).logits{d0:0,d1:1}\n"
+            "            }\n"
+            "        }\n"
+            "        first-phase {\n"
+            "            expression: bm25(title)\n"
+            "        }\n"
+            "        second-phase {\n"
+            "            rerank-count: 10\n"
+            "            expression: logit1\n"
+            "        }\n"
+            "        summary-features {\n"
+            "            logit0\n"
+            "            logit1\n"
+            "            input_ids\n"
+            "            attention_mask\n"
+            "            token_type_ids\n"
+            "        }\n"
+            "    }\n"
+            "}"
+        )
+        self.assertEqual(
+            self.app_package.get_schema("news").schema_to_text, expected_result
+        )
+
+    def test_user_schema_to_text(self):
+        expected_user_result = (
+            "schema user {\n"
+            "    document user {\n"
+            "        field user_id type string {\n"
+            "            indexing: attribute | summary\n"
+            "        }\n"
+            "    }\n"
+            "}"
+        )
+        self.assertEqual(
+            self.app_package.get_schema("user").schema_to_text, expected_user_result
+        )
+
+    def test_hosts_to_text(self):
+        expected_result = (
+            '<?xml version="1.0" encoding="utf-8" ?>\n'
+            "<!-- Copyright 2019 Oath Inc. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->\n"
+            "<hosts>\n"
+            '    <host name="localhost">\n'
+            "        <alias>node1</alias>\n"
+            "    </host>\n"
+            "</hosts>"
+        )
+        self.assertEqual(self.app_package.hosts_to_text, expected_result)
+
+    def test_services_to_text(self):
+        expected_result = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<services version="1.0">\n'
+            '    <container id="test_app_container" version="1.0">\n'
+            "        <search></search>\n"
+            "        <document-api></document-api>\n"
+            "    </container>\n"
+            '    <content id="test_app_content" version="1.0">\n'
+            '        <redundancy reply-after="1">1</redundancy>\n'
+            "        <documents>\n"
+            '            <document type="news" mode="index"></document>\n'
+            '            <document type="user" mode="index"></document>\n'
+            "        </documents>\n"
+            "        <nodes>\n"
+            '            <node distribution-key="0" hostalias="node1"></node>\n'
+            "        </nodes>\n"
+            "    </content>\n"
+            "</services>"
+        )
+
+        self.assertEqual(self.app_package.services_to_text, expected_result)
+
+    def test_query_profile_to_text(self):
+        expected_result = (
+            '<query-profile id="default" type="root">\n' "</query-profile>"
+        )
+
+        self.assertEqual(self.app_package.query_profile_to_text, expected_result)
+
+    def test_query_profile_type_to_text(self):
+        expected_result = (
+            '<query-profile-type id="root">\n'
+            '    <field name="ranking.features.query(bert_tiny_query_token_ids)" type="tensor&lt;float&gt;(d0[2])" />\n'
+            "</query-profile-type>"
+        )
+        self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)
+
+    def test_save_load(self):
+        self.app_package.save(disk_folder=self.disk_folder)
+        self.assertEqual(
+            self.app_package, ApplicationPackage.load(disk_folder=self.disk_folder)
+        )
+
+    def tearDown(self) -> None:
+        rmtree(self.disk_folder, ignore_errors=True)
 
 
 class TestSimplifiedApplicationPackage(unittest.TestCase):
