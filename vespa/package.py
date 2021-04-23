@@ -1082,7 +1082,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
     def get_schema(self, name: Optional[str] = None):
         if not name:
             assert (
-                    len(self.schemas) == 1
+                len(self.schemas) == 1
             ), "Your application has more than one Schema, specify name argument."
             return self.schema
         return self._schema[name]
@@ -1098,12 +1098,17 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
             self._schema.update({schema.name: schema})
 
     def add_model_ranking(
-        self, model_config: ModelConfig, include_model_summary_features=False, **kwargs
+        self,
+        model_config: ModelConfig,
+        schema=None,
+        include_model_summary_features=False,
+        **kwargs
     ) -> None:
         """
         Add ranking profile based on a specific model config.
 
         :param model_config: Model config instance specifying the model to be used on the RankProfile.
+        :param schema: Name of the schema to add model ranking to.
         :param include_model_summary_features: True to include model specific summary features, such as
             inputs and outputs that are useful for debugging. Default to False as this requires an extra model
             evaluation when fetching summary features.
@@ -1124,6 +1129,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
             self._add_bert_rank_profile(
                 model_config=model_config,
                 include_model_summary_features=include_model_summary_features,
+                schema=schema,
                 **kwargs
             )
         else:
@@ -1133,6 +1139,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         self,
         model_config: BertModelConfig,
         include_model_summary_features,
+        schema=None,
         doc_token_ids_indexing=None,
         **kwargs
     ) -> None:
@@ -1145,7 +1152,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         model_file_path = model_id + ".onnx"
         model_config.export_to_onnx(output_path=model_file_path)
 
-        self.schema.add_model(
+        self.get_schema(schema).add_model(
             OnnxModel(
                 model_name=model_id,
                 model_file_path=model_file_path,
@@ -1177,7 +1184,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         #
         if not doc_token_ids_indexing:
             doc_token_ids_indexing = ["attribute", "summary"]
-        self.schema.add_fields(
+        self.get_schema(schema).add_fields(
             Field(
                 name=model_config.doc_token_ids_name,
                 type="tensor<float>(d0[{}])".format(
@@ -1257,7 +1264,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         if "summary_features" in kwargs:
             summary_features.extend(kwargs.pop("summary_features"))
 
-        self.schema.add_rank_profile(
+        self.get_schema(schema).add_rank_profile(
             RankProfile(
                 name=model_id,
                 constants=constants,
