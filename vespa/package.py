@@ -1079,7 +1079,12 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         ), "Your application has more than one Schema, use get_schema instead."
         return self.schemas[0]
 
-    def get_schema(self, name):
+    def get_schema(self, name: Optional[str] = None):
+        if not name:
+            assert (
+                    len(self.schemas) == 1
+            ), "Your application has more than one Schema, specify name argument."
+            return self.schema
         return self._schema[name]
 
     def add_schema(self, *schemas: Schema) -> None:
