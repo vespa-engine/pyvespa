@@ -25,20 +25,23 @@ class QueryRankingFeature(QueryProperty):
     def __init__(
         self,
         name: str,
-        mapping: Callable[[str], List[float]],
+        mapping: Optional[Callable[[str], List[float]]] = None,
+        value: Optional[List[float]] = None,
     ) -> None:
         """
         Include ranking.feature.query into a Vespa query.
 
         :param name: Name of the feature.
         :param mapping: Function mapping a string to a list of floats.
+        :param value: list of floats to be sent directly as query ranking feature value.
         """
         super().__init__()
         self.name = name
         self.mapping = mapping
+        self.value = value
 
     def get_query_properties(self, query: Optional[str] = None) -> Dict[str, str]:
-        value = self.mapping(query)
+        value = self.mapping(query) if not self.value else self.value
         return {"ranking.features.query({})".format(self.name): str(value)}
 
 
@@ -221,18 +224,26 @@ class QueryModel(object):
         self.match_phase = match_phase
         self.rank_profile = rank_profile
 
-    def create_body(self, query: str) -> Dict[str, str]:
+    def create_body(
+        self,
+        query: Optional[str] = None,
+        query_properties: Optional[List[QueryProperty]] = None,
+    ) -> Dict[str, str]:
         """
         Create the appropriate request body to be sent to Vespa.
 
         :param query: Query input.
+        :param query_properties: Additional query properties to be included in the query body.
         :return: dict representing the request body.
         """
 
-        query_properties = {}
+        _query_properties = {}
         for query_property in self.query_properties:
-            query_properties.update(query_property.get_query_properties(query=query))
-        query_properties.update(self.match_phase.get_query_properties(query=query))
+            _query_properties.update(query_property.get_query_properties(query=query))
+        _query_properties.update(self.match_phase.get_query_properties(query=query))
+        query_properties = [] if not query_properties else query_properties
+        for query_property in query_properties:
+            _query_properties.update(query_property.get_query_properties(query=query))
 
         match_filter = self.match_phase.create_match_filter(query=query)
 
@@ -243,7 +254,7 @@ class QueryModel(object):
                 "listFeatures": self.rank_profile.list_features,
             },
         }
-        body.update(query_properties)
+        body.update(_query_properties)
         return body
 
 

@@ -6,7 +6,14 @@ from pandas import DataFrame
 from pandas.testing import assert_frame_equal
 
 from vespa.application import Vespa
-from vespa.query import QueryModel, OR, RankProfile, VespaResult
+from vespa.query import (
+    QueryModel,
+    OR,
+    RankProfile,
+    VespaResult,
+    ANN,
+    QueryRankingFeature,
+)
 
 
 class TestVespa(unittest.TestCase):
@@ -58,6 +65,34 @@ class TestVespaQuery(unittest.TestCase):
                 "ranking": {"profile": "default", "listFeatures": "false"},
                 "hits": 10,
                 "recall": "+(id:1 id:5)",
+            },
+        )
+
+    def test_vector_based_query(self):
+        app = Vespa(url="http://localhost", port=8080)
+
+        self.assertDictEqual(
+            app.query(
+                query_model=QueryModel(
+                    match_phase=ANN(
+                        doc_vector="doc_vector",
+                        query_vector="query_vector",
+                        hits=10,
+                        label="label",
+                    ),
+                    rank_profile=RankProfile(name="bm25", list_features=True),
+                ),
+                query_properties=[
+                    QueryRankingFeature(name="query_vector", value=[1, 2, 3])
+                ],
+                debug_request=True,
+                hits=10,
+            ).request_body,
+            {
+                "yql": 'select * from sources * where ([{"targetNumHits": 10, "label": "label"}]nearestNeighbor(doc_vector, query_vector));',
+                "ranking.features.query(query_vector)": "[1, 2, 3]",
+                "ranking": {"profile": "bm25", "listFeatures": "true"},
+                "hits": 10,
             },
         )
 

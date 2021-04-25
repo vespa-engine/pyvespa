@@ -28,6 +28,13 @@ class TestQueryProperty(unittest.TestCase):
             {"ranking.features.query(query_vector)": "[1, 2, 3]"},
         )
 
+    def test_query_ranking_feature_value(self):
+        query_property = QueryRankingFeature(name="query_vector", value=[1, 2, 3])
+        self.assertDictEqual(
+            query_property.get_query_properties(query=self.query),
+            {"ranking.features.query(query_vector)": "[1, 2, 3]"},
+        )
+
 
 class TestMatchFilter(unittest.TestCase):
     def setUp(self) -> None:
@@ -168,6 +175,29 @@ class TestQuery(unittest.TestCase):
             query_model.create_body(query=self.query),
             {
                 "yql": 'select * from sources * where ([{"targetNumHits": 10, "label": "label", "approximate": true}]nearestNeighbor(doc_vector, query_vector));',
+                "ranking": {"profile": "bm25", "listFeatures": "true"},
+                "ranking.features.query(query_vector)": "[1, 2, 3]",
+            },
+        )
+
+    def test_vector_search_without_explicit_query(self):
+        query_model = QueryModel(
+            match_phase=ANN(
+                doc_vector="doc_vector",
+                query_vector="query_vector",
+                hits=10,
+                label="label",
+            ),
+            rank_profile=RankProfile(name="bm25", list_features=True),
+        )
+        self.assertDictEqual(
+            query_model.create_body(
+                query_properties=[
+                    QueryRankingFeature(name="query_vector", value=[1, 2, 3])
+                ],
+            ),
+            {
+                "yql": 'select * from sources * where ([{"targetNumHits": 10, "label": "label"}]nearestNeighbor(doc_vector, query_vector));',
                 "ranking": {"profile": "bm25", "listFeatures": "true"},
                 "ranking.features.query(query_vector)": "[1, 2, 3]",
             },
