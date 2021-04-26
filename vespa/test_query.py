@@ -134,6 +134,27 @@ class TestQuery(unittest.TestCase):
             },
         )
 
+    def test_body_function(self):
+        def body_function(query):
+            body = {
+                "yql": "select * from sources * where userQuery();",
+                "query": query,
+                "type": "any",
+                "ranking": {"profile": "bm25", "listFeatures": "true"},
+            }
+            return body
+
+        query_model = QueryModel(body_function=body_function)
+        self.assertDictEqual(
+            query_model.create_body(query=self.query),
+            {
+                "yql": "select * from sources * where userQuery();",
+                "query": "this is  a test",
+                "type": "any",
+                "ranking": {"profile": "bm25", "listFeatures": "true"},
+            },
+        )
+
     def test_query_properties_match_and_rank(self):
 
         query_model = QueryModel(

@@ -61,6 +61,38 @@ class TestVespaQuery(unittest.TestCase):
             },
         )
 
+    def test_query_with_body_function(self):
+        app = Vespa(url="http://localhost", port=8080)
+
+        def body_function(query):
+            body = {
+                "yql": "select * from sources * where userQuery();",
+                "query": query,
+                "type": "any",
+                "ranking": {"profile": "bm25", "listFeatures": "true"},
+            }
+            return body
+
+        query_model = QueryModel(body_function=body_function)
+
+        self.assertDictEqual(
+            app.query(
+                query="this is a test",
+                query_model=query_model,
+                debug_request=True,
+                hits=10,
+                recall=("id", [1, 5]),
+            ).request_body,
+            {
+                "yql": "select * from sources * where userQuery();",
+                "query": "this is a test",
+                "type": "any",
+                "ranking": {"profile": "bm25", "listFeatures": "true"},
+                "hits": 10,
+                "recall": "+(id:1 id:5)",
+            },
+        )
+
 
 class TestVespaCollectData(unittest.TestCase):
     def setUp(self) -> None:
