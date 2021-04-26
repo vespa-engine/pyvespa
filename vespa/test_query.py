@@ -155,45 +155,44 @@ class TestQuery(unittest.TestCase):
             },
         )
 
+    def test_query_properties_match_and_rank(self):
 
-def test_query_properties_match_and_rank(self):
+        query_model = QueryModel(
+            query_properties=[
+                QueryRankingFeature(name="query_vector", mapping=lambda x: [1, 2, 3])
+            ],
+            match_phase=OR(),
+            rank_profile=RankProfile(name="bm25", list_features=True),
+        )
+        self.assertDictEqual(
+            query_model.create_body(query=self.query),
+            {
+                "yql": 'select * from sources * where ([{"grammar": "any"}]userInput("this is  a test"));',
+                "ranking": {"profile": "bm25", "listFeatures": "true"},
+                "ranking.features.query(query_vector)": "[1, 2, 3]",
+            },
+        )
 
-    query_model = QueryModel(
-        query_properties=[
-            QueryRankingFeature(name="query_vector", mapping=lambda x: [1, 2, 3])
-        ],
-        match_phase=OR(),
-        rank_profile=RankProfile(name="bm25", list_features=True),
-    )
-    self.assertDictEqual(
-        query_model.create_body(query=self.query),
-        {
-            "yql": 'select * from sources * where ([{"grammar": "any"}]userInput("this is  a test"));',
-            "ranking": {"profile": "bm25", "listFeatures": "true"},
-            "ranking.features.query(query_vector)": "[1, 2, 3]",
-        },
-    )
-
-    query_model = QueryModel(
-        query_properties=[
-            QueryRankingFeature(name="query_vector", mapping=lambda x: [1, 2, 3])
-        ],
-        match_phase=ANN(
-            doc_vector="doc_vector",
-            query_vector="query_vector",
-            hits=10,
-            label="label",
-        ),
-        rank_profile=RankProfile(name="bm25", list_features=True),
-    )
-    self.assertDictEqual(
-        query_model.create_body(query=self.query),
-        {
-            "yql": 'select * from sources * where ([{"targetNumHits": 10, "label": "label", "approximate": true}]nearestNeighbor(doc_vector, query_vector));',
-            "ranking": {"profile": "bm25", "listFeatures": "true"},
-            "ranking.features.query(query_vector)": "[1, 2, 3]",
-        },
-    )
+        query_model = QueryModel(
+            query_properties=[
+                QueryRankingFeature(name="query_vector", mapping=lambda x: [1, 2, 3])
+            ],
+            match_phase=ANN(
+                doc_vector="doc_vector",
+                query_vector="query_vector",
+                hits=10,
+                label="label",
+            ),
+            rank_profile=RankProfile(name="bm25", list_features=True),
+        )
+        self.assertDictEqual(
+            query_model.create_body(query=self.query),
+            {
+                "yql": 'select * from sources * where ([{"targetNumHits": 10, "label": "label", "approximate": true}]nearestNeighbor(doc_vector, query_vector));',
+                "ranking": {"profile": "bm25", "listFeatures": "true"},
+                "ranking.features.query(query_vector)": "[1, 2, 3]",
+            },
+        )
 
 
 class TestVespaResult(unittest.TestCase):
