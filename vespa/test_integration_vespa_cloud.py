@@ -46,7 +46,7 @@ class TestCloudDeployment(unittest.TestCase):
                 Field(
                     name="tensor_field",
                     type="tensor<float>(x[128])",
-                    indexing=["attribute"],
+                    indexing=["attribute", "index"],
                     ann=HNSW(
                         distance_metric="euclidean",
                         max_links_per_node=16,
