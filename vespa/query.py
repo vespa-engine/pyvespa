@@ -1,6 +1,7 @@
 # Copyright Verizon Media. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 from typing import Callable, List, Optional, Dict
+from pandas import DataFrame
 
 
 #
@@ -252,6 +253,33 @@ class QueryModel(object):
         return body
 
 
+def trec_format(
+    vespa_result, id_field: Optional[str] = None, qid: int = 0
+) -> DataFrame:
+    """
+    Function to format Vespa output according to TREC format.
+
+    TREC format include qid, doc_id, score and rank.
+
+    :param vespa_result: raw Vespa result from query.
+    :param id_field: Name of the Vespa field to use as 'doc_id' value.
+    :param qid: custom query id.
+    :return: pandas DataFrame with columns qid, doc_id, score and rank.
+    """
+    hits = vespa_result.get("root", {}).get("children", [])
+    records = []
+    for rank, hit in enumerate(hits):
+        records.append(
+            {
+                "qid": qid,
+                "doc_id": hit["fields"][id_field] if id_field is not None else hit["id"],
+                "score": hit["relevance"],
+                "rank": rank,
+            }
+        )
+    return DataFrame.from_records(records)
+
+
 class VespaResult(object):
     def __init__(self, vespa_result, request_body=None):
         self._vespa_result = vespa_result
@@ -268,6 +296,18 @@ class VespaResult(object):
     @property
     def hits(self) -> List:
         return self._vespa_result.get("root", {}).get("children", [])
+
+    def get_hits(self, format_function=trec_format, **kwargs):
+        """
+        Get Vespa hits according to `format_function` format.
+
+        :param format_function: function to format the raw Vespa result. Should take raw vespa result as first argument.
+        :param kwargs: Extra arguments to be passed to `format_function`.
+        :return: Output of the `format_function`.
+        """
+        if not format_function:
+            return self.hits
+        return format_function(self._vespa_result, **kwargs)
 
     @property
     def number_documents_retrieved(self) -> int:
