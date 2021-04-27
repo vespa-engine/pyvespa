@@ -342,11 +342,11 @@ class TestVespaResult(unittest.TestCase):
             DataFrame(
                 data={
                     "qid": [0],
-                    "docno": ["id:covid-19:doc::40215"],
+                    "doc_id": ["id:covid-19:doc::40215"],
                     "score": [30.368213170494712],
                     "rank": [0],
                 },
-                columns=["qid", "docno", "score", "rank"],
+                columns=["qid", "doc_id", "score", "rank"],
             ),
         )
         vespa_result = VespaResult(vespa_result=self.raw_vespa_result_multiple)
@@ -355,7 +355,7 @@ class TestVespaResult(unittest.TestCase):
             DataFrame(
                 data={
                     "qid": [0, 0, 0],
-                    "docno": [
+                    "doc_id": [
                         "id:covid-19:doc::142863",
                         "id:covid-19:doc::31328",
                         "id:covid-19:doc::187156",
@@ -367,7 +367,7 @@ class TestVespaResult(unittest.TestCase):
                     ],
                     "rank": [0, 1, 2],
                 },
-                columns=["qid", "docno", "score", "rank"],
+                columns=["qid", "doc_id", "score", "rank"],
             ),
         )
         assert_frame_equal(
@@ -375,7 +375,7 @@ class TestVespaResult(unittest.TestCase):
             DataFrame(
                 data={
                     "qid": [2, 2, 2],
-                    "docno": [
+                    "doc_id": [
                         "0p6vrujx",
                         "moy0u7n5",
                         "rhmywn8n",
@@ -387,6 +387,6 @@ class TestVespaResult(unittest.TestCase):
                     ],
                     "rank": [0, 1, 2],
                 },
-                columns=["qid", "docno", "score", "rank"],
+                columns=["qid", "doc_id", "score", "rank"],
             ),
         )

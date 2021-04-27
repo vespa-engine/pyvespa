@@ -259,12 +259,12 @@ def trec_format(
     """
     Function to format Vespa output according to TREC format.
 
-    TREC format include qid, docno, score and rank.
+    TREC format include qid, doc_id, score and rank.
 
     :param vespa_result: raw Vespa result from query.
-    :param id_field: Name of the Vespa field to use as 'docno' value.
+    :param id_field: Name of the Vespa field to use as 'doc_id' value.
     :param qid: custom query id.
-    :return: pandas DataFrame with columns qid, docno, score and rank.
+    :return: pandas DataFrame with columns qid, doc_id, score and rank.
     """
     hits = vespa_result.get("root", {}).get("children", [])
     records = []
@@ -272,7 +272,7 @@ def trec_format(
         records.append(
             {
                 "qid": qid,
-                "docno": hit["fields"][id_field] if id_field is not None else hit["id"],
+                "doc_id": hit["fields"][id_field] if id_field is not None else hit["id"],
                 "score": hit["relevance"],
                 "rank": rank,
             }
