@@ -397,7 +397,7 @@ class Vespa(object):
         """
 
         query_results = self.query(query=query, query_model=query_model, **kwargs)
-        evaluation = {"query_id": query_id}
+        evaluation = {"model": query_model.name, "query_id": query_id}
         for evaluator in eval_metrics:
             evaluation.update(
                 evaluator.evaluate_query(
@@ -462,6 +462,11 @@ class Vespa(object):
         if isinstance(query_model, QueryModel):
             query_model = [query_model]
 
+        model_names = [model.name for model in query_model]
+        assert len(model_names) == len(
+            set(model_names)
+        ), "Duplicate model names. Choose unique model names."
+
         evaluation = []
         for query_data in labeled_data:
             for model in query_model:
@@ -476,7 +481,6 @@ class Vespa(object):
                     detailed_metrics=detailed_metrics,
                     **kwargs
                 )
-                evaluation_query.update({"model": "model_name"})
                 evaluation.append(evaluation_query)
         evaluation = DataFrame.from_records(evaluation)
         return evaluation
