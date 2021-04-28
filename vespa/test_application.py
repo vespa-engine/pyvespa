@@ -484,7 +484,7 @@ class TestVespaEvaluate(unittest.TestCase):
         self.assertEqual(eval_metric.evaluate_query.call_count, 1)
         eval_metric.evaluate_query.assert_has_calls(
             [
-                call({}, self.labeled_data[0]["relevant_docs"], "vespa_id_field", 0),
+                call({}, self.labeled_data[0]["relevant_docs"], "vespa_id_field", 0, False),
             ]
         )
         self.assertDictEqual(evaluation, {"query_id": "0", "metric": 1, "metric_2": 2})

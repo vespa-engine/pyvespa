@@ -98,7 +98,7 @@ class TestRunningInstance(unittest.TestCase):
             query_model=query_model,
             id_field="id",
         )
-        self.assertEqual(evaluation.shape, (2, 6))
+        self.assertEqual(evaluation.shape, (2, 4))
 
     def test_collect_training_data(self):
         app = Vespa(url="https://api.cord19.vespa.ai")
