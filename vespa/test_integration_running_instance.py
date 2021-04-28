@@ -120,6 +120,7 @@ class TestRunningInstance(unittest.TestCase):
             eval_metrics=eval_metrics,
             query_model=query_model,
             id_field="id",
+            detailed_metrics=True
         )
         self.assertEqual(evaluation.shape, (2, 6))
 
