@@ -113,7 +113,7 @@ class TestRunningInstance(unittest.TestCase):
             query_model=query_model,
             id_field="id",
         )
-        self.assertEqual(evaluation.shape, (2, 4))
+        self.assertEqual(evaluation.shape, (2, 5))
 
         evaluation = app.evaluate(
             labeled_data=labeled_data_df,
@@ -122,7 +122,7 @@ class TestRunningInstance(unittest.TestCase):
             id_field="id",
             detailed_metrics=True
         )
-        self.assertEqual(evaluation.shape, (2, 6))
+        self.assertEqual(evaluation.shape, (2, 7))
 
     def test_collect_training_data(self):
         app = Vespa(url="https://api.cord19.vespa.ai")

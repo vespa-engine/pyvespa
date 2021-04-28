@@ -540,10 +540,10 @@ class TestVespaEvaluate(unittest.TestCase):
         evaluation = self.app.evaluate(
             labeled_data=self.labeled_data,
             eval_metrics=[Mock()],
-            query_model=Mock(),
+            query_model=QueryModel(),
             id_field="mock",
             default_score=0,
         )
         assert_frame_equal(
-            evaluation, DataFrame.from_records([{"query_id": "0", "metric": 1}])
+            evaluation, DataFrame.from_records([{"query_id": "0", "metric": 1, "model": "model_name"}])
         )
