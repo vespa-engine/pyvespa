@@ -545,5 +545,5 @@ class TestVespaEvaluate(unittest.TestCase):
             default_score=0,
         )
         assert_frame_equal(
-            evaluation, DataFrame.from_records([{"query_id": "0", "metric": 1, "model": "model_name"}])
+            evaluation, DataFrame.from_records([{"query_id": "0", "metric": 1, "model": "default_name"}])
         )
