@@ -5,7 +5,7 @@ from unittest.mock import Mock, call
 from pandas import DataFrame
 from pandas.testing import assert_frame_equal
 
-from vespa.application import Vespa
+from vespa.application import Vespa, parse_labeled_data
 from vespa.query import QueryModel, OR, RankProfile, VespaResult
 
 
@@ -92,6 +92,48 @@ class TestVespaQuery(unittest.TestCase):
                 "recall": "+(id:1 id:5)",
             },
         )
+
+
+class TestLabeledData(unittest.TestCase):
+    def test_parse_labeled_data(self):
+        labeled_data_df = DataFrame(
+            data={
+                "qid": [0, 0, 1, 1],
+                "query": ["Intrauterine virus infections and congenital heart disease"]
+                * 2
+                + [
+                    "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus"
+                ]
+                * 2,
+                "doc_id": [0, 3, 1, 5],
+                "relevance": [1, 1, 1, 1],
+            }
+        )
+        labeled_data = parse_labeled_data(df=labeled_data_df)
+        expected_labeled_data = [
+            {
+                "query_id": 0,
+                "query": "Intrauterine virus infections and congenital heart disease",
+                "relevant_docs": [{"id": 0, "score": 1}, {"id": 3, "score": 1}],
+            },
+            {
+                "query_id": 1,
+                "query": "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus",
+                "relevant_docs": [{"id": 1, "score": 1}, {"id": 5, "score": 1}],
+            },
+        ]
+        self.assertEqual(labeled_data, expected_labeled_data)
+
+    def test_parse_labeled_data_with_wrong_columns(self):
+        labeled_data_df = DataFrame(
+            data={
+                "qid": [0, 0, 1, 1],
+                "doc_id": [0, 3, 1, 5],
+                "relevance": [1, 1, 1, 1],
+            }
+        )
+        with self.assertRaises(AssertionError):
+            _ = parse_labeled_data(df=labeled_data_df)
 
 
 class TestVespaCollectData(unittest.TestCase):

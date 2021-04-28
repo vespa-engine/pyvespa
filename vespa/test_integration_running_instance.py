@@ -69,6 +69,21 @@ class TestRunningInstance(unittest.TestCase):
                 "relevant_docs": [{"id": 1, "score": 1}, {"id": 5, "score": 1}],
             },
         ]
+        # equivalent data in df format
+        labeled_data_df = DataFrame(
+            data={
+                "qid": [0, 0, 1, 1],
+                "query": ["Intrauterine virus infections and congenital heart disease"]
+                * 2
+                + [
+                    "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus"
+                ]
+                * 2,
+                "doc_id": [0, 3, 1, 5],
+                "relevance": [1, 1, 1, 1],
+            }
+        )
+
         #
         # Collect training data
         #
@@ -99,6 +114,14 @@ class TestRunningInstance(unittest.TestCase):
             id_field="id",
         )
         self.assertEqual(evaluation.shape, (2, 4))
+
+        evaluation = app.evaluate(
+            labeled_data=labeled_data_df,
+            eval_metrics=eval_metrics,
+            query_model=query_model,
+            id_field="id",
+        )
+        self.assertEqual(evaluation.shape, (2, 6))
 
     def test_collect_training_data(self):
         app = Vespa(url="https://api.cord19.vespa.ai")
