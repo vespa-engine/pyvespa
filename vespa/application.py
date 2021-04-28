@@ -414,7 +414,7 @@ class Vespa(object):
         self,
         labeled_data: Union[List[Dict], DataFrame],
         eval_metrics: List[EvalMetric],
-        query_model: QueryModel,
+        query_model: Union[QueryModel, List[QueryModel]],
         id_field: str,
         default_score: int = 0,
         detailed_metrics=False,
@@ -449,7 +449,7 @@ class Vespa(object):
 
         :param labeled_data: Labelled data containing query, query_id and relevant ids. See details about data format.
         :param eval_metrics: A list of evaluation metrics.
-        :param query_model: Query model.
+        :param query_model: Accept a Query model or a list of Query Models.
         :param id_field: The Vespa field representing the document id.
         :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
         :param detailed_metrics: Return intermediate computations if available.
@@ -459,19 +459,24 @@ class Vespa(object):
         if isinstance(labeled_data, DataFrame):
             labeled_data = parse_labeled_data(df=labeled_data)
 
+        if isinstance(query_model, QueryModel):
+            query_model = [query_model]
+
         evaluation = []
         for query_data in labeled_data:
-            evaluation_query = self.evaluate_query(
-                eval_metrics=eval_metrics,
-                query_model=query_model,
-                query_id=query_data["query_id"],
-                query=query_data["query"],
-                id_field=id_field,
-                relevant_docs=query_data["relevant_docs"],
-                default_score=default_score,
-                detailed_metrics=detailed_metrics,
-                **kwargs
-            )
-            evaluation.append(evaluation_query)
+            for model in query_model:
+                evaluation_query = self.evaluate_query(
+                    eval_metrics=eval_metrics,
+                    query_model=model,
+                    query_id=query_data["query_id"],
+                    query=query_data["query"],
+                    id_field=id_field,
+                    relevant_docs=query_data["relevant_docs"],
+                    default_score=default_score,
+                    detailed_metrics=detailed_metrics,
+                    **kwargs
+                )
+                evaluation_query.update({"model": "model_name"})
+                evaluation.append(evaluation_query)
         evaluation = DataFrame.from_records(evaluation)
         return evaluation
