@@ -10,7 +10,12 @@ class EvalMetric(object):
         pass
 
     def evaluate_query(
-        self, query_results, relevant_docs, id_field, default_score
+        self,
+        query_results,
+        relevant_docs,
+        id_field,
+        default_score,
+        detailed_metrics=False,
     ) -> Dict:
         raise NotImplementedError
 
@@ -29,6 +34,7 @@ class MatchRatio(EvalMetric):
         relevant_docs: List[Dict],
         id_field: str,
         default_score: int,
+        detailed_metrics=False,
     ) -> Dict:
         """
         Evaluate query results.
@@ -37,6 +43,7 @@ class MatchRatio(EvalMetric):
         :param relevant_docs: A list with dicts where each dict contains a doc id a optionally a doc score.
         :param id_field: The Vespa field representing the document id.
         :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
+        :param detailed_metrics: Return intermediate computations if available.
         :return: Dict containing the number of retrieved docs (_retrieved_docs), the number of docs available in
             the corpus (_docs_available) and the match ratio (_value).
         """
@@ -45,11 +52,17 @@ class MatchRatio(EvalMetric):
         value = 0
         if docs_available > 0:
             value = retrieved_docs / docs_available
-        return {
-            str(self.name) + "_retrieved_docs": retrieved_docs,
-            str(self.name) + "_docs_available": docs_available,
+        metrics = {
             str(self.name) + "_value": value,
         }
+        if detailed_metrics:
+            metrics.update(
+                {
+                    str(self.name) + "_retrieved_docs": retrieved_docs,
+                    str(self.name) + "_docs_available": docs_available,
+                }
+            )
+        return metrics
 
 
 class Recall(EvalMetric):
@@ -69,6 +82,7 @@ class Recall(EvalMetric):
         relevant_docs: List[Dict],
         id_field: str,
         default_score: int,
+        detailed_metrics=False,
     ) -> Dict:
         """
         Evaluate query results.
@@ -77,6 +91,7 @@ class Recall(EvalMetric):
         :param relevant_docs: A list with dicts where each dict contains a doc id a optionally a doc score.
         :param id_field: The Vespa field representing the document id.
         :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
+        :param detailed_metrics: Return intermediate computations if available.
         :return: Dict containing the recall value (_value).
         """
 
@@ -111,6 +126,7 @@ class ReciprocalRank(EvalMetric):
         relevant_docs: List[Dict],
         id_field: str,
         default_score: int,
+        detailed_metrics=False,
     ) -> Dict:
         """
         Evaluate query results.
@@ -119,6 +135,7 @@ class ReciprocalRank(EvalMetric):
         :param relevant_docs: A list with dicts where each dict contains a doc id a optionally a doc score.
         :param id_field: The Vespa field representing the document id.
         :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
+        :param detailed_metrics: Return intermediate computations if available.
         :return: Dict containing the reciprocal rank value (_value).
         """
 
@@ -154,6 +171,7 @@ class NormalizedDiscountedCumulativeGain(EvalMetric):
         relevant_docs: List[Dict],
         id_field: str,
         default_score: int,
+        detailed_metrics=False,
     ) -> Dict:
         """
         Evaluate query results.
@@ -162,6 +180,7 @@ class NormalizedDiscountedCumulativeGain(EvalMetric):
         :param relevant_docs: A list with dicts where each dict contains a doc id a optionally a doc score.
         :param id_field: The Vespa field representing the document id.
         :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
+        :param detailed_metrics: Return intermediate computations if available.
         :return: Dict containing the ideal discounted cumulative gain (_ideal_dcg), the discounted cumulative
             gain (_dcg) and the normalized discounted cumulative gain (_value).
         """
@@ -179,8 +198,14 @@ class NormalizedDiscountedCumulativeGain(EvalMetric):
         if ideal_dcg > 0:
             ndcg = dcg / ideal_dcg
 
-        return {
-            str(self.name) + "_ideal_dcg": ideal_dcg,
-            str(self.name) + "_dcg": dcg,
+        metrics = {
             str(self.name) + "_value": ndcg,
         }
+        if detailed_metrics:
+            metrics.update(
+                {
+                    str(self.name) + "_ideal_dcg": ideal_dcg,
+                    str(self.name) + "_dcg": dcg,
+                }
+            )
+        return metrics

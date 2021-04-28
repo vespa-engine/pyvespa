@@ -347,6 +347,7 @@ class Vespa(object):
         id_field: str,
         relevant_docs: List[Dict],
         default_score: int = 0,
+        detailed_metrics=False,
         **kwargs
     ) -> Dict:
         """
@@ -359,6 +360,7 @@ class Vespa(object):
         :param id_field: The Vespa field representing the document id.
         :param relevant_docs: A list with dicts where each dict contains a doc id a optionally a doc score.
         :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
+        :param detailed_metrics: Return intermediate computations if available.
         :param kwargs: Extra keyword arguments to be included in the Vespa Query.
         :return: Dict containing query_id and metrics according to the selected evaluation metrics.
         """
@@ -368,7 +370,11 @@ class Vespa(object):
         for evaluator in eval_metrics:
             evaluation.update(
                 evaluator.evaluate_query(
-                    query_results, relevant_docs, id_field, default_score
+                    query_results,
+                    relevant_docs,
+                    id_field,
+                    default_score,
+                    detailed_metrics,
                 )
             )
         return evaluation
@@ -380,6 +386,7 @@ class Vespa(object):
         query_model: QueryModel,
         id_field: str,
         default_score: int = 0,
+        detailed_metrics=False,
         **kwargs
     ) -> DataFrame:
         """
@@ -389,6 +396,7 @@ class Vespa(object):
         :param query_model: Query model.
         :param id_field: The Vespa field representing the document id.
         :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
+        :param detailed_metrics: Return intermediate computations if available.
         :param kwargs: Extra keyword arguments to be included in the Vespa Query.
         :return: DataFrame containing query_id and metrics according to the selected evaluation metrics.
         """
@@ -402,6 +410,7 @@ class Vespa(object):
                 id_field=id_field,
                 relevant_docs=query_data["relevant_docs"],
                 default_score=default_score,
+                detailed_metrics=detailed_metrics,
                 **kwargs
             )
             evaluation.append(evaluation_query)
