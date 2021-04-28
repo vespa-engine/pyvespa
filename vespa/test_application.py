@@ -526,15 +526,24 @@ class TestVespaEvaluate(unittest.TestCase):
         self.assertEqual(eval_metric.evaluate_query.call_count, 1)
         eval_metric.evaluate_query.assert_has_calls(
             [
-                call({}, self.labeled_data[0]["relevant_docs"], "vespa_id_field", 0, False),
+                call(
+                    {},
+                    self.labeled_data[0]["relevant_docs"],
+                    "vespa_id_field",
+                    0,
+                    False,
+                ),
             ]
         )
-        self.assertDictEqual(evaluation, {"query_id": "0", "metric": 1, "metric_2": 2})
+        self.assertDictEqual(
+            evaluation,
+            {"model": "default_name", "query_id": "0", "metric": 1, "metric_2": 2},
+        )
 
     def test_evaluate(self):
         self.app.evaluate_query = Mock(
             side_effect=[
-                {"query_id": "0", "metric": 1},
+                {"model": "default_name", "query_id": "0", "metric": 1},
             ]
         )
         evaluation = self.app.evaluate(
@@ -544,6 +553,16 @@ class TestVespaEvaluate(unittest.TestCase):
             id_field="mock",
             default_score=0,
         )
+        print(evaluation)
         assert_frame_equal(
-            evaluation, DataFrame.from_records([{"query_id": "0", "metric": 1, "model": "default_name"}])
+            evaluation,
+            DataFrame.from_records(
+                [
+                    {
+                        "model": "default_name",
+                        "query_id": "0",
+                        "metric": 1,
+                    }
+                ]
+            ),
         )
