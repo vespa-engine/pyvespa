@@ -418,6 +418,8 @@ class Vespa(object):
         id_field: str,
         default_score: int = 0,
         detailed_metrics=False,
+        per_query=False,
+        aggregators=None,
         **kwargs
     ) -> DataFrame:
         """
@@ -453,6 +455,9 @@ class Vespa(object):
         :param id_field: The Vespa field representing the document id.
         :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
         :param detailed_metrics: Return intermediate computations if available.
+        :param per_query: Set to True to return evaluation metrics per query.
+        :param aggregators: Used only if `per_query=False`. List of pandas friendly aggregators to summarize per model
+            metrics. We use ["mean", "median", "std"] by default.
         :param kwargs: Extra keyword arguments to be included in the Vespa Query.
         :return: DataFrame containing query_id and metrics according to the selected evaluation metrics.
         """
@@ -483,4 +488,12 @@ class Vespa(object):
                 )
                 evaluation.append(evaluation_query)
         evaluation = DataFrame.from_records(evaluation)
+        if not per_query:
+            if not aggregators:
+                aggregators = ["mean", "median", "std"]
+            evaluation = (
+                evaluation[[x for x in evaluation.columns if x != "query_id"]]
+                .groupby(by="model")
+                .agg(aggregators).T
+            )
         return evaluation
