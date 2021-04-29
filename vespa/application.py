@@ -5,7 +5,7 @@ import ssl
 import aiohttp
 import asyncio
 
-from typing import Optional, Dict, Tuple, List, IO
+from typing import Optional, Dict, Tuple, List, IO, Union
 from pandas import DataFrame
 from requests import Session
 from requests.models import Response
@@ -22,6 +22,37 @@ retry_strategy = Retry(
     status_forcelist=[429, 500, 502, 503, 504],
     method_whitelist=["POST", "GET", "DELETE", "PUT"],
 )
+
+
+def parse_labeled_data(df):
+    """
+    Convert a DataFrame with labeled data to format used internally
+
+    :param df: DataFrame with the following required columns ["qid", "query", "doc_id", "relevance"].
+    :return: List of Dict containing a concise representation of the labeled data, grouped by query_id and query.
+    """
+    required_columns = ["qid", "query", "doc_id", "relevance"]
+    assert all(
+        [x in list(df.columns) for x in required_columns]
+    ), "DataFrame needs at least the following columns: {}".format(required_columns)
+    qid_query = (
+        df[["qid", "query"]].drop_duplicates(["qid", "query"]).to_dict(orient="records")
+    )
+    labeled_data = []
+    for q in qid_query:
+        docid_relevance = df[(df["qid"] == q["qid"]) & (df["query"] == q["query"])][
+            ["doc_id", "relevance"]
+        ]
+        relevant_docs = []
+        for idx, row in docid_relevance.iterrows():
+            relevant_docs.append({"id": row["doc_id"], "score": row["relevance"]})
+        data_point = {
+            "query_id": q["qid"],
+            "query": q["query"],
+            "relevant_docs": relevant_docs,
+        }
+        labeled_data.append(data_point)
+    return labeled_data
 
 
 class Vespa(object):
@@ -445,7 +476,7 @@ class Vespa(object):
 
     def evaluate(
         self,
-        labeled_data: List[Dict],
+        labeled_data: Union[List[Dict], DataFrame],
         eval_metrics: List[EvalMetric],
         query_model: QueryModel,
         id_field: str,
@@ -453,8 +484,33 @@ class Vespa(object):
         **kwargs
     ) -> DataFrame:
         """
+        Evaluate a :class:`QueryModel` according to a list of :class:`EvalMetric`.
 
-        :param labeled_data: Labelled data containing query, query_id and relevant ids.
+        labeled_data can be a DataFrame or a List of Dict:
+
+        >>> labeled_data_df = DataFrame(
+        ...     data={
+        ...         "qid": [0, 0, 1, 1],
+        ...         "query": ["Intrauterine virus infections and congenital heart disease", "Intrauterine virus infections and congenital heart disease", "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus", "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus"],
+        ...         "doc_id": [0, 3, 1, 5],
+        ...         "relevance": [1,1,1,1]
+        ...     }
+        ... )
+
+        >>> labeled_data = [
+        ...     {
+        ...         "query_id": 0,
+        ...         "query": "Intrauterine virus infections and congenital heart disease",
+        ...         "relevant_docs": [{"id": 0, "score": 1}, {"id": 3, "score": 1}]
+        ...     },
+        ...     {
+        ...         "query_id": 1,
+        ...         "query": "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus",
+        ...         "relevant_docs": [{"id": 1, "score": 1}, {"id": 5, "score": 1}]
+        ...     }
+        ... ]
+
+        :param labeled_data: Labelled data containing query, query_id and relevant ids. See details about data format.
         :param eval_metrics: A list of evaluation metrics.
         :param query_model: Query model.
         :param id_field: The Vespa field representing the document id.
@@ -462,6 +518,9 @@ class Vespa(object):
         :param kwargs: Extra keyword arguments to be included in the Vespa Query.
         :return: DataFrame containing query_id and metrics according to the selected evaluation metrics.
         """
+        if isinstance(labeled_data, DataFrame):
+            labeled_data = parse_labeled_data(df=labeled_data)
+
         evaluation = []
         for query_data in labeled_data:
             evaluation_query = self.evaluate_query(

@@ -190,7 +190,9 @@ class Field(ToJson, FromJson["Field"]):
 
 
 class Document(ToJson, FromJson["Document"]):
-    def __init__(self, fields: Optional[List[Field]] = None) -> None:
+    def __init__(
+        self, fields: Optional[List[Field]] = None, inherits: Optional[str] = None
+    ) -> None:
         """
         Create a Vespa Document.
 
@@ -202,12 +204,15 @@ class Document(ToJson, FromJson["Document"]):
         To create a Document:
 
         >>> Document()
-        Document(None)
+        Document(None, None)
 
         >>> Document(fields=[Field(name="title", type="string")])
-        Document([Field('title', 'string', None, None, None, None)])
+        Document([Field('title', 'string', None, None, None, None)], None)
 
+        >>> Document(fields=[Field(name="title", type="string")], inherits="context")
+        Document([Field('title', 'string', None, None, None, None)], context)
         """
+        self.inherits = inherits
         self._fields = (
             OrderedDict()
             if not fields
@@ -230,21 +235,29 @@ class Document(ToJson, FromJson["Document"]):
 
     @staticmethod
     def from_dict(mapping: Mapping) -> "Document":
-        return Document(fields=[FromJson.map(field) for field in mapping.get("fields")])
+        return Document(
+            fields=[FromJson.map(field) for field in mapping.get("fields")],
+            inherits=mapping.get("inherits", None),
+        )
 
     @property
     def to_dict(self) -> Mapping:
-        map = {"fields": [field.to_envelope for field in self.fields]}
+        map = {
+            "fields": [field.to_envelope for field in self.fields],
+            "inherits": self.inherits,
+        }
         return map
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
-        return self.fields == other.fields
+        return self.fields == other.fields and self.inherits == other.inherits
 
     def __repr__(self):
-        return "{0}({1})".format(
-            self.__class__.__name__, repr(self.fields) if self.fields else None
+        return "{0}({1}, {2})".format(
+            self.__class__.__name__,
+            repr(self.fields) if self.fields else None,
+            self.inherits,
         )
 
 
@@ -666,7 +679,7 @@ class Schema(ToJson, FromJson["Schema"]):
         To create a Schema:
 
         >>> Schema(name="schema_name", document=Document())
-        Schema('schema_name', Document(None), None, None, [])
+        Schema('schema_name', Document(None, None), None, None, [])
         """
         self.name = name
         self.document = document
@@ -732,7 +745,7 @@ class Schema(ToJson, FromJson["Schema"]):
         return schema_template.render(
             schema_name=self.name,
             document_name=self.name,
-            fields=self.document.fields,
+            document=self.document,
             fieldsets=self.fieldsets,
             rank_profiles=self.rank_profiles,
             models=self.models,
@@ -1037,7 +1050,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         The easiest way to get started is to create a default application package:
 
         >>> ApplicationPackage(name="test_app")
-        ApplicationPackage('test_app', [Schema('test_app', Document(None), None, None, [])], QueryProfile(None), QueryProfileType(None))
+        ApplicationPackage('test_app', [Schema('test_app', Document(None, None), None, None, [])], QueryProfile(None), QueryProfileType(None))
 
         It will create a default :class:`Schema`, :class:`QueryProfile` and :class:`QueryProfileType` that you can then
         populate with specifics of your application.
@@ -1066,7 +1079,12 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         ), "Your application has more than one Schema, use get_schema instead."
         return self.schemas[0]
 
-    def get_schema(self, name):
+    def get_schema(self, name: Optional[str] = None):
+        if not name:
+            assert (
+                len(self.schemas) == 1
+            ), "Your application has more than one Schema, specify name argument."
+            return self.schema
         return self._schema[name]
 
     def add_schema(self, *schemas: Schema) -> None:
@@ -1080,12 +1098,17 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
             self._schema.update({schema.name: schema})
 
     def add_model_ranking(
-        self, model_config: ModelConfig, include_model_summary_features=False, **kwargs
+        self,
+        model_config: ModelConfig,
+        schema=None,
+        include_model_summary_features=False,
+        **kwargs
     ) -> None:
         """
         Add ranking profile based on a specific model config.
 
         :param model_config: Model config instance specifying the model to be used on the RankProfile.
+        :param schema: Name of the schema to add model ranking to.
         :param include_model_summary_features: True to include model specific summary features, such as
             inputs and outputs that are useful for debugging. Default to False as this requires an extra model
             evaluation when fetching summary features.
@@ -1106,6 +1129,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
             self._add_bert_rank_profile(
                 model_config=model_config,
                 include_model_summary_features=include_model_summary_features,
+                schema=schema,
                 **kwargs
             )
         else:
@@ -1115,6 +1139,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         self,
         model_config: BertModelConfig,
         include_model_summary_features,
+        schema=None,
         doc_token_ids_indexing=None,
         **kwargs
     ) -> None:
@@ -1127,7 +1152,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         model_file_path = model_id + ".onnx"
         model_config.export_to_onnx(output_path=model_file_path)
 
-        self.schema.add_model(
+        self.get_schema(schema).add_model(
             OnnxModel(
                 model_name=model_id,
                 model_file_path=model_file_path,
@@ -1159,7 +1184,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         #
         if not doc_token_ids_indexing:
             doc_token_ids_indexing = ["attribute", "summary"]
-        self.schema.add_fields(
+        self.get_schema(schema).add_fields(
             Field(
                 name=model_config.doc_token_ids_name,
                 type="tensor<float>(d0[{}])".format(
@@ -1239,7 +1264,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         if "summary_features" in kwargs:
             summary_features.extend(kwargs.pop("summary_features"))
 
-        self.schema.add_rank_profile(
+        self.get_schema(schema).add_rank_profile(
             RankProfile(
                 name=model_id,
                 constants=constants,
