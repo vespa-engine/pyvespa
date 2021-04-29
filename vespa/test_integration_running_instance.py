@@ -36,6 +36,7 @@ class TestRunningInstance(unittest.TestCase):
         )
         rank_profile = Ranking(name="bm25", list_features=True)
         query_model = QueryModel(
+            name="ANN_bm25",
             query_properties=[
                 QueryRankingFeature(
                     name="title_vector",
@@ -113,15 +114,35 @@ class TestRunningInstance(unittest.TestCase):
             query_model=query_model,
             id_field="id",
         )
-        self.assertEqual(evaluation.shape, (2, 6))
+        self.assertEqual(evaluation.shape, (2, 5))
+
+        #
+        # AssertionError - two models with the same name
+        #
+        with self.assertRaises(AssertionError):
+            _ = app.evaluate(
+                labeled_data=labeled_data,
+                eval_metrics=eval_metrics,
+                query_model=[QueryModel(), QueryModel(), query_model],
+                id_field="id",
+            )
+
+        evaluation = app.evaluate(
+            labeled_data=labeled_data,
+            eval_metrics=eval_metrics,
+            query_model=[QueryModel(), query_model],
+            id_field="id",
+        )
+        self.assertEqual(evaluation.shape, (4, 5))
 
         evaluation = app.evaluate(
             labeled_data=labeled_data_df,
             eval_metrics=eval_metrics,
             query_model=query_model,
             id_field="id",
+            detailed_metrics=True,
         )
-        self.assertEqual(evaluation.shape, (2, 6))
+        self.assertEqual(evaluation.shape, (2, 7))
 
     def test_collect_training_data(self):
         app = Vespa(url="https://api.cord19.vespa.ai")

@@ -139,6 +139,21 @@ class TestEvalMetric(unittest.TestCase):
         self.assertDictEqual(
             evaluation,
             {
+                "match_ratio_value": 1083 / 62529,
+            },
+        )
+
+        evaluation = metric.evaluate_query(
+            query_results=VespaResult(self.query_results),
+            relevant_docs=self.labeled_data[0]["relevant_docs"],
+            id_field="vespa_id_field",
+            default_score=0,
+            detailed_metrics=True,
+        )
+
+        self.assertDictEqual(
+            evaluation,
+            {
                 "match_ratio_retrieved_docs": 1083,
                 "match_ratio_docs_available": 62529,
                 "match_ratio_value": 1083 / 62529,
@@ -170,6 +185,36 @@ class TestEvalMetric(unittest.TestCase):
         self.assertDictEqual(
             evaluation,
             {
+                "match_ratio_value": 0 / 62529,
+            },
+        )
+
+        evaluation = metric.evaluate_query(
+            query_results=VespaResult(
+                {
+                    "root": {
+                        "id": "toplevel",
+                        "relevance": 1.0,
+                        "coverage": {
+                            "coverage": 100,
+                            "documents": 62529,
+                            "full": True,
+                            "nodes": 2,
+                            "results": 1,
+                            "resultsFull": 1,
+                        },
+                    }
+                }
+            ),
+            relevant_docs=self.labeled_data[0]["relevant_docs"],
+            id_field="vespa_id_field",
+            default_score=0,
+            detailed_metrics=True,
+        )
+
+        self.assertDictEqual(
+            evaluation,
+            {
                 "match_ratio_retrieved_docs": 0,
                 "match_ratio_docs_available": 62529,
                 "match_ratio_value": 0 / 62529,
@@ -196,6 +241,36 @@ class TestEvalMetric(unittest.TestCase):
             relevant_docs=self.labeled_data[0]["relevant_docs"],
             id_field="vespa_id_field",
             default_score=0,
+        )
+
+        self.assertDictEqual(
+            evaluation,
+            {
+                "match_ratio_value": 0,
+            },
+        )
+
+        evaluation = metric.evaluate_query(
+            query_results=VespaResult(
+                {
+                    "root": {
+                        "id": "toplevel",
+                        "relevance": 1.0,
+                        "fields": {"totalCount": 1083},
+                        "coverage": {
+                            "coverage": 100,
+                            "full": True,
+                            "nodes": 2,
+                            "results": 1,
+                            "resultsFull": 1,
+                        },
+                    }
+                }
+            ),
+            relevant_docs=self.labeled_data[0]["relevant_docs"],
+            id_field="vespa_id_field",
+            default_score=0,
+            detailed_metrics=True,
         )
 
         self.assertDictEqual(
@@ -305,6 +380,21 @@ class TestEvalMetric(unittest.TestCase):
         expected_dcg = 0 / math.log2(2) + 1 / math.log2(3)
         expected_ideal_dcg = 1 / math.log2(2) + 0 / math.log2(3)
         expected_ndcg = expected_dcg / expected_ideal_dcg
+
+        self.assertDictEqual(
+            evaluation,
+            {
+                "ndcg_2_value": expected_ndcg,
+            },
+        )
+        evaluation = metric.evaluate_query(
+            query_results=VespaResult(self.query_results),
+            relevant_docs=self.labeled_data[0]["relevant_docs"],
+            id_field="vespa_id_field",
+            default_score=0,
+            detailed_metrics=True,
+        )
+
         self.assertDictEqual(
             evaluation,
             {
@@ -327,6 +417,20 @@ class TestEvalMetric(unittest.TestCase):
         self.assertDictEqual(
             evaluation,
             {
+                "ndcg_1_value": expected_ndcg,
+            },
+        )
+        evaluation = metric.evaluate_query(
+            query_results=VespaResult(self.query_results),
+            relevant_docs=self.labeled_data[0]["relevant_docs"],
+            id_field="vespa_id_field",
+            default_score=0,
+            detailed_metrics=True,
+        )
+
+        self.assertDictEqual(
+            evaluation,
+            {
                 "ndcg_1_ideal_dcg": expected_ideal_dcg,
                 "ndcg_1_dcg": expected_dcg,
                 "ndcg_1_value": expected_ndcg,
@@ -343,6 +447,21 @@ class TestEvalMetric(unittest.TestCase):
         expected_dcg = 1 / math.log2(2) + 0 / math.log2(3) + 2 / math.log2(4)
         expected_ideal_dcg = 2 / math.log2(2) + 1 / math.log2(3) + 0 / math.log2(4)
         expected_ndcg = expected_dcg / expected_ideal_dcg
+        self.assertDictEqual(
+            evaluation,
+            {
+                "ndcg_3_value": expected_ndcg,
+            },
+        )
+
+        evaluation = metric.evaluate_query(
+            query_results=VespaResult(self.query_results2),
+            relevant_docs=self.labeled_data2[0]["relevant_docs"],
+            id_field="vespa_id_field",
+            default_score=0,
+            detailed_metrics=True,
+        )
+
         self.assertDictEqual(
             evaluation,
             {
