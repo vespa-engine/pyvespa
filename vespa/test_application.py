@@ -540,29 +540,3 @@ class TestVespaEvaluate(unittest.TestCase):
             {"model": "default_name", "query_id": "0", "metric": 1, "metric_2": 2},
         )
 
-    def test_evaluate(self):
-        self.app.evaluate_query = Mock(
-            side_effect=[
-                {"model": "default_name", "query_id": "0", "metric": 1},
-            ]
-        )
-        evaluation = self.app.evaluate(
-            labeled_data=self.labeled_data,
-            eval_metrics=[Mock()],
-            query_model=QueryModel(),
-            id_field="mock",
-            default_score=0,
-        )
-        print(evaluation)
-        assert_frame_equal(
-            evaluation,
-            DataFrame.from_records(
-                [
-                    {
-                        "model": "default_name",
-                        "query_id": "0",
-                        "metric": 1,
-                    }
-                ]
-            ),
-        )
