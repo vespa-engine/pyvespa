@@ -114,7 +114,7 @@ class TestRunningInstance(unittest.TestCase):
             query_model=query_model,
             id_field="id",
         )
-        self.assertEqual(evaluation.shape, (2, 5))
+        self.assertEqual(evaluation.shape, (9, 1))
 
         #
         # AssertionError - two models with the same name
@@ -133,7 +133,7 @@ class TestRunningInstance(unittest.TestCase):
             query_model=[QueryModel(), query_model],
             id_field="id",
         )
-        self.assertEqual(evaluation.shape, (4, 5))
+        self.assertEqual(evaluation.shape, (9, 2))
 
         evaluation = app.evaluate(
             labeled_data=labeled_data_df,
@@ -142,7 +142,18 @@ class TestRunningInstance(unittest.TestCase):
             id_field="id",
             detailed_metrics=True,
         )
+        self.assertEqual(evaluation.shape, (15, 1))
+
+        evaluation = app.evaluate(
+            labeled_data=labeled_data_df,
+            eval_metrics=eval_metrics,
+            query_model=query_model,
+            id_field="id",
+            detailed_metrics=True,
+            per_query=True,
+        )
         self.assertEqual(evaluation.shape, (2, 7))
+
 
     def test_collect_training_data(self):
         app = Vespa(url="https://api.cord19.vespa.ai")

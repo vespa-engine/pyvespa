@@ -45,7 +45,7 @@ class MatchRatio(EvalMetric):
         :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
         :param detailed_metrics: Return intermediate computations if available.
         :return: Dict containing the number of retrieved docs (_retrieved_docs), the number of docs available in
-            the corpus (_docs_available) and the match ratio (_value).
+            the corpus (_docs_available) and the match ratio.
         """
         retrieved_docs = query_results.number_documents_retrieved
         docs_available = query_results.number_documents_indexed
@@ -53,7 +53,7 @@ class MatchRatio(EvalMetric):
         if docs_available > 0:
             value = retrieved_docs / docs_available
         metrics = {
-            str(self.name) + "_value": value,
+            str(self.name): value,
         }
         if detailed_metrics:
             metrics.update(
@@ -92,7 +92,7 @@ class Recall(EvalMetric):
         :param id_field: The Vespa field representing the document id.
         :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
         :param detailed_metrics: Return intermediate computations if available.
-        :return: Dict containing the recall value (_value).
+        :return: Dict containing the recall value.
         """
 
         relevant_ids = {str(doc["id"]) for doc in relevant_docs}
@@ -104,8 +104,7 @@ class Recall(EvalMetric):
             retrieved_ids = set()
 
         return {
-            str(self.name)
-            + "_value": len(relevant_ids & retrieved_ids) / len(relevant_ids)
+            str(self.name): len(relevant_ids & retrieved_ids) / len(relevant_ids)
         }
 
 
@@ -136,7 +135,7 @@ class ReciprocalRank(EvalMetric):
         :param id_field: The Vespa field representing the document id.
         :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
         :param detailed_metrics: Return intermediate computations if available.
-        :return: Dict containing the reciprocal rank value (_value).
+        :return: Dict containing the reciprocal rank value.
         """
 
         relevant_ids = {str(doc["id"]) for doc in relevant_docs}
@@ -147,7 +146,7 @@ class ReciprocalRank(EvalMetric):
                 rr = 1 / (index + 1)
                 break
 
-        return {str(self.name) + "_value": rr}
+        return {str(self.name): rr}
 
 
 class NormalizedDiscountedCumulativeGain(EvalMetric):
@@ -182,7 +181,7 @@ class NormalizedDiscountedCumulativeGain(EvalMetric):
         :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
         :param detailed_metrics: Return intermediate computations if available.
         :return: Dict containing the ideal discounted cumulative gain (_ideal_dcg), the discounted cumulative
-            gain (_dcg) and the normalized discounted cumulative gain (_value).
+            gain (_dcg) and the normalized discounted cumulative gain.
         """
 
         relevant_scores = {str(doc["id"]): doc["score"] for doc in relevant_docs}
@@ -199,7 +198,7 @@ class NormalizedDiscountedCumulativeGain(EvalMetric):
             ndcg = dcg / ideal_dcg
 
         metrics = {
-            str(self.name) + "_value": ndcg,
+            str(self.name): ndcg,
         }
         if detailed_metrics:
             metrics.update(

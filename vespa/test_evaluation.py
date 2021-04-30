@@ -139,7 +139,7 @@ class TestEvalMetric(unittest.TestCase):
         self.assertDictEqual(
             evaluation,
             {
-                "match_ratio_value": 1083 / 62529,
+                "match_ratio": 1083 / 62529,
             },
         )
 
@@ -156,7 +156,7 @@ class TestEvalMetric(unittest.TestCase):
             {
                 "match_ratio_retrieved_docs": 1083,
                 "match_ratio_docs_available": 62529,
-                "match_ratio_value": 1083 / 62529,
+                "match_ratio": 1083 / 62529,
             },
         )
 
@@ -185,7 +185,7 @@ class TestEvalMetric(unittest.TestCase):
         self.assertDictEqual(
             evaluation,
             {
-                "match_ratio_value": 0 / 62529,
+                "match_ratio": 0 / 62529,
             },
         )
 
@@ -217,7 +217,7 @@ class TestEvalMetric(unittest.TestCase):
             {
                 "match_ratio_retrieved_docs": 0,
                 "match_ratio_docs_available": 62529,
-                "match_ratio_value": 0 / 62529,
+                "match_ratio": 0 / 62529,
             },
         )
 
@@ -246,7 +246,7 @@ class TestEvalMetric(unittest.TestCase):
         self.assertDictEqual(
             evaluation,
             {
-                "match_ratio_value": 0,
+                "match_ratio": 0,
             },
         )
 
@@ -278,7 +278,7 @@ class TestEvalMetric(unittest.TestCase):
             {
                 "match_ratio_retrieved_docs": 1083,
                 "match_ratio_docs_available": 0,
-                "match_ratio_value": 0,
+                "match_ratio": 0,
             },
         )
 
@@ -293,7 +293,7 @@ class TestEvalMetric(unittest.TestCase):
         self.assertDictEqual(
             evaluation,
             {
-                "recall_2_value": 0.5,
+                "recall_2": 0.5,
             },
         )
 
@@ -307,7 +307,7 @@ class TestEvalMetric(unittest.TestCase):
         self.assertDictEqual(
             evaluation,
             {
-                "recall_1_value": 0.0,
+                "recall_1": 0.0,
             },
         )
 
@@ -321,7 +321,7 @@ class TestEvalMetric(unittest.TestCase):
         self.assertDictEqual(
             evaluation,
             {
-                "recall_3_value": 1,
+                "recall_3": 1,
             },
         )
 
@@ -336,7 +336,7 @@ class TestEvalMetric(unittest.TestCase):
         self.assertDictEqual(
             evaluation,
             {
-                "reciprocal_rank_2_value": 0.5,
+                "reciprocal_rank_2": 0.5,
             },
         )
 
@@ -350,7 +350,7 @@ class TestEvalMetric(unittest.TestCase):
         self.assertDictEqual(
             evaluation,
             {
-                "reciprocal_rank_1_value": 0.0,
+                "reciprocal_rank_1": 0.0,
             },
         )
 
@@ -364,7 +364,7 @@ class TestEvalMetric(unittest.TestCase):
         self.assertDictEqual(
             evaluation,
             {
-                "reciprocal_rank_3_value": 1.0,
+                "reciprocal_rank_3": 1.0,
             },
         )
 
@@ -384,7 +384,7 @@ class TestEvalMetric(unittest.TestCase):
         self.assertDictEqual(
             evaluation,
             {
-                "ndcg_2_value": expected_ndcg,
+                "ndcg_2": expected_ndcg,
             },
         )
         evaluation = metric.evaluate_query(
@@ -400,7 +400,7 @@ class TestEvalMetric(unittest.TestCase):
             {
                 "ndcg_2_ideal_dcg": expected_ideal_dcg,
                 "ndcg_2_dcg": expected_dcg,
-                "ndcg_2_value": expected_ndcg,
+                "ndcg_2": expected_ndcg,
             },
         )
 
@@ -417,7 +417,7 @@ class TestEvalMetric(unittest.TestCase):
         self.assertDictEqual(
             evaluation,
             {
-                "ndcg_1_value": expected_ndcg,
+                "ndcg_1": expected_ndcg,
             },
         )
         evaluation = metric.evaluate_query(
@@ -433,7 +433,7 @@ class TestEvalMetric(unittest.TestCase):
             {
                 "ndcg_1_ideal_dcg": expected_ideal_dcg,
                 "ndcg_1_dcg": expected_dcg,
-                "ndcg_1_value": expected_ndcg,
+                "ndcg_1": expected_ndcg,
             },
         )
 
@@ -450,7 +450,7 @@ class TestEvalMetric(unittest.TestCase):
         self.assertDictEqual(
             evaluation,
             {
-                "ndcg_3_value": expected_ndcg,
+                "ndcg_3": expected_ndcg,
             },
         )
 
@@ -467,6 +467,6 @@ class TestEvalMetric(unittest.TestCase):
             {
                 "ndcg_3_ideal_dcg": expected_ideal_dcg,
                 "ndcg_3_dcg": expected_dcg,
-                "ndcg_3_value": expected_ndcg,
+                "ndcg_3": expected_ndcg,
             },
         )
