@@ -142,7 +142,7 @@ class ReciprocalRank(EvalMetric):
         rr = 0
         hits = query_results.hits[: self.at]
         for index, hit in enumerate(hits):
-            if hit["fields"][id_field] in relevant_ids:
+            if str(hit["fields"][id_field]) in relevant_ids:
                 rr = 1 / (index + 1)
                 break
 
