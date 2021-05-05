@@ -29,5 +29,5 @@ jobs:
           dnf install -y python38-pip
           dnf install -y --enablerepo=powertools pandoc
       - run-doc-tests: |
-          pip install -e .[full]
+          python3 -m pip install -e .[full]
           pytest --doctest-modules --ignore-glob=vespa/test_*.py
