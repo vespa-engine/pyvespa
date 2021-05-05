@@ -1,13 +1,5 @@
-shared:
-  environment:
-    DOCKER_HOST: localhost:2375
-  annotations:
-    screwdriver.cd/dockerEnabled: true
-    screwdriver.cd/dockerCpu: TURBO
-    screwdriver.cd/dockerRam: TURBO
 jobs:
   test:
-    image: python:3.7
     steps:
       - install: pip install -e .[full]
       - run: pytest --doctest-modules --ignore-glob=vespa/test_*.py
