@@ -1,3 +1,5 @@
+shared:
+  image: python:3.7
 jobs:
   test:
     steps:
