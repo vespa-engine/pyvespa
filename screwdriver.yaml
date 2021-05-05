@@ -1,0 +1,5 @@
+jobs:
+  test:
+    steps:
+      - install: pip install -e .[full]
+      - run: pytest --doctest-modules --ignore-glob=vespa/test_*.py
