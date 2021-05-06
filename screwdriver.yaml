@@ -39,6 +39,10 @@ jobs:
           pytest --doctest-modules --ignore-glob=vespa/test_*.py
       - run-unit-tests: |
           pytest --ignore-glob=vespa/test_integration*.py
+      - run-notebooks-except-cloud-related: |
+          find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
+          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=6000 --execute {} +
+          find docs -name '*.nbconvert.ipynb' -exec rm {} +
       - run-integration-docker: |
           pytest vespa/test_integration_docker.py
 
