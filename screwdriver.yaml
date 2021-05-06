@@ -28,9 +28,10 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           dnf install -y --enablerepo=powertools pandoc
-          python3 -m pip install pytest
+          python3 -m pip install pytest notebook nbconvert
           python3 -m pip install -e .[full]
           python3 -m pip install -r docs/sphinx/source/requirements.txt
+          python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
       - run-doc-linkcheck: |
           sphinx-build -E -b linkcheck docs/sphinx/source docs/sphinx/build
           sphinx-build -E docs/sphinx/source docs/sphinx/build
@@ -38,4 +39,8 @@ jobs:
           pytest --doctest-modules --ignore-glob=vespa/test_*.py
       - run-unit-tests: |
           pytest --ignore-glob=vespa/test_integration*.py
+      - run-notebooks-except-cloud-related: |
+          find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
+          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=600 --execute {} +
+          find docs -name '*.nbconvert.ipynb' -exec rm {} +
 
