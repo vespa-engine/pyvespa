@@ -3,7 +3,7 @@ jobs:
     requires: [~commit,~pr]
     image: docker.io/centos:8
     annotations:
-      screwdriver.cd/timeout: 10
+      screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
       screwdriver.cd/ram: HIGH
       screwdriver.cd/dockerEnabled: true
