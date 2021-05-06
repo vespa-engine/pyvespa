@@ -1,5 +1,6 @@
 import unittest
 import os
+import json
 import shutil
 from vespa.package import (
     HNSW,
@@ -179,6 +180,34 @@ class TestCloudDeployment(unittest.TestCase):
                 "pathId": "/document/v1/msmarco/msmarco/docid/1",
             },
         )
+
+    def test_batch_feed(self):
+        #
+        # Create documents
+        #
+        num_docs = 100
+        docs = []
+        for i in range(num_docs):
+            schema = "msmarco"
+            id = f"{id}"
+            title = f"title for document {i}"
+            body = f"body for document {i}"
+            fields = {"id": id, "title": title, "body": body}
+            docs.append((schema, id, fields))
+
+        #
+        # Make sure documents don't exist
+        #
+        self.app.delete_batch([("msmarco", doc[1]) for doc in docs])
+
+        #
+        # Feed documents
+        #
+        self.app.feed_batch(docs)
+
+        # Verify that all documents are fed
+        result = self.app.query(query=f"sddocname:msmarco", query_model=QueryModel())
+        self.assertEqual(result.number_documents_retrieved, num_docs)
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
