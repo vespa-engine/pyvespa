@@ -43,6 +43,7 @@ jobs:
       - run-notebooks-except-cloud-related: |
           docker container ls -a
           jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=6000 --execute docs/sphinx/source/three-ways-to-get-started-with-pyvespa.ipynb
+          cat docs/sphinx/source/three-ways-to-get-started-with-pyvespa.nbconvert.ipynb
           ls -alh docs/sphinx/source/sample-apps/news/app-3-searching/
           find . -type d | grep app-3-searching
           docker container ls -a
