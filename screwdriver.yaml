@@ -13,8 +13,10 @@ jobs:
       DOCKER_HOST: "localhost:2375"
     steps:
       - clone: |
+          ls -alh
           dnf install -y git
           git clone https://github.com/vespa-engine/pyvespa
+          git status
           cd pyvespa
           export WORK_DIR=$SD_DIND_SHARE_PATH
           export RESOURCES_DIR=$(pwd)/vespa/resources
