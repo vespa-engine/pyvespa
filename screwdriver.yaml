@@ -41,10 +41,7 @@ jobs:
       - run-unit-tests: |
           pytest --ignore-glob=vespa/test_integration*.py
       - run-notebooks-except-cloud-related: |
-          python3 -c "import os; print(os.getcwd())"
-          pwd
-          git clone https://github.com/vespa-engine/sample-apps.git
-          ls -alh
+          docker container ls -a
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=6000 --execute {} +
           find docs -name '*.nbconvert.ipynb' -exec rm {} +
