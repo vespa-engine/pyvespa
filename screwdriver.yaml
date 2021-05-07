@@ -42,6 +42,7 @@ jobs:
       - run-notebooks-except-cloud-related: |
           python3 -c "import os; print(os.getcwd())"
           pwd
+          git clone https://github.com/vespa-engine/sample-apps.git
           ls -alh
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=6000 --execute {} +
