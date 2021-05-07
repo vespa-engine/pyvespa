@@ -43,6 +43,7 @@ jobs:
       - run-notebooks-except-cloud-related: |
           docker container ls -a
           jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=6000 --execute docs/sphinx/source/three-ways-to-get-started-with-pyvespa.ipynb
+          docker exec news bash -c 'ls -alh app/'
 #          find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
 #          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=6000 --execute {} +
 #          find docs -name '*.nbconvert.ipynb' -exec rm {} +
