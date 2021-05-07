@@ -33,6 +33,7 @@ jobs:
           python3 -m pip install -r docs/sphinx/source/requirements.txt
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
       - run-notebooks-except-cloud-related: |
+          dnf install -y tree
           docker container ls -a
           jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=6000 --execute docs/sphinx/source/three-ways-to-get-started-with-pyvespa.ipynb
           cat docs/sphinx/source/three-ways-to-get-started-with-pyvespa.nbconvert.ipynb
