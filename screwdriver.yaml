@@ -14,7 +14,8 @@ jobs:
     steps:
       - clone: |
           dnf install -y git
-          ls -alh
+          pwd
+          ls -alh 
           git clone https://github.com/vespa-engine/pyvespa
           cd pyvespa
           export WORK_DIR=$SD_DIND_SHARE_PATH
