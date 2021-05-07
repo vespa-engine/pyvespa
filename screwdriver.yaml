@@ -35,6 +35,7 @@ jobs:
       - run-doc-linkcheck: |
           sphinx-build -E -b linkcheck docs/sphinx/source docs/sphinx/build
           sphinx-build -E docs/sphinx/source docs/sphinx/build
+          rf -fr docs/sphinx/build
       - run-doc-tests: |
           pytest --doctest-modules --ignore-glob=vespa/test_*.py
       - run-unit-tests: |
