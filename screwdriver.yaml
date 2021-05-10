@@ -14,8 +14,6 @@ jobs:
     steps:
       - clone: |
           dnf install -y git
-          git clone https://github.com/vespa-engine/pyvespa
-          cd pyvespa
           export WORK_DIR=$SD_DIND_SHARE_PATH
           export RESOURCES_DIR=$(pwd)/vespa/resources
           export VESPA_CLOUD_USER_KEY=$VESPA_TEAM_API_KEY
