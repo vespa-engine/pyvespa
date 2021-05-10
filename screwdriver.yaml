@@ -30,6 +30,10 @@ jobs:
           python3 -m pip install -e .[full]
           python3 -m pip install -r docs/sphinx/source/requirements.txt
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
+      - run-specific-notebook: |
+          find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
+          jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=6000 --allow-errors --execute docs/sphinx/source/use_cases/cord19/cord19_download_parse_trec_covid.ipynb
+          cat docs/sphinx/source/use_cases/cord19/cord19_download_parse_trec_covid.nbconvert.ipynb
       - run-doc-linkcheck: |
           sphinx-build -E -b linkcheck docs/sphinx/source docs/sphinx/build
           sphinx-build -E docs/sphinx/source docs/sphinx/build
