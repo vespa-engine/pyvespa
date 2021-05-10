@@ -12,8 +12,7 @@ jobs:
     environment:
       DOCKER_HOST: "localhost:2375"
     steps:
-      - clone: |
-          dnf install -y git
+      - setup: |
           export WORK_DIR=$SD_DIND_SHARE_PATH
           export RESOURCES_DIR=$(pwd)/vespa/resources
           export VESPA_CLOUD_USER_KEY=$VESPA_TEAM_API_KEY
@@ -44,6 +43,8 @@ jobs:
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=6000 --execute {} +
           find docs -name '*.nbconvert.ipynb' -exec rm {} +
+      - run-integration-running-instance: |
+          pytest vespa/test_integration_running_instance.py
       - run-integration-docker: |
           pytest vespa/test_integration_docker.py
 
