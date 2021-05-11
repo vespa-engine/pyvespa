@@ -13,6 +13,7 @@ jobs:
       DOCKER_HOST: "localhost:2375"
     steps:
       - setup: |
+          dnf install -y git
           export WORK_DIR=$SD_DIND_SHARE_PATH
           export RESOURCES_DIR=$(pwd)/vespa/resources
           export VESPA_CLOUD_USER_KEY=$VESPA_TEAM_API_KEY
