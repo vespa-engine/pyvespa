@@ -237,7 +237,7 @@ class TestDockerDeployment(unittest.TestCase):
             },
         )
 
-    def test_batch_feed(self):
+    def test_batch_feed_synchronous(self):
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
         app = self.vespa_docker.deploy(application_package=self.app_package)
 
@@ -246,14 +246,36 @@ class TestDockerDeployment(unittest.TestCase):
         #
         num_docs = 100
         docs = []
+        schema = "msmarco"
         for i in range(num_docs):
-            schema = "msmarco"
             id = f"{i}"
             title = f"title for document {i}"
             body = f"body for document {i}"
             fields = {"id": id, "title": title, "body": body}
-            docs.append((schema, id, fields))
-        app.feed_batch(docs)
+            docs.append({"id": id, "fields": fields})
+        app.feed_batch(schema=schema, batch=docs, asynchronous=False)
+
+        # Verify that all documents are fed
+        result = app.query(query="sddocname:msmarco", query_model=QueryModel())
+        self.assertEqual(result.number_documents_indexed, num_docs)
+
+    def test_batch_feed_asynchronous(self):
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        app = self.vespa_docker.deploy(application_package=self.app_package)
+
+        #
+        # Create and feed documents
+        #
+        num_docs = 100
+        docs = []
+        schema = "msmarco"
+        for i in range(num_docs):
+            id = f"{i}"
+            title = f"title for document {i}"
+            body = f"body for document {i}"
+            fields = {"id": id, "title": title, "body": body}
+            docs.append({"id": id, "fields": fields})
+        app.feed_batch(schema=schema, batch=docs, asynchronous=True)
 
         # Verify that all documents are fed
         result = app.query(query="sddocname:msmarco", query_model=QueryModel())
@@ -278,16 +300,19 @@ class TestDockerDeployment(unittest.TestCase):
             #
             feed = []
             for i in range(1, 101):
-                feed.append(asyncio.create_task(
-                    async_app.feed_data_point(
-                        schema="msmarco",
-                        data_id=f"{i}",
-                        fields={
-                            "id": f"{i}",
-                            "title": f"this is title {i}",
-                            "body": f"this is body {i}",
-                        },
-                    )))
+                feed.append(
+                    asyncio.create_task(
+                        async_app.feed_data_point(
+                            schema="msmarco",
+                            data_id=f"{i}",
+                            fields={
+                                "id": f"{i}",
+                                "title": f"this is title {i}",
+                                "body": f"this is body {i}",
+                            },
+                        )
+                    )
+                )
             await asyncio.wait(feed, return_when=asyncio.ALL_COMPLETED)
             result = await feed[0].result().json()
             self.assertEqual(result["id"], "id:msmarco:msmarco::1")
@@ -354,9 +379,15 @@ class TestDockerDeployment(unittest.TestCase):
             #
             queries = []
             for i in range(10):
-                queries.append(asyncio.create_task(
-                    async_app.query(query="sddocname:msmarco", query_model=QueryModel(), timeout=5000)
-                ))
+                queries.append(
+                    asyncio.create_task(
+                        async_app.query(
+                            query="sddocname:msmarco",
+                            query_model=QueryModel(),
+                            timeout=5000,
+                        )
+                    )
+                )
             await asyncio.wait(queries, return_when=asyncio.ALL_COMPLETED)
             self.assertEqual(queries[0].result().number_documents_indexed, 99)
 
