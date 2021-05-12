@@ -1,0 +1,30 @@
+jobs:
+  test-pyvespa:
+    requires: [~commit,~pr]
+    image: docker.io/centos:8
+    annotations:
+      screwdriver.cd/timeout: 10
+      screwdriver.cd/cpu: HIGH
+      screwdriver.cd/ram: HIGH
+      screwdriver.cd/dockerEnabled: true
+      screwdriver.cd/dockerCpu: TURBO
+      screwdriver.cd/dockerRam: TURBO
+    environment:
+      DOCKER_HOST: "localhost:2375"
+    steps:
+      - clone: |
+          dnf install -y git
+          git clone https://github.com/vespa-engine/pyvespa
+          cd pyvespa
+          export WORK_DIR=$SD_DIND_SHARE_PATH
+          export RESOURCES_DIR=$(pwd)/vespa/resources
+          export VESPA_CLOUD_USER_KEY=$VESPA_TEAM_API_KEY
+      - install-docker: |
+          dnf install -y dnf-plugins-core
+          dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+          dnf install -y docker-ce-cli
+          docker system info
+          ls -la $SD_DIND_SHARE_PATH
+      - install-python: |
+          dnf install -y python38-pip
+          dnf install -y --enablerepo=powertools pandoc

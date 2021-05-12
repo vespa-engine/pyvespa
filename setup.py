@@ -17,10 +17,9 @@ setuptools.setup(
     keywords="vespa, search engine, data science",
     author="Thiago G. Martins",
     author_email="tmartins@verizonmedia.com",
-    license=(
-        "Apache Software License 2.0",
-        "OSI Approved :: Apache Software License",
-    ),
+    classifiers=[
+        "License :: OSI Approved :: Apache Software License",
+    ],
     packages=setuptools.find_packages(),
     include_package_data=True,
     install_requires=[

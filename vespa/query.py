@@ -205,6 +205,7 @@ class RankProfile(object):
 class QueryModel(object):
     def __init__(
         self,
+        name: str = "default_name",
         query_properties: Optional[List[QueryProperty]] = None,
         match_phase: MatchFilter = AND(),
         rank_profile: RankProfile = RankProfile(),
@@ -213,11 +214,13 @@ class QueryModel(object):
         """
         Define a query model.
 
+        :param name: Name of the query model. Used to tag model related quantities, like evaluation metrics.
         :param query_properties: Optional list of QueryProperty.
         :param match_phase: Define the match criteria. One of the MatchFilter options available.
         :param rank_profile: Define the rank criteria.
         :param body_function: Function that take query as parameter and returns the body of a Vespa query.
         """
+        self.name = name
         self.query_properties = query_properties if query_properties is not None else []
         self.match_phase = match_phase
         self.rank_profile = rank_profile
@@ -272,7 +275,9 @@ def trec_format(
         records.append(
             {
                 "qid": qid,
-                "doc_id": hit["fields"][id_field] if id_field is not None else hit["id"],
+                "doc_id": hit["fields"][id_field]
+                if id_field is not None
+                else hit["id"],
                 "score": hit["relevance"],
                 "rank": rank,
             }
