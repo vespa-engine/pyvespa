@@ -18,8 +18,7 @@ setuptools.setup(
     author="Thiago G. Martins",
     author_email="tmartins@verizonmedia.com",
     classifiers=[
-        "Apache Software License 2.0",
-        "OSI Approved :: Apache Software License",
+        "License :: OSI Approved :: Apache Software License",
     ],
     packages=setuptools.find_packages(),
     include_package_data=True,
