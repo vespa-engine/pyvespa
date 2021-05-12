@@ -16,6 +16,7 @@ jobs:
         apt_packages:
           - pandoc
       script:
+        - pip install --upgrade pip
         - pip install -r docs/sphinx/source/requirements.txt
         - sphinx-build -E -b linkcheck docs/sphinx/source docs/sphinx/build
         - sphinx-build -E docs/sphinx/source docs/sphinx/build
