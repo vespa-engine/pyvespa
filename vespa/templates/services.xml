@@ -8,7 +8,11 @@
         <redundancy reply-after="1">1</redundancy>
         <documents>
         {% for schema in schemas %}
+            {% if schema.global_document %}
+            <document type="{{ schema.name }}" mode="index" global="true"></document>
+            {% else %}
             <document type="{{ schema.name }}" mode="index"></document>
+            {% endif %}
         {% endfor %}
         </documents>
         <nodes>
