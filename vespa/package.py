@@ -211,7 +211,7 @@ class ImportedField(ToJson, FromJson["ImportedField"]):
         ...     reference_field="category_ctr_ref",
         ...     field_to_import="ctrs",
         ... )
-        ImportField('global_category_ctrs', 'category_ctr_ref', 'ctrs')
+        ImportedField('global_category_ctrs', 'category_ctr_ref', 'ctrs')
 
         """
         self.name = name
@@ -747,7 +747,7 @@ class Schema(ToJson, FromJson["Schema"]):
         To create a Schema:
 
         >>> Schema(name="schema_name", document=Document())
-        Schema('schema_name', Document(None, None), None, None, [])
+        Schema('schema_name', Document(None, None), None, None, [], False, None)
         """
         self.name = name
         self.document = document
@@ -1155,7 +1155,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         The easiest way to get started is to create a default application package:
 
         >>> ApplicationPackage(name="test_app")
-        ApplicationPackage('test_app', [Schema('test_app', Document(None, None), None, None, [])], QueryProfile(None), QueryProfileType(None))
+        ApplicationPackage('test_app', [Schema('test_app', Document(None, None), None, None, [], False, None)], QueryProfile(None), QueryProfileType(None))
 
         It will create a default :class:`Schema`, :class:`QueryProfile` and :class:`QueryProfileType` that you can then
         populate with specifics of your application.
