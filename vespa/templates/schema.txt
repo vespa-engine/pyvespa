@@ -31,6 +31,9 @@ schema {{ schema_name }} {
         }
         {% endfor %}
     }
+{% for key, value in imported_fields.items() %}
+    import field {{ value.reference_field }}.{{ value.field_to_import }} as {{ key }} {}
+{% endfor %}
 {% for key, value in fieldsets.items() %}
     fieldset {{ key }} {
         fields: {{ value.fields_to_text }}
