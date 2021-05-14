@@ -63,14 +63,10 @@ jobs:
           python3 -m pip install -r docs/sphinx/source/requirements.txt
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
       - run-notebooks-except-cloud-related: |
-        dnf install -y tree
-        dnf install -y wget
-        find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
-        find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=6000 --execute {} +
-        find docs -name '*.nbconvert.ipynb' -exec rm {} +
+          dnf install -y tree
+          dnf install -y wget
+          find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
+          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=6000 --execute {} +
+          find docs -name '*.nbconvert.ipynb' -exec rm {} +
       - run-integration-docker: |
           pytest vespa/test_integration_docker.py
-
-
-
-
