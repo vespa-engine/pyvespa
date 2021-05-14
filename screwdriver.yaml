@@ -1,27 +1,26 @@
 shared:
   image: docker.io/centos:8
-  annotations:
-    screwdriver.cd/timeout: 120
-    screwdriver.cd/cpu: HIGH
-    screwdriver.cd/ram: HIGH
-  steps:
-    - setup: |
-        dnf install -y git
-        export WORK_DIR=$SD_DIND_SHARE_PATH
-        export RESOURCES_DIR=$(pwd)/vespa/resources
-        export VESPA_CLOUD_USER_KEY=$VESPA_TEAM_API_KEY
-    - install-python: |
-        dnf install -y python38-pip
-        dnf install -y --enablerepo=powertools pandoc
-        python3 -m pip install --upgrade pip
-        python3 -m pip install pytest notebook nbconvert
-        python3 -m pip install -e .[full]
-        python3 -m pip install -r docs/sphinx/source/requirements.txt
-        python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
 jobs:
   pyvespa-tests:
     requires: [~commit,~pr]
+    annotations:
+      screwdriver.cd/timeout: 120
+      screwdriver.cd/cpu: HIGH
+      screwdriver.cd/ram: HIGH
     steps:
+      - setup: |
+          dnf install -y git
+          export WORK_DIR=$SD_DIND_SHARE_PATH
+          export RESOURCES_DIR=$(pwd)/vespa/resources
+          export VESPA_CLOUD_USER_KEY=$VESPA_TEAM_API_KEY
+      - install-python: |
+          dnf install -y python38-pip
+          dnf install -y --enablerepo=powertools pandoc
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest notebook nbconvert
+          python3 -m pip install -e .[full]
+          python3 -m pip install -r docs/sphinx/source/requirements.txt
+          python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
       - run-doc-linkcheck: |
           sphinx-build -E -b linkcheck docs/sphinx/source docs/sphinx/build
           sphinx-build -E docs/sphinx/source docs/sphinx/build
@@ -35,19 +34,35 @@ jobs:
   pyvespa-docker-tests:
     requires: [~commit,~pr]
     annotations:
+      screwdriver.cd/timeout: 120
+      screwdriver.cd/cpu: HIGH
+      screwdriver.cd/ram: HIGH
       screwdriver.cd/dockerEnabled: true
       screwdriver.cd/dockerCpu: TURBO
       screwdriver.cd/dockerRam: TURBO
     environment:
       DOCKER_HOST: "localhost:2375"
     steps:
+      - setup: |
+          dnf install -y git
+          export WORK_DIR=$SD_DIND_SHARE_PATH
+          export RESOURCES_DIR=$(pwd)/vespa/resources
+          export VESPA_CLOUD_USER_KEY=$VESPA_TEAM_API_KEY
       - install-docker: |
           dnf install -y dnf-plugins-core
           dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
           dnf install -y docker-ce-cli
           docker system info
           ls -la $SD_DIND_SHARE_PATH
-      - run-notebooks-except-cloud-related: |
+      - install-python: |
+          dnf install -y python38-pip
+          dnf install -y --enablerepo=powertools pandoc
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest notebook nbconvert
+          python3 -m pip install -e .[full]
+          python3 -m pip install -r docs/sphinx/source/requirements.txt
+          python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
+       - run-notebooks-except-cloud-related: |
           dnf install -y tree
           dnf install -y wget
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
