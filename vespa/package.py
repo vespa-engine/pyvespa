@@ -189,6 +189,70 @@ class Field(ToJson, FromJson["Field"]):
         )
 
 
+class ImportedField(ToJson, FromJson["ImportedField"]):
+    def __init__(
+        self,
+        name: str,
+        reference_field: str,
+        field_to_import: str,
+    ) -> None:
+        """
+        Imported field from a reference document.
+
+        Useful to implement `parent/child relationships <https://docs.vespa.ai/en/parent-child.html>`.
+
+        :param name: Field name.
+        :param reference_field: field of type reference that points to the document that contains the field to be
+            imported.
+        :param field_to_import: Field name to be imported, as defined in the reference document.
+
+        >>> ImportedField(
+        ...     name="global_category_ctrs",
+        ...     reference_field="category_ctr_ref",
+        ...     field_to_import="ctrs",
+        ... )
+        ImportField('global_category_ctrs', 'category_ctr_ref', 'ctrs')
+
+        """
+        self.name = name
+        self.reference_field = reference_field
+        self.field_to_import = field_to_import
+
+    @staticmethod
+    def from_dict(mapping: Mapping) -> "ImportedField":
+        return ImportedField(
+            name=mapping["name"],
+            reference_field=mapping["reference_field"],
+            field_to_import=mapping["field_to_import"],
+        )
+
+    @property
+    def to_dict(self) -> Mapping:
+        map = {
+            "name": self.name,
+            "reference_field": self.reference_field,
+            "field_to_import": self.field_to_import,
+        }
+        return map
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return (
+            self.name == other.name
+            and self.reference_field == other.reference_field
+            and self.field_to_import == other.field_to_import
+        )
+
+    def __repr__(self):
+        return "{0}({1}, {2}, {3})".format(
+            self.__class__.__name__,
+            repr(self.name),
+            repr(self.reference_field),
+            repr(self.field_to_import),
+        )
+
+
 class Document(ToJson, FromJson["Document"]):
     def __init__(
         self, fields: Optional[List[Field]] = None, inherits: Optional[str] = None
@@ -663,6 +727,8 @@ class Schema(ToJson, FromJson["Schema"]):
         fieldsets: Optional[List[FieldSet]] = None,
         rank_profiles: Optional[List[RankProfile]] = None,
         models: Optional[List[OnnxModel]] = None,
+        global_document: bool = False,
+        imported_fields: Optional[List[ImportedField]] = None,
     ) -> None:
         """
         Create a Vespa Schema.
@@ -675,6 +741,8 @@ class Schema(ToJson, FromJson["Schema"]):
         :param fieldsets: A list of :class:`FieldSet` associated with the Schema.
         :param rank_profiles: A list of :class:`RankProfile` associated with the Schema.
         :param models: A list of :class:`OnnxModel` associated with the Schema.
+        :param global_document: Set to True to copy the documents to all content nodes. Default to False.
+        :param imported_fields: A list of :class:`ImportedField` defining fields from global documents to be imported.
 
         To create a Schema:
 
@@ -683,10 +751,18 @@ class Schema(ToJson, FromJson["Schema"]):
         """
         self.name = name
         self.document = document
+        self.global_document = global_document
 
         self.fieldsets = {}
         if fieldsets is not None:
             self.fieldsets = {fieldset.name: fieldset for fieldset in fieldsets}
+
+        self.imported_fields = {}
+        if imported_fields is not None:
+            self.imported_fields = {
+                imported_field.name: imported_field
+                for imported_field in imported_fields
+            }
 
         self.rank_profiles = {}
         if rank_profiles is not None:
@@ -729,6 +805,14 @@ class Schema(ToJson, FromJson["Schema"]):
         """
         self.models.append(model)
 
+    def add_imported_field(self, imported_field: ImportedField) -> None:
+        """
+        Add a :class:`ImportedField` to the Schema.
+
+        :param imported_field: imported field to be added.
+        """
+        self.fieldsets[imported_field.name] = imported_field
+
     @property
     def schema_to_text(self):
         env = Environment(
@@ -749,6 +833,7 @@ class Schema(ToJson, FromJson["Schema"]):
             fieldsets=self.fieldsets,
             rank_profiles=self.rank_profiles,
             models=self.models,
+            imported_fields=self.imported_fields,
         )
 
     @staticmethod
@@ -764,6 +849,11 @@ class Schema(ToJson, FromJson["Schema"]):
         models = mapping.get("models", None)
         if models:
             models = [FromJson.map(model) for model in mapping["models"]]
+        imported_fields = mapping.get("imported_fields", None)
+        if imported_fields:
+            imported_fields = [
+                FromJson.map(imported_field) for imported_field in imported_fields
+            ]
 
         return Schema(
             name=mapping["name"],
@@ -771,6 +861,8 @@ class Schema(ToJson, FromJson["Schema"]):
             fieldsets=fieldsets,
             rank_profiles=rank_profiles,
             models=models,
+            global_document=mapping["global_document"],
+            imported_fields=imported_fields,
         )
 
     @property
@@ -778,6 +870,7 @@ class Schema(ToJson, FromJson["Schema"]):
         map = {
             "name": self.name,
             "document": self.document.to_envelope,
+            "global_document": self.global_document,
         }
         if self.fieldsets:
             map["fieldsets"] = [
@@ -790,7 +883,11 @@ class Schema(ToJson, FromJson["Schema"]):
             ]
         if self.models:
             map["models"] = [model.to_envelope for model in self.models]
-
+        if self.imported_fields:
+            map["imported_fields"] = [
+                self.imported_fields[name].to_envelope
+                for name in self.imported_fields.keys()
+            ]
         return map
 
     def __eq__(self, other):
@@ -802,10 +899,12 @@ class Schema(ToJson, FromJson["Schema"]):
             and self.fieldsets == other.fieldsets
             and self.rank_profiles == other.rank_profiles
             and self.models == other.models
+            and self.global_document == other.global_document
+            and self.imported_fields == other.imported_fields
         )
 
     def __repr__(self):
-        return "{0}({1}, {2}, {3}, {4}, {5})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.document),
@@ -818,6 +917,12 @@ class Schema(ToJson, FromJson["Schema"]):
                 else None
             ),
             repr(self.models),
+            repr(self.global_document),
+            repr(
+                [imported_field for imported_field in self.imported_fields.values()]
+                if self.imported_fields
+                else None
+            ),
         )
 
 
