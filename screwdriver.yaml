@@ -51,6 +51,7 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
+          python3 -m pip install pytest 
           python3 -m pip install -e .[full]
       - run-integration-running-instance: |
           pytest vespa/test_integration_running_instance.py
