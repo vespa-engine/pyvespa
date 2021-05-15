@@ -9,10 +9,8 @@ jobs:
       screwdriver.cd/ram: HIGH
     steps:
       - setup: |
-          dnf install -y git
           export WORK_DIR=$SD_DIND_SHARE_PATH
           export RESOURCES_DIR=$(pwd)/vespa/resources
-          export VESPA_CLOUD_USER_KEY=$VESPA_TEAM_API_KEY
       - install-python: |
           dnf install -y python38-pip
           dnf install -y --enablerepo=powertools pandoc
@@ -44,10 +42,8 @@ jobs:
       DOCKER_HOST: "localhost:2375"
     steps:
       - setup: |
-          dnf install -y git
           export WORK_DIR=$SD_DIND_SHARE_PATH
           export RESOURCES_DIR=$(pwd)/vespa/resources
-          export VESPA_CLOUD_USER_KEY=$VESPA_TEAM_API_KEY
       - install-docker: |
           dnf install -y dnf-plugins-core
           dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
@@ -56,12 +52,8 @@ jobs:
           ls -la $SD_DIND_SHARE_PATH
       - install-python: |
           dnf install -y python38-pip
-          dnf install -y --enablerepo=powertools pandoc
           python3 -m pip install --upgrade pip
-          python3 -m pip install pytest notebook nbconvert
           python3 -m pip install -e .[full]
-          python3 -m pip install -r docs/sphinx/source/requirements.txt
-          python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
       - run-integration-docker: |
           pytest vespa/test_integration_docker.py
   notebooks-except-cloud-related:
@@ -80,7 +72,6 @@ jobs:
           dnf install -y git
           export WORK_DIR=$SD_DIND_SHARE_PATH
           export RESOURCES_DIR=$(pwd)/vespa/resources
-          export VESPA_CLOUD_USER_KEY=$VESPA_TEAM_API_KEY
       - install-docker: |
           dnf install -y dnf-plugins-core
           dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
@@ -89,7 +80,6 @@ jobs:
           ls -la $SD_DIND_SHARE_PATH
       - install-python: |
           dnf install -y python38-pip
-          dnf install -y --enablerepo=powertools pandoc
           python3 -m pip install --upgrade pip
           python3 -m pip install pytest notebook nbconvert
           python3 -m pip install -e .[full]
