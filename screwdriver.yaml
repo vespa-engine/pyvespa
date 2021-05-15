@@ -27,9 +27,7 @@ jobs:
           pytest --doctest-modules --ignore-glob=vespa/test_*.py
       - run-unit-tests: |
           pytest --ignore-glob=vespa/test_integration*.py
-      - run-integration-running-instance: |
-          pytest vespa/test_integration_running_instance.py
-  integration-docker:
+  integration-except-cloud:
     requires: [~commit,~pr]
     annotations:
       screwdriver.cd/timeout: 120
@@ -54,9 +52,11 @@ jobs:
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[full]
+      - run-integration-running-instance: |
+          pytest vespa/test_integration_running_instance.py
       - run-integration-docker: |
           pytest vespa/test_integration_docker.py
-  notebooks-except-cloud-related:
+  notebooks-except-cloud:
     requires: [~commit,~pr]
     annotations:
       screwdriver.cd/timeout: 120
