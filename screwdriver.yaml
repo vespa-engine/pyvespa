@@ -1,9 +1,36 @@
+shared:
+  image: docker.io/centos:8
 jobs:
-  test-pyvespa:
+  tests:
     requires: [~commit,~pr]
-    image: docker.io/centos:8
     annotations:
-      screwdriver.cd/timeout: 10
+      screwdriver.cd/timeout: 120
+      screwdriver.cd/cpu: HIGH
+      screwdriver.cd/ram: HIGH
+    steps:
+      - setup: |
+          export WORK_DIR=$SD_DIND_SHARE_PATH
+          export RESOURCES_DIR=$(pwd)/vespa/resources
+      - install-python: |
+          dnf install -y python38-pip
+          dnf install -y --enablerepo=powertools pandoc
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest notebook nbconvert
+          python3 -m pip install -e .[full]
+          python3 -m pip install -r docs/sphinx/source/requirements.txt
+          python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
+      - run-doc-linkcheck: |
+          sphinx-build -E -b linkcheck docs/sphinx/source docs/sphinx/build
+          sphinx-build -E docs/sphinx/source docs/sphinx/build
+          rm -fr docs/sphinx/build
+      - run-doc-tests: |
+          pytest --doctest-modules --ignore-glob=vespa/test_*.py
+      - run-unit-tests: |
+          pytest --ignore-glob=vespa/test_integration*.py
+  integration-except-cloud:
+    requires: [~commit,~pr]
+    annotations:
+      screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
       screwdriver.cd/ram: HIGH
       screwdriver.cd/dockerEnabled: true
@@ -12,13 +39,9 @@ jobs:
     environment:
       DOCKER_HOST: "localhost:2375"
     steps:
-      - clone: |
-          dnf install -y git
-          git clone https://github.com/vespa-engine/pyvespa
-          cd pyvespa
+      - setup: |
           export WORK_DIR=$SD_DIND_SHARE_PATH
           export RESOURCES_DIR=$(pwd)/vespa/resources
-          export VESPA_CLOUD_USER_KEY=$VESPA_TEAM_API_KEY
       - install-docker: |
           dnf install -y dnf-plugins-core
           dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
@@ -27,4 +50,45 @@ jobs:
           ls -la $SD_DIND_SHARE_PATH
       - install-python: |
           dnf install -y python38-pip
-          dnf install -y --enablerepo=powertools pandoc
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest 
+          python3 -m pip install -e .[full]
+      - run-integration-running-instance: |
+          pytest vespa/test_integration_running_instance.py
+      - run-integration-docker: |
+          pytest vespa/test_integration_docker.py
+  notebooks-except-cloud:
+    requires: [~commit,~pr]
+    annotations:
+      screwdriver.cd/timeout: 120
+      screwdriver.cd/cpu: HIGH
+      screwdriver.cd/ram: HIGH
+      screwdriver.cd/dockerEnabled: true
+      screwdriver.cd/dockerCpu: TURBO
+      screwdriver.cd/dockerRam: TURBO
+    environment:
+      DOCKER_HOST: "localhost:2375"
+    steps:
+      - setup: |
+          dnf install -y git
+          export WORK_DIR=$SD_DIND_SHARE_PATH
+          export RESOURCES_DIR=$(pwd)/vespa/resources
+      - install-docker: |
+          dnf install -y dnf-plugins-core
+          dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+          dnf install -y docker-ce-cli
+          docker system info
+          ls -la $SD_DIND_SHARE_PATH
+      - install-python: |
+          dnf install -y python38-pip
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest notebook nbconvert
+          python3 -m pip install -e .[full]
+          python3 -m pip install -r docs/sphinx/source/requirements.txt
+          python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
+      - run-notebooks-except-cloud-related: |
+          dnf install -y tree
+          dnf install -y wget
+          find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
+          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=6000 --execute {} +
+          find docs -name '*.nbconvert.ipynb' -exec rm {} +
