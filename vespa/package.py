@@ -1567,7 +1567,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
                     name=application_name,
                     hostname=application_name,
                     privileged=True,
-                    volumes={disk_folder: {"bind": "app", "mode": "rw"}},
+                    volumes={disk_folder: {"bind": "/app", "mode": "rw"}},
                     ports={8080: self.local_port},
                 )
             self.container_name = self.container.name
@@ -1664,9 +1664,11 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             print("Waiting for configuration server.", file=self.output)
             sleep(5)
 
-        _application_folder = "app"
+        _application_folder = "/app"
         if application_folder:
-            _application_folder = os.path.join(_application_folder, application_folder)
+            _application_folder = (
+                _application_folder + "/" + application_folder
+            )  # using os.path.join break on windows
         deployment = self.container.exec_run(
             "bash -c '/opt/vespa/bin/vespa-deploy prepare {} && /opt/vespa/bin/vespa-deploy activate'".format(
                 _application_folder
@@ -1719,8 +1721,8 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         """
         Deploy disk-based application package into a Vespa container.
         :param application_name: Name of the application.
-        :param application_folder: The folder inside `disk_folder` containing the application files. If None,
-            we assume `disk_folder` to be the application folder.
+        :param application_folder: Relative path to the folder inside `disk_folder` containing the application files.
+            If None, we assume `disk_folder` to be the application folder.
         :return: a Vespa connection instance.
         """
 
