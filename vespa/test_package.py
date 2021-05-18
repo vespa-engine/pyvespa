@@ -4,6 +4,7 @@ from shutil import rmtree
 from vespa.package import (
     HNSW,
     Field,
+    ImportedField,
     Document,
     FieldSet,
     Function,
@@ -75,6 +76,21 @@ class TestField(unittest.TestCase):
             ),
         )
         self.assertEqual(field, Field.from_dict(field.to_dict))
+
+
+class TestImportField(unittest.TestCase):
+    def test_import_field(self):
+        imported_field = ImportedField(
+            name="global_category_ctrs",
+            reference_field="category_ctr_ref",
+            field_to_import="ctrs",
+        )
+        self.assertEqual(imported_field.name, "global_category_ctrs")
+        self.assertEqual(imported_field.reference_field, "category_ctr_ref")
+        self.assertEqual(imported_field.field_to_import, "ctrs")
+        self.assertEqual(
+            imported_field, ImportedField.from_dict(imported_field.to_dict)
+        )
 
 
 class TestDocument(unittest.TestCase):
@@ -326,6 +342,14 @@ class TestSchema(unittest.TestCase):
                         "attention_mask": "attention_mask",
                     },
                     outputs={"logits": "logits"},
+                )
+            ],
+            global_document=True,
+            imported_fields=[
+                ImportedField(
+                    name="global_category_ctrs",
+                    reference_field="category_ctr_ref",
+                    field_to_import="ctrs",
                 )
             ],
         )
@@ -737,8 +761,20 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
                     Field(
                         name="news_id", type="string", indexing=["attribute", "summary"]
                     ),
+                    Field(
+                        name="category_ctr_ref",
+                        type="reference<category_ctr>",
+                        indexing=["attribute"],
+                    ),
                 ]
             ),
+            imported_fields=[
+                ImportedField(
+                    name="global_category_ctrs",
+                    reference_field="category_ctr_ref",
+                    field_to_import="ctrs",
+                )
+            ],
         )
         self.user_schema = Schema(
             name="user",
@@ -750,9 +786,23 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
                 ]
             ),
         )
+        self.category_ctr_schema = Schema(
+            name="category_ctr",
+            global_document=True,
+            document=Document(
+                fields=[
+                    Field(
+                        name="ctrs",
+                        type="tensor<float>(category{})",
+                        indexing=["attribute"],
+                        attribute=["fast-search"],
+                    ),
+                ]
+            ),
+        )
         self.app_package = ApplicationPackage(
             name="test_app",
-            schema=[self.news_schema, self.user_schema],
+            schema=[self.news_schema, self.user_schema, self.category_ctr_schema],
         )
 
     def test_application_package(self):
@@ -763,6 +813,9 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
     def test_get_schema(self):
         self.assertEqual(self.app_package.get_schema(name="news"), self.news_schema)
         self.assertEqual(self.app_package.get_schema(name="user"), self.user_schema)
+        self.assertEqual(
+            self.app_package.get_schema(name="category_ctr"), self.category_ctr_schema
+        )
         with self.assertRaises(AssertionError):
             self.app_package.get_schema()
 
@@ -773,7 +826,11 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
             "        field news_id type string {\n"
             "            indexing: attribute | summary\n"
             "        }\n"
+            "        field category_ctr_ref type reference<category_ctr> {\n"
+            "            indexing: attribute\n"
+            "        }\n"            
             "    }\n"
+            "    import field category_ctr_ref.ctrs as global_category_ctrs {}\n"
             "}"
         )
         expected_user_result = (
@@ -785,7 +842,24 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
             "    }\n"
             "}"
         )
-        expected_results = {"news": expected_news_result, "user": expected_user_result}
+        expected_category_ctr_result = (
+            "schema category_ctr {\n"
+            "    document category_ctr {\n"
+            "        field ctrs type tensor<float>(category{}) {\n"
+            "            indexing: attribute\n"
+            "            attribute {\n"
+            "                fast-search\n"
+            "            }\n"
+            "        }\n"
+            "    }\n"
+            "}"
+        )
+
+        expected_results = {
+            "news": expected_news_result,
+            "user": expected_user_result,
+            "category_ctr": expected_category_ctr_result,
+        }
 
         for schema in self.app_package.schemas:
             self.assertEqual(schema.schema_to_text, expected_results[schema.name])
@@ -803,6 +877,7 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
             "        <documents>\n"
             '            <document type="news" mode="index"></document>\n'
             '            <document type="user" mode="index"></document>\n'
+            '            <document type="category_ctr" mode="index" global="true"></document>\n'
             "        </documents>\n"
             "        <nodes>\n"
             '            <node distribution-key="0" hostalias="node1"></node>\n'
