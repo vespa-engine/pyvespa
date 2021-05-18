@@ -1567,7 +1567,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
                     name=application_name,
                     hostname=application_name,
                     privileged=True,
-                    volumes={disk_folder: {"bind": "/app", "mode": "rw"}},
+                    volumes={disk_folder: {"bind": "app", "mode": "rw"}},
                     ports={8080: self.local_port},
                 )
             self.container_name = self.container.name
@@ -1664,7 +1664,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             print("Waiting for configuration server.", file=self.output)
             sleep(5)
 
-        _application_folder = "/app"
+        _application_folder = "app"
         if application_folder:
             _application_folder = os.path.join(_application_folder, application_folder)
         deployment = self.container.exec_run(
