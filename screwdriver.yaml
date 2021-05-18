@@ -92,3 +92,22 @@ jobs:
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=6000 --execute {} +
           find docs -name '*.nbconvert.ipynb' -exec rm {} +
+  integration-cloud:
+    requires: [~commit,~pr]
+    annotations:
+      screwdriver.cd/timeout: 120
+      screwdriver.cd/cpu: HIGH
+      screwdriver.cd/ram: HIGH
+    steps:
+      - setup: |
+          export WORK_DIR=$SD_DIND_SHARE_PATH
+          export RESOURCES_DIR=$(pwd)/vespa/resources
+          export VESPA_CLOUD_USER_KEY=$VESPA_TEAM_API_KEY
+      - install-python: |
+          dnf install -y python38-pip
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest
+          python3 -m pip install -e .[full]
+      - run-integration-cloud: |
+          pytest vespa/test_integration_vespa_cloud.py
+
