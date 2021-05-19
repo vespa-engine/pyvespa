@@ -811,7 +811,7 @@ class Schema(ToJson, FromJson["Schema"]):
 
         :param imported_field: imported field to be added.
         """
-        self.fieldsets[imported_field.name] = imported_field
+        self.imported_fields[imported_field.name] = imported_field
 
     @property
     def schema_to_text(self):
