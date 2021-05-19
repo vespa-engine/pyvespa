@@ -324,8 +324,8 @@ class TestOnnxModel(unittest.TestCase):
 
 
 class TestSchema(unittest.TestCase):
-    def test_schema(self):
-        schema = Schema(
+    def setUp(self) -> None:
+        self.schema = Schema(
             name="test_schema",
             document=Document(fields=[Field(name="test_name", type="string")]),
             fieldsets=[FieldSet(name="default", fields=["title", "body"])],
@@ -353,21 +353,59 @@ class TestSchema(unittest.TestCase):
                 )
             ],
         )
-        self.assertEqual(schema, Schema.from_dict(schema.to_dict))
+
+    def test_serialization(self):
+        self.assertEqual(self.schema, Schema.from_dict(self.schema.to_dict))
+
+    def test_rank_profile(self):
         self.assertDictEqual(
-            schema.rank_profiles,
+            self.schema.rank_profiles,
             {"bm25": RankProfile(name="bm25", first_phase="bm25(title) + bm25(body)")},
         )
-        schema.add_rank_profile(
+        self.schema.add_rank_profile(
             RankProfile(name="default", first_phase="NativeRank(title)")
         )
         self.assertDictEqual(
-            schema.rank_profiles,
+            self.schema.rank_profiles,
             {
                 "bm25": RankProfile(
                     name="bm25", first_phase="bm25(title) + bm25(body)"
                 ),
                 "default": RankProfile(name="default", first_phase="NativeRank(title)"),
+            },
+        )
+
+    def test_imported_field(self):
+        self.assertDictEqual(
+            self.schema.imported_fields,
+            {
+                "global_category_ctrs": ImportedField(
+                    name="global_category_ctrs",
+                    reference_field="category_ctr_ref",
+                    field_to_import="ctrs",
+                )
+            },
+        )
+        self.schema.add_imported_field(
+            ImportedField(
+                name="new_imported_field",
+                reference_field="category_ctr_ref",
+                field_to_import="ctrs",
+            )
+        )
+        self.assertDictEqual(
+            self.schema.imported_fields,
+            {
+                "global_category_ctrs": ImportedField(
+                    name="global_category_ctrs",
+                    reference_field="category_ctr_ref",
+                    field_to_import="ctrs",
+                ),
+                "new_imported_field": ImportedField(
+                    name="new_imported_field",
+                    reference_field="category_ctr_ref",
+                    field_to_import="ctrs",
+                ),
             },
         )
 
@@ -828,7 +866,7 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
             "        }\n"
             "        field category_ctr_ref type reference<category_ctr> {\n"
             "            indexing: attribute\n"
-            "        }\n"            
+            "        }\n"
             "    }\n"
             "    import field category_ctr_ref.ctrs as global_category_ctrs {}\n"
             "}"
