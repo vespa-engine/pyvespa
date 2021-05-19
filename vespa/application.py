@@ -155,10 +155,10 @@ class Vespa(object):
             body.update(
                 {
                     "recall": "+("
-                              + " ".join(
+                    + " ".join(
                         ["{}:{}".format(recall[0], str(doc)) for doc in recall[1]]
                     )
-                              + ")"
+                    + ")"
                 }
             )
         body.update(kwargs)
@@ -187,7 +187,11 @@ class Vespa(object):
         :param kwargs: Additional parameters to be sent along the request.
         :return: Either the request body if debug_request is True or the result from the Vespa application
         """
-        body = self._build_query_body(query, query_model, recall, **kwargs) if body is None else body
+        body = (
+            self._build_query_body(query, query_model, recall, **kwargs)
+            if body is None
+            else body
+        )
         if debug_request:
             return VespaResult(vespa_result={}, request_body=body)
         else:
@@ -210,14 +214,35 @@ class Vespa(object):
         response = self.http_session.post(end_point, json=vespa_format, cert=self.cert)
         return response
 
-    def feed_batch(self, batch):
+    def _feed_batch_sync(self, schema: str, batch: List[Dict]):
+        return [
+            self.feed_data_point(schema, data_point["id"], data_point["fields"])
+            for data_point in batch
+        ]
+
+    async def _feed_batch_async(self, schema: str, batch: List[Dict]):
+        async with VespaAsync(self) as async_app:
+            return await async_app.feed_batch(schema=schema, batch=batch)
+
+    def feed_batch(self, schema: str, batch: List[Dict], asynchronous=False):
         """
         Feed a batch of data to a Vespa app.
 
-        :param batch: A list of tuples with 'schema', 'id' and 'fields'.
+        :param schema: The schema that we are sending data to.
+        :param batch: A list of dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
+        :param asynchronous: Set True to send data in async mode. Default to False. Create and execute the coroutine if
+            there is no active running loop. Otherwise it returns the coroutine and requires await to be executed.
         :return: List of HTTP POST responses
         """
-        return [self.feed_data_point(schema, id, fields) for schema, id, fields in batch]
+
+        if asynchronous:
+            try:
+                _ = asyncio.get_running_loop()
+                return self._feed_batch_async(schema=schema, batch=batch)
+            except RuntimeError:
+                return asyncio.run(self._feed_batch_async(schema=schema, batch=batch))
+        else:
+            return self._feed_batch_sync(schema=schema, batch=batch)
 
     def delete_data(self, schema: str, data_id: str) -> Response:
         """
@@ -291,7 +316,10 @@ class Vespa(object):
         :param batch: A list of tuples with 'schema', 'id', 'fields', and 'create'
         :return:
         """
-        return [self.update_data(schema, id, fields, create) for schema, id, fields, create in batch]
+        return [
+            self.update_data(schema, id, fields, create)
+            for schema, id, fields, create in batch
+        ]
 
     @staticmethod
     def annotate_data(
@@ -570,8 +598,7 @@ class Vespa(object):
 
 
 class VespaAsync(object):
-
-    def __init__( self, app: Vespa) -> None:
+    def __init__(self, app: Vespa) -> None:
         self.app = app
         self.aiohttp_session = None
 
@@ -603,17 +630,23 @@ class VespaAsync(object):
         return [result for result in map(lambda task: task.result(), tasks)]
 
     async def query(
-            self,
-            body: Optional[Dict] = None,
-            query: Optional[str] = None,
-            query_model: Optional[QueryModel] = None,
-            debug_request: bool = False,
-            recall: Optional[Tuple] = None,
-            **kwargs
+        self,
+        body: Optional[Dict] = None,
+        query: Optional[str] = None,
+        query_model: Optional[QueryModel] = None,
+        debug_request: bool = False,
+        recall: Optional[Tuple] = None,
+        **kwargs
     ):
         if debug_request:
-            return self.app.query(body, query, query_model, debug_request, recall, **kwargs)
-        body = self.app._build_query_body(query, query_model, recall, **kwargs) if body is None else body
+            return self.app.query(
+                body, query, query_model, debug_request, recall, **kwargs
+            )
+        body = (
+            self.app._build_query_body(query, query_model, recall, **kwargs)
+            if body is None
+            else body
+        )
         r = await self.aiohttp_session.post(self.app.search_end_point, json=body)
         return VespaResult(vespa_result=await r.json())
 
@@ -624,8 +657,11 @@ class VespaAsync(object):
         vespa_format = {"fields": fields}
         return await self.aiohttp_session.post(end_point, json=vespa_format)
 
-    async def feed_batch(self, batch):
-        return await self._wait(self.feed_data_point, batch)
+    async def feed_batch(self, schema: str, batch: List[Dict]):
+        return await self._wait(
+            self.feed_data_point,
+            [(schema, data_point["id"], data_point["fields"]) for data_point in batch],
+        )
 
     async def delete_data(self, schema: str, data_id: str):
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
@@ -645,7 +681,9 @@ class VespaAsync(object):
     async def get_batch(self, batch):
         return await self._wait(self.get_data, batch)
 
-    async def update_data(self, schema: str, data_id: str, fields: Dict, create: bool = False):
+    async def update_data(
+        self, schema: str, data_id: str, fields: Dict, create: bool = False
+    ):
         end_point = "{}/document/v1/{}/{}/docid/{}?create={}".format(
             self.app.end_point, schema, schema, str(data_id), str(create).lower()
         )
@@ -654,4 +692,3 @@ class VespaAsync(object):
 
     async def update_batch(self, batch):
         return await self._wait(self.update_data, batch)
-
