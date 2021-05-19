@@ -114,7 +114,7 @@ jobs:
       - run-integration-cloud: |
           pytest vespa/test_integration_vespa_cloud.py
   notebooks-cloud:
-    requires: [~commit,~pr]
+    requires: [integration-cloud]
     annotations:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
