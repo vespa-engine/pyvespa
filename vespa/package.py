@@ -120,12 +120,12 @@ class Field(ToJson, FromJson["Field"]):
         ...     type="tensor<float>(x[128])",
         ...     indexing=["attribute"],
         ...     ann=HNSW(
-        ...         distance_metric="enclidean",
+        ...         distance_metric="euclidean",
         ...         max_links_per_node=16,
         ...         neighbors_to_explore_at_insert=200,
         ...     ),
         ... )
-        Field('tensor_field', 'tensor<float>(x[128])', ['attribute'], None, None, HNSW('enclidean', 16, 200))
+        Field('tensor_field', 'tensor<float>(x[128])', ['attribute'], None, None, HNSW('euclidean', 16, 200))
 
         """
         self.name = name
