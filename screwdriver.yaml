@@ -54,7 +54,7 @@ jobs:
           python3 -m pip install pytest 
           python3 -m pip install -e .[full]
       - run-integration-running-instance: |
-          pytest vespa/test_integration_running_instance.py
+          pytest vespa/test_integration_running_instance.py -s
       - run-integration-docker: |
           pytest vespa/test_integration_docker.py
   notebooks-except-cloud:
