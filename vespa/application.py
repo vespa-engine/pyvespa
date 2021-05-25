@@ -614,7 +614,8 @@ class VespaAsync(object):
             return
         sslcontext = False
         if self.app.cert is not None:
-            sslcontext = ssl.create_default_context().load_cert_chain(self.app.cert)
+            sslcontext = ssl.create_default_context()
+            sslcontext.load_cert_chain(self.app.cert)
         conn = aiohttp.TCPConnector(ssl=sslcontext)
         self.aiohttp_session = aiohttp.ClientSession(connector=conn)
         return self.aiohttp_session
