@@ -236,7 +236,7 @@ class TestCloudDeployment(unittest.TestCase):
             # Feed some data points
             #
             feed = []
-            for i in range(1, 101):
+            for i in range(100):
                 feed.append(
                     asyncio.create_task(
                         async_app.feed_data_point(
@@ -252,7 +252,7 @@ class TestCloudDeployment(unittest.TestCase):
                 )
             await asyncio.wait(feed, return_when=asyncio.ALL_COMPLETED)
             result = await feed[0].result().json()
-            self.assertEqual(result["id"], "id:msmarco:msmarco::1")
+            self.assertEqual(result["id"], "id:msmarco:msmarco::0")
 
             #
             # Get data that exists
@@ -302,13 +302,13 @@ class TestCloudDeployment(unittest.TestCase):
             #
             # Delete a data point
             #
-            response = await async_app.delete_data(schema="msmarco", data_id="1")
+            response = await async_app.delete_data(schema="msmarco", data_id="99")
             result = await response.json()
-            self.assertEqual(result["id"], "id:msmarco:msmarco::1")
+            self.assertEqual(result["id"], "id:msmarco:msmarco::99")
             #
             # Deleted data should be gone
             #
-            response = await async_app.get_data(schema="msmarco", data_id="1")
+            response = await async_app.get_data(schema="msmarco", data_id="99")
             self.assertEqual(response.status, 404)
 
             #
