@@ -21,4 +21,4 @@ jobs:
           python3 -m pip install pytest
           python3 -m pip install -e .[full]
       - run-integration-cloud: |
-          pytest vespa/test_integration_vespa_cloud.py
+          pytest vespa/test_integration_vespa_cloud.py -s
