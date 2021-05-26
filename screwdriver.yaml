@@ -34,8 +34,7 @@ jobs:
           python3 -m pip install runnb
           dnf install -y tree
           dnf install -y wget
+          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' ! -name '*three-ways-to-get-started-with-pyvespa*.ipynb'
+          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' ! -name '*three-ways-to-get-started-with-pyvespa*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=6000 --execute {} +
+          find docs -name '*.nbconvert.ipynb' -exec rm {} +
           runnb --allow-not-trusted  docs/sphinx/source/three-ways-to-get-started-with-pyvespa.ipynb
-#          find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
-#          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=6000 --execute {} +
-#          find docs -name '*.nbconvert.ipynb' -exec rm {} +
-#          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec runnb --allow-not-trusted {} +
