@@ -28,6 +28,7 @@ setuptools.setup(
         "docker",
         "jinja2",
         "cryptography",
+        "aiohttp"
     ],
     extras_require={
         "ml": ["transformers", "torch"],
