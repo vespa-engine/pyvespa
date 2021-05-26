@@ -56,7 +56,7 @@ jobs:
       - run-integration-running-instance: |
           pytest vespa/test_integration_running_instance.py -s
       - run-integration-docker: |
-          pytest vespa/test_integration_docker.py -s --trace
+          pytest vespa/test_integration_docker.py -s
   notebooks-except-cloud:
     requires: [~commit,~pr]
     annotations:
