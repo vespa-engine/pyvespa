@@ -19,6 +19,7 @@ from vespa.query import QueryModel, RankProfile as Ranking, OR, QueryRankingFeat
 
 class TestDockerDeployment(unittest.TestCase):
     def setUp(self) -> None:
+        print("setup")
         #
         # Create application package
         #
@@ -67,6 +68,7 @@ class TestDockerDeployment(unittest.TestCase):
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
 
     def test_deploy(self):
+        print("test_deploy")
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
         app = self.vespa_docker.deploy(application_package=self.app_package)
         self.assertTrue(
@@ -78,6 +80,7 @@ class TestDockerDeployment(unittest.TestCase):
         )
 
     def test_instantiate_from_container_name_or_id(self):
+        print("test_instantiate_from_container_name_or_id")
         with self.assertRaises(ValueError):
             _ = VespaDocker.from_container_name_or_id("msmarco")
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
@@ -85,42 +88,45 @@ class TestDockerDeployment(unittest.TestCase):
         vespa_docker_from_container = VespaDocker.from_container_name_or_id("msmarco")
         self.assertEqual(self.vespa_docker, vespa_docker_from_container)
 
-    # def test_container_rerun(self):
-    #     self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-    #     app = self.vespa_docker.deploy(application_package=self.app_package)
-    #     self.assertTrue(
-    #         any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
-    #     )
-    #     self.vespa_docker.container.stop()
-    #     app = self.vespa_docker.deploy(application_package=self.app_package)
-    #     self.assertEqual(app.get_application_status().status_code, 200)
+    def test_container_rerun(self):
+        print("test_container_rerun")
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        app = self.vespa_docker.deploy(application_package=self.app_package)
+        self.assertTrue(
+            any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
+        )
+        self.vespa_docker.container.stop()
+        app = self.vespa_docker.deploy(application_package=self.app_package)
+        self.assertEqual(app.get_application_status().status_code, 200)
 
-    # def test_application_redeploy(self):
-    #     self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-    #     app = self.vespa_docker.deploy(application_package=self.app_package)
-    #     res = app.query(
-    #         body={
-    #             "yql": "select * from sources * where default contains 'music';",
-    #             "ranking": "bm25",
-    #         }
-    #     ).json
-    #     self.assertEqual(
-    #         res["root"]["errors"][0]["message"],
-    #         "Requested rank profile 'bm25' is undefined for document type 'msmarco'",
-    #     )
-    #     self.app_package.schema.add_rank_profile(
-    #         RankProfile(name="bm25", inherits="default", first_phase="bm25(title)")
-    #     )
-    #     app = self.vespa_docker.deploy(application_package=self.app_package)
-    #     res = app.query(
-    #         body={
-    #             "yql": "select * from sources * where default contains 'music';",
-    #             "ranking": "bm25",
-    #         }
-    #     ).json
-    #     self.assertTrue("errors" not in res["root"])
+    def test_application_redeploy(self):
+        print("test_application_redeploy")
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        app = self.vespa_docker.deploy(application_package=self.app_package)
+        res = app.query(
+            body={
+                "yql": "select * from sources * where default contains 'music';",
+                "ranking": "bm25",
+            }
+        ).json
+        self.assertEqual(
+            res["root"]["errors"][0]["message"],
+            "Requested rank profile 'bm25' is undefined for document type 'msmarco'",
+        )
+        self.app_package.schema.add_rank_profile(
+            RankProfile(name="bm25", inherits="default", first_phase="bm25(title)")
+        )
+        app = self.vespa_docker.deploy(application_package=self.app_package)
+        res = app.query(
+            body={
+                "yql": "select * from sources * where default contains 'music';",
+                "ranking": "bm25",
+            }
+        ).json
+        self.assertTrue("errors" not in res["root"])
 
     def test_start_stop_restart_services(self):
+        print("test_start_stop_restart_services")
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
         with self.assertRaises(RuntimeError):
             self.vespa_docker.stop_services()
@@ -141,6 +147,7 @@ class TestDockerDeployment(unittest.TestCase):
         self.assertEqual(app.get_application_status().status_code, 200)
 
     def test_data_operation(self):
+        print("test_data_operation")
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
         app = self.vespa_docker.deploy(application_package=self.app_package)
         #
@@ -237,6 +244,7 @@ class TestDockerDeployment(unittest.TestCase):
         )
 
     def test_deploy_from_disk_with_disk_folder(self):
+        print("test_deploy_from_disk_with_disk_folder")
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
         self.vespa_docker.export_application_package(
             application_package=self.app_package
@@ -253,6 +261,7 @@ class TestDockerDeployment(unittest.TestCase):
         )
 
     def test_deploy_from_disk_with_application_folder(self):
+        print("test_deploy_from_disk_with_application_folder")
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
         self.vespa_docker.export_application_package(
             application_package=self.app_package
@@ -269,6 +278,7 @@ class TestDockerDeployment(unittest.TestCase):
         )
 
     def tearDown(self) -> None:
+        print("teardown")
         shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_docker.container.stop()
         self.vespa_docker.container.remove()
@@ -276,6 +286,7 @@ class TestDockerDeployment(unittest.TestCase):
 
 class TestOnnxModelDockerDeployment(unittest.TestCase):
     def setUp(self) -> None:
+        print("setup")
         #
         # Create application package
         #
@@ -314,6 +325,7 @@ class TestOnnxModelDockerDeployment(unittest.TestCase):
         self.app = self.vespa_docker.deploy(application_package=self.app_package)
 
     def test_deploy(self):
+        print("test_deploy")
         self.assertTrue(
             any(
                 re.match("Generation: [0-9]+", line)
@@ -323,6 +335,7 @@ class TestOnnxModelDockerDeployment(unittest.TestCase):
         self.assertEqual(self.app.get_application_status().status_code, 200)
 
     def test_data_operation(self):
+        print("test_data_operation")
         #
         # Get data that does not exist
         #
@@ -418,6 +431,7 @@ class TestOnnxModelDockerDeployment(unittest.TestCase):
         return [x["value"] for x in hit["fields"]["summaryfeatures"][feature]["cells"]]
 
     def test_rank_input_output(self):
+        print("test_rank_input_output")
         #
         # Feed a data point
         #
@@ -480,6 +494,7 @@ class TestOnnxModelDockerDeployment(unittest.TestCase):
         )
 
     def tearDown(self) -> None:
+        print("teardown")
         shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_docker.container.stop()
         self.vespa_docker.container.remove()
