@@ -1,5 +1,5 @@
-Create Application Packages with pyvespa
-========================================
+Define application
+==================
 
 This page shows how to create Vespa applications from scratch in python.
 
