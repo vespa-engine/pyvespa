@@ -1,5 +1,5 @@
-Deploy Application Packages
-===========================
+Deploy application
+==================
 
 This page shows how to deploy Vespa application packages.
 
