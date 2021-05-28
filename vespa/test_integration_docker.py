@@ -85,40 +85,40 @@ class TestDockerDeployment(unittest.TestCase):
         vespa_docker_from_container = VespaDocker.from_container_name_or_id("msmarco")
         self.assertEqual(self.vespa_docker, vespa_docker_from_container)
 
-    # def test_container_rerun(self):
-    #     self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-    #     app = self.vespa_docker.deploy(application_package=self.app_package)
-    #     self.assertTrue(
-    #         any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
-    #     )
-    #     self.vespa_docker.container.stop()
-    #     app = self.vespa_docker.deploy(application_package=self.app_package)
-    #     self.assertEqual(app.get_application_status().status_code, 200)
+    def test_container_rerun(self):
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        app = self.vespa_docker.deploy(application_package=self.app_package)
+        self.assertTrue(
+            any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
+        )
+        self.vespa_docker.container.stop()
+        app = self.vespa_docker.deploy(application_package=self.app_package)
+        self.assertEqual(app.get_application_status().status_code, 200)
 
-    # def test_application_redeploy(self):
-    #     self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-    #     app = self.vespa_docker.deploy(application_package=self.app_package)
-    #     res = app.query(
-    #         body={
-    #             "yql": "select * from sources * where default contains 'music';",
-    #             "ranking": "bm25",
-    #         }
-    #     ).json
-    #     self.assertEqual(
-    #         res["root"]["errors"][0]["message"],
-    #         "Requested rank profile 'bm25' is undefined for document type 'msmarco'",
-    #     )
-    #     self.app_package.schema.add_rank_profile(
-    #         RankProfile(name="bm25", inherits="default", first_phase="bm25(title)")
-    #     )
-    #     app = self.vespa_docker.deploy(application_package=self.app_package)
-    #     res = app.query(
-    #         body={
-    #             "yql": "select * from sources * where default contains 'music';",
-    #             "ranking": "bm25",
-    #         }
-    #     ).json
-    #     self.assertTrue("errors" not in res["root"])
+    def test_application_redeploy(self):
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        app = self.vespa_docker.deploy(application_package=self.app_package)
+        res = app.query(
+            body={
+                "yql": "select * from sources * where default contains 'music';",
+                "ranking": "bm25",
+            }
+        ).json
+        self.assertEqual(
+            res["root"]["errors"][0]["message"],
+            "Requested rank profile 'bm25' is undefined for document type 'msmarco'",
+        )
+        self.app_package.schema.add_rank_profile(
+            RankProfile(name="bm25", inherits="default", first_phase="bm25(title)")
+        )
+        app = self.vespa_docker.deploy(application_package=self.app_package)
+        res = app.query(
+            body={
+                "yql": "select * from sources * where default contains 'music';",
+                "ranking": "bm25",
+            }
+        ).json
+        self.assertTrue("errors" not in res["root"])
 
     def test_start_stop_restart_services(self):
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
