@@ -401,7 +401,6 @@ class TestEvalMetric(unittest.TestCase):
             },
         )
 
-
     def test_reciprocal_rank(self):
         metric = ReciprocalRank(at=2)
         evaluation = metric.evaluate_query(
@@ -469,7 +468,7 @@ class TestEvalMetric(unittest.TestCase):
             default_score=0,
         )
         expected_dcg = 0 / math.log2(2) + 1 / math.log2(3)
-        expected_ideal_dcg = 1 / math.log2(2) + 0 / math.log2(3)
+        expected_ideal_dcg = 1 / math.log2(2) + 1 / math.log2(3)
         expected_ndcg = expected_dcg / expected_ideal_dcg
 
         self.assertDictEqual(
@@ -503,7 +502,7 @@ class TestEvalMetric(unittest.TestCase):
             default_score=0,
         )
         expected_dcg = 0 / math.log2(2)
-        expected_ideal_dcg = 0 / math.log2(3)
+        expected_ideal_dcg = 1 / math.log2(2)
         expected_ndcg = 0
         self.assertDictEqual(
             evaluation,
