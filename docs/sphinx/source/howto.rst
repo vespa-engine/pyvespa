@@ -2,7 +2,7 @@ How-to guides
 =============
 
 .. toctree::
-   :hidden:
+   :maxdepth: 2
 
    howto/create_app_package/create_app_package
    howto/deploy_app_package/deploy_app_package
