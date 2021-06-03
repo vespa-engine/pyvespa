@@ -87,6 +87,8 @@ class Recall(EvalMetric):
         """
         Evaluate query results.
 
+        There is an assumption that only documents with score > 0 are relevant.
+
         :param query_results: Raw query results returned by Vespa.
         :param relevant_docs: A list with dicts where each dict contains a doc id a optionally a doc score.
         :param id_field: The Vespa field representing the document id.
@@ -95,7 +97,7 @@ class Recall(EvalMetric):
         :return: Dict containing the recall value.
         """
 
-        relevant_ids = {str(doc["id"]) for doc in relevant_docs}
+        relevant_ids = {str(doc["id"]) for doc in relevant_docs if doc.get("score", default_score) > 0}
         try:
             retrieved_ids = {
                 str(hit["fields"][id_field]) for hit in query_results.hits[: self.at]
@@ -128,6 +130,8 @@ class ReciprocalRank(EvalMetric):
         """
         Evaluate query results.
 
+        There is an assumption that only documents with score > 0 are relevant.
+        
         :param query_results: Raw query results returned by Vespa.
         :param relevant_docs: A list with dicts where each dict contains a doc id a optionally a doc score.
         :param id_field: The Vespa field representing the document id.
@@ -136,7 +140,7 @@ class ReciprocalRank(EvalMetric):
         :return: Dict containing the reciprocal rank value.
         """
 
-        relevant_ids = {str(doc["id"]) for doc in relevant_docs}
+        relevant_ids = {str(doc["id"]) for doc in relevant_docs if doc.get("score", default_score) > 0}
         rr = 0
         hits = query_results.hits[: self.at]
         for index, hit in enumerate(hits):
