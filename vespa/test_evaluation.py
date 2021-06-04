@@ -453,6 +453,20 @@ class TestEvalMetric(unittest.TestCase):
             },
         )
 
+        metric = Recall(at=3)
+        evaluation = metric.evaluate_query(
+            query_results=VespaResult(self.query_results2),
+            relevant_docs=[{"id": "ghi", "score": 0}, {"id": "abc", "score": 0}],
+            id_field="vespa_id_field",
+            default_score=0,
+        )
+        self.assertDictEqual(
+            evaluation,
+            {
+                "recall_3": 0,
+            },
+        )
+
     def test_reciprocal_rank(self):
         metric = ReciprocalRank(at=2)
         evaluation = metric.evaluate_query(
@@ -550,7 +564,7 @@ class TestEvalMetric(unittest.TestCase):
         self.assertDictEqual(
             evaluation,
             {
-                "reciprocal_rank_3": 1/3,
+                "reciprocal_rank_3": 1 / 3,
             },
         )
 

@@ -87,7 +87,8 @@ class Recall(EvalMetric):
         """
         Evaluate query results.
 
-        There is an assumption that only documents with score > 0 are relevant.
+        There is an assumption that only documents with score > 0 are relevant. Recall is equal to zero in case no
+        relevant documents with score > 0 is provided.
 
         :param query_results: Raw query results returned by Vespa.
         :param relevant_docs: A list with dicts where each dict contains a doc id a optionally a doc score.
@@ -105,7 +106,7 @@ class Recall(EvalMetric):
         except KeyError:
             retrieved_ids = set()
 
-        return {str(self.name): len(relevant_ids & retrieved_ids) / len(relevant_ids)}
+        return {str(self.name): len(relevant_ids & retrieved_ids) / len(relevant_ids) if len(relevant_ids) > 0 else 0}
 
 
 class ReciprocalRank(EvalMetric):
@@ -131,7 +132,7 @@ class ReciprocalRank(EvalMetric):
         Evaluate query results.
 
         There is an assumption that only documents with score > 0 are relevant.
-        
+
         :param query_results: Raw query results returned by Vespa.
         :param relevant_docs: A list with dicts where each dict contains a doc id a optionally a doc score.
         :param id_field: The Vespa field representing the document id.
