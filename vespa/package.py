@@ -1498,6 +1498,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
     ) -> None:
         """
         Manage Docker deployments.
+
         :param disk_folder: Disk folder to save the required Vespa config files.
         :param port: Container port.
         :param output_file: Output file to write output messages.
