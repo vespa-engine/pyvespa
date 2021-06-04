@@ -1,6 +1,9 @@
 Reference API
 =============
 
+Define application
+******************
+
 Create an Application Package
 -----------------------------
 
@@ -105,25 +108,35 @@ QueryProfile
    :members:
    :special-members: __init__
 
-Deploying your application
-++++++++++++++++++++++++++
+Deploy your application
+***********************
 
 VespaDocker
-~~~~~~~~~~~
+-----------
 
 .. autoclass:: vespa.package.VespaDocker
    :members:
    :special-members: __init__
 
 VespaCloud
-~~~~~~~~~~
+----------
 
 .. autoclass:: vespa.package.VespaCloud
    :members:
    :special-members: __init__
 
+Connect to existing application
+*******************************
+
+Vespa
+-----
+
+.. autoclass:: vespa.application.Vespa
+   :members:
+   :special-members: __init__
+
 Query Model
------------
+***********
 
 A :class:`~vespa.query.QueryModel` is an abstraction that encapsulates all the relevant information controlling
 how your app match and rank documents. A `QueryModel` can be used for querying (:func:`~vespa.application.Vespa.query`),
@@ -131,85 +144,97 @@ evaluating (:func:`~vespa.application.Vespa.evaluate`) and collecting data
 (:func:`~vespa.application.Vespa.collect_training_data`) from your app.
 
 Create a QueryModel
-+++++++++++++++++++
+-------------------
 
 .. autoclass:: vespa.query.QueryModel
    :members:
    :special-members: __init__
 
 Match phase
-+++++++++++
+-----------
 
 Union
-~~~~~
++++++
 
 .. autoclass:: vespa.query.Union
    :members:
    :special-members: __init__
 
 AND
-~~~
++++
 
 .. autoclass:: vespa.query.AND
    :members:
    :special-members: __init__
 
 OR
-~~
+++
 
 .. autoclass:: vespa.query.OR
    :members:
    :special-members: __init__
 
 WeakAnd
-~~~~~~~
++++++++
 
 .. autoclass:: vespa.query.WeakAnd
    :members:
    :special-members: __init__
 
 ANN
-~~~
++++
 
 .. autoclass:: vespa.query.ANN
    :members:
    :special-members: __init__
 
 Rank Profile
-++++++++++++
+------------
 
 RankProfile
-~~~~~~~~~~~
++++++++++++
 
 .. autoclass:: vespa.query.RankProfile
    :members:
    :special-members: __init__
 
 Query Properties
-++++++++++++++++
+----------------
 
 QueryRankingFeature
-~~~~~~~~~~~~~~~~~~~
++++++++++++++++++++
 
 .. autoclass:: vespa.query.QueryRankingFeature
    :members:
    :special-members: __init__
 
-vespa.application module
-------------------------
+Evaluation Metrics
+******************
 
-.. automodule:: vespa.application
+MatchRatio
+----------
+
+.. autoclass:: vespa.evaluation.MatchRatio
    :members:
-   :undoc-members:
-   :show-inheritance:
    :special-members: __init__
 
-vespa.evaluation module
------------------------
+Recall
+------
 
-.. automodule:: vespa.evaluation
+.. autoclass:: vespa.evaluation.Recall
    :members:
-   :undoc-members:
-   :show-inheritance:
    :special-members: __init__
 
+ReciprocalRank
+--------------
+
+.. autoclass:: vespa.evaluation.ReciprocalRank
+   :members:
+   :special-members: __init__
+
+NormalizedDiscountedCumulativeGain
+----------------------------------
+
+.. autoclass:: vespa.evaluation.NormalizedDiscountedCumulativeGain
+   :members:
+   :special-members: __init__
