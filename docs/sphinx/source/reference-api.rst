@@ -132,8 +132,87 @@ Vespa
 -----
 
 .. autoclass:: vespa.application.Vespa
-   :members:
    :special-members: __init__
+
+Interact to existing application
+********************************
+
+Feed data
+---------
+
+feed_batch
+++++++++++
+
+.. automethod:: vespa.application.Vespa.feed_batch
+
+feed_data_point
++++++++++++++++
+
+.. automethod:: vespa.application.Vespa.feed_data_point
+
+Get, update and delete data
+---------------------------
+
+get_data
+++++++++
+
+.. automethod:: vespa.application.Vespa.get_data
+
+get_batch
++++++++++
+
+.. automethod:: vespa.application.Vespa.get_batch
+
+update_data
++++++++++++
+
+.. automethod:: vespa.application.Vespa.update_data
+
+update_batch
+++++++++++++
+
+.. automethod:: vespa.application.Vespa.update_batch
+
+delete_data
++++++++++++
+
+.. automethod:: vespa.application.Vespa.delete_data
+
+delete_batch
+++++++++++++
+
+.. automethod:: vespa.application.Vespa.delete_batch
+
+Query
+-----
+
+.. automethod:: vespa.application.Vespa.query
+
+Run experiments
+---------------
+
+evaluate
+++++++++
+
+.. automethod:: vespa.application.Vespa.evaluate
+
+evaluate_query
+++++++++++++++
+
+.. automethod:: vespa.application.Vespa.evaluate_query
+
+Collect training data
+---------------------
+
+collect_training_data
++++++++++++++++++++++
+
+.. automethod:: vespa.application.Vespa.collect_training_data
+
+collect_training_data_point
++++++++++++++++++++++++++++
+
+.. automethod:: vespa.application.Vespa.collect_training_data_point
 
 Query Model
 ***********
