@@ -5,7 +5,8 @@ from unittest.mock import Mock, call
 from pandas import DataFrame
 from pandas.testing import assert_frame_equal
 
-from vespa.application import Vespa, parse_labeled_data, VespaResult
+from vespa.application import Vespa, parse_labeled_data
+from vespa.io import VespaResult
 from vespa.query import QueryModel, OR, RankProfile
 
 

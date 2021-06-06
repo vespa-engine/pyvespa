@@ -14,7 +14,7 @@ from vespa.query import (
     Union,
     RankProfile,
 )
-from vespa.application import VespaResult
+from vespa.io import VespaResult
 
 
 class TestQueryProperty(unittest.TestCase):
