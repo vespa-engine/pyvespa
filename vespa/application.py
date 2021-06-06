@@ -13,6 +13,7 @@ from requests.exceptions import ConnectionError
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
+from vespa.io import VespaResult, VespaResponse
 from vespa.query import QueryModel
 from vespa.evaluation import EvalMetric
 
@@ -212,7 +213,12 @@ class Vespa(object):
         )
         vespa_format = {"fields": fields}
         response = self.http_session.post(end_point, json=vespa_format, cert=self.cert)
-        return response
+        return VespaResponse(
+            json=response.json(),
+            status_code=response.status_code,
+            url=str(response.url),
+            operation_type="feed",
+        )
 
     def _feed_batch_sync(self, schema: str, batch: List[Dict]):
         return [
@@ -592,7 +598,8 @@ class Vespa(object):
             evaluation = (
                 evaluation[[x for x in evaluation.columns if x != "query_id"]]
                 .groupby(by="model")
-                .agg(aggregators).T
+                .agg(aggregators)
+                .T
             )
         return evaluation
 
@@ -656,7 +663,13 @@ class VespaAsync(object):
             self.app.end_point, schema, schema, str(data_id)
         )
         vespa_format = {"fields": fields}
-        return await self.aiohttp_session.post(end_point, json=vespa_format)
+        response = await self.aiohttp_session.post(end_point, json=vespa_format)
+        return VespaResponse(
+            json=await response.json(),
+            status_code=response.status,
+            url=str(response.url),
+            operation_type="feed",
+        )
 
     async def feed_batch(self, schema: str, batch: List[Dict]):
         return await self._wait(
@@ -693,72 +706,3 @@ class VespaAsync(object):
 
     async def update_batch(self, batch):
         return await self._wait(self.update_data, batch)
-
-
-class VespaResult(object):
-    def __init__(self, vespa_result, request_body=None):
-        self._vespa_result = vespa_result
-        self._request_body = request_body
-
-    @property
-    def request_body(self) -> Optional[Dict]:
-        return self._request_body
-
-    @property
-    def json(self) -> Dict:
-        return self._vespa_result
-
-    @property
-    def hits(self) -> List:
-        return self._vespa_result.get("root", {}).get("children", [])
-
-    def get_hits(self, format_function=trec_format, **kwargs):
-        """
-        Get Vespa hits according to `format_function` format.
-
-        :param format_function: function to format the raw Vespa result. Should take raw vespa result as first argument.
-        :param kwargs: Extra arguments to be passed to `format_function`.
-        :return: Output of the `format_function`.
-        """
-        if not format_function:
-            return self.hits
-        return format_function(self._vespa_result, **kwargs)
-
-    @property
-    def number_documents_retrieved(self) -> int:
-        return self._vespa_result.get("root", {}).get("fields", {}).get("totalCount", 0)
-
-    @property
-    def number_documents_indexed(self) -> int:
-        return (
-            self._vespa_result.get("root", {}).get("coverage", {}).get("documents", 0)
-        )
-
-
-def trec_format(
-    vespa_result, id_field: Optional[str] = None, qid: int = 0
-) -> DataFrame:
-    """
-    Function to format Vespa output according to TREC format.
-
-    TREC format include qid, doc_id, score and rank.
-
-    :param vespa_result: raw Vespa result from query.
-    :param id_field: Name of the Vespa field to use as 'doc_id' value.
-    :param qid: custom query id.
-    :return: pandas DataFrame with columns qid, doc_id, score and rank.
-    """
-    hits = vespa_result.get("root", {}).get("children", [])
-    records = []
-    for rank, hit in enumerate(hits):
-        records.append(
-            {
-                "qid": qid,
-                "doc_id": hit["fields"][id_field]
-                if id_field is not None
-                else hit["id"],
-                "score": hit["relevance"],
-                "rank": rank,
-            }
-        )
-    return DataFrame.from_records(records)
