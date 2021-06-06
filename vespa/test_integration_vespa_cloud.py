@@ -74,7 +74,7 @@ class TestCloudDeployment(unittest.TestCase):
             application_package=app_package,
         )
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-        self.instance_name = "test"
+        self.instance_name = "msmarco"
         self.app = self.vespa_cloud.deploy(
             instance=self.instance_name, disk_folder=self.disk_folder
         )
@@ -102,14 +102,14 @@ class TestCloudDeployment(unittest.TestCase):
                 "body": "this is my first body",
             },
         )
-        self.assertEqual(response.json()["id"], "id:msmarco:msmarco::1")
+        self.assertEqual(response.json["id"], "id:msmarco:msmarco::1")
         #
         # Get data that exist
         #
         response = self.app.get_data(schema="msmarco", data_id="1")
         self.assertEqual(response.status_code, 200)
         self.assertDictEqual(
-            response.json(),
+            response.json,
             {
                 "fields": {
                     "id": "1",
@@ -126,14 +126,14 @@ class TestCloudDeployment(unittest.TestCase):
         response = self.app.update_data(
             schema="msmarco", data_id="1", fields={"title": "this is my updated title"}
         )
-        self.assertEqual(response.json()["id"], "id:msmarco:msmarco::1")
+        self.assertEqual(response.json["id"], "id:msmarco:msmarco::1")
         #
         # Get the updated data point
         #
         response = self.app.get_data(schema="msmarco", data_id="1")
         self.assertEqual(response.status_code, 200)
         self.assertDictEqual(
-            response.json(),
+            response.json,
             {
                 "fields": {
                     "id": "1",
@@ -148,7 +148,7 @@ class TestCloudDeployment(unittest.TestCase):
         # Delete a data point
         #
         response = self.app.delete_data(schema="msmarco", data_id="1")
-        self.assertEqual(response.json()["id"], "id:msmarco:msmarco::1")
+        self.assertEqual(response.json["id"], "id:msmarco:msmarco::1")
         #
         # Deleted data should be gone
         #
@@ -164,14 +164,14 @@ class TestCloudDeployment(unittest.TestCase):
             fields={"title": "this is my updated title"},
             create=True,
         )
-        self.assertEqual(response.json()["id"], "id:msmarco:msmarco::1")
+        self.assertEqual(response.json["id"], "id:msmarco:msmarco::1")
         #
         # Get the updated data point
         #
         response = self.app.get_data(schema="msmarco", data_id="1")
         self.assertEqual(response.status_code, 200)
         self.assertDictEqual(
-            response.json(),
+            response.json,
             {
                 "fields": {
                     "title": "this is my updated title",
@@ -230,7 +230,7 @@ class TestCloudDeployment(unittest.TestCase):
             #
             response = await async_app.delete_data(schema="msmarco", data_id="1")
             response = await async_app.get_data(schema="msmarco", data_id="1")
-            self.assertEqual(response.status, 404)
+            self.assertEqual(response.status_code, 404)
 
             #
             # Feed some data points
@@ -251,15 +251,36 @@ class TestCloudDeployment(unittest.TestCase):
                     )
                 )
             await asyncio.wait(feed, return_when=asyncio.ALL_COMPLETED)
-            result = await feed[0].result().json()
+            result = feed[0].result().json
             self.assertEqual(result["id"], "id:msmarco:msmarco::0")
+
+            self.assertEqual(
+                await async_app.feed_data_point(
+                    schema="msmarco",
+                    data_id="1",
+                    fields={
+                        "id": "1",
+                        "title": "this is title 1",
+                        "body": "this is body 1",
+                    },
+                ),
+                self.app.feed_data_point(
+                    schema="msmarco",
+                    data_id="1",
+                    fields={
+                        "id": "1",
+                        "title": "this is title 1",
+                        "body": "this is body 1",
+                    },
+                ),
+            )
 
             #
             # Get data that exists
             #
             response = await async_app.get_data(schema="msmarco", data_id="1")
-            self.assertEqual(response.status, 200)
-            result = await response.json()
+            self.assertEqual(response.status_code, 200)
+            result = response.json
             self.assertDictEqual(
                 result,
                 {
@@ -278,15 +299,15 @@ class TestCloudDeployment(unittest.TestCase):
             response = await async_app.update_data(
                 schema="msmarco", data_id="1", fields={"id": "this is my updated id"}
             )
-            result = await response.json()
+            result = response.json
             self.assertEqual(result["id"], "id:msmarco:msmarco::1")
 
             #
             # Get the updated data point
             #
             response = await async_app.get_data(schema="msmarco", data_id="1")
-            self.assertEqual(response.status, 200)
-            result = await response.json()
+            self.assertEqual(response.status_code, 200)
+            result = response.json
             self.assertDictEqual(
                 result,
                 {
@@ -303,13 +324,13 @@ class TestCloudDeployment(unittest.TestCase):
             # Delete a data point
             #
             response = await async_app.delete_data(schema="msmarco", data_id="99")
-            result = await response.json()
+            result = response.json
             self.assertEqual(result["id"], "id:msmarco:msmarco::99")
             #
             # Deleted data should be gone
             #
             response = await async_app.get_data(schema="msmarco", data_id="99")
-            self.assertEqual(response.status, 404)
+            self.assertEqual(response.status_code, 404)
 
             #
             # Issue a bunch of queries in parallel
@@ -377,7 +398,7 @@ class TestOnnxModelCloudDeployment(unittest.TestCase):
             application_package=self.app_package,
         )
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-        self.instance_name = "test"
+        self.instance_name = "cord19"
         self.app = self.vespa_cloud.deploy(
             instance=self.instance_name, disk_folder=self.disk_folder
         )
@@ -402,7 +423,7 @@ class TestOnnxModelCloudDeployment(unittest.TestCase):
             data_id="1",
             fields=fields,
         )
-        self.assertEqual(response.json()["id"], "id:cord19:cord19::1")
+        self.assertEqual(response.json["id"], "id:cord19:cord19::1")
         #
         # Get data that exist
         #
@@ -410,7 +431,7 @@ class TestOnnxModelCloudDeployment(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         embedding_values = fields["pretrained_bert_tiny_doc_token_ids"]["values"]
         self.assertDictEqual(
-            response.json(),
+            response.json,
             {
                 "fields": {
                     "cord_uid": "1",
@@ -435,7 +456,7 @@ class TestOnnxModelCloudDeployment(unittest.TestCase):
         fields = {"title": "this is my updated title"}
         fields.update(self.bert_config.doc_fields(text=str(fields["title"])))
         response = self.app.update_data(schema="cord19", data_id="1", fields=fields)
-        self.assertEqual(response.json()["id"], "id:cord19:cord19::1")
+        self.assertEqual(response.json["id"], "id:cord19:cord19::1")
         #
         # Get the updated data point
         #
@@ -443,7 +464,7 @@ class TestOnnxModelCloudDeployment(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         embedding_values = fields["pretrained_bert_tiny_doc_token_ids"]["values"]
         self.assertDictEqual(
-            response.json(),
+            response.json,
             {
                 "fields": {
                     "cord_uid": "1",
@@ -466,7 +487,7 @@ class TestOnnxModelCloudDeployment(unittest.TestCase):
         # Delete a data point
         #
         response = self.app.delete_data(schema="cord19", data_id="1")
-        self.assertEqual(response.json()["id"], "id:cord19:cord19::1")
+        self.assertEqual(response.json["id"], "id:cord19:cord19::1")
         #
         # Deleted data should be gone
         #
@@ -491,7 +512,7 @@ class TestOnnxModelCloudDeployment(unittest.TestCase):
             data_id="1",
             fields=fields,
         )
-        self.assertEqual(response.json()["id"], "id:cord19:cord19::1")
+        self.assertEqual(response.json["id"], "id:cord19:cord19::1")
         #
         # Run a test query
         #
