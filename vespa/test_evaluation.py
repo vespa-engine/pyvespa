@@ -3,7 +3,7 @@
 import unittest
 import math
 
-from vespa.query import VespaResult
+from vespa.application import VespaResult
 from vespa.evaluation import (
     MatchRatio,
     Recall,

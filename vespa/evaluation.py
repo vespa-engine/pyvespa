@@ -2,7 +2,7 @@
 
 import math
 from typing import Dict, List
-from vespa.query import VespaResult
+from vespa.application import VespaResult
 
 
 class EvalMetric(object):

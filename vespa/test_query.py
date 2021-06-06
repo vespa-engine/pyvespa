@@ -13,8 +13,8 @@ from vespa.query import (
     ANN,
     Union,
     RankProfile,
-    VespaResult,
 )
+from vespa.application import VespaResult
 
 
 class TestQueryProperty(unittest.TestCase):
