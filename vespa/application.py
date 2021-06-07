@@ -267,6 +267,20 @@ class Vespa(object):
         """
         return [self.delete_data(schema, id) for schema, id in batch]
 
+    def delete_all_docs(self, content_cluster_name: str, schema: str) -> Response:
+        """
+        Delete all documents associated with the schema
+
+        :param content_cluster_name: Name of content cluster to GET from, or visit.
+        :param schema: The schema that we are deleting data from.
+        :return: Response of the HTTP DELETE request.
+        """
+        end_point = "{}/document/v1/{}/{}/docid/?cluster={}&selection=true".format(
+            self.end_point, schema, schema, content_cluster_name
+        )
+        response = self.http_session.delete(end_point, cert=self.cert)
+        return response
+
     def get_data(self, schema: str, data_id: str) -> Response:
         """
         Get a data point from a Vespa app.
@@ -592,7 +606,8 @@ class Vespa(object):
             evaluation = (
                 evaluation[[x for x in evaluation.columns if x != "query_id"]]
                 .groupby(by="model")
-                .agg(aggregators).T
+                .agg(aggregators)
+                .T
             )
         return evaluation
 
