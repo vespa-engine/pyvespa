@@ -183,6 +183,11 @@ delete_batch
 
 .. automethod:: vespa.application.Vespa.delete_batch
 
+delete_all_docs
++++++++++++++++
+
+.. automethod:: vespa.application.Vespa.delete_all_docs
+
 Query
 -----
 
