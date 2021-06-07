@@ -63,7 +63,7 @@ class TestCloudDeployment(unittest.TestCase):
                 RankProfile(name="default", first_phase="nativeRank(title, body)")
             ],
         )
-        app_package = ApplicationPackage(name="msmarco", schema=[msmarco_schema]    )
+        app_package = ApplicationPackage(name="msmarco", schema=[msmarco_schema])
         #
         # Deploy on Vespa Cloud
         #
@@ -74,7 +74,7 @@ class TestCloudDeployment(unittest.TestCase):
             application_package=app_package,
         )
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-        self.instance_name = "test"
+        self.instance_name = "msmarco"
         self.app = self.vespa_cloud.deploy(
             instance=self.instance_name, disk_folder=self.disk_folder
         )
@@ -329,6 +329,7 @@ class TestCloudDeployment(unittest.TestCase):
             self.assertEqual(queries[0].result().number_documents_indexed, 99)
 
     def tearDown(self) -> None:
+        self.app.delete_all_docs(content_cluster_name="msmarco_content", schema="msmarco")
         shutil.rmtree(self.disk_folder, ignore_errors=True)
 
 
@@ -377,7 +378,7 @@ class TestOnnxModelCloudDeployment(unittest.TestCase):
             application_package=self.app_package,
         )
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-        self.instance_name = "test"
+        self.instance_name = "cord19"
         self.app = self.vespa_cloud.deploy(
             instance=self.instance_name, disk_folder=self.disk_folder
         )
@@ -386,9 +387,7 @@ class TestOnnxModelCloudDeployment(unittest.TestCase):
         #
         # Get data that does not exist
         #
-        self.assertEqual(
-            self.app.get_data(schema="cord19", data_id="1").status_code, 404
-        )
+        self.assertEqual(self.app.get_data(schema="cord19", data_id="1").status_code, 404)
         #
         # Feed a data point
         #
@@ -540,4 +539,5 @@ class TestOnnxModelCloudDeployment(unittest.TestCase):
         )
 
     def tearDown(self) -> None:
+        self.app.delete_all_docs(content_cluster_name="cord19_content", schema="cord19")
         shutil.rmtree(self.disk_folder, ignore_errors=True)
