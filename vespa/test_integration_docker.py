@@ -18,117 +18,204 @@ from vespa.ml import BertModelConfig
 from vespa.query import QueryModel, RankProfile as Ranking, OR, QueryRankingFeature
 
 
-class TestDockerDeployment(unittest.TestCase):
-    def setUp(self) -> None:
-        #
-        # Create application package
-        #
-        document = Document(
-            fields=[
-                Field(name="id", type="string", indexing=["attribute", "summary"]),
-                Field(
-                    name="title",
-                    type="string",
-                    indexing=["index", "summary"],
-                    index="enable-bm25",
+def create_msmarco_application_package():
+    document = Document(
+        fields=[
+            Field(name="id", type="string", indexing=["attribute", "summary"]),
+            Field(
+                name="title",
+                type="string",
+                indexing=["index", "summary"],
+                index="enable-bm25",
+            ),
+            Field(
+                name="body",
+                type="string",
+                indexing=["index", "summary"],
+                index="enable-bm25",
+            ),
+            Field(
+                name="metadata",
+                type="string",
+                indexing=["attribute", "summary"],
+                attribute=["fast-search", "fast-access"],
+            ),
+            Field(
+                name="tensor_field",
+                type="tensor<float>(x[128])",
+                indexing=["attribute", "index"],
+                ann=HNSW(
+                    distance_metric="euclidean",
+                    max_links_per_node=16,
+                    neighbors_to_explore_at_insert=200,
                 ),
-                Field(
-                    name="body",
-                    type="string",
-                    indexing=["index", "summary"],
-                    index="enable-bm25",
-                ),
-                Field(
-                    name="metadata",
-                    type="string",
-                    indexing=["attribute", "summary"],
-                    attribute=["fast-search", "fast-access"],
-                ),
-                Field(
-                    name="tensor_field",
-                    type="tensor<float>(x[128])",
-                    indexing=["attribute", "index"],
-                    ann=HNSW(
-                        distance_metric="euclidean",
-                        max_links_per_node=16,
-                        neighbors_to_explore_at_insert=200,
-                    ),
-                ),
-            ]
-        )
-        msmarco_schema = Schema(
-            name="msmarco",
-            document=document,
-            fieldsets=[FieldSet(name="default", fields=["title", "body"])],
-            rank_profiles=[
-                RankProfile(name="default", first_phase="nativeRank(title, body)")
-            ],
-        )
-        self.app_package = ApplicationPackage(name="msmarco", schema=[msmarco_schema])
-        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+            ),
+        ]
+    )
+    msmarco_schema = Schema(
+        name="msmarco",
+        document=document,
+        fieldsets=[FieldSet(name="default", fields=["title", "body"])],
+        rank_profiles=[
+            RankProfile(name="default", first_phase="nativeRank(title, body)")
+        ],
+    )
+    app_package = ApplicationPackage(name="msmarco", schema=[msmarco_schema])
+    package_and_data = {"application_package": app_package}
+    return package_and_data
 
-    def test_deploy(self):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-        app = self.vespa_docker.deploy(application_package=self.app_package)
+
+def create_cord19_application_package():
+    app_package = ApplicationPackage(name="cord19")
+    app_package.schema.add_fields(
+        Field(name="cord_uid", type="string", indexing=["attribute", "summary"]),
+        Field(
+            name="title",
+            type="string",
+            indexing=["index", "summary"],
+            index="enable-bm25",
+        ),
+    )
+    app_package.schema.add_field_set(FieldSet(name="default", fields=["title"]))
+    app_package.schema.add_rank_profile(
+        RankProfile(name="bm25", first_phase="bm25(title)")
+    )
+    bert_config = BertModelConfig(
+        model_id="pretrained_bert_tiny",
+        tokenizer="google/bert_uncased_L-2_H-128_A-2",
+        model="google/bert_uncased_L-2_H-128_A-2",
+        query_input_size=5,
+        doc_input_size=10,
+    )
+    app_package.add_model_ranking(
+        model_config=bert_config,
+        include_model_summary_features=True,
+        inherits="default",
+        first_phase="bm25(title)",
+        second_phase=SecondPhaseRanking(rerank_count=10, expression="logit1"),
+    )
+    return app_package
+
+
+class TestDockerCommon(unittest.TestCase):
+    def deploy(self, application_package, disk_folder):
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+        app = self.vespa_docker.deploy(application_package=application_package)
+        #
+        # Test deployment
+        #
         self.assertTrue(
             any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
         )
         self.assertEqual(app.get_application_status().status_code, 200)
+        #
+        # Test VespaDocker serialization
+        #
         self.assertEqual(
             self.vespa_docker, VespaDocker.from_dict(self.vespa_docker.to_dict)
         )
 
-    def test_instantiate_from_container_name_or_id(self):
+    def deploy_from_disk_with_disk_folder(self, application_package, disk_folder):
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+        self.vespa_docker.export_application_package(
+            application_package=application_package
+        )
+        #
+        # Disk folder as the application folder
+        #
+        self.vespa_docker.disk_folder = os.path.join(disk_folder, "application")
+        app = self.vespa_docker.deploy_from_disk(
+            application_name=application_package.name,
+        )
+        self.assertTrue(
+            any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
+        )
+
+    def deploy_from_disk_with_application_folder(
+        self, application_package, disk_folder
+    ):
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+        self.vespa_docker.export_application_package(
+            application_package=application_package
+        )
+        #
+        # Application folder inside disk folder
+        #
+        app = self.vespa_docker.deploy_from_disk(
+            application_name=application_package.name,
+            application_folder="application",
+        )
+        self.assertTrue(
+            any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
+        )
+
+    def create_vespa_docker_from_container_name_or_id(
+        self, application_package, disk_folder
+    ):
+        #
+        # Raises ValueError if container does not exist
+        #
         with self.assertRaises(ValueError):
-            _ = VespaDocker.from_container_name_or_id("msmarco")
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-        _ = self.vespa_docker.deploy(application_package=self.app_package)
-        vespa_docker_from_container = VespaDocker.from_container_name_or_id("msmarco")
+            _ = VespaDocker.from_container_name_or_id(application_package.name)
+        #
+        # Test VespaDocker instance created from container
+        #
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+        _ = self.vespa_docker.deploy(application_package=application_package)
+        vespa_docker_from_container = VespaDocker.from_container_name_or_id(
+            application_package.name
+        )
         self.assertEqual(self.vespa_docker, vespa_docker_from_container)
 
-    def test_container_rerun(self):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-        app = self.vespa_docker.deploy(application_package=self.app_package)
+    def redeploy_with_container_stopped(self, application_package, disk_folder):
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+        app = self.vespa_docker.deploy(application_package=application_package)
         self.assertTrue(
             any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
         )
         self.vespa_docker.container.stop()
-        app = self.vespa_docker.deploy(application_package=self.app_package)
+        app = self.vespa_docker.deploy(application_package=application_package)
         self.assertEqual(app.get_application_status().status_code, 200)
 
-    def test_application_redeploy(self):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-        app = self.vespa_docker.deploy(application_package=self.app_package)
+    def redeploy_with_application_package_changes(
+        self, application_package, disk_folder
+    ):
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+        app = self.vespa_docker.deploy(application_package=application_package)
         res = app.query(
             body={
                 "yql": "select * from sources * where default contains 'music';",
-                "ranking": "bm25",
+                "ranking": "new-rank-profile",
             }
         ).json
-        self.assertEqual(
-            res["root"]["errors"][0]["message"],
-            "Requested rank profile 'bm25' is undefined for document type 'msmarco'",
+        self.assertIsNotNone(
+            re.search(
+                "Requested rank profile 'new-rank-profile' is undefined for document type ",
+                res["root"]["errors"][0]["message"],
+            )
         )
-        self.app_package.schema.add_rank_profile(
-            RankProfile(name="bm25", inherits="default", first_phase="bm25(title)")
+        application_package.schema.add_rank_profile(
+            RankProfile(
+                name="new-rank-profile", inherits="default", first_phase="bm25(title)"
+            )
         )
-        app = self.vespa_docker.deploy(application_package=self.app_package)
+        app = self.vespa_docker.deploy(application_package=application_package)
         res = app.query(
             body={
                 "yql": "select * from sources * where default contains 'music';",
-                "ranking": "bm25",
+                "ranking": "new-rank-profile",
             }
         ).json
         self.assertTrue("errors" not in res["root"])
 
-    def test_start_stop_restart_services(self):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+    def trigger_start_stop_and_restart_services(self, application_package, disk_folder):
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
         with self.assertRaises(RuntimeError):
             self.vespa_docker.stop_services()
         with self.assertRaises(RuntimeError):
             self.vespa_docker.start_services()
 
-        app = self.vespa_docker.deploy(application_package=self.app_package)
+        app = self.vespa_docker.deploy(application_package=application_package)
         self.assertTrue(self.vespa_docker._check_configuration_server())
         self.assertEqual(app.get_application_status().status_code, 200)
         self.vespa_docker.stop_services()
@@ -141,9 +228,9 @@ class TestDockerDeployment(unittest.TestCase):
         self.assertTrue(self.vespa_docker._check_configuration_server())
         self.assertEqual(app.get_application_status().status_code, 200)
 
-    def test_data_operation(self):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-        app = self.vespa_docker.deploy(application_package=self.app_package)
+
+class TestApplicationCommon(unittest.TestCase):
+    def execute_data_operations(self, app):
         #
         # Get data that does not exist
         #
@@ -237,56 +324,7 @@ class TestDockerDeployment(unittest.TestCase):
             },
         )
 
-    def test_batch_feed_synchronous(self):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-        app = self.vespa_docker.deploy(application_package=self.app_package)
-
-        #
-        # Create and feed documents
-        #
-        num_docs = 100
-        docs = []
-        schema = "msmarco"
-        for i in range(num_docs):
-            id = f"{i}"
-            title = f"title for document {i}"
-            body = f"body for document {i}"
-            fields = {"id": id, "title": title, "body": body}
-            docs.append({"id": id, "fields": fields})
-        app.feed_batch(schema=schema, batch=docs, asynchronous=False)
-
-        # Verify that all documents are fed
-        result = app.query(query="sddocname:msmarco", query_model=QueryModel())
-        self.assertEqual(result.number_documents_indexed, num_docs)
-
-    def test_batch_feed_asynchronous(self):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-        app = self.vespa_docker.deploy(application_package=self.app_package)
-
-        #
-        # Create and feed documents
-        #
-        num_docs = 100
-        docs = []
-        schema = "msmarco"
-        for i in range(num_docs):
-            id = f"{i}"
-            title = f"title for document {i}"
-            body = f"body for document {i}"
-            fields = {"id": id, "title": title, "body": body}
-            docs.append({"id": id, "fields": fields})
-        app.feed_batch(schema=schema, batch=docs, asynchronous=True)
-
-        # Verify that all documents are fed
-        result = app.query(query="sddocname:msmarco", query_model=QueryModel())
-        self.assertEqual(result.number_documents_indexed, num_docs)
-
-    def test_data_operations_async(self):
-        asyncio.run(self.async_data_operations_test())
-
-    async def async_data_operations_test(self):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-        app = self.vespa_docker.deploy(application_package=self.app_package)
+    async def execute_async_data_operations(self, app):
         async with app.asyncio() as async_app:
             #
             # Get data that does not exist
@@ -373,7 +411,6 @@ class TestDockerDeployment(unittest.TestCase):
             #
             response = await async_app.get_data(schema="msmarco", data_id="1")
             self.assertEqual(response.status, 404)
-
             #
             # Issue a bunch of queries in parallel
             #
@@ -391,37 +428,153 @@ class TestDockerDeployment(unittest.TestCase):
             await asyncio.wait(queries, return_when=asyncio.ALL_COMPLETED)
             self.assertEqual(queries[0].result().number_documents_indexed, 99)
 
+    def feed_batch_synchronous_mode(self, app):
+        #
+        # Create and feed documents
+        #
+        num_docs = 100
+        docs = []
+        schema = "msmarco"
+        for i in range(num_docs):
+            id = f"{i}"
+            title = f"title for document {i}"
+            body = f"body for document {i}"
+            fields = {"id": id, "title": title, "body": body}
+            docs.append({"id": id, "fields": fields})
+        app.feed_batch(schema=schema, batch=docs, asynchronous=False)
+
+        # Verify that all documents are fed
+        result = app.query(query="sddocname:msmarco", query_model=QueryModel())
+        self.assertEqual(result.number_documents_indexed, num_docs)
+
+    def feed_batch_asynchronous_mode(self, app):
+        #
+        # Create and feed documents
+        #
+        num_docs = 100
+        docs = []
+        schema = "msmarco"
+        for i in range(num_docs):
+            id = f"{i}"
+            title = f"title for document {i}"
+            body = f"body for document {i}"
+            fields = {"id": id, "title": title, "body": body}
+            docs.append({"id": id, "fields": fields})
+        app.feed_batch(schema=schema, batch=docs, asynchronous=True)
+
+        # Verify that all documents are fed
+        result = app.query(query="sddocname:msmarco", query_model=QueryModel())
+        self.assertEqual(result.number_documents_indexed, num_docs)
+
+
+class TestMsmarcoDockerDeployment(TestDockerCommon):
+    def setUp(self) -> None:
+        package_and_data = create_msmarco_application_package()
+        self.app_package = package_and_data["application_package"]
+        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+
+    def test_deploy(self):
+        self.deploy(application_package=self.app_package, disk_folder=self.disk_folder)
+
     def test_deploy_from_disk_with_disk_folder(self):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-        self.vespa_docker.export_application_package(
-            application_package=self.app_package
-        )
-        #
-        # Disk folder as the application folder
-        #
-        self.vespa_docker.disk_folder = os.path.join(self.disk_folder, "application")
-        app = self.vespa_docker.deploy_from_disk(
-            application_name=self.app_package.name,
-        )
-        self.assertTrue(
-            any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
+        self.deploy_from_disk_with_disk_folder(
+            application_package=self.app_package, disk_folder=self.disk_folder
         )
 
     def test_deploy_from_disk_with_application_folder(self):
+        self.deploy_from_disk_with_application_folder(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def test_instantiate_vespa_docker_from_container_name_or_id(self):
+        self.create_vespa_docker_from_container_name_or_id(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def test_redeploy_with_container_stopped(self):
+        self.redeploy_with_container_stopped(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def test_redeploy_with_application_package_changes(self):
+        self.redeploy_with_application_package_changes(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def test_trigger_start_stop_and_restart_services(self):
+        self.trigger_start_stop_and_restart_services(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.disk_folder, ignore_errors=True)
+        self.vespa_docker.container.stop()
+        self.vespa_docker.container.remove()
+
+
+class TestCord19DockerDeployment(TestDockerCommon):
+    def setUp(self) -> None:
+        self.app_package = create_cord19_application_package()
+        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+
+    def test_deploy(self):
+        self.deploy(application_package=self.app_package, disk_folder=self.disk_folder)
+
+    def test_deploy_from_disk_with_disk_folder(self):
+        self.deploy_from_disk_with_disk_folder(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def test_deploy_from_disk_with_application_folder(self):
+        self.deploy_from_disk_with_application_folder(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def test_instantiate_vespa_docker_from_container_name_or_id(self):
+        self.create_vespa_docker_from_container_name_or_id(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def test_redeploy_with_container_stopped(self):
+        self.redeploy_with_container_stopped(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def test_redeploy_with_application_package_changes(self):
+        self.redeploy_with_application_package_changes(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def test_trigger_start_stop_and_restart_services(self):
+        self.trigger_start_stop_and_restart_services(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.disk_folder, ignore_errors=True)
+        self.vespa_docker.container.stop()
+        self.vespa_docker.container.remove()
+
+
+class TestMsmarcoApplication(TestApplicationCommon):
+    def setUp(self) -> None:
+        package_and_data = create_msmarco_application_package()
+        app_package = package_and_data["application_package"]
+        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-        self.vespa_docker.export_application_package(
-            application_package=self.app_package
-        )
-        #
-        # Application folder inside disk folder
-        #
-        app = self.vespa_docker.deploy_from_disk(
-            application_name=self.app_package.name,
-            application_folder="application",
-        )
-        self.assertTrue(
-            any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
-        )
+        self.app = self.vespa_docker.deploy(application_package=app_package)
+
+    def test_execute_data_operations(self):
+        self.execute_data_operations(app=self.app)
+
+    def test_execute_async_data_operations(self):
+        asyncio.run(self.execute_async_data_operations(app=self.app))
+
+    def test_feed_batch_synchronous_mode(self):
+        self.feed_batch_synchronous_mode(app=self.app)
+
+    def test_feed_batch_asynchronous_mode(self):
+        self.feed_batch_asynchronous_mode(app=self.app)
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
