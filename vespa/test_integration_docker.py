@@ -98,6 +98,10 @@ def create_cord19_application_package():
 
 
 class TestDockerCommon(unittest.TestCase):
+    def setUp(self) -> None:
+        self.app_package = None
+        self.disk_folder = None
+
     def deploy(self, application_package, disk_folder):
         self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
         app = self.vespa_docker.deploy(application_package=application_package)
@@ -227,6 +231,39 @@ class TestDockerCommon(unittest.TestCase):
         self.vespa_docker.restart_services()
         self.assertTrue(self.vespa_docker._check_configuration_server())
         self.assertEqual(app.get_application_status().status_code, 200)
+
+    def test_deploy(self):
+        self.deploy(application_package=self.app_package, disk_folder=self.disk_folder)
+
+    def test_deploy_from_disk_with_disk_folder(self):
+        self.deploy_from_disk_with_disk_folder(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def test_deploy_from_disk_with_application_folder(self):
+        self.deploy_from_disk_with_application_folder(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def test_instantiate_vespa_docker_from_container_name_or_id(self):
+        self.create_vespa_docker_from_container_name_or_id(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def test_redeploy_with_container_stopped(self):
+        self.redeploy_with_container_stopped(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def test_redeploy_with_application_package_changes(self):
+        self.redeploy_with_application_package_changes(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def test_trigger_start_stop_and_restart_services(self):
+        self.trigger_start_stop_and_restart_services(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
 
 
 class TestApplicationCommon(unittest.TestCase):
@@ -473,39 +510,6 @@ class TestMsmarcoDockerDeployment(TestDockerCommon):
         self.app_package = package_and_data["application_package"]
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
 
-    def test_deploy(self):
-        self.deploy(application_package=self.app_package, disk_folder=self.disk_folder)
-
-    def test_deploy_from_disk_with_disk_folder(self):
-        self.deploy_from_disk_with_disk_folder(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
-
-    def test_deploy_from_disk_with_application_folder(self):
-        self.deploy_from_disk_with_application_folder(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
-
-    def test_instantiate_vespa_docker_from_container_name_or_id(self):
-        self.create_vespa_docker_from_container_name_or_id(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
-
-    def test_redeploy_with_container_stopped(self):
-        self.redeploy_with_container_stopped(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
-
-    def test_redeploy_with_application_package_changes(self):
-        self.redeploy_with_application_package_changes(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
-
-    def test_trigger_start_stop_and_restart_services(self):
-        self.trigger_start_stop_and_restart_services(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
-
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_docker.container.stop()
@@ -516,39 +520,6 @@ class TestCord19DockerDeployment(TestDockerCommon):
     def setUp(self) -> None:
         self.app_package = create_cord19_application_package()
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-
-    def test_deploy(self):
-        self.deploy(application_package=self.app_package, disk_folder=self.disk_folder)
-
-    def test_deploy_from_disk_with_disk_folder(self):
-        self.deploy_from_disk_with_disk_folder(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
-
-    def test_deploy_from_disk_with_application_folder(self):
-        self.deploy_from_disk_with_application_folder(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
-
-    def test_instantiate_vespa_docker_from_container_name_or_id(self):
-        self.create_vespa_docker_from_container_name_or_id(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
-
-    def test_redeploy_with_container_stopped(self):
-        self.redeploy_with_container_stopped(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
-
-    def test_redeploy_with_application_package_changes(self):
-        self.redeploy_with_application_package_changes(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
-
-    def test_trigger_start_stop_and_restart_services(self):
-        self.trigger_start_stop_and_restart_services(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
