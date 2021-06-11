@@ -504,42 +504,57 @@ class TestApplicationCommon(unittest.TestCase):
                 queries[0].result().number_documents_indexed, len(fields_to_send) - 1
             )
 
-    def feed_batch_synchronous_mode(self, app):
+    def feed_batch_synchronous_mode(self, app, schema_name, fields_to_send):
+        """
+        Sync feed a batch of data to the application
+
+        :param app: Vespa instance holding the connection to the application
+        :param schema_name: Schema name containing the document we want to send and retrieve data
+        :param fields_to_send: List of Dicts where keys are field names and values are field values. Must
+            contain 'id' field.
+        :return:
+        """
+
         #
         # Create and feed documents
         #
-        num_docs = 100
+        num_docs = len(fields_to_send)
         docs = []
-        schema = "msmarco"
-        for i in range(num_docs):
-            id = f"{i}"
-            title = f"title for document {i}"
-            body = f"body for document {i}"
-            fields = {"id": id, "title": title, "body": body}
-            docs.append({"id": id, "fields": fields})
+        schema = schema_name
+        for fields in fields_to_send:
+            docs.append({"id": fields["id"], "fields": fields})
         app.feed_batch(schema=schema, batch=docs, asynchronous=False)
 
         # Verify that all documents are fed
-        result = app.query(query="sddocname:msmarco", query_model=QueryModel())
+        result = app.query(
+            query="sddocname:{}".format(schema_name), query_model=QueryModel()
+        )
         self.assertEqual(result.number_documents_indexed, num_docs)
 
-    def feed_batch_asynchronous_mode(self, app):
+    def feed_batch_asynchronous_mode(self, app, schema_name, fields_to_send):
+        """
+        Async feed a batch of data to the application
+
+        :param app: Vespa instance holding the connection to the application
+        :param schema_name: Schema name containing the document we want to send and retrieve data
+        :param fields_to_send: List of Dicts where keys are field names and values are field values. Must
+            contain 'id' field.
+        :return:
+        """
         #
         # Create and feed documents
         #
-        num_docs = 100
+        num_docs = len(fields_to_send)
         docs = []
-        schema = "msmarco"
-        for i in range(num_docs):
-            id = f"{i}"
-            title = f"title for document {i}"
-            body = f"body for document {i}"
-            fields = {"id": id, "title": title, "body": body}
-            docs.append({"id": id, "fields": fields})
+        schema = schema_name
+        for fields in fields_to_send:
+            docs.append({"id": fields["id"], "fields": fields})
         app.feed_batch(schema=schema, batch=docs, asynchronous=True)
 
         # Verify that all documents are fed
-        result = app.query(query="sddocname:msmarco", query_model=QueryModel())
+        result = app.query(
+            query="sddocname:{}".format(schema_name), query_model=QueryModel()
+        )
         self.assertEqual(result.number_documents_indexed, num_docs)
 
 
@@ -607,23 +622,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
         self.app = self.vespa_docker.deploy(application_package=self.app_package)
-
-    def test_execute_data_operations(self):
-        fields_to_send = {
-            "id": "1",
-            "title": "this is my first title",
-            "body": "this is my first body",
-        }
-        fields_to_update = {"title": "this is my updated title"}
-        self.execute_data_operations(
-            app=self.app,
-            schema_name=self.app_package.name,
-            fields_to_send=fields_to_send,
-            fields_to_update=fields_to_update,
-        )
-
-    def test_execute_async_data_operations(self):
-        fields_to_send = [
+        self.fields_to_send = [
             {
                 "id": f"{i}",
                 "title": f"this is title {i}",
@@ -631,21 +630,39 @@ class TestMsmarcoApplication(TestApplicationCommon):
             }
             for i in range(10)
         ]
-        fields_to_update = {"title": "this is my updated title"}
+        self.fields_to_update = {"title": "this is my updated title"}
+
+    def test_execute_data_operations(self):
+        self.execute_data_operations(
+            app=self.app,
+            schema_name=self.app_package.name,
+            fields_to_send=self.fields_to_send[0],
+            fields_to_update=self.fields_to_update,
+        )
+
+    def test_execute_async_data_operations(self):
         asyncio.run(
             self.execute_async_data_operations(
                 app=self.app,
                 schema_name=self.app_package.name,
-                fields_to_send=fields_to_send,
-                fields_to_update=fields_to_update,
+                fields_to_send=self.fields_to_send,
+                fields_to_update=self.fields_to_update,
             )
         )
 
     def test_feed_batch_synchronous_mode(self):
-        self.feed_batch_synchronous_mode(app=self.app)
+        self.feed_batch_synchronous_mode(
+            app=self.app,
+            schema_name=self.app_package.name,
+            fields_to_send=self.fields_to_send,
+        )
 
     def test_feed_batch_asynchronous_mode(self):
-        self.feed_batch_asynchronous_mode(app=self.app)
+        self.feed_batch_asynchronous_mode(
+            app=self.app,
+            schema_name=self.app_package.name,
+            fields_to_send=self.fields_to_send,
+        )
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
@@ -659,43 +676,46 @@ class TestCord19Application(TestApplicationCommon):
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
         self.app = self.vespa_docker.deploy(application_package=self.app_package)
-
-    def test_execute_data_operations(self):
-        fields_to_send = {
-            "id": "1",
-            "title": "this is my first title",
-        }
-        fields_to_update = {"title": "this is my updated title"}
-        self.execute_data_operations(
-            app=self.app,
-            schema_name=self.app_package.name,
-            fields_to_send=fields_to_send,
-            fields_to_update=fields_to_update,
-        )
-
-    def test_execute_async_data_operations(self):
-        fields_to_send = [
+        self.fields_to_send = [
             {
                 "id": f"{i}",
                 "title": f"this is title {i}",
             }
             for i in range(10)
         ]
-        fields_to_update = {"title": "this is my updated title"}
+        self.fields_to_update = {"title": "this is my updated title"}
+
+    def test_execute_data_operations(self):
+        self.execute_data_operations(
+            app=self.app,
+            schema_name=self.app_package.name,
+            fields_to_send=self.fields_to_send[0],
+            fields_to_update=self.fields_to_update,
+        )
+
+    def test_execute_async_data_operations(self):
         asyncio.run(
             self.execute_async_data_operations(
                 app=self.app,
                 schema_name=self.app_package.name,
-                fields_to_send=fields_to_send,
-                fields_to_update=fields_to_update,
+                fields_to_send=self.fields_to_send,
+                fields_to_update=self.fields_to_update,
             )
         )
 
     def test_feed_batch_synchronous_mode(self):
-        self.feed_batch_synchronous_mode(app=self.app)
+        self.feed_batch_synchronous_mode(
+            app=self.app,
+            schema_name=self.app_package.name,
+            fields_to_send=self.fields_to_send,
+        )
 
     def test_feed_batch_asynchronous_mode(self):
-        self.feed_batch_asynchronous_mode(app=self.app)
+        self.feed_batch_asynchronous_mode(
+            app=self.app,
+            schema_name=self.app_package.name,
+            fields_to_send=self.fields_to_send,
+        )
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
@@ -741,15 +761,6 @@ class TestOnnxModelDockerDeployment(unittest.TestCase):
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
         self.app = self.vespa_docker.deploy(application_package=self.app_package)
-
-    def test_deploy(self):
-        self.assertTrue(
-            any(
-                re.match("Generation: [0-9]+", line)
-                for line in self.app.deployment_message
-            )
-        )
-        self.assertEqual(self.app.get_application_status().status_code, 200)
 
     def test_data_operation(self):
         #
