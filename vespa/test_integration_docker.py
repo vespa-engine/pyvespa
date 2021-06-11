@@ -19,6 +19,9 @@ from vespa.query import QueryModel, RankProfile as Ranking, OR, QueryRankingFeat
 
 
 def create_msmarco_application_package():
+    #
+    # Application package
+    #
     document = Document(
         fields=[
             Field(name="id", type="string", indexing=["attribute", "summary"]),
@@ -61,14 +64,13 @@ def create_msmarco_application_package():
         ],
     )
     app_package = ApplicationPackage(name="msmarco", schema=[msmarco_schema])
-    package_and_data = {"application_package": app_package}
-    return package_and_data
+    return app_package
 
 
 def create_cord19_application_package():
     app_package = ApplicationPackage(name="cord19")
     app_package.schema.add_fields(
-        Field(name="cord_uid", type="string", indexing=["attribute", "summary"]),
+        Field(name="id", type="string", indexing=["attribute", "summary"]),
         Field(
             name="title",
             type="string",
@@ -98,10 +100,6 @@ def create_cord19_application_package():
 
 
 class TestDockerCommon(unittest.TestCase):
-    def setUp(self) -> None:
-        self.app_package = None
-        self.disk_folder = None
-
     def deploy(self, application_package, disk_folder):
         self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
         app = self.vespa_docker.deploy(application_package=application_package)
@@ -232,221 +230,260 @@ class TestDockerCommon(unittest.TestCase):
         self.assertTrue(self.vespa_docker._check_configuration_server())
         self.assertEqual(app.get_application_status().status_code, 200)
 
-    def test_deploy(self):
-        self.deploy(application_package=self.app_package, disk_folder=self.disk_folder)
-
-    def test_deploy_from_disk_with_disk_folder(self):
-        self.deploy_from_disk_with_disk_folder(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
-
-    def test_deploy_from_disk_with_application_folder(self):
-        self.deploy_from_disk_with_application_folder(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
-
-    def test_instantiate_vespa_docker_from_container_name_or_id(self):
-        self.create_vespa_docker_from_container_name_or_id(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
-
-    def test_redeploy_with_container_stopped(self):
-        self.redeploy_with_container_stopped(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
-
-    def test_redeploy_with_application_package_changes(self):
-        self.redeploy_with_application_package_changes(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
-
-    def test_trigger_start_stop_and_restart_services(self):
-        self.trigger_start_stop_and_restart_services(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
-
 
 class TestApplicationCommon(unittest.TestCase):
-    def execute_data_operations(self, app):
+    def execute_data_operations(
+        self, app, schema_name, fields_to_send, fields_to_update
+    ):
+        """
+        Feed, get, update and delete data to/from the application
+
+        :param app: Vespa instance holding the connection to the application
+        :param schema_name: Schema name containing the document we want to send and retrieve data
+        :param fields_to_send: Dict where keys are field names and values are field values. Must contain 'id' field
+        :param fields_to_update: Dict where keys are field names and values are field values.
+        :return:
+        """
+        assert "id" in fields_to_send, "fields_to_send must contain 'id' field."
         #
         # Get data that does not exist
         #
-        self.assertEqual(app.get_data(schema="msmarco", data_id="1").status_code, 404)
+        self.assertEqual(
+            app.get_data(schema=schema_name, data_id=fields_to_send["id"]).status_code,
+            404,
+        )
         #
         # Feed a data point
         #
         response = app.feed_data_point(
-            schema="msmarco",
-            data_id="1",
-            fields={
-                "id": "1",
-                "title": "this is my first title",
-                "body": "this is my first body",
-            },
+            schema=schema_name,
+            data_id=fields_to_send["id"],
+            fields=fields_to_send,
         )
-        self.assertEqual(response.json()["id"], "id:msmarco:msmarco::1")
+        self.assertEqual(
+            response.json()["id"],
+            "id:{}:{}::{}".format(schema_name, schema_name, fields_to_send["id"]),
+        )
         #
         # Get data that exist
         #
-        response = app.get_data(schema="msmarco", data_id="1")
+        response = app.get_data(schema=schema_name, data_id=fields_to_send["id"])
         self.assertEqual(response.status_code, 200)
         self.assertDictEqual(
             response.json(),
             {
-                "fields": {
-                    "id": "1",
-                    "title": "this is my first title",
-                    "body": "this is my first body",
-                },
-                "id": "id:msmarco:msmarco::1",
-                "pathId": "/document/v1/msmarco/msmarco/docid/1",
+                "fields": fields_to_send,
+                "id": "id:{}:{}::{}".format(
+                    schema_name, schema_name, fields_to_send["id"]
+                ),
+                "pathId": "/document/v1/{}/{}/docid/{}".format(
+                    schema_name, schema_name, fields_to_send["id"]
+                ),
             },
         )
         #
         # Update data
         #
         response = app.update_data(
-            schema="msmarco", data_id="1", fields={"title": "this is my updated title"}
+            schema=schema_name,
+            data_id=fields_to_send["id"],
+            fields=fields_to_update,
         )
-        self.assertEqual(response.json()["id"], "id:msmarco:msmarco::1")
+        self.assertEqual(
+            response.json()["id"],
+            "id:{}:{}::{}".format(schema_name, schema_name, fields_to_send["id"]),
+        )
         #
         # Get the updated data point
         #
-        response = app.get_data(schema="msmarco", data_id="1")
+        response = app.get_data(schema=schema_name, data_id=fields_to_send["id"])
         self.assertEqual(response.status_code, 200)
+        expected_result = {k: v for k, v in fields_to_send.items()}
+        expected_result.update(fields_to_update)
         self.assertDictEqual(
             response.json(),
             {
-                "fields": {
-                    "id": "1",
-                    "title": "this is my updated title",
-                    "body": "this is my first body",
-                },
-                "id": "id:msmarco:msmarco::1",
-                "pathId": "/document/v1/msmarco/msmarco/docid/1",
+                "fields": expected_result,
+                "id": "id:{}:{}::{}".format(
+                    schema_name, schema_name, fields_to_send["id"]
+                ),
+                "pathId": "/document/v1/{}/{}/docid/{}".format(
+                    schema_name, schema_name, fields_to_send["id"]
+                ),
             },
         )
         #
         # Delete a data point
         #
-        response = app.delete_data(schema="msmarco", data_id="1")
-        self.assertEqual(response.json()["id"], "id:msmarco:msmarco::1")
+        response = app.delete_data(schema=schema_name, data_id=fields_to_send["id"])
+        self.assertEqual(
+            response.json()["id"],
+            "id:{}:{}::{}".format(schema_name, schema_name, fields_to_send["id"]),
+        )
         #
         # Deleted data should be gone
         #
-        self.assertEqual(app.get_data(schema="msmarco", data_id="1").status_code, 404)
+        self.assertEqual(
+            app.get_data(schema=schema_name, data_id=fields_to_send["id"]).status_code,
+            404,
+        )
         #
         # Update a non-existent data point
         #
         response = app.update_data(
-            schema="msmarco",
-            data_id="1",
-            fields={"title": "this is my updated title"},
+            schema=schema_name,
+            data_id=fields_to_send["id"],
+            fields=fields_to_update,
             create=True,
         )
-        self.assertEqual(response.json()["id"], "id:msmarco:msmarco::1")
+        self.assertEqual(
+            response.json()["id"],
+            "id:{}:{}::{}".format(schema_name, schema_name, fields_to_send["id"]),
+        )
         #
         # Get the updated data point
         #
-        response = app.get_data(schema="msmarco", data_id="1")
+        response = app.get_data(schema=schema_name, data_id=fields_to_send["id"])
         self.assertEqual(response.status_code, 200)
         self.assertDictEqual(
             response.json(),
             {
-                "fields": {
-                    "title": "this is my updated title",
-                },
-                "id": "id:msmarco:msmarco::1",
-                "pathId": "/document/v1/msmarco/msmarco/docid/1",
+                "fields": fields_to_update,
+                "id": "id:{}:{}::{}".format(
+                    schema_name, schema_name, fields_to_send["id"]
+                ),
+                "pathId": "/document/v1/{}/{}/docid/{}".format(
+                    schema_name, schema_name, fields_to_send["id"]
+                ),
             },
         )
 
-    async def execute_async_data_operations(self, app):
+    async def execute_async_data_operations(
+        self, app, schema_name, fields_to_send, fields_to_update
+    ):
+        """
+        Async feed, get, update and delete data to/from the application
+
+        :param app: Vespa instance holding the connection to the application
+        :param schema_name: Schema name containing the document we want to send and retrieve data
+        :param fields_to_send: List of Dicts where keys are field names and values are field values. Must
+            contain 'id' field.
+        :param fields_to_update: Dict where keys are field names and values are field values.
+        :return:
+        """
         async with app.asyncio() as async_app:
             #
             # Get data that does not exist
             #
-            response = await async_app.delete_data(schema="msmarco", data_id="1")
-            response = await async_app.get_data(schema="msmarco", data_id="1")
+            # response = await async_app.delete_data(
+            #     schema=schema_name, data_id=fields_to_send[0]["id"]
+            # )
+            response = await async_app.get_data(
+                schema=schema_name, data_id=fields_to_send[0]["id"]
+            )
             self.assertEqual(response.status, 404)
 
             #
             # Feed some data points
             #
             feed = []
-            for i in range(1, 101):
+            for fields in fields_to_send:
                 feed.append(
                     asyncio.create_task(
                         async_app.feed_data_point(
-                            schema="msmarco",
-                            data_id=f"{i}",
-                            fields={
-                                "id": f"{i}",
-                                "title": f"this is title {i}",
-                                "body": f"this is body {i}",
-                            },
+                            schema=schema_name,
+                            data_id=fields["id"],
+                            fields=fields,
                         )
                     )
                 )
             await asyncio.wait(feed, return_when=asyncio.ALL_COMPLETED)
             result = await feed[0].result().json()
-            self.assertEqual(result["id"], "id:msmarco:msmarco::1")
+            self.assertEqual(
+                result["id"],
+                "id:{}:{}::{}".format(
+                    schema_name, schema_name, fields_to_send[0]["id"]
+                ),
+            )
 
             #
             # Get data that exists
             #
-            response = await async_app.get_data(schema="msmarco", data_id="1")
+            response = await async_app.get_data(
+                schema=schema_name, data_id=fields_to_send[0]["id"]
+            )
             self.assertEqual(response.status, 200)
             result = await response.json()
             self.assertDictEqual(
                 result,
                 {
-                    "fields": {
-                        "id": "1",
-                        "title": "this is title 1",
-                        "body": "this is body 1",
-                    },
-                    "id": "id:msmarco:msmarco::1",
-                    "pathId": "/document/v1/msmarco/msmarco/docid/1",
+                    "fields": fields_to_send[0],
+                    "id": "id:{}:{}::{}".format(
+                        schema_name, schema_name, fields_to_send[0]["id"]
+                    ),
+                    "pathId": "/document/v1/{}/{}/docid/{}".format(
+                        schema_name, schema_name, fields_to_send[0]["id"]
+                    ),
                 },
             )
             #
             # Update data
             #
             response = await async_app.update_data(
-                schema="msmarco", data_id="1", fields={"id": "this is my updated id"}
+                schema=schema_name,
+                data_id=fields_to_send[0]["id"],
+                fields=fields_to_update,
             )
             result = await response.json()
-            self.assertEqual(result["id"], "id:msmarco:msmarco::1")
+            self.assertEqual(
+                result["id"],
+                "id:{}:{}::{}".format(
+                    schema_name, schema_name, fields_to_send[0]["id"]
+                ),
+            )
 
             #
             # Get the updated data point
             #
-            response = await async_app.get_data(schema="msmarco", data_id="1")
+            response = await async_app.get_data(
+                schema=schema_name, data_id=fields_to_send[0]["id"]
+            )
             self.assertEqual(response.status, 200)
             result = await response.json()
+            expected_result = {k: v for k, v in fields_to_send[0].items()}
+            expected_result.update(fields_to_update)
+
             self.assertDictEqual(
                 result,
                 {
-                    "fields": {
-                        "id": "this is my updated id",
-                        "title": "this is title 1",
-                        "body": "this is body 1",
-                    },
-                    "id": "id:msmarco:msmarco::1",
-                    "pathId": "/document/v1/msmarco/msmarco/docid/1",
+                    "fields": expected_result,
+                    "id": "id:{}:{}::{}".format(
+                        schema_name, schema_name, fields_to_send[0]["id"]
+                    ),
+                    "pathId": "/document/v1/{}/{}/docid/{}".format(
+                        schema_name, schema_name, fields_to_send[0]["id"]
+                    ),
                 },
             )
             #
             # Delete a data point
             #
-            response = await async_app.delete_data(schema="msmarco", data_id="1")
+            response = await async_app.delete_data(
+                schema=schema_name, data_id=fields_to_send[0]["id"]
+            )
             result = await response.json()
-            self.assertEqual(result["id"], "id:msmarco:msmarco::1")
+            self.assertEqual(
+                result["id"],
+                "id:{}:{}::{}".format(
+                    schema_name, schema_name, fields_to_send[0]["id"]
+                ),
+            )
             #
             # Deleted data should be gone
             #
-            response = await async_app.get_data(schema="msmarco", data_id="1")
+            response = await async_app.get_data(
+                schema=schema_name, data_id=fields_to_send[0]["id"]
+            )
             self.assertEqual(response.status, 404)
             #
             # Issue a bunch of queries in parallel
@@ -456,14 +493,16 @@ class TestApplicationCommon(unittest.TestCase):
                 queries.append(
                     asyncio.create_task(
                         async_app.query(
-                            query="sddocname:msmarco",
+                            query="sddocname:{}".format(schema_name),
                             query_model=QueryModel(),
                             timeout=5000,
                         )
                     )
                 )
             await asyncio.wait(queries, return_when=asyncio.ALL_COMPLETED)
-            self.assertEqual(queries[0].result().number_documents_indexed, 99)
+            self.assertEqual(
+                queries[0].result().number_documents_indexed, len(fields_to_send) - 1
+            )
 
     def feed_batch_synchronous_mode(self, app):
         #
@@ -506,9 +545,41 @@ class TestApplicationCommon(unittest.TestCase):
 
 class TestMsmarcoDockerDeployment(TestDockerCommon):
     def setUp(self) -> None:
-        package_and_data = create_msmarco_application_package()
-        self.app_package = package_and_data["application_package"]
+        self.app_package = create_msmarco_application_package()
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+
+    def test_deploy(self):
+        self.deploy(application_package=self.app_package, disk_folder=self.disk_folder)
+
+    def test_deploy_from_disk_with_disk_folder(self):
+        self.deploy_from_disk_with_disk_folder(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def test_deploy_from_disk_with_application_folder(self):
+        self.deploy_from_disk_with_application_folder(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def test_instantiate_vespa_docker_from_container_name_or_id(self):
+        self.create_vespa_docker_from_container_name_or_id(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def test_redeploy_with_container_stopped(self):
+        self.redeploy_with_container_stopped(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def test_redeploy_with_application_package_changes(self):
+        self.redeploy_with_application_package_changes(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
+
+    def test_trigger_start_stop_and_restart_services(self):
+        self.trigger_start_stop_and_restart_services(
+            application_package=self.app_package, disk_folder=self.disk_folder
+        )
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
@@ -521,6 +592,9 @@ class TestCord19DockerDeployment(TestDockerCommon):
         self.app_package = create_cord19_application_package()
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
 
+    def test_deploy(self):
+        self.deploy(application_package=self.app_package, disk_folder=self.disk_folder)
+
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_docker.container.stop()
@@ -529,17 +603,93 @@ class TestCord19DockerDeployment(TestDockerCommon):
 
 class TestMsmarcoApplication(TestApplicationCommon):
     def setUp(self) -> None:
-        package_and_data = create_msmarco_application_package()
-        app_package = package_and_data["application_package"]
+        self.app_package = create_msmarco_application_package()
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-        self.app = self.vespa_docker.deploy(application_package=app_package)
+        self.app = self.vespa_docker.deploy(application_package=self.app_package)
 
     def test_execute_data_operations(self):
-        self.execute_data_operations(app=self.app)
+        fields_to_send = {
+            "id": "1",
+            "title": "this is my first title",
+            "body": "this is my first body",
+        }
+        fields_to_update = {"title": "this is my updated title"}
+        self.execute_data_operations(
+            app=self.app,
+            schema_name=self.app_package.name,
+            fields_to_send=fields_to_send,
+            fields_to_update=fields_to_update,
+        )
 
     def test_execute_async_data_operations(self):
-        asyncio.run(self.execute_async_data_operations(app=self.app))
+        fields_to_send = [
+            {
+                "id": f"{i}",
+                "title": f"this is title {i}",
+                "body": f"this is body {i}",
+            }
+            for i in range(10)
+        ]
+        fields_to_update = {"title": "this is my updated title"}
+        asyncio.run(
+            self.execute_async_data_operations(
+                app=self.app,
+                schema_name=self.app_package.name,
+                fields_to_send=fields_to_send,
+                fields_to_update=fields_to_update,
+            )
+        )
+
+    def test_feed_batch_synchronous_mode(self):
+        self.feed_batch_synchronous_mode(app=self.app)
+
+    def test_feed_batch_asynchronous_mode(self):
+        self.feed_batch_asynchronous_mode(app=self.app)
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.disk_folder, ignore_errors=True)
+        self.vespa_docker.container.stop()
+        self.vespa_docker.container.remove()
+
+
+class TestCord19Application(TestApplicationCommon):
+    def setUp(self) -> None:
+        self.app_package = create_cord19_application_package()
+        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        self.app = self.vespa_docker.deploy(application_package=self.app_package)
+
+    def test_execute_data_operations(self):
+        fields_to_send = {
+            "id": "1",
+            "title": "this is my first title",
+        }
+        fields_to_update = {"title": "this is my updated title"}
+        self.execute_data_operations(
+            app=self.app,
+            schema_name=self.app_package.name,
+            fields_to_send=fields_to_send,
+            fields_to_update=fields_to_update,
+        )
+
+    def test_execute_async_data_operations(self):
+        fields_to_send = [
+            {
+                "id": f"{i}",
+                "title": f"this is title {i}",
+            }
+            for i in range(10)
+        ]
+        fields_to_update = {"title": "this is my updated title"}
+        asyncio.run(
+            self.execute_async_data_operations(
+                app=self.app,
+                schema_name=self.app_package.name,
+                fields_to_send=fields_to_send,
+                fields_to_update=fields_to_update,
+            )
+        )
 
     def test_feed_batch_synchronous_mode(self):
         self.feed_batch_synchronous_mode(app=self.app)
