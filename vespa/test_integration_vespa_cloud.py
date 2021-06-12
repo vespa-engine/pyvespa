@@ -1,396 +1,85 @@
-import unittest
 import os
 import asyncio
 import shutil
+
 from vespa.package import (
-    HNSW,
-    Document,
-    Field,
-    Schema,
-    FieldSet,
-    SecondPhaseRanking,
-    RankProfile,
-    ApplicationPackage,
     VespaCloud,
 )
-from vespa.ml import BertModelConfig
-from vespa.query import QueryModel, RankProfile as Ranking, OR, QueryRankingFeature
+from vespa.test_integration_docker import (
+    TestApplicationCommon,
+    create_msmarco_application_package,
+    create_cord19_application_package,
+)
 
 
-class TestCloudDeployment(unittest.TestCase):
+class TestMsmarcoApplication(TestApplicationCommon):
     def setUp(self) -> None:
-        #
-        # Create application package
-        #
-        document = Document(
-            fields=[
-                Field(name="id", type="string", indexing=["attribute", "summary"]),
-                Field(
-                    name="title",
-                    type="string",
-                    indexing=["index", "summary"],
-                    index="enable-bm25",
-                ),
-                Field(
-                    name="body",
-                    type="string",
-                    indexing=["index", "summary"],
-                    index="enable-bm25",
-                ),
-                Field(
-                    name="metadata",
-                    type="string",
-                    indexing=["attribute", "summary"],
-                    attribute=["fast-search", "fast-access"],
-                ),
-                Field(
-                    name="tensor_field",
-                    type="tensor<float>(x[128])",
-                    indexing=["attribute", "index"],
-                    ann=HNSW(
-                        distance_metric="euclidean",
-                        max_links_per_node=16,
-                        neighbors_to_explore_at_insert=200,
-                    ),
-                ),
-            ]
-        )
-        msmarco_schema = Schema(
-            name="msmarco",
-            document=document,
-            fieldsets=[FieldSet(name="default", fields=["title", "body"])],
-            rank_profiles=[
-                RankProfile(name="default", first_phase="nativeRank(title, body)")
-            ],
-        )
-        app_package = ApplicationPackage(name="msmarco", schema=[msmarco_schema]    )
-        #
-        # Deploy on Vespa Cloud
-        #
+        self.app_package = create_msmarco_application_package()
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
             application="pyvespa-integration",
             key_content=os.getenv("VESPA_CLOUD_USER_KEY").replace(r"\n", "\n"),
-            application_package=app_package,
+            application_package=self.app_package,
         )
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
         self.instance_name = "msmarco"
         self.app = self.vespa_cloud.deploy(
             instance=self.instance_name, disk_folder=self.disk_folder
         )
-
-    def test_data_operation(self):
-        #
-        # Make sure we start with no data with id = 1
-        #
-        _ = self.app.delete_data(schema="msmarco", data_id="1")
-        #
-        # Get data that does not exist
-        #
-        self.assertEqual(
-            self.app.get_data(schema="msmarco", data_id="1").status_code, 404
-        )
-        #
-        # Feed a data point
-        #
-        response = self.app.feed_data_point(
-            schema="msmarco",
-            data_id="1",
-            fields={
-                "id": "1",
-                "title": "this is my first title",
-                "body": "this is my first body",
-            },
-        )
-        self.assertEqual(response.json["id"], "id:msmarco:msmarco::1")
-        #
-        # Get data that exist
-        #
-        response = self.app.get_data(schema="msmarco", data_id="1")
-        self.assertEqual(response.status_code, 200)
-        self.assertDictEqual(
-            response.json,
+        self.fields_to_send = [
             {
-                "fields": {
-                    "id": "1",
-                    "title": "this is my first title",
-                    "body": "this is my first body",
-                },
-                "id": "id:msmarco:msmarco::1",
-                "pathId": "/document/v1/msmarco/msmarco/docid/1",
-            },
-        )
-        #
-        # Update data
-        #
-        response = self.app.update_data(
-            schema="msmarco", data_id="1", fields={"title": "this is my updated title"}
-        )
-        self.assertEqual(response.json["id"], "id:msmarco:msmarco::1")
-        #
-        # Get the updated data point
-        #
-        response = self.app.get_data(schema="msmarco", data_id="1")
-        self.assertEqual(response.status_code, 200)
-        self.assertDictEqual(
-            response.json,
-            {
-                "fields": {
-                    "id": "1",
-                    "title": "this is my updated title",
-                    "body": "this is my first body",
-                },
-                "id": "id:msmarco:msmarco::1",
-                "pathId": "/document/v1/msmarco/msmarco/docid/1",
-            },
-        )
-        #
-        # Delete a data point
-        #
-        response = self.app.delete_data(schema="msmarco", data_id="1")
-        self.assertEqual(response.json["id"], "id:msmarco:msmarco::1")
-        #
-        # Deleted data should be gone
-        #
-        self.assertEqual(
-            self.app.get_data(schema="msmarco", data_id="1").status_code, 404
-        )
-        #
-        # Update a non-existent data point
-        #
-        response = self.app.update_data(
-            schema="msmarco",
-            data_id="1",
-            fields={"title": "this is my updated title"},
-            create=True,
-        )
-        self.assertEqual(response.json["id"], "id:msmarco:msmarco::1")
-        #
-        # Get the updated data point
-        #
-        response = self.app.get_data(schema="msmarco", data_id="1")
-        self.assertEqual(response.status_code, 200)
-        self.assertDictEqual(
-            response.json,
-            {
-                "fields": {
-                    "title": "this is my updated title",
-                },
-                "id": "id:msmarco:msmarco::1",
-                "pathId": "/document/v1/msmarco/msmarco/docid/1",
-            },
+                "id": f"{i}",
+                "title": f"this is title {i}",
+                "body": f"this is body {i}",
+            }
+            for i in range(10)
+        ]
+        self.fields_to_update = {"title": "this is my updated title"}
+
+    def test_execute_data_operations(self):
+        self.execute_data_operations(
+            app=self.app,
+            schema_name=self.app_package.name,
+            fields_to_send=self.fields_to_send[0],
+            fields_to_update=self.fields_to_update,
+            expected_fields_from_get_operation=self.fields_to_send[0],
         )
 
-    def test_batch_feed_synchronous(self):
-        #
-        # Create and feed documents
-        #
-        num_docs = 100
-        docs = []
-        schema = "msmarco"
-        for i in range(num_docs):
-            id = f"{i}"
-            title = f"title for document {i}"
-            body = f"body for document {i}"
-            fields = {"id": id, "title": title, "body": body}
-            docs.append({"id": id, "fields": fields})
-        self.app.feed_batch(schema=schema, batch=docs, asynchronous=False)
-
-        # Verify that all documents are fed
-        result = self.app.query(query="sddocname:msmarco", query_model=QueryModel())
-        self.assertEqual(result.number_documents_indexed, num_docs)
-
-    def test_batch_feed_asynchronous(self):
-
-        #
-        # Create and feed documents
-        #
-        num_docs = 100
-        docs = []
-        schema = "msmarco"
-        for i in range(num_docs):
-            id = f"{i}"
-            title = f"title for document {i}"
-            body = f"body for document {i}"
-            fields = {"id": id, "title": title, "body": body}
-            docs.append({"id": id, "fields": fields})
-        self.app.feed_batch(schema=schema, batch=docs, asynchronous=True)
-
-        # Verify that all documents are fed
-        result = self.app.query(query="sddocname:msmarco", query_model=QueryModel())
-        self.assertEqual(result.number_documents_indexed, num_docs)
-
-    def test_data_operations_async(self):
-        asyncio.run(self.async_data_operations_test())
-
-    async def async_data_operations_test(self):
-        async with self.app.asyncio() as async_app:
-            #
-            # Get data that does not exist
-            #
-            response = await async_app.delete_data(schema="msmarco", data_id="1")
-            response = await async_app.get_data(schema="msmarco", data_id="1")
-            self.assertEqual(response.status_code, 404)
-
-            #
-            # Feed some data points
-            #
-            feed = []
-            for i in range(100):
-                feed.append(
-                    asyncio.create_task(
-                        async_app.feed_data_point(
-                            schema="msmarco",
-                            data_id=f"{i}",
-                            fields={
-                                "id": f"{i}",
-                                "title": f"this is title {i}",
-                                "body": f"this is body {i}",
-                            },
-                        )
-                    )
-                )
-            await asyncio.wait(feed, return_when=asyncio.ALL_COMPLETED)
-            result = feed[0].result().json
-            self.assertEqual(result["id"], "id:msmarco:msmarco::0")
-
-            self.assertEqual(
-                await async_app.feed_data_point(
-                    schema="msmarco",
-                    data_id="1",
-                    fields={
-                        "id": "1",
-                        "title": "this is title 1",
-                        "body": "this is body 1",
-                    },
-                ),
-                self.app.feed_data_point(
-                    schema="msmarco",
-                    data_id="1",
-                    fields={
-                        "id": "1",
-                        "title": "this is title 1",
-                        "body": "this is body 1",
-                    },
-                ),
+    def test_execute_async_data_operations(self):
+        asyncio.run(
+            self.execute_async_data_operations(
+                app=self.app,
+                schema_name=self.app_package.name,
+                fields_to_send=self.fields_to_send,
+                fields_to_update=self.fields_to_update,
+                expected_fields_from_get_operation=self.fields_to_send,
             )
+        )
 
-            #
-            # Get data that exists
-            #
-            response = await async_app.get_data(schema="msmarco", data_id="1")
-            self.assertEqual(response.status_code, 200)
-            result = response.json
-            self.assertDictEqual(
-                result,
-                {
-                    "fields": {
-                        "id": "1",
-                        "title": "this is title 1",
-                        "body": "this is body 1",
-                    },
-                    "id": "id:msmarco:msmarco::1",
-                    "pathId": "/document/v1/msmarco/msmarco/docid/1",
-                },
-            )
-            #
-            # Update data
-            #
-            response = await async_app.update_data(
-                schema="msmarco", data_id="1", fields={"id": "this is my updated id"}
-            )
-            result = response.json
-            self.assertEqual(result["id"], "id:msmarco:msmarco::1")
+    def test_feed_batch_synchronous_mode(self):
+        self.feed_batch_synchronous_mode(
+            app=self.app,
+            schema_name=self.app_package.name,
+            fields_to_send=self.fields_to_send,
+        )
 
-            #
-            # Get the updated data point
-            #
-            response = await async_app.get_data(schema="msmarco", data_id="1")
-            self.assertEqual(response.status_code, 200)
-            result = response.json
-            self.assertDictEqual(
-                result,
-                {
-                    "fields": {
-                        "id": "this is my updated id",
-                        "title": "this is title 1",
-                        "body": "this is body 1",
-                    },
-                    "id": "id:msmarco:msmarco::1",
-                    "pathId": "/document/v1/msmarco/msmarco/docid/1",
-                },
-            )
-            #
-            # Delete a data point
-            #
-            response = await async_app.delete_data(schema="msmarco", data_id="99")
-            result = response.json
-            self.assertEqual(result["id"], "id:msmarco:msmarco::99")
-            #
-            # Deleted data should be gone
-            #
-            response = await async_app.get_data(schema="msmarco", data_id="99")
-            self.assertEqual(response.status_code, 404)
-
-            #
-            # Issue a bunch of queries in parallel
-            #
-            queries = []
-            for i in range(10):
-                queries.append(
-                    asyncio.create_task(
-                        async_app.query(
-                            query="sddocname:msmarco",
-                            query_model=QueryModel(),
-                            timeout=5000,
-                        )
-                    )
-                )
-            await asyncio.wait(queries, return_when=asyncio.ALL_COMPLETED)
-            self.assertEqual(queries[0].result().number_documents_indexed, 99)
+    def test_feed_batch_asynchronous_mode(self):
+        self.feed_batch_asynchronous_mode(
+            app=self.app,
+            schema_name=self.app_package.name,
+            fields_to_send=self.fields_to_send,
+        )
 
     def tearDown(self) -> None:
+        self.app.delete_all_docs(
+            content_cluster_name="msmarco_content", schema="msmarco"
+        )
         shutil.rmtree(self.disk_folder, ignore_errors=True)
 
 
-class TestOnnxModelCloudDeployment(unittest.TestCase):
+class TestCord19Application(TestApplicationCommon):
     def setUp(self) -> None:
-        #
-        # Create application package
-        #
-        self.app_package = ApplicationPackage(name="cord19")
-        self.app_package.schema.add_fields(
-            Field(name="cord_uid", type="string", indexing=["attribute", "summary"]),
-            Field(
-                name="title",
-                type="string",
-                indexing=["index", "summary"],
-                index="enable-bm25",
-            ),
-        )
-        self.app_package.schema.add_field_set(
-            FieldSet(name="default", fields=["title"])
-        )
-        self.app_package.schema.add_rank_profile(
-            RankProfile(name="bm25", first_phase="bm25(title)")
-        )
-        self.bert_config = BertModelConfig(
-            model_id="pretrained_bert_tiny",
-            tokenizer="google/bert_uncased_L-2_H-128_A-2",
-            model="google/bert_uncased_L-2_H-128_A-2",
-            query_input_size=5,
-            doc_input_size=10,
-        )
-        self.app_package.add_model_ranking(
-            model_config=self.bert_config,
-            include_model_summary_features=True,
-            inherits="default",
-            first_phase="bm25(title)",
-            second_phase=SecondPhaseRanking(rerank_count=10, expression="logit1"),
-        )
-        #
-        # Deploy on Vespa Cloud
-        #
+        self.app_package = create_cord19_application_package()
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
             application="pyvespa-integration",
@@ -402,163 +91,85 @@ class TestOnnxModelCloudDeployment(unittest.TestCase):
         self.app = self.vespa_cloud.deploy(
             instance=self.instance_name, disk_folder=self.disk_folder
         )
+        self.model_config = self.app_package.model_configs["pretrained_bert_tiny"]
+        self.fields_to_send = []
+        self.expected_fields_from_get_operation = []
+        for i in range(10):
+            fields = {
+                "id": f"{i}",
+                "title": f"this is title {i}",
+            }
+            tensor_field_dict = self.model_config.doc_fields(text=str(fields["title"]))
+            fields.update(tensor_field_dict)
+            self.fields_to_send.append(fields)
 
-    def test_data_operation(self):
-        #
-        # Get data that does not exist
-        #
-        self.assertEqual(
-            self.app.get_data(schema="cord19", data_id="1").status_code, 404
-        )
-        #
-        # Feed a data point
-        #
-        fields = {
-            "cord_uid": "1",
-            "title": "this is my first title",
-        }
-        fields.update(self.bert_config.doc_fields(text=str(fields["title"])))
-        response = self.app.feed_data_point(
-            schema="cord19",
-            data_id="1",
-            fields=fields,
-        )
-        self.assertEqual(response.json["id"], "id:cord19:cord19::1")
-        #
-        # Get data that exist
-        #
-        response = self.app.get_data(schema="cord19", data_id="1")
-        self.assertEqual(response.status_code, 200)
-        embedding_values = fields["pretrained_bert_tiny_doc_token_ids"]["values"]
-        self.assertDictEqual(
-            response.json,
-            {
-                "fields": {
-                    "cord_uid": "1",
-                    "title": "this is my first title",
+            expected_fields = {
+                "id": f"{i}",
+                "title": f"this is title {i}",
+            }
+            tensor_field_values = tensor_field_dict[
+                "pretrained_bert_tiny_doc_token_ids"
+            ]["values"]
+            expected_fields.update(
+                {
                     "pretrained_bert_tiny_doc_token_ids": {
                         "cells": [
                             {
                                 "address": {"d0": str(x)},
-                                "value": float(embedding_values[x]),
+                                "value": float(tensor_field_values[x]),
                             }
-                            for x in range(len(embedding_values))
+                            for x in range(len(tensor_field_values))
                         ]
-                    },
-                },
-                "id": "id:cord19:cord19::1",
-                "pathId": "/document/v1/cord19/cord19/docid/1",
-            },
-        )
-        #
-        # Update data
-        #
-        fields = {"title": "this is my updated title"}
-        fields.update(self.bert_config.doc_fields(text=str(fields["title"])))
-        response = self.app.update_data(schema="cord19", data_id="1", fields=fields)
-        self.assertEqual(response.json["id"], "id:cord19:cord19::1")
-        #
-        # Get the updated data point
-        #
-        response = self.app.get_data(schema="cord19", data_id="1")
-        self.assertEqual(response.status_code, 200)
-        embedding_values = fields["pretrained_bert_tiny_doc_token_ids"]["values"]
-        self.assertDictEqual(
-            response.json,
-            {
-                "fields": {
-                    "cord_uid": "1",
-                    "title": "this is my updated title",
-                    "pretrained_bert_tiny_doc_token_ids": {
-                        "cells": [
-                            {
-                                "address": {"d0": str(x)},
-                                "value": float(embedding_values[x]),
-                            }
-                            for x in range(len(embedding_values))
-                        ]
-                    },
-                },
-                "id": "id:cord19:cord19::1",
-                "pathId": "/document/v1/cord19/cord19/docid/1",
-            },
-        )
-        #
-        # Delete a data point
-        #
-        response = self.app.delete_data(schema="cord19", data_id="1")
-        self.assertEqual(response.json["id"], "id:cord19:cord19::1")
-        #
-        # Deleted data should be gone
-        #
-        self.assertEqual(
-            self.app.get_data(schema="cord19", data_id="1").status_code, 404
+                    }
+                }
+            )
+            self.expected_fields_from_get_operation.append(expected_fields)
+        self.fields_to_update = {"title": "this is my updated title"}
+
+    def test_execute_data_operations(self):
+        self.execute_data_operations(
+            app=self.app,
+            schema_name=self.app_package.name,
+            fields_to_send=self.fields_to_send[0],
+            fields_to_update=self.fields_to_update,
+            expected_fields_from_get_operation=self.expected_fields_from_get_operation[
+                0
+            ],
         )
 
-    def _parse_vespa_tensor(self, hit, feature):
-        return [x["value"] for x in hit["fields"]["summaryfeatures"][feature]["cells"]]
-
-    def test_rank_input_output(self):
-        #
-        # Feed a data point
-        #
-        fields = {
-            "cord_uid": "1",
-            "title": "this is my first title",
-        }
-        fields.update(self.bert_config.doc_fields(text=str(fields["title"])))
-        response = self.app.feed_data_point(
-            schema="cord19",
-            data_id="1",
-            fields=fields,
-        )
-        self.assertEqual(response.json["id"], "id:cord19:cord19::1")
-        #
-        # Run a test query
-        #
-        result = self.app.query(
-            query="this is a test",
-            query_model=QueryModel(
-                query_properties=[
-                    QueryRankingFeature(
-                        name=self.bert_config.query_token_ids_name,
-                        mapping=self.bert_config.query_tensor_mapping,
-                    )
-                ],
-                match_phase=OR(),
-                rank_profile=Ranking(name="pretrained_bert_tiny"),
-            ),
-        )
-        vespa_input_ids = self._parse_vespa_tensor(
-            result.hits[0], "rankingExpression(input_ids)"
-        )
-        vespa_attention_mask = self._parse_vespa_tensor(
-            result.hits[0], "rankingExpression(attention_mask)"
-        )
-        vespa_token_type_ids = self._parse_vespa_tensor(
-            result.hits[0], "rankingExpression(token_type_ids)"
+    def test_execute_async_data_operations(self):
+        asyncio.run(
+            self.execute_async_data_operations(
+                app=self.app,
+                schema_name=self.app_package.name,
+                fields_to_send=self.fields_to_send,
+                fields_to_update=self.fields_to_update,
+                expected_fields_from_get_operation=self.expected_fields_from_get_operation,
+            )
         )
 
-        expected_inputs = self.bert_config.create_encodings(
-            queries=["this is a test"], docs=["this is my first title"]
+    def test_feed_batch_synchronous_mode(self):
+        self.feed_batch_synchronous_mode(
+            app=self.app,
+            schema_name=self.app_package.name,
+            fields_to_send=self.fields_to_send,
         )
-        self.assertEqual(vespa_input_ids, expected_inputs["input_ids"][0])
-        self.assertEqual(vespa_attention_mask, expected_inputs["attention_mask"][0])
-        self.assertEqual(vespa_token_type_ids, expected_inputs["token_type_ids"][0])
 
-        expected_logits = self.bert_config.predict(
-            queries=["this is a test"], docs=["this is my first title"]
+    def test_feed_batch_asynchronous_mode(self):
+        self.feed_batch_asynchronous_mode(
+            app=self.app,
+            schema_name=self.app_package.name,
+            fields_to_send=self.fields_to_send,
         )
-        self.assertAlmostEqual(
-            result.hits[0]["fields"]["summaryfeatures"]["rankingExpression(logit0)"],
-            expected_logits[0][0],
-            5,
-        )
-        self.assertAlmostEqual(
-            result.hits[0]["fields"]["summaryfeatures"]["rankingExpression(logit1)"],
-            expected_logits[0][1],
-            5,
+
+    def test_bert_model_input_and_output(self):
+        self.bert_model_input_and_output(
+            app=self.app,
+            schema_name=self.app_package.name,
+            fields_to_send=self.fields_to_send[0],
+            model_config=self.model_config,
         )
 
     def tearDown(self) -> None:
+        self.app.delete_all_docs(content_cluster_name="cord19_content", schema="cord19")
         shutil.rmtree(self.disk_folder, ignore_errors=True)
