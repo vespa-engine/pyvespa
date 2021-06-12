@@ -233,7 +233,12 @@ class TestDockerCommon(unittest.TestCase):
 
 class TestApplicationCommon(unittest.TestCase):
     def execute_data_operations(
-        self, app, schema_name, fields_to_send, fields_to_update
+        self,
+        app,
+        schema_name,
+        fields_to_send,
+        fields_to_update,
+        expected_fields_from_get_operation,
     ):
         """
         Feed, get, update and delete data to/from the application
@@ -242,6 +247,8 @@ class TestApplicationCommon(unittest.TestCase):
         :param schema_name: Schema name containing the document we want to send and retrieve data
         :param fields_to_send: Dict where keys are field names and values are field values. Must contain 'id' field
         :param fields_to_update: Dict where keys are field names and values are field values.
+        :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
+            There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
         :return:
         """
         assert "id" in fields_to_send, "fields_to_send must contain 'id' field."
@@ -272,7 +279,7 @@ class TestApplicationCommon(unittest.TestCase):
         self.assertDictEqual(
             response.json(),
             {
-                "fields": fields_to_send,
+                "fields": expected_fields_from_get_operation,
                 "id": "id:{}:{}::{}".format(
                     schema_name, schema_name, fields_to_send["id"]
                 ),
@@ -298,7 +305,7 @@ class TestApplicationCommon(unittest.TestCase):
         #
         response = app.get_data(schema=schema_name, data_id=fields_to_send["id"])
         self.assertEqual(response.status_code, 200)
-        expected_result = {k: v for k, v in fields_to_send.items()}
+        expected_result = {k: v for k, v in expected_fields_from_get_operation.items()}
         expected_result.update(fields_to_update)
         self.assertDictEqual(
             response.json(),
@@ -359,7 +366,12 @@ class TestApplicationCommon(unittest.TestCase):
         )
 
     async def execute_async_data_operations(
-        self, app, schema_name, fields_to_send, fields_to_update
+        self,
+        app,
+        schema_name,
+        fields_to_send,
+        fields_to_update,
+        expected_fields_from_get_operation,
     ):
         """
         Async feed, get, update and delete data to/from the application
@@ -369,15 +381,14 @@ class TestApplicationCommon(unittest.TestCase):
         :param fields_to_send: List of Dicts where keys are field names and values are field values. Must
             contain 'id' field.
         :param fields_to_update: Dict where keys are field names and values are field values.
+        :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
+            There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
         :return:
         """
         async with app.asyncio() as async_app:
             #
             # Get data that does not exist
             #
-            # response = await async_app.delete_data(
-            #     schema=schema_name, data_id=fields_to_send[0]["id"]
-            # )
             response = await async_app.get_data(
                 schema=schema_name, data_id=fields_to_send[0]["id"]
             )
@@ -417,7 +428,7 @@ class TestApplicationCommon(unittest.TestCase):
             self.assertDictEqual(
                 result,
                 {
-                    "fields": fields_to_send[0],
+                    "fields": expected_fields_from_get_operation[0],
                     "id": "id:{}:{}::{}".format(
                         schema_name, schema_name, fields_to_send[0]["id"]
                     ),
@@ -450,7 +461,9 @@ class TestApplicationCommon(unittest.TestCase):
             )
             self.assertEqual(response.status, 200)
             result = await response.json()
-            expected_result = {k: v for k, v in fields_to_send[0].items()}
+            expected_result = {
+                k: v for k, v in expected_fields_from_get_operation[0].items()
+            }
             expected_result.update(fields_to_update)
 
             self.assertDictEqual(
@@ -557,6 +570,72 @@ class TestApplicationCommon(unittest.TestCase):
         )
         self.assertEqual(result.number_documents_indexed, num_docs)
 
+    @staticmethod
+    def _parse_vespa_tensor(hit, feature):
+        return [x["value"] for x in hit["fields"]["summaryfeatures"][feature]["cells"]]
+
+    def bert_model_input_and_output(
+        self, app, schema_name, fields_to_send, model_config
+    ):
+        #
+        # Feed a data point
+        #
+        response = app.feed_data_point(
+            schema=schema_name,
+            data_id=fields_to_send["id"],
+            fields=fields_to_send,
+        )
+        self.assertEqual(
+            response.json()["id"],
+            "id:{}:{}::{}".format(schema_name, schema_name, fields_to_send["id"]),
+        )
+        #
+        # Run a test query
+        #
+        result = app.query(
+            query="this is a test",
+            query_model=QueryModel(
+                query_properties=[
+                    QueryRankingFeature(
+                        name=model_config.query_token_ids_name,
+                        mapping=model_config.query_tensor_mapping,
+                    )
+                ],
+                match_phase=OR(),
+                rank_profile=Ranking(name="pretrained_bert_tiny"),
+            ),
+        )
+        vespa_input_ids = self._parse_vespa_tensor(
+            result.hits[0], "rankingExpression(input_ids)"
+        )
+        vespa_attention_mask = self._parse_vespa_tensor(
+            result.hits[0], "rankingExpression(attention_mask)"
+        )
+        vespa_token_type_ids = self._parse_vespa_tensor(
+            result.hits[0], "rankingExpression(token_type_ids)"
+        )
+
+        expected_inputs = model_config.create_encodings(
+            queries=["this is a test"], docs=[fields_to_send["title"]]
+        )
+        self.assertEqual(vespa_input_ids, expected_inputs["input_ids"][0])
+        self.assertEqual(vespa_attention_mask, expected_inputs["attention_mask"][0])
+        self.assertEqual(vespa_token_type_ids, expected_inputs["token_type_ids"][0])
+
+        expected_logits = model_config.predict(
+            queries=["this is a test"], docs=[fields_to_send["title"]]
+        )
+        self.assertAlmostEqual(
+            result.hits[0]["fields"]["summaryfeatures"]["rankingExpression(logit0)"],
+            expected_logits[0][0],
+            5,
+        )
+        self.assertAlmostEqual(
+            result.hits[0]["fields"]["summaryfeatures"]["rankingExpression(logit1)"],
+            expected_logits[0][1],
+            5,
+        )
+
 
 class TestMsmarcoDockerDeployment(TestDockerCommon):
     def setUp(self) -> None:
@@ -638,6 +717,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send[0],
             fields_to_update=self.fields_to_update,
+            expected_fields_from_get_operation=self.fields_to_send[0],
         )
 
     def test_execute_async_data_operations(self):
@@ -647,6 +727,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
                 schema_name=self.app_package.name,
                 fields_to_send=self.fields_to_send,
                 fields_to_update=self.fields_to_update,
+                expected_fields_from_get_operation=self.fields_to_send,
             )
         )
 
@@ -676,13 +757,39 @@ class TestCord19Application(TestApplicationCommon):
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
         self.app = self.vespa_docker.deploy(application_package=self.app_package)
-        self.fields_to_send = [
-            {
+        self.model_config = self.app_package.model_configs["pretrained_bert_tiny"]
+        self.fields_to_send = []
+        self.expected_fields_from_get_operation = []
+        for i in range(10):
+            fields = {
                 "id": f"{i}",
                 "title": f"this is title {i}",
             }
-            for i in range(10)
-        ]
+            tensor_field_dict = self.model_config.doc_fields(text=str(fields["title"]))
+            fields.update(tensor_field_dict)
+            self.fields_to_send.append(fields)
+
+            expected_fields = {
+                "id": f"{i}",
+                "title": f"this is title {i}",
+            }
+            tensor_field_values = tensor_field_dict[
+                "pretrained_bert_tiny_doc_token_ids"
+            ]["values"]
+            expected_fields.update(
+                {
+                    "pretrained_bert_tiny_doc_token_ids": {
+                        "cells": [
+                            {
+                                "address": {"d0": str(x)},
+                                "value": float(tensor_field_values[x]),
+                            }
+                            for x in range(len(tensor_field_values))
+                        ]
+                    }
+                }
+            )
+            self.expected_fields_from_get_operation.append(expected_fields)
         self.fields_to_update = {"title": "this is my updated title"}
 
     def test_execute_data_operations(self):
@@ -691,6 +798,9 @@ class TestCord19Application(TestApplicationCommon):
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send[0],
             fields_to_update=self.fields_to_update,
+            expected_fields_from_get_operation=self.expected_fields_from_get_operation[
+                0
+            ],
         )
 
     def test_execute_async_data_operations(self):
@@ -700,6 +810,7 @@ class TestCord19Application(TestApplicationCommon):
                 schema_name=self.app_package.name,
                 fields_to_send=self.fields_to_send,
                 fields_to_update=self.fields_to_update,
+                expected_fields_from_get_operation=self.expected_fields_from_get_operation,
             )
         )
 
@@ -717,206 +828,12 @@ class TestCord19Application(TestApplicationCommon):
             fields_to_send=self.fields_to_send,
         )
 
-    def tearDown(self) -> None:
-        shutil.rmtree(self.disk_folder, ignore_errors=True)
-        self.vespa_docker.container.stop()
-        self.vespa_docker.container.remove()
-
-
-class TestOnnxModelDockerDeployment(unittest.TestCase):
-    def setUp(self) -> None:
-        #
-        # Create application package
-        #
-        self.app_package = ApplicationPackage(name="cord19")
-        self.app_package.schema.add_fields(
-            Field(name="cord_uid", type="string", indexing=["attribute", "summary"]),
-            Field(
-                name="title",
-                type="string",
-                indexing=["index", "summary"],
-                index="enable-bm25",
-            ),
-        )
-        self.app_package.schema.add_field_set(
-            FieldSet(name="default", fields=["title"])
-        )
-        self.app_package.schema.add_rank_profile(
-            RankProfile(name="bm25", first_phase="bm25(title)")
-        )
-        self.bert_config = BertModelConfig(
-            model_id="pretrained_bert_tiny",
-            tokenizer="google/bert_uncased_L-2_H-128_A-2",
-            model="google/bert_uncased_L-2_H-128_A-2",
-            query_input_size=5,
-            doc_input_size=10,
-        )
-        self.app_package.add_model_ranking(
-            model_config=self.bert_config,
-            include_model_summary_features=True,
-            inherits="default",
-            first_phase="bm25(title)",
-            second_phase=SecondPhaseRanking(rerank_count=10, expression="logit1"),
-        )
-        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
-        self.app = self.vespa_docker.deploy(application_package=self.app_package)
-
-    def test_data_operation(self):
-        #
-        # Get data that does not exist
-        #
-        self.assertEqual(
-            self.app.get_data(schema="cord19", data_id="1").status_code, 404
-        )
-        #
-        # Feed a data point
-        #
-        fields = {
-            "cord_uid": "1",
-            "title": "this is my first title",
-        }
-        fields.update(self.bert_config.doc_fields(text=str(fields["title"])))
-        response = self.app.feed_data_point(
-            schema="cord19",
-            data_id="1",
-            fields=fields,
-        )
-        self.assertEqual(response.json()["id"], "id:cord19:cord19::1")
-        #
-        # Get data that exist
-        #
-        response = self.app.get_data(schema="cord19", data_id="1")
-        self.assertEqual(response.status_code, 200)
-        embedding_values = fields["pretrained_bert_tiny_doc_token_ids"]["values"]
-        self.assertDictEqual(
-            response.json(),
-            {
-                "fields": {
-                    "cord_uid": "1",
-                    "title": "this is my first title",
-                    "pretrained_bert_tiny_doc_token_ids": {
-                        "cells": [
-                            {
-                                "address": {"d0": str(x)},
-                                "value": float(embedding_values[x]),
-                            }
-                            for x in range(len(embedding_values))
-                        ]
-                    },
-                },
-                "id": "id:cord19:cord19::1",
-                "pathId": "/document/v1/cord19/cord19/docid/1",
-            },
-        )
-        #
-        # Update data
-        #
-        fields = {"title": "this is my updated title"}
-        fields.update(self.bert_config.doc_fields(text=str(fields["title"])))
-        response = self.app.update_data(schema="cord19", data_id="1", fields=fields)
-        self.assertEqual(response.json()["id"], "id:cord19:cord19::1")
-        #
-        # Get the updated data point
-        #
-        response = self.app.get_data(schema="cord19", data_id="1")
-        self.assertEqual(response.status_code, 200)
-        embedding_values = fields["pretrained_bert_tiny_doc_token_ids"]["values"]
-        self.assertDictEqual(
-            response.json(),
-            {
-                "fields": {
-                    "cord_uid": "1",
-                    "title": "this is my updated title",
-                    "pretrained_bert_tiny_doc_token_ids": {
-                        "cells": [
-                            {
-                                "address": {"d0": str(x)},
-                                "value": float(embedding_values[x]),
-                            }
-                            for x in range(len(embedding_values))
-                        ]
-                    },
-                },
-                "id": "id:cord19:cord19::1",
-                "pathId": "/document/v1/cord19/cord19/docid/1",
-            },
-        )
-        #
-        # Delete a data point
-        #
-        response = self.app.delete_data(schema="cord19", data_id="1")
-        self.assertEqual(response.json()["id"], "id:cord19:cord19::1")
-        #
-        # Deleted data should be gone
-        #
-        self.assertEqual(
-            self.app.get_data(schema="cord19", data_id="1").status_code, 404
-        )
-
-    def _parse_vespa_tensor(self, hit, feature):
-        return [x["value"] for x in hit["fields"]["summaryfeatures"][feature]["cells"]]
-
-    def test_rank_input_output(self):
-        #
-        # Feed a data point
-        #
-        fields = {
-            "cord_uid": "1",
-            "title": "this is my first title",
-        }
-        fields.update(self.bert_config.doc_fields(text=str(fields["title"])))
-        response = self.app.feed_data_point(
-            schema="cord19",
-            data_id="1",
-            fields=fields,
-        )
-        self.assertEqual(response.json()["id"], "id:cord19:cord19::1")
-        #
-        # Run a test query
-        #
-        result = self.app.query(
-            query="this is a test",
-            query_model=QueryModel(
-                query_properties=[
-                    QueryRankingFeature(
-                        name=self.bert_config.query_token_ids_name,
-                        mapping=self.bert_config.query_tensor_mapping,
-                    )
-                ],
-                match_phase=OR(),
-                rank_profile=Ranking(name="pretrained_bert_tiny"),
-            ),
-        )
-        vespa_input_ids = self._parse_vespa_tensor(
-            result.hits[0], "rankingExpression(input_ids)"
-        )
-        vespa_attention_mask = self._parse_vespa_tensor(
-            result.hits[0], "rankingExpression(attention_mask)"
-        )
-        vespa_token_type_ids = self._parse_vespa_tensor(
-            result.hits[0], "rankingExpression(token_type_ids)"
-        )
-
-        expected_inputs = self.bert_config.create_encodings(
-            queries=["this is a test"], docs=["this is my first title"]
-        )
-        self.assertEqual(vespa_input_ids, expected_inputs["input_ids"][0])
-        self.assertEqual(vespa_attention_mask, expected_inputs["attention_mask"][0])
-        self.assertEqual(vespa_token_type_ids, expected_inputs["token_type_ids"][0])
-
-        expected_logits = self.bert_config.predict(
-            queries=["this is a test"], docs=["this is my first title"]
-        )
-        self.assertAlmostEqual(
-            result.hits[0]["fields"]["summaryfeatures"]["rankingExpression(logit0)"],
-            expected_logits[0][0],
-            5,
-        )
-        self.assertAlmostEqual(
-            result.hits[0]["fields"]["summaryfeatures"]["rankingExpression(logit1)"],
-            expected_logits[0][1],
-            5,
+    def test_bert_model_input_and_output(self):
+        self.bert_model_input_and_output(
+            app=self.app,
+            schema_name=self.app_package.name,
+            fields_to_send=self.fields_to_send[0],
+            model_config=self.model_config,
         )
 
     def tearDown(self) -> None:
