@@ -50,9 +50,9 @@ def trec_format(
     return DataFrame.from_records(records)
 
 
-class VespaResult(object):
-    def __init__(self, vespa_result, request_body=None):
-        self._vespa_result = vespa_result
+class VespaQueryResponse(VespaResponse):
+    def __init__(self, json, status_code, url, request_body=None):
+        super().__init__(json=json, status_code=status_code, url=url, operation_type="query")
         self._request_body = request_body
 
     @property
@@ -60,12 +60,8 @@ class VespaResult(object):
         return self._request_body
 
     @property
-    def json(self) -> Dict:
-        return self._vespa_result
-
-    @property
     def hits(self) -> List:
-        return self._vespa_result.get("root", {}).get("children", [])
+        return self.json.get("root", {}).get("children", [])
 
     def get_hits(self, format_function=trec_format, **kwargs):
         """
@@ -77,14 +73,14 @@ class VespaResult(object):
         """
         if not format_function:
             return self.hits
-        return format_function(self._vespa_result, **kwargs)
+        return format_function(self.json, **kwargs)
 
     @property
     def number_documents_retrieved(self) -> int:
-        return self._vespa_result.get("root", {}).get("fields", {}).get("totalCount", 0)
+        return self.json.get("root", {}).get("fields", {}).get("totalCount", 0)
 
     @property
     def number_documents_indexed(self) -> int:
         return (
-            self._vespa_result.get("root", {}).get("coverage", {}).get("documents", 0)
+            self.json.get("root", {}).get("coverage", {}).get("documents", 0)
         )
