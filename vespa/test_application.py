@@ -6,7 +6,7 @@ from pandas import DataFrame
 from pandas.testing import assert_frame_equal
 
 from vespa.application import Vespa, parse_labeled_data
-from vespa.io import VespaResult
+from vespa.io import VespaQueryResponse
 from vespa.query import QueryModel, OR, RankProfile
 
 
@@ -216,8 +216,8 @@ class TestVespaCollectData(unittest.TestCase):
 
         self.app.query = Mock(
             side_effect=[
-                VespaResult(self.raw_vespa_result_recall),
-                VespaResult(self.raw_vespa_result_additional),
+                VespaQueryResponse(self.raw_vespa_result_recall, status_code=None, url=None),
+                VespaQueryResponse(self.raw_vespa_result_additional, status_code=None, url=None),
             ]
         )
         query_model = QueryModel(rank_profile=RankProfile(list_features=True))
@@ -281,8 +281,8 @@ class TestVespaCollectData(unittest.TestCase):
 
         self.app.query = Mock(
             side_effect=[
-                VespaResult(self.raw_vespa_result_recall),
-                VespaResult(self.raw_vespa_result_additional),
+                VespaQueryResponse(self.raw_vespa_result_recall, status_code=None, url=None),
+                VespaQueryResponse(self.raw_vespa_result_additional, status_code=None, url=None),
             ]
         )
         query_model = QueryModel(rank_profile=RankProfile(list_features=True))
@@ -358,8 +358,8 @@ class TestVespaCollectData(unittest.TestCase):
         }
         self.app.query = Mock(
             side_effect=[
-                VespaResult(self.raw_vespa_result_recall),
-                VespaResult(self.raw_vespa_result_additional),
+                VespaQueryResponse(self.raw_vespa_result_recall, status_code=None, url=None),
+                VespaQueryResponse(self.raw_vespa_result_additional, status_code=None, url=None),
             ]
         )
         query_model = QueryModel(rank_profile=RankProfile(list_features=True))

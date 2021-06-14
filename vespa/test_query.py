@@ -14,7 +14,7 @@ from vespa.query import (
     Union,
     RankProfile,
 )
-from vespa.io import VespaResult
+from vespa.io import VespaQueryResponse
 
 
 class TestQueryProperty(unittest.TestCase):
@@ -292,15 +292,13 @@ class TestVespaResult(unittest.TestCase):
         }
 
     def test_json(self):
-        vespa_result = VespaResult(vespa_result=self.raw_vespa_result)
+        vespa_result = VespaQueryResponse(json=self.raw_vespa_result, status_code=None, url=None)
         self.assertDictEqual(vespa_result.json, self.raw_vespa_result)
 
     def test_hits(self):
-        empty_hits_vespa_result = VespaResult(
-            vespa_result=self.raw_vespa_result_empty_hits
-        )
+        empty_hits_vespa_result = VespaQueryResponse(json=self.raw_vespa_result_empty_hits, status_code=None, url=None)
         self.assertEqual(empty_hits_vespa_result.hits, [])
-        vespa_result = VespaResult(vespa_result=self.raw_vespa_result)
+        vespa_result = VespaQueryResponse(json=self.raw_vespa_result, status_code=None, url=None)
         self.assertEqual(
             vespa_result.hits,
             [
@@ -318,25 +316,21 @@ class TestVespaResult(unittest.TestCase):
         )
 
     def test_get_hits_none(self):
-        empty_hits_vespa_result = VespaResult(
-            vespa_result=self.raw_vespa_result_empty_hits
-        )
+        empty_hits_vespa_result = VespaQueryResponse(json=self.raw_vespa_result_empty_hits, status_code=None, url=None)
         self.assertEqual(
             empty_hits_vespa_result.get_hits(format_function=None),
             empty_hits_vespa_result.hits,
         )
-        vespa_result = VespaResult(vespa_result=self.raw_vespa_result)
+        vespa_result = VespaQueryResponse(json=self.raw_vespa_result, status_code=None, url=None)
         self.assertEqual(
             vespa_result.get_hits(format_function=None),
             vespa_result.hits,
         )
 
     def test_get_hits_trec_format(self):
-        empty_hits_vespa_result = VespaResult(
-            vespa_result=self.raw_vespa_result_empty_hits
-        )
+        empty_hits_vespa_result = VespaQueryResponse(json=self.raw_vespa_result_empty_hits, status_code=None, url=None)
         self.assertTrue(empty_hits_vespa_result.get_hits().empty)
-        vespa_result = VespaResult(vespa_result=self.raw_vespa_result)
+        vespa_result = VespaQueryResponse(json=self.raw_vespa_result, status_code=None, url=None)
         assert_frame_equal(
             vespa_result.get_hits(),
             DataFrame(
@@ -349,7 +343,7 @@ class TestVespaResult(unittest.TestCase):
                 columns=["qid", "doc_id", "score", "rank"],
             ),
         )
-        vespa_result = VespaResult(vespa_result=self.raw_vespa_result_multiple)
+        vespa_result = VespaQueryResponse(json=self.raw_vespa_result_multiple, status_code=None, url=None)
         assert_frame_equal(
             vespa_result.get_hits(),
             DataFrame(
