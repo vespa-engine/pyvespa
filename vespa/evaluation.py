@@ -2,7 +2,7 @@
 
 import math
 from typing import Dict, List
-from vespa.io import VespaResult
+from vespa.io import VespaQueryResponse
 
 
 class EvalMetric(object):
@@ -30,7 +30,7 @@ class MatchRatio(EvalMetric):
 
     def evaluate_query(
         self,
-        query_results: VespaResult,
+        query_results: VespaQueryResponse,
         relevant_docs: List[Dict],
         id_field: str,
         default_score: int,
@@ -78,7 +78,7 @@ class Recall(EvalMetric):
 
     def evaluate_query(
         self,
-        query_results: VespaResult,
+        query_results: VespaQueryResponse,
         relevant_docs: List[Dict],
         id_field: str,
         default_score: int,
@@ -122,7 +122,7 @@ class ReciprocalRank(EvalMetric):
 
     def evaluate_query(
         self,
-        query_results: VespaResult,
+        query_results: VespaQueryResponse,
         relevant_docs: List[Dict],
         id_field: str,
         default_score: int,
@@ -169,7 +169,7 @@ class NormalizedDiscountedCumulativeGain(EvalMetric):
 
     def evaluate_query(
         self,
-        query_results: VespaResult,
+        query_results: VespaQueryResponse,
         relevant_docs: List[Dict],
         id_field: str,
         default_score: int,

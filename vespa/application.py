@@ -13,7 +13,7 @@ from requests.exceptions import ConnectionError
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
-from vespa.io import VespaResult, VespaResponse
+from vespa.io import VespaQueryResponse, VespaResponse
 from vespa.query import QueryModel
 from vespa.evaluation import EvalMetric
 
@@ -173,7 +173,7 @@ class Vespa(object):
         debug_request: bool = False,
         recall: Optional[Tuple] = None,
         **kwargs
-    ) -> VespaResult:
+    ) -> VespaQueryResponse:
         """
         Send a query request to the Vespa application.
 
@@ -194,10 +194,14 @@ class Vespa(object):
             else body
         )
         if debug_request:
-            return VespaResult(vespa_result={}, request_body=body)
+            return VespaQueryResponse(
+                json={}, status_code=None, url=None, request_body=body
+            )
         else:
             r = self.http_session.post(self.search_end_point, json=body, cert=self.cert)
-            return VespaResult(vespa_result=r.json())
+        return VespaQueryResponse(
+            json=r.json(), status_code=r.status_code, url=str(r.url)
+        )
 
     def feed_data_point(self, schema: str, data_id: str, fields: Dict) -> VespaResponse:
         """
@@ -685,7 +689,7 @@ class VespaAsync(object):
             else body
         )
         r = await self.aiohttp_session.post(self.app.search_end_point, json=body)
-        return VespaResult(vespa_result=await r.json())
+        return VespaQueryResponse(json=await r.json(), status_code=r.status, url=str(r.url))
 
     async def feed_data_point(
         self, schema: str, data_id: str, fields: Dict
