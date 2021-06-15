@@ -13,7 +13,8 @@ from requests.exceptions import ConnectionError
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
-from vespa.query import QueryModel, VespaResult
+from vespa.io import VespaQueryResponse, VespaResponse
+from vespa.query import QueryModel
 from vespa.evaluation import EvalMetric
 
 retry_strategy = Retry(
@@ -172,7 +173,7 @@ class Vespa(object):
         debug_request: bool = False,
         recall: Optional[Tuple] = None,
         **kwargs
-    ) -> VespaResult:
+    ) -> VespaQueryResponse:
         """
         Send a query request to the Vespa application.
 
@@ -193,12 +194,16 @@ class Vespa(object):
             else body
         )
         if debug_request:
-            return VespaResult(vespa_result={}, request_body=body)
+            return VespaQueryResponse(
+                json={}, status_code=None, url=None, request_body=body
+            )
         else:
             r = self.http_session.post(self.search_end_point, json=body, cert=self.cert)
-            return VespaResult(vespa_result=r.json())
+        return VespaQueryResponse(
+            json=r.json(), status_code=r.status_code, url=str(r.url)
+        )
 
-    def feed_data_point(self, schema: str, data_id: str, fields: Dict):
+    def feed_data_point(self, schema: str, data_id: str, fields: Dict) -> VespaResponse:
         """
         Feed a data point to a Vespa app.
 
@@ -212,7 +217,12 @@ class Vespa(object):
         )
         vespa_format = {"fields": fields}
         response = self.http_session.post(end_point, json=vespa_format, cert=self.cert)
-        return response
+        return VespaResponse(
+            json=response.json(),
+            status_code=response.status_code,
+            url=str(response.url),
+            operation_type="feed",
+        )
 
     def _feed_batch_sync(self, schema: str, batch: List[Dict]):
         return [
@@ -244,7 +254,7 @@ class Vespa(object):
         else:
             return self._feed_batch_sync(schema=schema, batch=batch)
 
-    def delete_data(self, schema: str, data_id: str) -> Response:
+    def delete_data(self, schema: str, data_id: str) -> VespaResponse:
         """
         Delete a data point from a Vespa app.
 
@@ -256,7 +266,12 @@ class Vespa(object):
             self.end_point, schema, schema, str(data_id)
         )
         response = self.http_session.delete(end_point, cert=self.cert)
-        return response
+        return VespaResponse(
+            json=response.json(),
+            status_code=response.status_code,
+            url=str(response.url),
+            operation_type="delete",
+        )
 
     def delete_batch(self, batch: List):
         """
@@ -293,7 +308,12 @@ class Vespa(object):
             self.end_point, schema, schema, str(data_id)
         )
         response = self.http_session.get(end_point, cert=self.cert)
-        return response
+        return VespaResponse(
+            json=response.json(),
+            status_code=response.status_code,
+            url=str(response.url),
+            operation_type="get",
+        )
 
     def get_batch(self, batch: List):
         """
@@ -306,7 +326,7 @@ class Vespa(object):
 
     def update_data(
         self, schema: str, data_id: str, fields: Dict, create: bool = False
-    ) -> Response:
+    ) -> VespaResponse:
         """
         Update a data point in a Vespa app.
 
@@ -321,7 +341,12 @@ class Vespa(object):
         )
         vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
         response = self.http_session.put(end_point, json=vespa_format, cert=self.cert)
-        return response
+        return VespaResponse(
+            json=response.json(),
+            status_code=response.status_code,
+            url=str(response.url),
+            operation_type="update",
+        )
 
     def update_batch(self, batch: List):
         """
@@ -664,14 +689,22 @@ class VespaAsync(object):
             else body
         )
         r = await self.aiohttp_session.post(self.app.search_end_point, json=body)
-        return VespaResult(vespa_result=await r.json())
+        return VespaQueryResponse(json=await r.json(), status_code=r.status, url=str(r.url))
 
-    async def feed_data_point(self, schema: str, data_id: str, fields: Dict):
+    async def feed_data_point(
+        self, schema: str, data_id: str, fields: Dict
+    ) -> VespaResponse:
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
             self.app.end_point, schema, schema, str(data_id)
         )
         vespa_format = {"fields": fields}
-        return await self.aiohttp_session.post(end_point, json=vespa_format)
+        response = await self.aiohttp_session.post(end_point, json=vespa_format)
+        return VespaResponse(
+            json=await response.json(),
+            status_code=response.status,
+            url=str(response.url),
+            operation_type="feed",
+        )
 
     async def feed_batch(self, schema: str, batch: List[Dict]):
         return await self._wait(
@@ -679,11 +712,17 @@ class VespaAsync(object):
             [(schema, data_point["id"], data_point["fields"]) for data_point in batch],
         )
 
-    async def delete_data(self, schema: str, data_id: str):
+    async def delete_data(self, schema: str, data_id: str) -> VespaResponse:
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
             self.app.end_point, schema, schema, str(data_id)
         )
-        return await self.aiohttp_session.delete(end_point)
+        response = await self.aiohttp_session.delete(end_point)
+        return VespaResponse(
+            json=await response.json(),
+            status_code=response.status,
+            url=str(response.url),
+            operation_type="delete",
+        )
 
     async def delete_batch(self, batch):
         return await self._wait(self.delete_data, batch)
@@ -692,19 +731,31 @@ class VespaAsync(object):
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
             self.app.end_point, schema, schema, str(data_id)
         )
-        return await self.aiohttp_session.get(end_point)
+        response = await self.aiohttp_session.get(end_point)
+        return VespaResponse(
+            json=await response.json(),
+            status_code=response.status,
+            url=str(response.url),
+            operation_type="get",
+        )
 
     async def get_batch(self, batch):
         return await self._wait(self.get_data, batch)
 
     async def update_data(
         self, schema: str, data_id: str, fields: Dict, create: bool = False
-    ):
+    ) -> VespaResponse:
         end_point = "{}/document/v1/{}/{}/docid/{}?create={}".format(
             self.app.end_point, schema, schema, str(data_id), str(create).lower()
         )
         vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
-        return await self.aiohttp_session.put(end_point, json=vespa_format)
+        response = await self.aiohttp_session.put(end_point, json=vespa_format)
+        return VespaResponse(
+            json=await response.json(),
+            status_code=response.status,
+            url=str(response.url),
+            operation_type="update",
+        )
 
     async def update_batch(self, batch):
         return await self._wait(self.update_data, batch)

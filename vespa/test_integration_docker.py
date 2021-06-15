@@ -268,7 +268,7 @@ class TestApplicationCommon(unittest.TestCase):
             fields=fields_to_send,
         )
         self.assertEqual(
-            response.json()["id"],
+            response.json["id"],
             "id:{}:{}::{}".format(schema_name, schema_name, fields_to_send["id"]),
         )
         #
@@ -277,7 +277,7 @@ class TestApplicationCommon(unittest.TestCase):
         response = app.get_data(schema=schema_name, data_id=fields_to_send["id"])
         self.assertEqual(response.status_code, 200)
         self.assertDictEqual(
-            response.json(),
+            response.json,
             {
                 "fields": expected_fields_from_get_operation,
                 "id": "id:{}:{}::{}".format(
@@ -297,7 +297,7 @@ class TestApplicationCommon(unittest.TestCase):
             fields=fields_to_update,
         )
         self.assertEqual(
-            response.json()["id"],
+            response.json["id"],
             "id:{}:{}::{}".format(schema_name, schema_name, fields_to_send["id"]),
         )
         #
@@ -308,7 +308,7 @@ class TestApplicationCommon(unittest.TestCase):
         expected_result = {k: v for k, v in expected_fields_from_get_operation.items()}
         expected_result.update(fields_to_update)
         self.assertDictEqual(
-            response.json(),
+            response.json,
             {
                 "fields": expected_result,
                 "id": "id:{}:{}::{}".format(
@@ -324,7 +324,7 @@ class TestApplicationCommon(unittest.TestCase):
         #
         response = app.delete_data(schema=schema_name, data_id=fields_to_send["id"])
         self.assertEqual(
-            response.json()["id"],
+            response.json["id"],
             "id:{}:{}::{}".format(schema_name, schema_name, fields_to_send["id"]),
         )
         #
@@ -344,7 +344,7 @@ class TestApplicationCommon(unittest.TestCase):
             create=True,
         )
         self.assertEqual(
-            response.json()["id"],
+            response.json["id"],
             "id:{}:{}::{}".format(schema_name, schema_name, fields_to_send["id"]),
         )
         #
@@ -353,7 +353,7 @@ class TestApplicationCommon(unittest.TestCase):
         response = app.get_data(schema=schema_name, data_id=fields_to_send["id"])
         self.assertEqual(response.status_code, 200)
         self.assertDictEqual(
-            response.json(),
+            response.json,
             {
                 "fields": fields_to_update,
                 "id": "id:{}:{}::{}".format(
@@ -392,7 +392,7 @@ class TestApplicationCommon(unittest.TestCase):
             response = await async_app.get_data(
                 schema=schema_name, data_id=fields_to_send[0]["id"]
             )
-            self.assertEqual(response.status, 404)
+            self.assertEqual(response.status_code, 404)
 
             #
             # Feed some data points
@@ -409,11 +409,32 @@ class TestApplicationCommon(unittest.TestCase):
                     )
                 )
             await asyncio.wait(feed, return_when=asyncio.ALL_COMPLETED)
-            result = await feed[0].result().json()
+            result = feed[0].result().json
             self.assertEqual(
                 result["id"],
                 "id:{}:{}::{}".format(
                     schema_name, schema_name, fields_to_send[0]["id"]
+                ),
+            )
+
+            self.assertEqual(
+                await async_app.feed_data_point(
+                    schema="msmarco",
+                    data_id="1",
+                    fields={
+                        "id": "1",
+                        "title": "this is title 1",
+                        "body": "this is body 1",
+                    },
+                ),
+                app.feed_data_point(
+                    schema="msmarco",
+                    data_id="1",
+                    fields={
+                        "id": "1",
+                        "title": "this is title 1",
+                        "body": "this is body 1",
+                    },
                 ),
             )
 
@@ -423,8 +444,8 @@ class TestApplicationCommon(unittest.TestCase):
             response = await async_app.get_data(
                 schema=schema_name, data_id=fields_to_send[0]["id"]
             )
-            self.assertEqual(response.status, 200)
-            result = await response.json()
+            self.assertEqual(response.status_code, 200)
+            result = response.json
             self.assertDictEqual(
                 result,
                 {
@@ -445,7 +466,7 @@ class TestApplicationCommon(unittest.TestCase):
                 data_id=fields_to_send[0]["id"],
                 fields=fields_to_update,
             )
-            result = await response.json()
+            result = response.json
             self.assertEqual(
                 result["id"],
                 "id:{}:{}::{}".format(
@@ -459,8 +480,8 @@ class TestApplicationCommon(unittest.TestCase):
             response = await async_app.get_data(
                 schema=schema_name, data_id=fields_to_send[0]["id"]
             )
-            self.assertEqual(response.status, 200)
-            result = await response.json()
+            self.assertEqual(response.status_code, 200)
+            result = response.json
             expected_result = {
                 k: v for k, v in expected_fields_from_get_operation[0].items()
             }
@@ -484,7 +505,7 @@ class TestApplicationCommon(unittest.TestCase):
             response = await async_app.delete_data(
                 schema=schema_name, data_id=fields_to_send[0]["id"]
             )
-            result = await response.json()
+            result = response.json
             self.assertEqual(
                 result["id"],
                 "id:{}:{}::{}".format(
@@ -497,7 +518,7 @@ class TestApplicationCommon(unittest.TestCase):
             response = await async_app.get_data(
                 schema=schema_name, data_id=fields_to_send[0]["id"]
             )
-            self.assertEqual(response.status, 404)
+            self.assertEqual(response.status_code, 404)
             #
             # Issue a bunch of queries in parallel
             #
@@ -586,7 +607,7 @@ class TestApplicationCommon(unittest.TestCase):
             fields=fields_to_send,
         )
         self.assertEqual(
-            response.json()["id"],
+            response.json["id"],
             "id:{}:{}::{}".format(schema_name, schema_name, fields_to_send["id"]),
         )
         #
