@@ -36,6 +36,10 @@ jobs:
     secrets:
       - TEST_PYPI_TOKEN
     steps:
+      - install-python: |
+          dnf install -y python38-pip
+          python3 -m pip install --upgrade pip
+          python3 -m pip install twine
       - build: |
           python3 setup.py sdist bdist_wheel
       - publish: |
