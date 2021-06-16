@@ -41,10 +41,6 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install twine
       - build: |
-          echo $SD_BUILD_ID
-          echo $SD_EVENT_ID
-          echo $SD_JOB_ID
-          echo $SD_PIPELINE_ID
           python3 setup.py sdist
       - publish: |
           python3 -m twine upload --repository testpypi dist/* -u __token__ -p $TEST_PYPI_TOKEN
@@ -59,11 +55,7 @@ jobs:
       - sleep: |
           sleep 60
       - install-package: |
-          echo $SD_BUILD_ID
-          echo $SD_EVENT_ID
-          echo $SD_JOB_ID
-          echo $SD_PIPELINE_ID
-          pip install --quiet --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa[full]==$PYVESPA_VERSION.$SD_BUILD_ID
+          pip install --quiet --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa[full]==$PYVESPA_VERSION.$SD_EVENT_ID
       - test-package: |
           pytest --ignore-glob=vespa/test_integration*.py
 
