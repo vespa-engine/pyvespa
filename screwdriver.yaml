@@ -53,7 +53,7 @@ jobs:
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
       - sleep: |
-          sleep 60
+          sleep 300
       - install-package: |
           pip install --quiet --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa[full]==$PYVESPA_VERSION.$SD_EVENT_ID
       - test-package: |

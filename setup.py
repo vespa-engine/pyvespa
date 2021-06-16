@@ -3,7 +3,7 @@ import setuptools
 
 
 def get_target_version():
-    pyvespa_version = os.environ.get("PYVESPA_VERSION", "0.6")
+    pyvespa_version = os.environ.get("PYVESPA_VERSION", "0.7")
     build_nr = os.environ.get("SD_EVENT_ID", "0+dev")
     return "{}.{}".format(pyvespa_version, build_nr)
 
