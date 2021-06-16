@@ -41,9 +41,9 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
-          python3 -m pip install twine wheel
+          python3 -m pip install twine
       - build: |
-          python3 setup.py bdist_wheel
+          python3 setup.py sdist
       - publish: |
           python3 -m twine upload --repository testpypi dist/* -u __token__ -p $TEST_PYPI_TOKEN
   retrieve-install-test:
