@@ -44,6 +44,21 @@ jobs:
           python3 setup.py sdist
       - publish: |
           python3 -m twine upload --repository testpypi dist/* -u __token__ -p $TEST_PYPI_TOKEN
+  retrieve-install-test:
+    requires: [~commit,~pr]
+    environment:
+      PYVESPA_VERSION: 0.6
+    steps:
+      - install-python: |
+          dnf install -y python38-pip
+          python3 -m pip install --upgrade pip
+      - sleep: |
+          sleep 60
+      - install-package: |
+          pip install --quiet --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa[full]==$PYVESPA_VERSION.$SD_BUILD_ID
+      -test-package: |
+          pytest --ignore-glob=vespa/test_integration*.py
+
 #  integration-except-cloud:
 #    requires: [~commit,~pr]
 #    annotations:
