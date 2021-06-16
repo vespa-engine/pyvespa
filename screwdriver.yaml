@@ -43,8 +43,7 @@ jobs:
       - build: |
           python3 setup.py sdist
       - publish: |
-          echo $TEST_PYPI_TOKEN
-          python3 -m twine upload dist/* -u "__token__" -p $TEST_PYPI_TOKEN
+          python3 -m twine upload --repository testpypi dist/* -u __token__ -p $TEST_PYPI_TOKEN
 #  integration-except-cloud:
 #    requires: [~commit,~pr]
 #    annotations:
