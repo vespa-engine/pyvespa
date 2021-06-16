@@ -45,7 +45,7 @@ jobs:
       - publish: |
           python3 -m twine upload --repository testpypi dist/* -u __token__ -p $TEST_PYPI_TOKEN
   retrieve-install-test:
-    requires: [deploy-test-server]
+    requires: [deploy-test-server, pr]
     environment:
       PYVESPA_VERSION: 0.6
     steps:
