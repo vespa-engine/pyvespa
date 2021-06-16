@@ -53,9 +53,9 @@ jobs:
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
       - sleep: |
-          sleep 300
+          sleep 1200
       - install-package: |
-          python3 -m pip install --no-cache --quiet --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa[full]==$PYVESPA_VERSION.$SD_EVENT_ID
+          python3 -m pip install --quiet --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa[full]==$PYVESPA_VERSION.$SD_EVENT_ID
       - test-package: |
           pytest --ignore-glob=vespa/test_integration*.py
 
