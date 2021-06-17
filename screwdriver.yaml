@@ -141,7 +141,7 @@ jobs:
           find docs -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=600 --execute {} +
           find docs -name '*.nbconvert.ipynb' -exec rm {} +
   deploy-test-server:
-    requires: [notebooks-cloud]
+    requires: [unit-tests, integration-except-cloud, notebooks-except-cloud, notebooks-cloud]
     annotations:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
