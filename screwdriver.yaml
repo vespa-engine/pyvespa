@@ -166,6 +166,8 @@ jobs:
       screwdriver.cd/cpu: HIGH
       screwdriver.cd/ram: HIGH
     steps:
+      - setup: |
+          export RESOURCES_DIR=$(pwd)/vespa/resources
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
