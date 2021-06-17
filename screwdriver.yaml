@@ -29,8 +29,119 @@ jobs:
           pytest --doctest-modules --ignore-glob=vespa/test_*.py
       - run-unit-tests: |
           pytest --ignore-glob=vespa/test_integration*.py
-  deploy-test-server:
+  integration-except-cloud:
     requires: [~commit,~pr]
+    annotations:
+      screwdriver.cd/timeout: 120
+      screwdriver.cd/cpu: HIGH
+      screwdriver.cd/ram: HIGH
+      screwdriver.cd/dockerEnabled: true
+      screwdriver.cd/dockerCpu: TURBO
+      screwdriver.cd/dockerRam: TURBO
+    environment:
+      DOCKER_HOST: "localhost:2375"
+    steps:
+      - setup: |
+          export WORK_DIR=$SD_DIND_SHARE_PATH
+          export RESOURCES_DIR=$(pwd)/vespa/resources
+      - install-docker: |
+          dnf install -y dnf-plugins-core
+          dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+          dnf install -y docker-ce-cli
+          docker system info
+          ls -la $SD_DIND_SHARE_PATH
+      - install-python: |
+          dnf install -y python38-pip
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest
+          python3 -m pip install -e .[full]
+      - run-integration-running-instance: |
+          pytest vespa/test_integration_running_instance.py -s
+      - run-integration-docker: |
+          pytest vespa/test_integration_docker.py -s
+  notebooks-except-cloud:
+    requires: [~commit,~pr]
+    annotations:
+      screwdriver.cd/timeout: 120
+      screwdriver.cd/cpu: HIGH
+      screwdriver.cd/ram: HIGH
+      screwdriver.cd/dockerEnabled: true
+      screwdriver.cd/dockerCpu: TURBO
+      screwdriver.cd/dockerRam: TURBO
+    environment:
+      DOCKER_HOST: "localhost:2375"
+    steps:
+      - setup: |
+          dnf install -y git
+          export WORK_DIR=$SD_DIND_SHARE_PATH
+          export RESOURCES_DIR=$(pwd)/vespa/resources
+      - install-docker: |
+          dnf install -y dnf-plugins-core
+          dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+          dnf install -y docker-ce-cli
+          docker system info
+          ls -la $SD_DIND_SHARE_PATH
+      - install-python: |
+          dnf install -y python38-pip
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest notebook nbconvert
+          python3 -m pip install -e .[full]
+          python3 -m pip install -r docs/sphinx/source/requirements.txt
+          python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
+      - run-notebooks-except-cloud-related: |
+          dnf install -y tree
+          dnf install -y wget
+          find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
+          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=6000 --execute {} +
+          find docs -name '*.nbconvert.ipynb' -exec rm {} +
+  integration-cloud:
+    requires: [~commit]
+    annotations:
+      screwdriver.cd/timeout: 120
+      screwdriver.cd/cpu: HIGH
+      screwdriver.cd/ram: HIGH
+    secrets:
+      - VESPA_CLOUD_USER_KEY
+    environment:
+      SD_ZIP_ARTIFACTS: true
+    steps:
+      - setup: |
+          export WORK_DIR=$SD_DIND_SHARE_PATH
+          export RESOURCES_DIR=$(pwd)/vespa/resources
+      - install-python: |
+          dnf install -y python38-pip
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest
+          python3 -m pip install -e .[full]
+      - run-integration-cloud: |
+          pytest vespa/test_integration_vespa_cloud.py -s
+  notebooks-cloud:
+    requires: [integration-cloud]
+    annotations:
+      screwdriver.cd/timeout: 120
+      screwdriver.cd/cpu: HIGH
+      screwdriver.cd/ram: HIGH
+    secrets:
+      - VESPA_CLOUD_USER_KEY
+    environment:
+      SD_ZIP_ARTIFACTS: true
+    steps:
+      - setup: |
+          export WORK_DIR=$SD_DIND_SHARE_PATH
+          export RESOURCES_DIR=$(pwd)/vespa/resources
+      - install-python: |
+          dnf install -y python38-pip
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest notebook nbconvert
+          python3 -m pip install -e .[full]
+          python3 -m pip install -r docs/sphinx/source/requirements.txt
+          python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
+      - run-notebooks-except-cloud-related: |
+          find docs -name '*cloud*.ipynb'
+          find docs -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=600 --execute {} +
+          find docs -name '*.nbconvert.ipynb' -exec rm {} +
+  deploy-test-server:
+    requires: [notebooks-cloud]
     annotations:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
@@ -47,7 +158,11 @@ jobs:
       - publish: |
           python3 -m twine upload --repository testpypi dist/* -u __token__ -p $TEST_PYPI_TOKEN
   retrieve-install-test:
-    requires: [~commit,~pr, deploy-test-server]
+    requires: [deploy-test-server]
+    annotations:
+      screwdriver.cd/timeout: 120
+      screwdriver.cd/cpu: HIGH
+      screwdriver.cd/ram: HIGH
     steps:
       - install-python: |
           dnf install -y python38-pip
@@ -57,118 +172,6 @@ jobs:
           sleep 300
       - install-package: |
           python3 -m pip cache purge
-          python3 -m pip install --no-cache --quiet --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa[full]==$PYVESPA_VERSION.$SD_EVENT_ID 2>&1 | tee $SD_ARTIFACTS_DIR/mylogfile.txt
+          python3 -m pip install --no-cache-dir --no-cache --quiet --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa[full]==$PYVESPA_VERSION.$SD_EVENT_ID 2>&1 | tee $SD_ARTIFACTS_DIR/mylogfile.txt
       - test-package: |
           pytest --ignore-glob=vespa/test_integration*.py -s
-
-#  integration-except-cloud:
-#    requires: [~commit,~pr]
-#    annotations:
-#      screwdriver.cd/timeout: 120
-#      screwdriver.cd/cpu: HIGH
-#      screwdriver.cd/ram: HIGH
-#      screwdriver.cd/dockerEnabled: true
-#      screwdriver.cd/dockerCpu: TURBO
-#      screwdriver.cd/dockerRam: TURBO
-#    environment:
-#      DOCKER_HOST: "localhost:2375"
-#    steps:
-#      - setup: |
-#          export WORK_DIR=$SD_DIND_SHARE_PATH
-#          export RESOURCES_DIR=$(pwd)/vespa/resources
-#      - install-docker: |
-#          dnf install -y dnf-plugins-core
-#          dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-#          dnf install -y docker-ce-cli
-#          docker system info
-#          ls -la $SD_DIND_SHARE_PATH
-#      - install-python: |
-#          dnf install -y python38-pip
-#          python3 -m pip install --upgrade pip
-#          python3 -m pip install pytest
-#          python3 -m pip install -e .[full]
-#      - run-integration-running-instance: |
-#          pytest vespa/test_integration_running_instance.py -s
-#      - run-integration-docker: |
-#          pytest vespa/test_integration_docker.py -s
-#  notebooks-except-cloud:
-#    requires: [~commit,~pr]
-#    annotations:
-#      screwdriver.cd/timeout: 120
-#      screwdriver.cd/cpu: HIGH
-#      screwdriver.cd/ram: HIGH
-#      screwdriver.cd/dockerEnabled: true
-#      screwdriver.cd/dockerCpu: TURBO
-#      screwdriver.cd/dockerRam: TURBO
-#    environment:
-#      DOCKER_HOST: "localhost:2375"
-#    steps:
-#      - setup: |
-#          dnf install -y git
-#          export WORK_DIR=$SD_DIND_SHARE_PATH
-#          export RESOURCES_DIR=$(pwd)/vespa/resources
-#      - install-docker: |
-#          dnf install -y dnf-plugins-core
-#          dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-#          dnf install -y docker-ce-cli
-#          docker system info
-#          ls -la $SD_DIND_SHARE_PATH
-#      - install-python: |
-#          dnf install -y python38-pip
-#          python3 -m pip install --upgrade pip
-#          python3 -m pip install pytest notebook nbconvert
-#          python3 -m pip install -e .[full]
-#          python3 -m pip install -r docs/sphinx/source/requirements.txt
-#          python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
-#      - run-notebooks-except-cloud-related: |
-#          dnf install -y tree
-#          dnf install -y wget
-#          find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
-#          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=6000 --execute {} +
-#          find docs -name '*.nbconvert.ipynb' -exec rm {} +
-#  integration-cloud:
-#    requires: [~commit]
-#    annotations:
-#      screwdriver.cd/timeout: 120
-#      screwdriver.cd/cpu: HIGH
-#      screwdriver.cd/ram: HIGH
-#    secrets:
-#      - VESPA_CLOUD_USER_KEY
-#    environment:
-#      SD_ZIP_ARTIFACTS: true
-#    steps:
-#      - setup: |
-#          export WORK_DIR=$SD_DIND_SHARE_PATH
-#          export RESOURCES_DIR=$(pwd)/vespa/resources
-#      - install-python: |
-#          dnf install -y python38-pip
-#          python3 -m pip install --upgrade pip
-#          python3 -m pip install pytest
-#          python3 -m pip install -e .[full]
-#      - run-integration-cloud: |
-#          pytest vespa/test_integration_vespa_cloud.py -s
-#  notebooks-cloud:
-#    requires: [integration-cloud]
-#    annotations:
-#      screwdriver.cd/timeout: 120
-#      screwdriver.cd/cpu: HIGH
-#      screwdriver.cd/ram: HIGH
-#    secrets:
-#      - VESPA_CLOUD_USER_KEY
-#    environment:
-#      SD_ZIP_ARTIFACTS: true
-#    steps:
-#      - setup: |
-#          export WORK_DIR=$SD_DIND_SHARE_PATH
-#          export RESOURCES_DIR=$(pwd)/vespa/resources
-#      - install-python: |
-#          dnf install -y python38-pip
-#          python3 -m pip install --upgrade pip
-#          python3 -m pip install pytest notebook nbconvert
-#          python3 -m pip install -e .[full]
-#          python3 -m pip install -r docs/sphinx/source/requirements.txt
-#          python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
-#      - run-notebooks-except-cloud-related: |
-#          find docs -name '*cloud*.ipynb'
-#          find docs -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=600 --execute {} +
-#          find docs -name '*.nbconvert.ipynb' -exec rm {} +
