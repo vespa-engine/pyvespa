@@ -1,5 +1,7 @@
 shared:
   image: docker.io/centos:8
+  environment:
+    PYVESPA_VERSION: 0.7
 jobs:
   unit-tests:
     requires: [~commit,~pr]
@@ -51,7 +53,7 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
-          python3 -m pip install pytest 
+          python3 -m pip install pytest
           python3 -m pip install -e .[full]
       - run-integration-running-instance: |
           pytest vespa/test_integration_running_instance.py -s
@@ -138,3 +140,38 @@ jobs:
           find docs -name '*cloud*.ipynb'
           find docs -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=600 --execute {} +
           find docs -name '*.nbconvert.ipynb' -exec rm {} +
+  deploy-test-server:
+    requires: [notebooks-cloud]
+    annotations:
+      screwdriver.cd/timeout: 120
+      screwdriver.cd/cpu: HIGH
+      screwdriver.cd/ram: HIGH
+    secrets:
+      - TEST_PYPI_TOKEN
+    steps:
+      - install-python: |
+          dnf install -y python38-pip
+          python3 -m pip install --upgrade pip
+          python3 -m pip install twine wheel
+      - build: |
+          python3 setup.py bdist_wheel
+      - publish: |
+          python3 -m twine upload --repository testpypi dist/* -u __token__ -p $TEST_PYPI_TOKEN
+      - sleep: |
+          sleep 300 # sleep to give time for latest version to show on test pypi index
+  retrieve-install-test:
+    requires: [deploy-test-server]
+    annotations:
+      screwdriver.cd/timeout: 120
+      screwdriver.cd/cpu: HIGH
+      screwdriver.cd/ram: HIGH
+    steps:
+      - install-python: |
+          dnf install -y python38-pip
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest
+      - install-package: |
+          python3 -m pip cache purge
+          python3 -m pip install --no-cache-dir --no-cache --quiet --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa[full]==$PYVESPA_VERSION.$SD_EVENT_ID 2>&1 | tee $SD_ARTIFACTS_DIR/mylogfile.txt
+      - test-package: |
+          pytest --ignore-glob=vespa/test_integration*.py -s

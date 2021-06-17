@@ -3,8 +3,8 @@ import setuptools
 
 
 def get_target_version():
-    pyvespa_version = os.environ.get("PYVESPA_VERSION", "0.4")
-    build_nr = os.environ.get("TRAVIS_BUILD_NUMBER", "0+dev")
+    pyvespa_version = os.environ["PYVESPA_VERSION"]
+    build_nr = os.environ["SD_EVENT_ID"]
     return "{}.{}".format(pyvespa_version, build_nr)
 
 
