@@ -45,7 +45,7 @@ jobs:
       - build: |
           python3 setup.py bdist_wheel
       - publish: |
-          python3 -m twine upload --repository testpypi dist/* -u __token__ -p $TEST_PYPI_TOKEN
+          python3 -m twine upload --repository testpypi dist/* -u __token__ -p $TEST_PYPI_TOKEN 2>&1 | tee $SD_ARTIFACTS_DIR/mylogfile.txt
   retrieve-install-test:
     requires: [~commit,~pr, deploy-test-server]
     steps:
