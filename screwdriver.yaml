@@ -41,7 +41,7 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
-          python3 -m pip install twine wheel pytest
+          python3 -m pip install twine wheel
       - build: |
           python3 setup.py bdist_wheel
       - publish: |
@@ -52,9 +52,11 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
+          python3 -m pip install pytest
       - sleep: |
           sleep 300
       - install-package: |
+          python3 -m pip cache purge
           python3 -m pip install --no-cache --quiet --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa[full]==$PYVESPA_VERSION.$SD_EVENT_ID 2>&1 | tee $SD_ARTIFACTS_DIR/mylogfile.txt
       - test-package: |
           pytest --ignore-glob=vespa/test_integration*.py -s
