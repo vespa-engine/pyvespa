@@ -41,7 +41,7 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
-          python3 -m pip install twine wheel
+          python3 -m pip install twine wheel pytest
       - build: |
           python3 setup.py bdist_wheel
       - publish: |
@@ -55,10 +55,9 @@ jobs:
       - sleep: |
           sleep 300
       - install-package: |
-          python3 -m pip install --no-cache --quiet --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa[full]==$PYVESPA_VERSION.$SD_EVENT_ID 2>&1 | tee $SD_ARTIFACTS_DIR/mylogfile.txt
-          #python3 -m pip install --no-cache --quiet --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa[full] 2>&1 | tee $SD_ARTIFACTS_DIR/mylogfile.txt
+          python3 -m pip install --no-cache --quiet --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa[full]==$PYVESPA_VERSION.$SD_EVENT_ID
       - test-package: |
-          pytest --ignore-glob=vespa/test_integration*.py
+          pytest --ignore-glob=vespa/test_integration*.py -s
 
 #  integration-except-cloud:
 #    requires: [~commit,~pr]
