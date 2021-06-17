@@ -45,7 +45,7 @@ jobs:
       - build: |
           python3 setup.py bdist_wheel
       - publish: |
-          python3 -m twine upload --repository testpypi dist/* -u __token__ -p $TEST_PYPI_TOKEN 2>&1 | tee $SD_ARTIFACTS_DIR/mylogfile.txt
+          python3 -m twine upload --repository testpypi dist/* -u __token__ -p $TEST_PYPI_TOKEN
   retrieve-install-test:
     requires: [~commit,~pr, deploy-test-server]
     steps:
@@ -55,7 +55,7 @@ jobs:
       - sleep: |
           sleep 300
       - install-package: |
-          python3 -m pip install --no-cache --quiet --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa[full]==$PYVESPA_VERSION.$SD_EVENT_ID
+          python3 -m pip install --no-cache --quiet --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa[full]==$PYVESPA_VERSION.$SD_EVENT_ID 2>&1 | tee $SD_ARTIFACTS_DIR/mylogfile.txt
       - test-package: |
           pytest --ignore-glob=vespa/test_integration*.py -s
 
