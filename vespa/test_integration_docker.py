@@ -3,6 +3,7 @@ import os
 import re
 import shutil
 import asyncio
+import json
 from vespa.package import (
     HNSW,
     Document,
@@ -16,6 +17,7 @@ from vespa.package import (
 )
 from vespa.ml import BertModelConfig
 from vespa.query import QueryModel, RankProfile as Ranking, OR, QueryRankingFeature
+from vespa.gallery import QuestionAnswering
 
 
 def create_msmarco_application_package():
@@ -95,6 +97,20 @@ def create_cord19_application_package():
         inherits="default",
         first_phase="bm25(title)",
         second_phase=SecondPhaseRanking(rerank_count=10, expression="logit1"),
+    )
+    return app_package
+
+
+def create_qa_application_package():
+    app_package = QuestionAnswering()
+    #
+    # Our test suite requires that each schema has a 'id' field 
+    #
+    app_package.get_schema("sentence").add_fields(
+        Field(name="id", type="string", indexing=["attribute", "summary"])
+    )
+    app_package.get_schema("context").add_fields(
+        Field(name="id", type="string", indexing=["attribute", "summary"])
     )
     return app_package
 
@@ -716,6 +732,20 @@ class TestCord19DockerDeployment(TestDockerCommon):
         self.vespa_docker.container.remove()
 
 
+class TestQaDockerDeployment(TestDockerCommon):
+    def setUp(self) -> None:
+        self.app_package = create_qa_application_package()
+        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+
+    def test_deploy(self):
+        self.deploy(application_package=self.app_package, disk_folder=self.disk_folder)
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.disk_folder, ignore_errors=True)
+        self.vespa_docker.container.stop()
+        self.vespa_docker.container.remove()
+
+
 class TestMsmarcoApplication(TestApplicationCommon):
     def setUp(self) -> None:
         self.app_package = create_msmarco_application_package()
@@ -855,6 +885,99 @@ class TestCord19Application(TestApplicationCommon):
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send[0],
             model_config=self.model_config,
+        )
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.disk_folder, ignore_errors=True)
+        self.vespa_docker.container.stop()
+        self.vespa_docker.container.remove()
+
+
+class TestQaApplication(TestApplicationCommon):
+    def setUp(self) -> None:
+        self.app_package = create_qa_application_package()
+        self.app_package.get_schema("sentence").add_fields(
+            Field(name="id", type="string", indexing=["attribute", "summary"])
+        )
+        self.app_package.get_schema("context").add_fields(
+            Field(name="id", type="string", indexing=["attribute", "summary"])
+        )
+        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        self.app = self.vespa_docker.deploy(application_package=self.app_package)
+        with open(
+            os.path.join(os.environ["RESOURCES_DIR"], "qa_sample_sentence_data.json"),
+            "r",
+        ) as f:
+            sample_sentence_data = json.load(f)
+        self.fields_to_send_sentence = sample_sentence_data
+        self.expected_fields_from_sentence_get_operation = []
+        for d in sample_sentence_data:
+            expected_d = {
+                "id": d["id"],
+                "text": d["text"],
+                "dataset": d["dataset"],
+                "questions": d["questions"],
+                "context_id": d["context_id"],
+                "sentence_embedding": {
+                    "cells": [
+                        {"address": {"x": str(idx)}, "value": value}
+                        for idx, value in enumerate(d["sentence_embedding"]["values"])
+                    ]
+                },
+            }
+            self.expected_fields_from_sentence_get_operation.append(expected_d)
+        with open(
+            os.path.join(os.environ["RESOURCES_DIR"], "qa_sample_context_data.json"),
+            "r",
+        ) as f:
+            sample_context_data = json.load(f)
+        self.fields_to_send_context = sample_context_data
+        self.fields_to_update = {"text": "this is my updated text"}
+
+    def test_execute_data_operations_sentence_schema(self):
+        self.execute_data_operations(
+            app=self.app,
+            schema_name="sentence",
+            fields_to_send=self.fields_to_send_sentence[0],
+            fields_to_update=self.fields_to_update,
+            expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation[
+                0
+            ],
+        )
+
+    def test_execute_data_operations_context_schema(self):
+        self.execute_data_operations(
+            app=self.app,
+            schema_name="context",
+            fields_to_send=self.fields_to_send_context[0],
+            fields_to_update=self.fields_to_update,
+            expected_fields_from_get_operation=self.fields_to_send_context[0],
+        )
+
+    def test_execute_async_data_operations(self):
+        asyncio.run(
+            self.execute_async_data_operations(
+                app=self.app,
+                schema_name="sentence",
+                fields_to_send=self.fields_to_send_sentence,
+                fields_to_update=self.fields_to_update,
+                expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
+            )
+        )
+
+    def test_feed_batch_synchronous_mode(self):
+        self.feed_batch_synchronous_mode(
+            app=self.app,
+            schema_name="sentence",
+            fields_to_send=self.fields_to_send_sentence,
+        )
+
+    def test_feed_batch_asynchronous_mode(self):
+        self.feed_batch_asynchronous_mode(
+            app=self.app,
+            schema_name="sentence",
+            fields_to_send=self.fields_to_send_sentence,
         )
 
     def tearDown(self) -> None:
