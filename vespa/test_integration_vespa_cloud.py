@@ -1,6 +1,7 @@
 import os
 import asyncio
 import shutil
+import json
 
 from vespa.package import (
     VespaCloud,
@@ -9,6 +10,7 @@ from vespa.test_integration_docker import (
     TestApplicationCommon,
     create_msmarco_application_package,
     create_cord19_application_package,
+    create_qa_application_package,
 )
 
 
@@ -172,4 +174,99 @@ class TestCord19Application(TestApplicationCommon):
 
     def tearDown(self) -> None:
         self.app.delete_all_docs(content_cluster_name="cord19_content", schema="cord19")
+        shutil.rmtree(self.disk_folder, ignore_errors=True)
+
+
+class TestQaApplication(TestApplicationCommon):
+    def setUp(self) -> None:
+        self.app_package = create_qa_application_package()
+        self.vespa_cloud = VespaCloud(
+            tenant="vespa-team",
+            application="pyvespa-integration",
+            key_content=os.getenv("VESPA_CLOUD_USER_KEY").replace(r"\n", "\n"),
+            application_package=self.app_package,
+        )
+        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.instance_name = "qa"
+        self.app = self.vespa_cloud.deploy(
+            instance=self.instance_name, disk_folder=self.disk_folder
+        )
+        with open(
+            os.path.join(os.environ["RESOURCES_DIR"], "qa_sample_sentence_data.json"),
+            "r",
+        ) as f:
+            sample_sentence_data = json.load(f)
+        self.fields_to_send_sentence = sample_sentence_data
+        self.expected_fields_from_sentence_get_operation = []
+        for d in sample_sentence_data:
+            expected_d = {
+                "id": d["id"],
+                "text": d["text"],
+                "dataset": d["dataset"],
+                "questions": d["questions"],
+                "context_id": d["context_id"],
+                "sentence_embedding": {
+                    "cells": [
+                        {"address": {"x": str(idx)}, "value": value}
+                        for idx, value in enumerate(d["sentence_embedding"]["values"])
+                    ]
+                },
+            }
+            self.expected_fields_from_sentence_get_operation.append(expected_d)
+        with open(
+            os.path.join(os.environ["RESOURCES_DIR"], "qa_sample_context_data.json"),
+            "r",
+        ) as f:
+            sample_context_data = json.load(f)
+        self.fields_to_send_context = sample_context_data
+        self.fields_to_update = {"text": "this is my updated text"}
+
+    def test_execute_data_operations_sentence_schema(self):
+        self.execute_data_operations(
+            app=self.app,
+            schema_name="sentence",
+            fields_to_send=self.fields_to_send_sentence[0],
+            fields_to_update=self.fields_to_update,
+            expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation[
+                0
+            ],
+        )
+
+    def test_execute_data_operations_context_schema(self):
+        self.execute_data_operations(
+            app=self.app,
+            schema_name="context",
+            fields_to_send=self.fields_to_send_context[0],
+            fields_to_update=self.fields_to_update,
+            expected_fields_from_get_operation=self.fields_to_send_context[0],
+        )
+
+    def test_execute_async_data_operations(self):
+        asyncio.run(
+            self.execute_async_data_operations(
+                app=self.app,
+                schema_name="sentence",
+                fields_to_send=self.fields_to_send_sentence,
+                fields_to_update=self.fields_to_update,
+                expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
+            )
+        )
+
+    def test_feed_batch_synchronous_mode(self):
+        self.feed_batch_synchronous_mode(
+            app=self.app,
+            schema_name="sentence",
+            fields_to_send=self.fields_to_send_sentence,
+        )
+
+    def test_feed_batch_asynchronous_mode(self):
+        self.feed_batch_asynchronous_mode(
+            app=self.app,
+            schema_name="sentence",
+            fields_to_send=self.fields_to_send_sentence,
+        )
+
+    def tearDown(self) -> None:
+        self.app.delete_all_docs(content_cluster_name="qa_content", schema="sentence")
+        self.app.delete_all_docs(content_cluster_name="qa_content", schema="context")
         shutil.rmtree(self.disk_folder, ignore_errors=True)
