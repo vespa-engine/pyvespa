@@ -184,20 +184,15 @@ class Vespa(object):
         :param kwargs: Additional parameters to be sent along the request.
         :return: Either the request body if debug_request is True or the result from the Vespa application
         """
-        body = (
-            self._build_query_body(query, query_model, recall, **kwargs)
-            if body is None
-            else body
-        )
-        if debug_request:
-            return VespaQueryResponse(
-                json={}, status_code=None, url=None, request_body=body
+        with VespaSync(self) as sync_app:
+            return sync_app.query(
+                body=body,
+                query=query,
+                query_model=query_model,
+                debug_request=debug_request,
+                recall=recall,
+                **kwargs
             )
-        else:
-            r = self.http_session.post(self.search_end_point, json=body, cert=self.cert)
-        return VespaQueryResponse(
-            json=r.json(), status_code=r.status_code, url=str(r.url)
-        )
 
     def feed_data_point(self, schema: str, data_id: str, fields: Dict) -> VespaResponse:
         """
@@ -686,6 +681,46 @@ class VespaSync(object):
             status_code=response.status_code,
             url=str(response.url),
             operation_type="feed",
+        )
+
+    def query(
+        self,
+        body: Optional[Dict] = None,
+        query: Optional[str] = None,
+        query_model: Optional[QueryModel] = None,
+        debug_request: bool = False,
+        recall: Optional[Tuple] = None,
+        **kwargs
+    ) -> VespaQueryResponse:
+        """
+        Send a query request to the Vespa application.
+
+        Either send 'body' containing all the request parameters or specify 'query' and 'query_model'.
+
+        :param body: Dict containing all the request parameters.
+        :param query: Query string
+        :param query_model: Query model
+        :param debug_request: return request body for debugging instead of sending the request.
+        :param recall: Tuple of size 2 where the first element is the name of the field to use to recall and the
+            second element is a list of the values to be recalled.
+        :param kwargs: Additional parameters to be sent along the request.
+        :return: Either the request body if debug_request is True or the result from the Vespa application
+        """
+        body = (
+            self.app._build_query_body(query, query_model, recall, **kwargs)
+            if body is None
+            else body
+        )
+        if debug_request:
+            return VespaQueryResponse(
+                json={}, status_code=None, url=None, request_body=body
+            )
+        else:
+            r = self.http_session.post(
+                self.app.search_end_point, json=body, cert=self.app.cert
+            )
+        return VespaQueryResponse(
+            json=r.json(), status_code=r.status_code, url=str(r.url)
         )
 
 
