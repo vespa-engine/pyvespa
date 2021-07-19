@@ -135,12 +135,8 @@ class Vespa(object):
 
         :return:
         """
-        end_point = "{}/ApplicationStatus".format(self.end_point)
-        try:
-            response = self.http_session.get(end_point, cert=self.cert)
-        except ConnectionError:
-            response = None
-        return response
+        with VespaSync(self) as sync_app:
+            return sync_app.get_application_status()
 
     def _build_query_body(
         self,
@@ -212,17 +208,10 @@ class Vespa(object):
         :param fields: Dict containing all the fields required by the `schema`.
         :return: Response of the HTTP POST request.
         """
-        end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.end_point, schema, schema, str(data_id)
-        )
-        vespa_format = {"fields": fields}
-        response = self.http_session.post(end_point, json=vespa_format, cert=self.cert)
-        return VespaResponse(
-            json=response.json(),
-            status_code=response.status_code,
-            url=str(response.url),
-            operation_type="feed",
-        )
+        with VespaSync(app=self) as sync_app:
+            return sync_app.feed_data_point(
+                schema=schema, data_id=data_id, fields=fields
+            )
 
     def _feed_batch_sync(self, schema: str, batch: List[Dict]):
         return [
@@ -296,7 +285,7 @@ class Vespa(object):
         response = self.http_session.delete(end_point, cert=self.cert)
         return response
 
-    def get_data(self, schema: str, data_id: str) -> Response:
+    def get_data(self, schema: str, data_id: str) -> VespaResponse:
         """
         Get a data point from a Vespa app.
 
@@ -637,6 +626,69 @@ class Vespa(object):
         return evaluation
 
 
+class VespaSync(object):
+    def __init__(self, app: Vespa) -> None:
+        self.app = app
+        self.http_session = None
+
+    def __enter__(self):
+        self._open_http_session()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._close_http_session()
+
+    def _open_http_session(self):
+        if self.http_session is not None:
+            return
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.http_session = Session()
+        self.http_session.mount("https://", adapter)
+        self.http_session.mount("http://", adapter)
+        return self.http_session
+
+    def _close_http_session(self):
+        if self.http_session is None:
+            return
+        self.http_session.close()
+
+    def get_application_status(self) -> Optional[Response]:
+        """
+        Get application status.
+
+        :return:
+        """
+        end_point = "{}/ApplicationStatus".format(self.app.end_point)
+        try:
+            response = self.http_session.get(end_point, cert=self.app.cert)
+        except ConnectionError:
+            response = None
+        return response
+
+    def feed_data_point(self, schema: str, data_id: str, fields: Dict) -> VespaResponse:
+        """
+        Feed a data point to a Vespa app.
+
+        :param schema: The schema that we are sending data to.
+        :param data_id: Unique id associated with this data point.
+        :param fields: Dict containing all the fields required by the `schema`.
+        :return: Response of the HTTP POST request.
+        """
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.app.end_point, schema, schema, str(data_id)
+        )
+        vespa_format = {"fields": fields}
+        response = self.http_session.post(
+            end_point, json=vespa_format, cert=self.app.cert
+        )
+        return VespaResponse(
+            json=response.json(),
+            status_code=response.status_code,
+            url=str(response.url),
+            operation_type="feed",
+        )
+
+
 class VespaAsync(object):
     def __init__(self, app: Vespa) -> None:
         self.app = app
@@ -689,7 +741,9 @@ class VespaAsync(object):
             else body
         )
         r = await self.aiohttp_session.post(self.app.search_end_point, json=body)
-        return VespaQueryResponse(json=await r.json(), status_code=r.status, url=str(r.url))
+        return VespaQueryResponse(
+            json=await r.json(), status_code=r.status, url=str(r.url)
+        )
 
     async def feed_data_point(
         self, schema: str, data_id: str, fields: Dict
