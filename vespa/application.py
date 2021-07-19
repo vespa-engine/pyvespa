@@ -246,16 +246,8 @@ class Vespa(object):
         :param data_id: Unique id associated with this data point.
         :return: Response of the HTTP DELETE request.
         """
-        end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.end_point, schema, schema, str(data_id)
-        )
-        response = self.http_session.delete(end_point, cert=self.cert)
-        return VespaResponse(
-            json=response.json(),
-            status_code=response.status_code,
-            url=str(response.url),
-            operation_type="delete",
-        )
+        with VespaSync(self) as sync_app:
+            return sync_app.delete_data(schema=schema, data_id=data_id)
 
     def delete_batch(self, batch: List):
         """
@@ -274,11 +266,10 @@ class Vespa(object):
         :param schema: The schema that we are deleting data from.
         :return: Response of the HTTP DELETE request.
         """
-        end_point = "{}/document/v1/{}/{}/docid/?cluster={}&selection=true".format(
-            self.end_point, schema, schema, content_cluster_name
-        )
-        response = self.http_session.delete(end_point, cert=self.cert)
-        return response
+        with VespaSync(self) as sync_app:
+            return sync_app.delete_all_docs(
+                content_cluster_name=content_cluster_name, schema=schema
+            )
 
     def get_data(self, schema: str, data_id: str) -> VespaResponse:
         """
@@ -288,16 +279,8 @@ class Vespa(object):
         :param data_id: Unique id associated with this data point.
         :return: Response of the HTTP GET request.
         """
-        end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.end_point, schema, schema, str(data_id)
-        )
-        response = self.http_session.get(end_point, cert=self.cert)
-        return VespaResponse(
-            json=response.json(),
-            status_code=response.status_code,
-            url=str(response.url),
-            operation_type="get",
-        )
+        with VespaSync(self) as sync_app:
+            return sync_app.get_data(schema=schema, data_id=data_id)
 
     def get_batch(self, batch: List):
         """
@@ -320,17 +303,10 @@ class Vespa(object):
         :param create: If true, updates to non-existent documents will create an empty document to update
         :return: Response of the HTTP PUT request.
         """
-        end_point = "{}/document/v1/{}/{}/docid/{}?create={}".format(
-            self.end_point, schema, schema, str(data_id), str(create).lower()
-        )
-        vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
-        response = self.http_session.put(end_point, json=vespa_format, cert=self.cert)
-        return VespaResponse(
-            json=response.json(),
-            status_code=response.status_code,
-            url=str(response.url),
-            operation_type="update",
-        )
+        with VespaSync(self) as sync_app:
+            return sync_app.update_data(
+                schema=schema, data_id=data_id, fields=fields, create=create
+            )
 
     def update_batch(self, batch: List):
         """
@@ -721,6 +697,84 @@ class VespaSync(object):
             )
         return VespaQueryResponse(
             json=r.json(), status_code=r.status_code, url=str(r.url)
+        )
+
+    def delete_data(self, schema: str, data_id: str) -> VespaResponse:
+        """
+        Delete a data point from a Vespa app.
+
+        :param schema: The schema that we are deleting data from.
+        :param data_id: Unique id associated with this data point.
+        :return: Response of the HTTP DELETE request.
+        """
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.app.end_point, schema, schema, str(data_id)
+        )
+        response = self.http_session.delete(end_point, cert=self.app.cert)
+        return VespaResponse(
+            json=response.json(),
+            status_code=response.status_code,
+            url=str(response.url),
+            operation_type="delete",
+        )
+
+    def delete_all_docs(self, content_cluster_name: str, schema: str) -> Response:
+        """
+        Delete all documents associated with the schema
+
+        :param content_cluster_name: Name of content cluster to GET from, or visit.
+        :param schema: The schema that we are deleting data from.
+        :return: Response of the HTTP DELETE request.
+        """
+        end_point = "{}/document/v1/{}/{}/docid/?cluster={}&selection=true".format(
+            self.app.end_point, schema, schema, content_cluster_name
+        )
+        response = self.http_session.delete(end_point, cert=self.app.cert)
+        return response
+
+    def get_data(self, schema: str, data_id: str) -> VespaResponse:
+        """
+        Get a data point from a Vespa app.
+
+        :param schema: The schema that we are getting data from.
+        :param data_id: Unique id associated with this data point.
+        :return: Response of the HTTP GET request.
+        """
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.app.end_point, schema, schema, str(data_id)
+        )
+        response = self.http_session.get(end_point, cert=self.app.cert)
+        return VespaResponse(
+            json=response.json(),
+            status_code=response.status_code,
+            url=str(response.url),
+            operation_type="get",
+        )
+
+    def update_data(
+        self, schema: str, data_id: str, fields: Dict, create: bool = False
+    ) -> VespaResponse:
+        """
+        Update a data point in a Vespa app.
+
+        :param schema: The schema that we are updating data.
+        :param data_id: Unique id associated with this data point.
+        :param fields: Dict containing all the fields you want to update.
+        :param create: If true, updates to non-existent documents will create an empty document to update
+        :return: Response of the HTTP PUT request.
+        """
+        end_point = "{}/document/v1/{}/{}/docid/{}?create={}".format(
+            self.app.end_point, schema, schema, str(data_id), str(create).lower()
+        )
+        vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
+        response = self.http_session.put(
+            end_point, json=vespa_format, cert=self.app.cert
+        )
+        return VespaResponse(
+            json=response.json(),
+            status_code=response.status_code,
+            url=str(response.url),
+            operation_type="update",
         )
 
 
