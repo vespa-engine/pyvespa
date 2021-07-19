@@ -87,7 +87,6 @@ class Vespa(object):
         self.port = port
         self.deployment_message = deployment_message
         self.cert = cert
-        self.http_session = None
 
         if port is None:
             self.end_point = self.url
@@ -95,33 +94,8 @@ class Vespa(object):
             self.end_point = str(url).rstrip("/") + ":" + str(port)
         self.search_end_point = self.end_point + "/search/"
 
-        self._open_http_session()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-
     def asyncio(self):
         return VespaAsync(self)
-
-    def _open_http_session(self):
-        if self.http_session is not None:
-            return
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        self.http_session = Session()
-        self.http_session.mount("https://", adapter)
-        self.http_session.mount("http://", adapter)
-        return self.http_session
-
-    def _close_http_session(self):
-        if self.http_session is None:
-            return
-        self.http_session.close()
-
-    def close(self):
-        self._close_http_session()
 
     def __repr__(self):
         if self.port:
