@@ -97,6 +97,9 @@ class Vespa(object):
     def asyncio(self):
         return VespaAsync(self)
 
+    def http(self, pool_maxsize: int = 10):
+        return VespaSync(app=self, pool_maxsize=pool_maxsize)
+
     def __repr__(self):
         if self.port:
             return "Vespa({}, {})".format(self.url, self.port)
@@ -572,9 +575,12 @@ class Vespa(object):
 
 
 class VespaSync(object):
-    def __init__(self, app: Vespa) -> None:
+    def __init__(self, app: Vespa, pool_maxsize: int = 10) -> None:
         self.app = app
         self.http_session = None
+        self.adapter = HTTPAdapter(
+            max_retries=retry_strategy, pool_maxsize=pool_maxsize
+        )
 
     def __enter__(self):
         self._open_http_session()
@@ -586,10 +592,10 @@ class VespaSync(object):
     def _open_http_session(self):
         if self.http_session is not None:
             return
-        adapter = HTTPAdapter(max_retries=retry_strategy)
+
         self.http_session = Session()
-        self.http_session.mount("https://", adapter)
-        self.http_session.mount("http://", adapter)
+        self.http_session.mount("https://", self.adapter)
+        self.http_session.mount("http://", self.adapter)
         return self.http_session
 
     def _close_http_session(self):
