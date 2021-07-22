@@ -890,116 +890,8 @@ class VespaHTTPX(object):
     def __init__(self, app: Vespa) -> None:
         self.app = app
 
-    def feed_data_point(
-        self, schema: str, data_id: str, fields: Dict, http2: bool = False
-    ) -> VespaResponse:
-        """
-        Feed a data point to a Vespa app.
-
-        :param schema: The schema that we are sending data to.
-        :param data_id: Unique id associated with this data point.
-        :param fields: Dict containing all the fields required by the `schema`.
-        :return: Response of the HTTP POST request.
-        """
-        end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.app.end_point, schema, schema, str(data_id)
-        )
-        vespa_format = {"fields": fields}
-        with httpx.Client(cert=self.app.cert, http2=http2) as client:
-            response = client.post(
-                end_point,
-                json=vespa_format,
-            )
-        print(response.http_version)
-        return VespaResponse(
-            json=response.json(),
-            status_code=response.status_code,
-            url=str(response.url),
-            operation_type="feed",
-        )
-
-    def feed_batch(self, schema: str, batch: List[Dict], http2: bool = False):
-        result = []
-        with httpx.Client(
-            cert=self.app.cert, http2=http2, timeout=httpx.Timeout(10.0)
-        ) as client:
-            for data_point in batch:
-                end_point = "{}/document/v1/{}/{}/docid/{}".format(
-                    self.app.end_point, schema, schema, str(data_point["id"])
-                )
-                vespa_format = {"fields": data_point["fields"]}
-                response = client.post(
-                    end_point,
-                    json=vespa_format,
-                )
-                result.append(
-                    VespaResponse(
-                        json=response.json(),
-                        status_code=response.status_code,
-                        url=str(response.url),
-                        operation_type="feed",
-                    )
-                )
-        print(response.http_version)
-        return result
-
-    async def feed_data_point_async(
-        self, schema: str, data_id: str, fields: Dict, http2: bool = False
-    ) -> VespaResponse:
-        """
-        Feed a data point to a Vespa app.
-
-        :param schema: The schema that we are sending data to.
-        :param data_id: Unique id associated with this data point.
-        :param fields: Dict containing all the fields required by the `schema`.
-        :return: Response of the HTTP POST request.
-        """
-        end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.app.end_point, schema, schema, str(data_id)
-        )
-        vespa_format = {"fields": fields}
-        async with httpx.AsyncClient(cert=self.app.cert, http2=http2) as client:
-            response = await client.post(
-                end_point,
-                json=vespa_format,
-            )
-        print(response.http_version)
-        return VespaResponse(
-            json=response.json(),
-            status_code=response.status_code,
-            url=str(response.url),
-            operation_type="feed",
-        )
-
-    async def feed_batch_async(
-        self, schema: str, batch: List[Dict], http2: bool = False
-    ):
-        result = []
-        async with httpx.AsyncClient(
-            cert=self.app.cert, http2=http2, timeout=httpx.Timeout(10.0)
-        ) as client:
-            for data_point in batch:
-                end_point = "{}/document/v1/{}/{}/docid/{}".format(
-                    self.app.end_point, schema, schema, str(data_point["id"])
-                )
-                vespa_format = {"fields": data_point["fields"]}
-                response = await client.post(
-                    end_point,
-                    json=vespa_format,
-                )
-                result.append(
-                    VespaResponse(
-                        json=response.json(),
-                        status_code=response.status_code,
-                        url=str(response.url),
-                        operation_type="feed",
-                    )
-                )
-        print(response.http_version)
-        return result
-
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
-    async def feed_data_point_async_with_client(
+    async def feed_data_point_async(
         self,
         client: httpx.AsyncClient,
         schema: str,
@@ -1034,14 +926,14 @@ class VespaHTTPX(object):
         await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
         return [result for result in map(lambda task: task.result(), tasks)]
 
-    async def feed_batch_wait_async(
+    async def feed_batch_async(
         self, schema: str, batch: List[Dict], http2: bool = False
     ):
         async with httpx.AsyncClient(
             cert=self.app.cert, http2=http2, timeout=httpx.Timeout(10.0, connect=200.0)
         ) as client:
             responses = await self._wait(
-                self.feed_data_point_async_with_client,
+                self.feed_data_point_async,
                 [
                     (client, schema, data_point["id"], data_point["fields"])
                     for data_point in batch
