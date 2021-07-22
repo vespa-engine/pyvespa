@@ -2,6 +2,7 @@ import os
 import asyncio
 import shutil
 import json
+import time
 
 from vespa.package import (
     VespaCloud,
@@ -12,6 +13,7 @@ from vespa.test_integration_docker import (
     create_cord19_application_package,
     create_qa_application_package,
 )
+from vespa.application import VespaHTTPX
 
 
 class TestMsmarcoApplication(TestApplicationCommon):
@@ -37,6 +39,97 @@ class TestMsmarcoApplication(TestApplicationCommon):
             for i in range(10)
         ]
         self.fields_to_update = {"title": "this is my updated title"}
+
+    def test_httpx(self):
+        vespa_httpx = VespaHTTPX(app=self.app)
+        response = vespa_httpx.feed_data_point(
+            schema=self.app_package.name,
+            data_id=self.fields_to_send[0]["id"],
+            fields=self.fields_to_send[0],
+        )
+        print(response.status_code)
+
+        response = vespa_httpx.feed_data_point(
+            schema=self.app_package.name,
+            data_id=self.fields_to_send[0]["id"],
+            fields=self.fields_to_send[0],
+            http2=True,
+        )
+        print(response.status_code)
+
+        response = asyncio.run(
+            vespa_httpx.feed_data_point_async(
+                schema=self.app_package.name,
+                data_id=self.fields_to_send[0]["id"],
+                fields=self.fields_to_send[0],
+            )
+        )
+        print(response.status_code)
+
+        response = asyncio.run(
+            vespa_httpx.feed_data_point_async(
+                schema=self.app_package.name,
+                data_id=self.fields_to_send[0]["id"],
+                fields=self.fields_to_send[0],
+                http2=True,
+            )
+        )
+        print(response.status_code)
+
+    def test_httpx_batch(self):
+        fields_to_send = [
+            {
+                "id": f"{i}",
+                "title": f"this is title {i}",
+                "body": f"this is body {i}",
+            }
+            for i in range(1000)
+        ]
+
+        #
+        # Create and feed documents
+        #
+        docs = []
+        schema = self.app_package.name
+        for fields in fields_to_send:
+            docs.append({"id": fields["id"], "fields": fields})
+        vespa_httpx = VespaHTTPX(app=self.app)
+
+        # start = time.time()
+        # response = vespa_httpx.feed_batch(schema=schema, batch=docs)
+        # print(time.time() - start)
+        # print([x.status_code for x in response])
+
+        # start = time.time()
+        # response = vespa_httpx.feed_batch(schema=schema, batch=docs, http2=True)
+        # print(time.time() - start)
+        # print([x.status_code for x in response])
+
+        # start = time.time()
+        # response = asyncio.run(vespa_httpx.feed_batch_async(schema=schema, batch=docs))
+        # print(time.time() - start)
+        # print([x.status_code for x in response])
+        #
+        # start = time.time()
+        # response = asyncio.run(
+        #     vespa_httpx.feed_batch_async(schema=schema, batch=docs, http2=True)
+        # )
+        # print(time.time() - start)
+        # print([x.status_code for x in response])
+
+        start = time.time()
+        response = asyncio.run(
+            vespa_httpx.feed_batch_wait_async(schema=schema, batch=docs)
+        )
+        print(time.time() - start)
+        print([x.status_code for x in response])
+
+        start = time.time()
+        response = asyncio.run(
+            vespa_httpx.feed_batch_wait_async(schema=schema, batch=docs, http2=True)
+        )
+        print(time.time() - start)
+        print([x.status_code for x in response])
 
     def test_execute_data_operations(self):
         self.execute_data_operations(
