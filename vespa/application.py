@@ -13,6 +13,7 @@ from requests.exceptions import ConnectionError
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 import httpx
+from tenacity import retry, wait_exponential, stop_after_attempt
 
 from vespa.io import VespaQueryResponse, VespaResponse
 from vespa.query import QueryModel
@@ -997,6 +998,7 @@ class VespaHTTPX(object):
         print(response.http_version)
         return result
 
+    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def feed_data_point_async_with_client(
         self,
         client: httpx.AsyncClient,
