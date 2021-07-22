@@ -80,7 +80,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
         fields_to_send = [
             {
                 "id": f"{i}",
-                "title": f"this is title {i}",
+                "title": "a" * 100,
                 "body": f"this is body {i}",
             }
             for i in range(1000)
@@ -95,38 +95,38 @@ class TestMsmarcoApplication(TestApplicationCommon):
             docs.append({"id": fields["id"], "fields": fields})
         vespa_httpx = VespaHTTPX(app=self.app)
 
-        # start = time.time()
-        # response = vespa_httpx.feed_batch(schema=schema, batch=docs)
-        # print(time.time() - start)
-        # print([x.status_code for x in response])
-
-        # start = time.time()
-        # response = vespa_httpx.feed_batch(schema=schema, batch=docs, http2=True)
-        # print(time.time() - start)
-        # print([x.status_code for x in response])
-
-        # start = time.time()
-        # response = asyncio.run(vespa_httpx.feed_batch_async(schema=schema, batch=docs))
-        # print(time.time() - start)
-        # print([x.status_code for x in response])
         #
-        # start = time.time()
-        # response = asyncio.run(
-        #     vespa_httpx.feed_batch_async(schema=schema, batch=docs, http2=True)
-        # )
-        # print(time.time() - start)
-        # print([x.status_code for x in response])
+        # Synchronous feed batch with Requests
+        #
+        start = time.time()
+        response = self.app.feed_batch(schema=schema, batch=docs)
+        print(time.time() - start)
+        print([x.status_code for x in response])
 
+        #
+        # Asynchronous feed batch with aiohttp
+        #
+        start = time.time()
+        response = self.app.feed_batch(schema=schema, batch=docs, asynchronous=True)
+        print(time.time() - start)
+        print([x.status_code for x in response])
+
+        #
+        # Asynchronous feed batch with HTTPX and HTTP/1.1
+        #
         start = time.time()
         response = asyncio.run(
-            vespa_httpx.feed_batch_wait_async(schema=schema, batch=docs)
+            vespa_httpx.feed_batch_async(schema=schema, batch=docs)
         )
         print(time.time() - start)
         print([x.status_code for x in response])
 
+        #
+        # Asynchronous feed batch with HTTPX and HTTP/2
+        #
         start = time.time()
         response = asyncio.run(
-            vespa_httpx.feed_batch_wait_async(schema=schema, batch=docs, http2=True)
+            vespa_httpx.feed_batch_async(schema=schema, batch=docs, http2=True)
         )
         print(time.time() - start)
         print([x.status_code for x in response])
