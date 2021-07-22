@@ -29,7 +29,8 @@ setuptools.setup(
         "jinja2",
         "cryptography",
         "aiohttp",
-        "httpx[http2]"
+        "httpx[http2]",
+        "tenacity"
     ],
     extras_require={
         "ml": ["transformers", "torch"],
