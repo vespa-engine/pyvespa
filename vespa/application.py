@@ -102,6 +102,7 @@ class Vespa(object):
         Access Vespa asynchronous connection layer
 
         :param connections: Number of allowed concurrent connections
+        :param total_timeout: Total timeout in secs.
         :return: Instance of Vespa asynchronous layer.
         """
         return VespaAsync(
