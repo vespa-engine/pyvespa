@@ -12,6 +12,7 @@ from requests.models import Response
 from requests.exceptions import ConnectionError
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
+from tenacity import retry, wait_exponential, stop_after_attempt
 
 from vespa.io import VespaQueryResponse, VespaResponse
 from vespa.query import QueryModel
@@ -94,8 +95,18 @@ class Vespa(object):
             self.end_point = str(url).rstrip("/") + ":" + str(port)
         self.search_end_point = self.end_point + "/search/"
 
-    def asyncio(self):
-        return VespaAsync(self)
+    def asyncio(
+        self, connections: Optional[int] = 100, total_timeout: int = 10
+    ) -> "VespaAsync":
+        """
+        Access Vespa asynchronous connection layer
+
+        :param connections: Number of allowed concurrent connections
+        :return: Instance of Vespa asynchronous layer.
+        """
+        return VespaAsync(
+            app=self, connections=connections, total_timeout=total_timeout
+        )
 
     def http(self, pool_maxsize: int = 10):
         return VespaSync(app=self, pool_maxsize=pool_maxsize)
@@ -191,11 +202,22 @@ class Vespa(object):
             for data_point in batch
         ]
 
-    async def _feed_batch_async(self, schema: str, batch: List[Dict]):
-        async with VespaAsync(self) as async_app:
+    async def _feed_batch_async(
+        self, schema: str, batch: List[Dict], connections, total_timeout
+    ):
+        async with VespaAsync(
+            app=self, connections=connections, total_timeout=total_timeout
+        ) as async_app:
             return await async_app.feed_batch(schema=schema, batch=batch)
 
-    def feed_batch(self, schema: str, batch: List[Dict], asynchronous=False):
+    def feed_batch(
+        self,
+        schema: str,
+        batch: List[Dict],
+        asynchronous=False,
+        connections: Optional[int] = 100,
+        total_timeout: int = 10,
+    ):
         """
         Feed a batch of data to a Vespa app.
 
@@ -203,15 +225,22 @@ class Vespa(object):
         :param batch: A list of dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
         :param asynchronous: Set True to send data in async mode. Default to False. Create and execute the coroutine if
             there is no active running loop. Otherwise it returns the coroutine and requires await to be executed.
+        :param connections: Number of allowed concurrent connections, valid only if asynchronous=True.
         :return: List of HTTP POST responses
         """
 
         if asynchronous:
+            coro = self._feed_batch_async(
+                schema=schema,
+                batch=batch,
+                connections=connections,
+                total_timeout=total_timeout,
+            )
             try:
                 _ = asyncio.get_running_loop()
-                return self._feed_batch_async(schema=schema, batch=batch)
+                return coro
             except RuntimeError:
-                return asyncio.run(self._feed_batch_async(schema=schema, batch=batch))
+                return asyncio.run(coro)
         else:
             return self._feed_batch_sync(schema=schema, batch=batch)
 
@@ -759,9 +788,13 @@ class VespaSync(object):
 
 
 class VespaAsync(object):
-    def __init__(self, app: Vespa) -> None:
+    def __init__(
+        self, app: Vespa, connections: Optional[int] = 100, total_timeout: int = 10
+    ) -> None:
         self.app = app
         self.aiohttp_session = None
+        self.connections = connections
+        self.total_timeout = total_timeout
 
     async def __aenter__(self):
         await self._open_aiohttp_session()
@@ -777,8 +810,10 @@ class VespaAsync(object):
         if self.app.cert is not None:
             sslcontext = ssl.create_default_context()
             sslcontext.load_cert_chain(self.app.cert)
-        conn = aiohttp.TCPConnector(ssl=sslcontext)
-        self.aiohttp_session = aiohttp.ClientSession(connector=conn)
+        conn = aiohttp.TCPConnector(ssl=sslcontext, limit=self.connections)
+        self.aiohttp_session = aiohttp.ClientSession(
+            connector=conn, timeout=aiohttp.ClientTimeout(total=self.total_timeout)
+        )
         return self.aiohttp_session
 
     async def _close_aiohttp_session(self):
@@ -814,6 +849,7 @@ class VespaAsync(object):
             json=await r.json(), status_code=r.status, url=str(r.url)
         )
 
+    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def feed_data_point(
         self, schema: str, data_id: str, fields: Dict
     ) -> VespaResponse:
@@ -829,10 +865,22 @@ class VespaAsync(object):
             operation_type="feed",
         )
 
+    async def _feed_data_point_semaphore(
+        self, schema: str, data_id: str, fields: Dict, semaphore: asyncio.Semaphore
+    ):
+        async with semaphore:
+            return await self.feed_data_point(
+                schema=schema, data_id=data_id, fields=fields
+            )
+
     async def feed_batch(self, schema: str, batch: List[Dict]):
+        sem = asyncio.Semaphore(self.connections)
         return await self._wait(
-            self.feed_data_point,
-            [(schema, data_point["id"], data_point["fields"]) for data_point in batch],
+            self._feed_data_point_semaphore,
+            [
+                (schema, data_point["id"], data_point["fields"], sem)
+                for data_point in batch
+            ],
         )
 
     async def delete_data(self, schema: str, data_id: str) -> VespaResponse:
