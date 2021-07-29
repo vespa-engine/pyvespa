@@ -226,7 +226,8 @@ class Vespa(object):
         :param batch: A list of dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
         :param asynchronous: Set True to send data in async mode. Default to False. Create and execute the coroutine if
             there is no active running loop. Otherwise it returns the coroutine and requires await to be executed.
-        :param connections: Number of allowed concurrent connections, valid only if asynchronous=True.
+        :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
+        :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
         :return: List of HTTP POST responses
         """
 
