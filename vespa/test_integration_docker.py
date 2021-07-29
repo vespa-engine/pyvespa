@@ -426,7 +426,7 @@ class TestApplicationCommon(unittest.TestCase):
             There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
         :return:
         """
-        async with app.asyncio() as async_app:
+        async with app.asyncio(connections=120, total_timeout=50) as async_app:
             #
             # Get data that does not exist
             #
