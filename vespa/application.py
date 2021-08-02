@@ -87,7 +87,6 @@ class Vespa(object):
         self.port = port
         self.deployment_message = deployment_message
         self.cert = cert
-        self.http_session = None
 
         if port is None:
             self.end_point = self.url
@@ -95,33 +94,8 @@ class Vespa(object):
             self.end_point = str(url).rstrip("/") + ":" + str(port)
         self.search_end_point = self.end_point + "/search/"
 
-        self._open_http_session()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-
     def asyncio(self):
         return VespaAsync(self)
-
-    def _open_http_session(self):
-        if self.http_session is not None:
-            return
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        self.http_session = Session()
-        self.http_session.mount("https://", adapter)
-        self.http_session.mount("http://", adapter)
-        return self.http_session
-
-    def _close_http_session(self):
-        if self.http_session is None:
-            return
-        self.http_session.close()
-
-    def close(self):
-        self._close_http_session()
 
     def __repr__(self):
         if self.port:
@@ -135,12 +109,8 @@ class Vespa(object):
 
         :return:
         """
-        end_point = "{}/ApplicationStatus".format(self.end_point)
-        try:
-            response = self.http_session.get(end_point, cert=self.cert)
-        except ConnectionError:
-            response = None
-        return response
+        with VespaSync(self) as sync_app:
+            return sync_app.get_application_status()
 
     def _build_query_body(
         self,
@@ -188,20 +158,15 @@ class Vespa(object):
         :param kwargs: Additional parameters to be sent along the request.
         :return: Either the request body if debug_request is True or the result from the Vespa application
         """
-        body = (
-            self._build_query_body(query, query_model, recall, **kwargs)
-            if body is None
-            else body
-        )
-        if debug_request:
-            return VespaQueryResponse(
-                json={}, status_code=None, url=None, request_body=body
+        with VespaSync(self) as sync_app:
+            return sync_app.query(
+                body=body,
+                query=query,
+                query_model=query_model,
+                debug_request=debug_request,
+                recall=recall,
+                **kwargs
             )
-        else:
-            r = self.http_session.post(self.search_end_point, json=body, cert=self.cert)
-        return VespaQueryResponse(
-            json=r.json(), status_code=r.status_code, url=str(r.url)
-        )
 
     def feed_data_point(self, schema: str, data_id: str, fields: Dict) -> VespaResponse:
         """
@@ -212,17 +177,10 @@ class Vespa(object):
         :param fields: Dict containing all the fields required by the `schema`.
         :return: Response of the HTTP POST request.
         """
-        end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.end_point, schema, schema, str(data_id)
-        )
-        vespa_format = {"fields": fields}
-        response = self.http_session.post(end_point, json=vespa_format, cert=self.cert)
-        return VespaResponse(
-            json=response.json(),
-            status_code=response.status_code,
-            url=str(response.url),
-            operation_type="feed",
-        )
+        with VespaSync(app=self) as sync_app:
+            return sync_app.feed_data_point(
+                schema=schema, data_id=data_id, fields=fields
+            )
 
     def _feed_batch_sync(self, schema: str, batch: List[Dict]):
         return [
@@ -262,16 +220,8 @@ class Vespa(object):
         :param data_id: Unique id associated with this data point.
         :return: Response of the HTTP DELETE request.
         """
-        end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.end_point, schema, schema, str(data_id)
-        )
-        response = self.http_session.delete(end_point, cert=self.cert)
-        return VespaResponse(
-            json=response.json(),
-            status_code=response.status_code,
-            url=str(response.url),
-            operation_type="delete",
-        )
+        with VespaSync(self) as sync_app:
+            return sync_app.delete_data(schema=schema, data_id=data_id)
 
     def delete_batch(self, batch: List):
         """
@@ -290,13 +240,12 @@ class Vespa(object):
         :param schema: The schema that we are deleting data from.
         :return: Response of the HTTP DELETE request.
         """
-        end_point = "{}/document/v1/{}/{}/docid/?cluster={}&selection=true".format(
-            self.end_point, schema, schema, content_cluster_name
-        )
-        response = self.http_session.delete(end_point, cert=self.cert)
-        return response
+        with VespaSync(self) as sync_app:
+            return sync_app.delete_all_docs(
+                content_cluster_name=content_cluster_name, schema=schema
+            )
 
-    def get_data(self, schema: str, data_id: str) -> Response:
+    def get_data(self, schema: str, data_id: str) -> VespaResponse:
         """
         Get a data point from a Vespa app.
 
@@ -304,16 +253,8 @@ class Vespa(object):
         :param data_id: Unique id associated with this data point.
         :return: Response of the HTTP GET request.
         """
-        end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.end_point, schema, schema, str(data_id)
-        )
-        response = self.http_session.get(end_point, cert=self.cert)
-        return VespaResponse(
-            json=response.json(),
-            status_code=response.status_code,
-            url=str(response.url),
-            operation_type="get",
-        )
+        with VespaSync(self) as sync_app:
+            return sync_app.get_data(schema=schema, data_id=data_id)
 
     def get_batch(self, batch: List):
         """
@@ -336,17 +277,10 @@ class Vespa(object):
         :param create: If true, updates to non-existent documents will create an empty document to update
         :return: Response of the HTTP PUT request.
         """
-        end_point = "{}/document/v1/{}/{}/docid/{}?create={}".format(
-            self.end_point, schema, schema, str(data_id), str(create).lower()
-        )
-        vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
-        response = self.http_session.put(end_point, json=vespa_format, cert=self.cert)
-        return VespaResponse(
-            json=response.json(),
-            status_code=response.status_code,
-            url=str(response.url),
-            operation_type="update",
-        )
+        with VespaSync(self) as sync_app:
+            return sync_app.update_data(
+                schema=schema, data_id=data_id, fields=fields, create=create
+            )
 
     def update_batch(self, batch: List):
         """
@@ -637,6 +571,187 @@ class Vespa(object):
         return evaluation
 
 
+class VespaSync(object):
+    def __init__(self, app: Vespa) -> None:
+        self.app = app
+        self.http_session = None
+
+    def __enter__(self):
+        self._open_http_session()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._close_http_session()
+
+    def _open_http_session(self):
+        if self.http_session is not None:
+            return
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.http_session = Session()
+        self.http_session.mount("https://", adapter)
+        self.http_session.mount("http://", adapter)
+        return self.http_session
+
+    def _close_http_session(self):
+        if self.http_session is None:
+            return
+        self.http_session.close()
+
+    def get_application_status(self) -> Optional[Response]:
+        """
+        Get application status.
+
+        :return:
+        """
+        end_point = "{}/ApplicationStatus".format(self.app.end_point)
+        try:
+            response = self.http_session.get(end_point, cert=self.app.cert)
+        except ConnectionError:
+            response = None
+        return response
+
+    def feed_data_point(self, schema: str, data_id: str, fields: Dict) -> VespaResponse:
+        """
+        Feed a data point to a Vespa app.
+
+        :param schema: The schema that we are sending data to.
+        :param data_id: Unique id associated with this data point.
+        :param fields: Dict containing all the fields required by the `schema`.
+        :return: Response of the HTTP POST request.
+        """
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.app.end_point, schema, schema, str(data_id)
+        )
+        vespa_format = {"fields": fields}
+        response = self.http_session.post(
+            end_point, json=vespa_format, cert=self.app.cert
+        )
+        return VespaResponse(
+            json=response.json(),
+            status_code=response.status_code,
+            url=str(response.url),
+            operation_type="feed",
+        )
+
+    def query(
+        self,
+        body: Optional[Dict] = None,
+        query: Optional[str] = None,
+        query_model: Optional[QueryModel] = None,
+        debug_request: bool = False,
+        recall: Optional[Tuple] = None,
+        **kwargs
+    ) -> VespaQueryResponse:
+        """
+        Send a query request to the Vespa application.
+
+        Either send 'body' containing all the request parameters or specify 'query' and 'query_model'.
+
+        :param body: Dict containing all the request parameters.
+        :param query: Query string
+        :param query_model: Query model
+        :param debug_request: return request body for debugging instead of sending the request.
+        :param recall: Tuple of size 2 where the first element is the name of the field to use to recall and the
+            second element is a list of the values to be recalled.
+        :param kwargs: Additional parameters to be sent along the request.
+        :return: Either the request body if debug_request is True or the result from the Vespa application
+        """
+        body = (
+            self.app._build_query_body(query, query_model, recall, **kwargs)
+            if body is None
+            else body
+        )
+        if debug_request:
+            return VespaQueryResponse(
+                json={}, status_code=None, url=None, request_body=body
+            )
+        else:
+            r = self.http_session.post(
+                self.app.search_end_point, json=body, cert=self.app.cert
+            )
+        return VespaQueryResponse(
+            json=r.json(), status_code=r.status_code, url=str(r.url)
+        )
+
+    def delete_data(self, schema: str, data_id: str) -> VespaResponse:
+        """
+        Delete a data point from a Vespa app.
+
+        :param schema: The schema that we are deleting data from.
+        :param data_id: Unique id associated with this data point.
+        :return: Response of the HTTP DELETE request.
+        """
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.app.end_point, schema, schema, str(data_id)
+        )
+        response = self.http_session.delete(end_point, cert=self.app.cert)
+        return VespaResponse(
+            json=response.json(),
+            status_code=response.status_code,
+            url=str(response.url),
+            operation_type="delete",
+        )
+
+    def delete_all_docs(self, content_cluster_name: str, schema: str) -> Response:
+        """
+        Delete all documents associated with the schema
+
+        :param content_cluster_name: Name of content cluster to GET from, or visit.
+        :param schema: The schema that we are deleting data from.
+        :return: Response of the HTTP DELETE request.
+        """
+        end_point = "{}/document/v1/{}/{}/docid/?cluster={}&selection=true".format(
+            self.app.end_point, schema, schema, content_cluster_name
+        )
+        response = self.http_session.delete(end_point, cert=self.app.cert)
+        return response
+
+    def get_data(self, schema: str, data_id: str) -> VespaResponse:
+        """
+        Get a data point from a Vespa app.
+
+        :param schema: The schema that we are getting data from.
+        :param data_id: Unique id associated with this data point.
+        :return: Response of the HTTP GET request.
+        """
+        end_point = "{}/document/v1/{}/{}/docid/{}".format(
+            self.app.end_point, schema, schema, str(data_id)
+        )
+        response = self.http_session.get(end_point, cert=self.app.cert)
+        return VespaResponse(
+            json=response.json(),
+            status_code=response.status_code,
+            url=str(response.url),
+            operation_type="get",
+        )
+
+    def update_data(
+        self, schema: str, data_id: str, fields: Dict, create: bool = False
+    ) -> VespaResponse:
+        """
+        Update a data point in a Vespa app.
+
+        :param schema: The schema that we are updating data.
+        :param data_id: Unique id associated with this data point.
+        :param fields: Dict containing all the fields you want to update.
+        :param create: If true, updates to non-existent documents will create an empty document to update
+        :return: Response of the HTTP PUT request.
+        """
+        end_point = "{}/document/v1/{}/{}/docid/{}?create={}".format(
+            self.app.end_point, schema, schema, str(data_id), str(create).lower()
+        )
+        vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
+        response = self.http_session.put(
+            end_point, json=vespa_format, cert=self.app.cert
+        )
+        return VespaResponse(
+            json=response.json(),
+            status_code=response.status_code,
+            url=str(response.url),
+            operation_type="update",
+        )
+
+
 class VespaAsync(object):
     def __init__(self, app: Vespa) -> None:
         self.app = app
@@ -689,7 +804,9 @@ class VespaAsync(object):
             else body
         )
         r = await self.aiohttp_session.post(self.app.search_end_point, json=body)
-        return VespaQueryResponse(json=await r.json(), status_code=r.status, url=str(r.url))
+        return VespaQueryResponse(
+            json=await r.json(), status_code=r.status, url=str(r.url)
+        )
 
     async def feed_data_point(
         self, schema: str, data_id: str, fields: Dict
