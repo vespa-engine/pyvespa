@@ -426,7 +426,7 @@ class TestApplicationCommon(unittest.TestCase):
             There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
         :return:
         """
-        async with app.asyncio() as async_app:
+        async with app.asyncio(connections=120, total_timeout=50) as async_app:
             #
             # Get data that does not exist
             #
@@ -624,7 +624,13 @@ class TestApplicationCommon(unittest.TestCase):
         schema = schema_name
         for fields in fields_to_send:
             docs.append({"id": fields["id"], "fields": fields})
-        app.feed_batch(schema=schema, batch=docs, asynchronous=True)
+        app.feed_batch(
+            schema=schema,
+            batch=docs,
+            asynchronous=True,
+            connections=120,
+            total_timeout=50,
+        )
 
         # Verify that all documents are fed
         result = app.query(
