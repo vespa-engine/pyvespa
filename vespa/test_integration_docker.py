@@ -18,6 +18,7 @@ from vespa.package import (
 from vespa.ml import BertModelConfig
 from vespa.query import QueryModel, RankProfile as Ranking, OR, QueryRankingFeature
 from vespa.gallery import QuestionAnswering
+from vespa.application import VespaSync
 
 
 def create_msmarco_application_package():
@@ -104,7 +105,7 @@ def create_cord19_application_package():
 def create_qa_application_package():
     app_package = QuestionAnswering()
     #
-    # Our test suite requires that each schema has a 'id' field 
+    # Our test suite requires that each schema has a 'id' field
     #
     app_package.get_schema("sentence").add_fields(
         Field(name="id", type="string", indexing=["attribute", "summary"])
@@ -379,6 +380,30 @@ class TestApplicationCommon(unittest.TestCase):
                     schema_name, schema_name, fields_to_send["id"]
                 ),
             },
+        )
+        #
+        # Use VespaSync - delete data point
+        #
+        with VespaSync(app=app) as sync_app:
+            response = sync_app.delete_data(
+                schema=schema_name, data_id=fields_to_send["id"]
+            )
+        self.assertEqual(
+            response.json["id"],
+            "id:{}:{}::{}".format(schema_name, schema_name, fields_to_send["id"]),
+        )
+        #
+        # Use VespaSync via http attribute - feed data point
+        #
+        with app.http(pool_maxsize=20) as sync_app:
+            response = sync_app.feed_data_point(
+                schema=schema_name,
+                data_id=fields_to_send["id"],
+                fields=fields_to_send,
+            )
+        self.assertEqual(
+            response.json["id"],
+            "id:{}:{}::{}".format(schema_name, schema_name, fields_to_send["id"]),
         )
 
     async def execute_async_data_operations(
