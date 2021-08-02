@@ -4,6 +4,7 @@ import sys
 import ssl
 import aiohttp
 import asyncio
+import concurrent.futures
 
 from typing import Optional, Dict, Tuple, List, IO, Union
 from pandas import DataFrame
@@ -211,6 +212,10 @@ class Vespa(object):
         ) as async_app:
             return await async_app.feed_batch(schema=schema, batch=batch)
 
+    def _run_coroutine_new_event_loop(self, loop, coro):
+        asyncio.set_event_loop(loop)
+        return loop.run_until_complete(coro)
+
     def feed_batch(
         self,
         schema: str,
@@ -240,7 +245,13 @@ class Vespa(object):
             )
             try:
                 _ = asyncio.get_running_loop()
-                return coro
+                new_loop = asyncio.new_event_loop()
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(
+                        self._run_coroutine_new_event_loop, new_loop, coro
+                    )
+                    return_value = future.result()
+                    return return_value
             except RuntimeError:
                 return asyncio.run(coro)
         else:
