@@ -72,7 +72,6 @@ jobs:
       DOCKER_HOST: "localhost:2375"
     steps:
       - setup: |
-          set -e
           dnf install -y git
           export WORK_DIR=$SD_DIND_SHARE_PATH
           export RESOURCES_DIR=$(pwd)/vespa/resources
@@ -90,6 +89,7 @@ jobs:
           python3 -m pip install -r docs/sphinx/source/requirements.txt
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
       - run-notebooks-except-cloud-related: |
+          set -e
           dnf install -y tree
           dnf install -y wget
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
