@@ -94,7 +94,6 @@ jobs:
           dnf install -y wget
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec ls {} \; -name '*.ipynb' ! -name '*cloud*.ipynb' -exec runnb --allow-not-trusted {} \;
-          find docs -name '*.nbconvert.ipynb' -exec rm {} +
   integration-cloud:
     requires: [~commit]
     annotations:
@@ -133,14 +132,13 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
-          python3 -m pip install pytest notebook nbconvert
+          python3 -m pip install pytest notebook nbconvert runnb
           python3 -m pip install -e .[full]
           python3 -m pip install -r docs/sphinx/source/requirements.txt
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
       - run-notebooks-except-cloud-related: |
           find docs -name '*cloud*.ipynb'
-          find docs -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=600 --execute {} +
-          find docs -name '*.nbconvert.ipynb' -exec rm {} +
+          find docs -name '*cloud*.ipynb' ls {} \; -name '*cloud*.ipynb' -exec runnb --allow-not-trusted {} \;
   deploy-test-server:
     requires: [unit-tests, integration-except-cloud, notebooks-except-cloud, notebooks-cloud]
     annotations:
