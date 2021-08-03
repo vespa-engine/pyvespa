@@ -136,9 +136,9 @@ jobs:
           python3 -m pip install -e .[full]
           python3 -m pip install -r docs/sphinx/source/requirements.txt
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
-      - run-notebooks-except-cloud-related: |
+      - run-notebooks-cloud-related: |
           find docs -name '*cloud*.ipynb'
-          find docs -name '*cloud*.ipynb' ls {} \; -name '*cloud*.ipynb' -exec runnb --allow-not-trusted {} \;
+          find docs -name '*cloud*.ipynb' -exec ls {} \; -name '*cloud*.ipynb' -exec runnb --allow-not-trusted {} \;
   deploy-test-server:
     requires: [unit-tests, integration-except-cloud, notebooks-except-cloud, notebooks-cloud]
     annotations:
