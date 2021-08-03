@@ -92,7 +92,7 @@ jobs:
           dnf install -y tree
           dnf install -y wget
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
-          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec runnb --allow-not-trusted {} \;
+          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec ls {} \; -name '*.ipynb' ! -name '*cloud*.ipynb' -exec runnb --allow-not-trusted {} \;
           find docs -name '*.nbconvert.ipynb' -exec rm {} +
   integration-cloud:
     requires: [~commit]
