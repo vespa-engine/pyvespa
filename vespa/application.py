@@ -4,6 +4,7 @@ import sys
 import ssl
 import aiohttp
 import asyncio
+import concurrent.futures
 
 from typing import Optional, Dict, Tuple, List, IO, Union
 from pandas import DataFrame
@@ -211,11 +212,15 @@ class Vespa(object):
         ) as async_app:
             return await async_app.feed_batch(schema=schema, batch=batch)
 
+    def _run_coroutine_new_event_loop(self, loop, coro):
+        asyncio.set_event_loop(loop)
+        return loop.run_until_complete(coro)
+
     def feed_batch(
         self,
         schema: str,
         batch: List[Dict],
-        asynchronous=False,
+        asynchronous=True,
         connections: Optional[int] = 100,
         total_timeout: int = 10,
     ):
@@ -224,8 +229,7 @@ class Vespa(object):
 
         :param schema: The schema that we are sending data to.
         :param batch: A list of dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
-        :param asynchronous: Set True to send data in async mode. Default to False. Create and execute the coroutine if
-            there is no active running loop. Otherwise it returns the coroutine and requires await to be executed.
+        :param asynchronous: Set True to send data in async mode. Default to True.
         :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
         :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
         :return: List of HTTP POST responses
@@ -240,7 +244,13 @@ class Vespa(object):
             )
             try:
                 _ = asyncio.get_running_loop()
-                return coro
+                new_loop = asyncio.new_event_loop()
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(
+                        self._run_coroutine_new_event_loop, new_loop, coro
+                    )
+                    return_value = future.result()
+                    return return_value
             except RuntimeError:
                 return asyncio.run(coro)
         else:
