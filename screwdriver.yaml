@@ -84,7 +84,7 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
-          python3 -m pip install pytest notebook nbconvert
+          python3 -m pip install pytest notebook nbconvert runnb
           python3 -m pip install -e .[full]
           python3 -m pip install -r docs/sphinx/source/requirements.txt
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
@@ -92,7 +92,7 @@ jobs:
           dnf install -y tree
           dnf install -y wget
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
-          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=6000 --execute {} +
+          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec runnb --allow-not-trusted {} \;
           find docs -name '*.nbconvert.ipynb' -exec rm {} +
   integration-cloud:
     requires: [~commit]
