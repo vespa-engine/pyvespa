@@ -222,7 +222,7 @@ class Vespa(object):
         batch: List[Dict],
         asynchronous=True,
         connections: Optional[int] = 100,
-        total_timeout: int = 10,
+        total_timeout: int = 100,
     ):
         """
         Feed a batch of data to a Vespa app.
