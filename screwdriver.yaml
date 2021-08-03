@@ -72,6 +72,7 @@ jobs:
       DOCKER_HOST: "localhost:2375"
     steps:
       - setup: |
+          set -e
           dnf install -y git
           export WORK_DIR=$SD_DIND_SHARE_PATH
           export RESOURCES_DIR=$(pwd)/vespa/resources
