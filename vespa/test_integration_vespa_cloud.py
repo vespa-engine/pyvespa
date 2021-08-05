@@ -58,15 +58,15 @@ class TestMsmarcoApplication(TestApplicationCommon):
             )
         )
 
-    def test_feed_batch_synchronous_mode(self):
-        self.feed_batch_synchronous_mode(
+    def test_batch_operations_synchronous_mode(self):
+        self.batch_operations_synchronous_mode(
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
         )
 
-    def test_feed_batch_asynchronous_mode(self):
-        self.feed_batch_asynchronous_mode(
+    def test_batch_operations_asynchronous_mode(self):
+        self.batch_operations_asynchronous_mode(
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
@@ -150,15 +150,15 @@ class TestCord19Application(TestApplicationCommon):
             )
         )
 
-    def test_feed_batch_synchronous_mode(self):
-        self.feed_batch_synchronous_mode(
+    def test_batch_operations_synchronous_mode(self):
+        self.batch_operations_synchronous_mode(
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
         )
 
-    def test_feed_batch_asynchronous_mode(self):
-        self.feed_batch_asynchronous_mode(
+    def test_batch_operations_asynchronous_mode(self):
+        self.batch_operations_asynchronous_mode(
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
@@ -252,15 +252,15 @@ class TestQaApplication(TestApplicationCommon):
             )
         )
 
-    def test_feed_batch_synchronous_mode(self):
-        self.feed_batch_synchronous_mode(
+    def test_batch_operations_synchronous_mode(self):
+        self.batch_operations_synchronous_mode(
             app=self.app,
             schema_name="sentence",
             fields_to_send=self.fields_to_send_sentence,
         )
 
-    def test_feed_batch_asynchronous_mode(self):
-        self.feed_batch_asynchronous_mode(
+    def test_batch_operations_asynchronous_mode(self):
+        self.batch_operations_asynchronous_mode(
             app=self.app,
             schema_name="sentence",
             fields_to_send=self.fields_to_send_sentence,
