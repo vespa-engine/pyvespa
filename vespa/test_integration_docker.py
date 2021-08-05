@@ -579,7 +579,7 @@ class TestApplicationCommon(unittest.TestCase):
                 queries[0].result().number_documents_indexed, len(fields_to_send) - 1
             )
 
-    def batch_operations_synchronous_mode(self, app, schema_name, fields_to_send):
+    def batch_operations_synchronous_mode(self, app, schema_name, fields_to_send, expected_fields_from_get_operation):
         """
         Sync feed a batch of data to the application
 
@@ -587,6 +587,8 @@ class TestApplicationCommon(unittest.TestCase):
         :param schema_name: Schema name containing the document we want to send and retrieve data
         :param fields_to_send: List of Dicts where keys are field names and values are field values. Must
             contain 'id' field.
+        :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
+            There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
         :return:
         """
 
@@ -613,9 +615,9 @@ class TestApplicationCommon(unittest.TestCase):
         #
         result = app.get_batch(schema=schema, batch=docs, asynchronous=False)
         for idx, response in enumerate(result):
-            self.assertEqual(response.json["fields"], fields_to_send[idx])
+            self.assertDictEqual(response.json["fields"], expected_fields_from_get_operation[idx])
 
-    def batch_operations_asynchronous_mode(self, app, schema_name, fields_to_send):
+    def batch_operations_asynchronous_mode(self, app, schema_name, fields_to_send, expected_fields_from_get_operation):
         """
         Async feed a batch of data to the application
 
@@ -623,6 +625,8 @@ class TestApplicationCommon(unittest.TestCase):
         :param schema_name: Schema name containing the document we want to send and retrieve data
         :param fields_to_send: List of Dicts where keys are field names and values are field values. Must
             contain 'id' field.
+        :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
+            There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
         :return:
         """
         #
@@ -654,7 +658,7 @@ class TestApplicationCommon(unittest.TestCase):
         #
         result = app.get_batch(schema=schema, batch=docs, asynchronous=True)
         for idx, response in enumerate(result):
-            self.assertEqual(response.json["fields"], fields_to_send[idx])
+            self.assertDictEqual(response.json["fields"], expected_fields_from_get_operation[idx])
 
     @staticmethod
     def _parse_vespa_tensor(hit, feature):
@@ -966,7 +970,6 @@ class TestQaApplication(TestApplicationCommon):
                 "id": d["id"],
                 "text": d["text"],
                 "dataset": d["dataset"],
-                "questions": d["questions"],
                 "context_id": d["context_id"],
                 "sentence_embedding": {
                     "cells": [
@@ -975,6 +978,8 @@ class TestQaApplication(TestApplicationCommon):
                     ]
                 },
             }
+            if len(d["questions"]) > 0:
+                expected_d.update({"questions": d["questions"]})
             self.expected_fields_from_sentence_get_operation.append(expected_d)
         with open(
             os.path.join(os.environ["RESOURCES_DIR"], "qa_sample_context_data.json"),
@@ -1020,6 +1025,7 @@ class TestQaApplication(TestApplicationCommon):
             app=self.app,
             schema_name="sentence",
             fields_to_send=self.fields_to_send_sentence,
+            expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
         )
 
     def test_batch_operations_asynchronous_mode(self):
@@ -1027,6 +1033,7 @@ class TestQaApplication(TestApplicationCommon):
             app=self.app,
             schema_name="sentence",
             fields_to_send=self.fields_to_send_sentence,
+            expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
         )
 
     def tearDown(self) -> None:
