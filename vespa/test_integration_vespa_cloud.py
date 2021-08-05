@@ -203,7 +203,6 @@ class TestQaApplication(TestApplicationCommon):
                 "id": d["id"],
                 "text": d["text"],
                 "dataset": d["dataset"],
-                "questions": d["questions"],
                 "context_id": d["context_id"],
                 "sentence_embedding": {
                     "cells": [
@@ -212,6 +211,8 @@ class TestQaApplication(TestApplicationCommon):
                     ]
                 },
             }
+            if len(d["questions"]) > 0:
+                expected_d.update({"questions": d["questions"]})
             self.expected_fields_from_sentence_get_operation.append(expected_d)
         with open(
             os.path.join(os.environ["RESOURCES_DIR"], "qa_sample_context_data.json"),
@@ -257,6 +258,7 @@ class TestQaApplication(TestApplicationCommon):
             app=self.app,
             schema_name="sentence",
             fields_to_send=self.fields_to_send_sentence,
+            expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
         )
 
     def test_batch_operations_asynchronous_mode(self):
@@ -264,6 +266,7 @@ class TestQaApplication(TestApplicationCommon):
             app=self.app,
             schema_name="sentence",
             fields_to_send=self.fields_to_send_sentence,
+            expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
         )
 
     def tearDown(self) -> None:
