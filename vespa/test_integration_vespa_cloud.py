@@ -63,6 +63,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
+            expected_fields_from_get_operation=self.fields_to_send,
         )
 
     def test_batch_operations_asynchronous_mode(self):
@@ -70,6 +71,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
+            expected_fields_from_get_operation=self.fields_to_send,
         )
 
     def tearDown(self) -> None:
@@ -155,6 +157,7 @@ class TestCord19Application(TestApplicationCommon):
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
+            expected_fields_from_get_operation=self.expected_fields_from_get_operation,
         )
 
     def test_batch_operations_asynchronous_mode(self):
@@ -162,6 +165,7 @@ class TestCord19Application(TestApplicationCommon):
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
+            expected_fields_from_get_operation=self.expected_fields_from_get_operation,
         )
 
     def test_bert_model_input_and_output(self):
