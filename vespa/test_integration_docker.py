@@ -648,6 +648,23 @@ class TestApplicationCommon(unittest.TestCase):
             expected_updated_fields.update(fields_to_update[idx])
             self.assertDictEqual(response.json["fields"], expected_updated_fields)
 
+        #
+        # Delete data
+        #
+        result = app.delete_batch(schema=schema, batch=docs, asynchronous=False)
+        for idx, response in enumerate(result):
+            self.assertEqual(
+                response.json["id"],
+                "id:{}:{}::{}".format(schema, schema, docs[idx]["id"]),
+            )
+
+        #
+        # get batch deleted data
+        #
+        result = app.get_batch(schema=schema, batch=docs, asynchronous=False)
+        for idx, response in enumerate(result):
+            self.assertEqual(response.status_code, 404)
+
     def batch_operations_asynchronous_mode(
         self,
         app,
@@ -723,6 +740,23 @@ class TestApplicationCommon(unittest.TestCase):
             }
             expected_updated_fields.update(fields_to_update[idx])
             self.assertDictEqual(response.json["fields"], expected_updated_fields)
+
+        #
+        # Delete data
+        #
+        result = app.delete_batch(schema=schema, batch=docs, asynchronous=True)
+        for idx, response in enumerate(result):
+            self.assertEqual(
+                response.json["id"],
+                "id:{}:{}::{}".format(schema, schema, docs[idx]["id"]),
+            )
+
+        #
+        # get batch deleted data
+        #
+        result = app.get_batch(schema=schema, batch=docs, asynchronous=True)
+        for idx, response in enumerate(result):
+            self.assertEqual(response.status_code, 404)
 
     @staticmethod
     def _parse_vespa_tensor(hit, feature):
@@ -911,7 +945,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
             expected_fields_from_get_operation=self.fields_to_send,
-            fields_to_update=self.fields_to_update
+            fields_to_update=self.fields_to_update,
         )
 
     def test_batch_operations_asynchronous_mode(self):
@@ -1004,7 +1038,7 @@ class TestCord19Application(TestApplicationCommon):
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
             expected_fields_from_get_operation=self.expected_fields_from_get_operation,
-            fields_to_update=self.fields_to_update
+            fields_to_update=self.fields_to_update,
         )
 
     def test_batch_operations_asynchronous_mode(self):
@@ -1113,7 +1147,7 @@ class TestQaApplication(TestApplicationCommon):
             schema_name="sentence",
             fields_to_send=self.fields_to_send_sentence,
             expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
-            fields_to_update=self.fields_to_update
+            fields_to_update=self.fields_to_update,
         )
 
     def test_batch_operations_asynchronous_mode(self):
