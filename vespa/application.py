@@ -270,14 +270,45 @@ class Vespa(object):
         with VespaSync(self) as sync_app:
             return sync_app.delete_data(schema=schema, data_id=data_id)
 
-    def delete_batch(self, batch: List):
-        """
-        Async delete a batch of data from a Vespa app.
+    def _delete_batch_sync(self, schema: str, batch: List[Dict]):
+        return [self.delete_data(schema, data_point["id"]) for data_point in batch]
 
-        :param batch: A list of tuples with 'schema' and 'id'
-        :return:
+    async def _delete_batch_async(
+        self, schema: str, batch: List[Dict], connections, total_timeout
+    ):
+        async with VespaAsync(
+            app=self, connections=connections, total_timeout=total_timeout
+        ) as async_app:
+            return await async_app.delete_batch(schema=schema, batch=batch)
+
+    def delete_batch(
+        self,
+        schema: str,
+        batch: List[Dict],
+        asynchronous=True,
+        connections: Optional[int] = 100,
+        total_timeout: int = 100,
+    ):
         """
-        return [self.delete_data(schema, id) for schema, id in batch]
+        Delete a batch of data from a Vespa app.
+
+        :param schema: The schema that we are deleting data from.
+        :param batch: A list of dict containing the key 'id'.
+        :param asynchronous: Set True to get data in async mode. Default to True.
+        :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
+        :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
+        :return: List of HTTP POST responses
+        """
+        if asynchronous:
+            coro = self._delete_batch_async(
+                schema=schema,
+                batch=batch,
+                connections=connections,
+                total_timeout=total_timeout,
+            )
+            return self._check_for_running_loop_and_run_coroutine(coro=coro)
+        else:
+            return self._delete_batch_sync(schema=schema, batch=batch)
 
     def delete_all_docs(self, content_cluster_name: str, schema: str) -> Response:
         """
@@ -977,8 +1008,18 @@ class VespaAsync(object):
             operation_type="delete",
         )
 
-    async def delete_batch(self, batch):
-        return await self._wait(self.delete_data, batch)
+    async def _delete_data_semaphore(
+        self, schema: str, data_id: str, semaphore: asyncio.Semaphore
+    ):
+        async with semaphore:
+            return await self.delete_data(schema=schema, data_id=data_id)
+
+    async def delete_batch(self, schema: str, batch: List[Dict]):
+        sem = asyncio.Semaphore(self.connections)
+        return await self._wait(
+            self._delete_data_semaphore,
+            [(schema, data_point["id"], sem) for data_point in batch],
+        )
 
     async def get_data(self, schema: str, data_id: str):
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
