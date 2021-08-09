@@ -254,7 +254,7 @@ class TestApplicationCommon(unittest.TestCase):
         app,
         schema_name,
         fields_to_send,
-        fields_to_update,
+        field_to_update,
         expected_fields_from_get_operation,
     ):
         """
@@ -263,7 +263,7 @@ class TestApplicationCommon(unittest.TestCase):
         :param app: Vespa instance holding the connection to the application
         :param schema_name: Schema name containing the document we want to send and retrieve data
         :param fields_to_send: Dict where keys are field names and values are field values. Must contain 'id' field
-        :param fields_to_update: Dict where keys are field names and values are field values.
+        :param field_to_update: Dict where keys are field names and values are field values.
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
             There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
         :return:
@@ -310,8 +310,8 @@ class TestApplicationCommon(unittest.TestCase):
         #
         response = app.update_data(
             schema=schema_name,
-            data_id=fields_to_send["id"],
-            fields=fields_to_update,
+            data_id=field_to_update["id"],
+            fields=field_to_update,
         )
         self.assertEqual(
             response.json["id"],
@@ -320,10 +320,10 @@ class TestApplicationCommon(unittest.TestCase):
         #
         # Get the updated data point
         #
-        response = app.get_data(schema=schema_name, data_id=fields_to_send["id"])
+        response = app.get_data(schema=schema_name, data_id=field_to_update["id"])
         self.assertEqual(response.status_code, 200)
         expected_result = {k: v for k, v in expected_fields_from_get_operation.items()}
-        expected_result.update(fields_to_update)
+        expected_result.update(field_to_update)
         self.assertDictEqual(
             response.json,
             {
@@ -356,8 +356,8 @@ class TestApplicationCommon(unittest.TestCase):
         #
         response = app.update_data(
             schema=schema_name,
-            data_id=fields_to_send["id"],
-            fields=fields_to_update,
+            data_id=field_to_update["id"],
+            fields=field_to_update,
             create=True,
         )
         self.assertEqual(
@@ -372,12 +372,12 @@ class TestApplicationCommon(unittest.TestCase):
         self.assertDictEqual(
             response.json,
             {
-                "fields": fields_to_update,
+                "fields": field_to_update,
                 "id": "id:{}:{}::{}".format(
-                    schema_name, schema_name, fields_to_send["id"]
+                    schema_name, schema_name, field_to_update["id"]
                 ),
                 "pathId": "/document/v1/{}/{}/docid/{}".format(
-                    schema_name, schema_name, fields_to_send["id"]
+                    schema_name, schema_name, field_to_update["id"]
                 ),
             },
         )
@@ -386,11 +386,11 @@ class TestApplicationCommon(unittest.TestCase):
         #
         with VespaSync(app=app) as sync_app:
             response = sync_app.delete_data(
-                schema=schema_name, data_id=fields_to_send["id"]
+                schema=schema_name, data_id=field_to_update["id"]
             )
         self.assertEqual(
             response.json["id"],
-            "id:{}:{}::{}".format(schema_name, schema_name, fields_to_send["id"]),
+            "id:{}:{}::{}".format(schema_name, schema_name, field_to_update["id"]),
         )
         #
         # Use VespaSync via http attribute - feed data point
@@ -411,7 +411,7 @@ class TestApplicationCommon(unittest.TestCase):
         app,
         schema_name,
         fields_to_send,
-        fields_to_update,
+        field_to_update,
         expected_fields_from_get_operation,
     ):
         """
@@ -421,7 +421,7 @@ class TestApplicationCommon(unittest.TestCase):
         :param schema_name: Schema name containing the document we want to send and retrieve data
         :param fields_to_send: List of Dicts where keys are field names and values are field values. Must
             contain 'id' field.
-        :param fields_to_update: Dict where keys are field names and values are field values.
+        :param field_to_update: Dict where keys are field names and values are field values.
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
             There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
         :return:
@@ -504,29 +504,27 @@ class TestApplicationCommon(unittest.TestCase):
             #
             response = await async_app.update_data(
                 schema=schema_name,
-                data_id=fields_to_send[0]["id"],
-                fields=fields_to_update,
+                data_id=field_to_update["id"],
+                fields=field_to_update,
             )
             result = response.json
             self.assertEqual(
                 result["id"],
-                "id:{}:{}::{}".format(
-                    schema_name, schema_name, fields_to_send[0]["id"]
-                ),
+                "id:{}:{}::{}".format(schema_name, schema_name, field_to_update["id"]),
             )
 
             #
             # Get the updated data point
             #
             response = await async_app.get_data(
-                schema=schema_name, data_id=fields_to_send[0]["id"]
+                schema=schema_name, data_id=field_to_update["id"]
             )
             self.assertEqual(response.status_code, 200)
             result = response.json
             expected_result = {
                 k: v for k, v in expected_fields_from_get_operation[0].items()
             }
-            expected_result.update(fields_to_update)
+            expected_result.update(field_to_update)
 
             self.assertDictEqual(
                 result,
@@ -579,7 +577,14 @@ class TestApplicationCommon(unittest.TestCase):
                 queries[0].result().number_documents_indexed, len(fields_to_send) - 1
             )
 
-    def batch_operations_synchronous_mode(self, app, schema_name, fields_to_send, expected_fields_from_get_operation):
+    def batch_operations_synchronous_mode(
+        self,
+        app,
+        schema_name,
+        fields_to_send,
+        expected_fields_from_get_operation,
+        fields_to_update,
+    ):
         """
         Sync feed a batch of data to the application
 
@@ -589,6 +594,7 @@ class TestApplicationCommon(unittest.TestCase):
             contain 'id' field.
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
             There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
+        :param fields_to_update: Dict where keys are field names and values are field values.
         :return:
         """
 
@@ -596,10 +602,12 @@ class TestApplicationCommon(unittest.TestCase):
         # Create and feed documents
         #
         num_docs = len(fields_to_send)
-        docs = []
         schema = schema_name
-        for fields in fields_to_send:
-            docs.append({"id": fields["id"], "fields": fields})
+        docs = [{"id": fields["id"], "fields": fields} for fields in fields_to_send]
+        update_docs = [
+            {"id": fields["id"], "fields": fields} for fields in fields_to_update
+        ]
+
         app.feed_batch(schema=schema, batch=docs, asynchronous=False)
 
         #
@@ -615,9 +623,39 @@ class TestApplicationCommon(unittest.TestCase):
         #
         result = app.get_batch(schema=schema, batch=docs, asynchronous=False)
         for idx, response in enumerate(result):
-            self.assertDictEqual(response.json["fields"], expected_fields_from_get_operation[idx])
+            self.assertDictEqual(
+                response.json["fields"], expected_fields_from_get_operation[idx]
+            )
 
-    def batch_operations_asynchronous_mode(self, app, schema_name, fields_to_send, expected_fields_from_get_operation):
+        #
+        # Update data
+        #
+        result = app.update_batch(schema=schema, batch=update_docs, asynchronous=False)
+        for idx, response in enumerate(result):
+            self.assertEqual(
+                response.json["id"],
+                "id:{}:{}::{}".format(schema, schema, fields_to_update[idx]["id"]),
+            )
+
+        #
+        # Get updated data
+        #
+        result = app.get_batch(schema=schema, batch=docs, asynchronous=False)
+        for idx, response in enumerate(result):
+            expected_updated_fields = {
+                k: v for k, v in expected_fields_from_get_operation[idx].items()
+            }
+            expected_updated_fields.update(fields_to_update[idx])
+            self.assertDictEqual(response.json["fields"], expected_updated_fields)
+
+    def batch_operations_asynchronous_mode(
+        self,
+        app,
+        schema_name,
+        fields_to_send,
+        expected_fields_from_get_operation,
+        fields_to_update,
+    ):
         """
         Async feed a batch of data to the application
 
@@ -627,16 +665,19 @@ class TestApplicationCommon(unittest.TestCase):
             contain 'id' field.
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
             There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
+        :param fields_to_update: Dict where keys are field names and values are field values.
         :return:
         """
         #
         # Create and feed documents
         #
         num_docs = len(fields_to_send)
-        docs = []
         schema = schema_name
-        for fields in fields_to_send:
-            docs.append({"id": fields["id"], "fields": fields})
+        docs = [{"id": fields["id"], "fields": fields} for fields in fields_to_send]
+        update_docs = [
+            {"id": fields["id"], "fields": fields} for fields in fields_to_update
+        ]
+
         app.feed_batch(
             schema=schema,
             batch=docs,
@@ -658,7 +699,30 @@ class TestApplicationCommon(unittest.TestCase):
         #
         result = app.get_batch(schema=schema, batch=docs, asynchronous=True)
         for idx, response in enumerate(result):
-            self.assertDictEqual(response.json["fields"], expected_fields_from_get_operation[idx])
+            self.assertDictEqual(
+                response.json["fields"], expected_fields_from_get_operation[idx]
+            )
+
+        #
+        # Update data
+        #
+        result = app.update_batch(schema=schema, batch=update_docs, asynchronous=True)
+        for idx, response in enumerate(result):
+            self.assertEqual(
+                response.json["id"],
+                "id:{}:{}::{}".format(schema, schema, fields_to_update[idx]["id"]),
+            )
+
+        #
+        # Get updated data
+        #
+        result = app.get_batch(schema=schema, batch=docs, asynchronous=True)
+        for idx, response in enumerate(result):
+            expected_updated_fields = {
+                k: v for k, v in expected_fields_from_get_operation[idx].items()
+            }
+            expected_updated_fields.update(fields_to_update[idx])
+            self.assertDictEqual(response.json["fields"], expected_updated_fields)
 
     @staticmethod
     def _parse_vespa_tensor(hit, feature):
@@ -813,14 +877,20 @@ class TestMsmarcoApplication(TestApplicationCommon):
             }
             for i in range(10)
         ]
-        self.fields_to_update = {"title": "this is my updated title"}
+        self.fields_to_update = [
+            {
+                "id": f"{i}",
+                "title": "this is my updated title number {}".format(i),
+            }
+            for i in range(10)
+        ]
 
     def test_execute_data_operations(self):
         self.execute_data_operations(
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send[0],
-            fields_to_update=self.fields_to_update,
+            field_to_update=self.fields_to_update[0],
             expected_fields_from_get_operation=self.fields_to_send[0],
         )
 
@@ -830,7 +900,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
                 app=self.app,
                 schema_name=self.app_package.name,
                 fields_to_send=self.fields_to_send,
-                fields_to_update=self.fields_to_update,
+                field_to_update=self.fields_to_update[0],
                 expected_fields_from_get_operation=self.fields_to_send,
             )
         )
@@ -841,6 +911,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
             expected_fields_from_get_operation=self.fields_to_send,
+            fields_to_update=self.fields_to_update
         )
 
     def test_batch_operations_asynchronous_mode(self):
@@ -849,6 +920,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
             expected_fields_from_get_operation=self.fields_to_send,
+            fields_to_update=self.fields_to_update,
         )
 
     def tearDown(self) -> None:
@@ -896,14 +968,20 @@ class TestCord19Application(TestApplicationCommon):
                 }
             )
             self.expected_fields_from_get_operation.append(expected_fields)
-        self.fields_to_update = {"title": "this is my updated title"}
+        self.fields_to_update = [
+            {
+                "id": f"{i}",
+                "title": "this is my updated title number {}".format(i),
+            }
+            for i in range(10)
+        ]
 
     def test_execute_data_operations(self):
         self.execute_data_operations(
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send[0],
-            fields_to_update=self.fields_to_update,
+            field_to_update=self.fields_to_update[0],
             expected_fields_from_get_operation=self.expected_fields_from_get_operation[
                 0
             ],
@@ -915,7 +993,7 @@ class TestCord19Application(TestApplicationCommon):
                 app=self.app,
                 schema_name=self.app_package.name,
                 fields_to_send=self.fields_to_send,
-                fields_to_update=self.fields_to_update,
+                field_to_update=self.fields_to_update[0],
                 expected_fields_from_get_operation=self.expected_fields_from_get_operation,
             )
         )
@@ -926,6 +1004,7 @@ class TestCord19Application(TestApplicationCommon):
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
             expected_fields_from_get_operation=self.expected_fields_from_get_operation,
+            fields_to_update=self.fields_to_update
         )
 
     def test_batch_operations_asynchronous_mode(self):
@@ -934,6 +1013,7 @@ class TestCord19Application(TestApplicationCommon):
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
             expected_fields_from_get_operation=self.expected_fields_from_get_operation,
+            fields_to_update=self.fields_to_update,
         )
 
     def test_bert_model_input_and_output(self):
@@ -991,14 +1071,17 @@ class TestQaApplication(TestApplicationCommon):
         ) as f:
             sample_context_data = json.load(f)
         self.fields_to_send_context = sample_context_data
-        self.fields_to_update = {"text": "this is my updated text"}
+        self.fields_to_update = [
+            {"id": d["id"], "text": "this is my updated text number {}".format(d["id"])}
+            for d in self.fields_to_send_sentence
+        ]
 
     def test_execute_data_operations_sentence_schema(self):
         self.execute_data_operations(
             app=self.app,
             schema_name="sentence",
             fields_to_send=self.fields_to_send_sentence[0],
-            fields_to_update=self.fields_to_update,
+            field_to_update=self.fields_to_update[0],
             expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation[
                 0
             ],
@@ -1009,7 +1092,7 @@ class TestQaApplication(TestApplicationCommon):
             app=self.app,
             schema_name="context",
             fields_to_send=self.fields_to_send_context[0],
-            fields_to_update=self.fields_to_update,
+            field_to_update=self.fields_to_update[0],
             expected_fields_from_get_operation=self.fields_to_send_context[0],
         )
 
@@ -1019,7 +1102,7 @@ class TestQaApplication(TestApplicationCommon):
                 app=self.app,
                 schema_name="sentence",
                 fields_to_send=self.fields_to_send_sentence,
-                fields_to_update=self.fields_to_update,
+                field_to_update=self.fields_to_update[0],
                 expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
             )
         )
@@ -1030,6 +1113,7 @@ class TestQaApplication(TestApplicationCommon):
             schema_name="sentence",
             fields_to_send=self.fields_to_send_sentence,
             expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
+            fields_to_update=self.fields_to_update
         )
 
     def test_batch_operations_asynchronous_mode(self):
@@ -1038,6 +1122,7 @@ class TestQaApplication(TestApplicationCommon):
             schema_name="sentence",
             fields_to_send=self.fields_to_send_sentence,
             expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
+            fields_to_update=self.fields_to_update,
         )
 
     def tearDown(self) -> None:

@@ -360,17 +360,53 @@ class Vespa(object):
                 schema=schema, data_id=data_id, fields=fields, create=create
             )
 
-    def update_batch(self, batch: List):
-        """
-        Update a batch of data points.
-
-        :param batch: A list of tuples with 'schema', 'id', 'fields', and 'create'
-        :return:
-        """
+    def _update_batch_sync(self, schema: str, batch: List[Dict]):
         return [
-            self.update_data(schema, id, fields, create)
-            for schema, id, fields, create in batch
+            self.update_data(
+                schema,
+                data_point["id"],
+                data_point["fields"],
+                data_point.get("create", False),
+            )
+            for data_point in batch
         ]
+
+    async def _update_batch_async(
+        self, schema: str, batch: List[Dict], connections, total_timeout
+    ):
+        async with VespaAsync(
+            app=self, connections=connections, total_timeout=total_timeout
+        ) as async_app:
+            return await async_app.update_batch(schema=schema, batch=batch)
+
+    def update_batch(
+        self,
+        schema: str,
+        batch: List[Dict],
+        asynchronous=True,
+        connections: Optional[int] = 100,
+        total_timeout: int = 100,
+    ):
+        """
+        Update a batch of data in a Vespa app.
+
+        :param schema: The schema that we are getting data from.
+        :param batch: A list of dict containing the keys 'id', 'fields' and 'create' (create defaults to False).
+        :param asynchronous: Set True to update data in async mode. Default to True.
+        :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
+        :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
+        :return: List of HTTP POST responses
+        """
+        if asynchronous:
+            coro = self._update_batch_async(
+                schema=schema,
+                batch=batch,
+                connections=connections,
+                total_timeout=total_timeout,
+            )
+            return self._check_for_running_loop_and_run_coroutine(coro=coro)
+        else:
+            return self._update_batch_sync(schema=schema, batch=batch)
 
     @staticmethod
     def annotate_data(
@@ -984,5 +1020,31 @@ class VespaAsync(object):
             operation_type="update",
         )
 
-    async def update_batch(self, batch):
-        return await self._wait(self.update_data, batch)
+    async def _update_data_semaphore(
+        self,
+        schema: str,
+        data_id: str,
+        fields: Dict,
+        semaphore: asyncio.Semaphore,
+        create: bool = False,
+    ):
+        async with semaphore:
+            return await self.update_data(
+                schema=schema, data_id=data_id, fields=fields, create=create
+            )
+
+    async def update_batch(self, schema: str, batch: List[Dict]):
+        sem = asyncio.Semaphore(self.connections)
+        return await self._wait(
+            self._update_data_semaphore,
+            [
+                (
+                    schema,
+                    data_point["id"],
+                    data_point["fields"],
+                    sem,
+                    data_point.get("create", False),
+                )
+                for data_point in batch
+            ],
+        )
