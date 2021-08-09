@@ -36,14 +36,20 @@ class TestMsmarcoApplication(TestApplicationCommon):
             }
             for i in range(10)
         ]
-        self.fields_to_update = {"title": "this is my updated title"}
+        self.fields_to_update = [
+            {
+                "id": f"{i}",
+                "title": "this is my updated title number {}".format(i),
+            }
+            for i in range(10)
+        ]
 
     def test_execute_data_operations(self):
         self.execute_data_operations(
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send[0],
-            fields_to_update=self.fields_to_update,
+            field_to_update=self.fields_to_update[0],
             expected_fields_from_get_operation=self.fields_to_send[0],
         )
 
@@ -53,7 +59,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
                 app=self.app,
                 schema_name=self.app_package.name,
                 fields_to_send=self.fields_to_send,
-                fields_to_update=self.fields_to_update,
+                field_to_update=self.fields_to_update[0],
                 expected_fields_from_get_operation=self.fields_to_send,
             )
         )
@@ -64,6 +70,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
             expected_fields_from_get_operation=self.fields_to_send,
+            fields_to_update=self.fields_to_update,
         )
 
     def test_batch_operations_asynchronous_mode(self):
@@ -72,6 +79,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
             expected_fields_from_get_operation=self.fields_to_send,
+            fields_to_update=self.fields_to_update,
         )
 
     def tearDown(self) -> None:
@@ -128,14 +136,20 @@ class TestCord19Application(TestApplicationCommon):
                 }
             )
             self.expected_fields_from_get_operation.append(expected_fields)
-        self.fields_to_update = {"title": "this is my updated title"}
+        self.fields_to_update = [
+            {
+                "id": f"{i}",
+                "title": "this is my updated title number {}".format(i),
+            }
+            for i in range(10)
+        ]
 
     def test_execute_data_operations(self):
         self.execute_data_operations(
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send[0],
-            fields_to_update=self.fields_to_update,
+            field_to_update=self.fields_to_update[0],
             expected_fields_from_get_operation=self.expected_fields_from_get_operation[
                 0
             ],
@@ -147,7 +161,7 @@ class TestCord19Application(TestApplicationCommon):
                 app=self.app,
                 schema_name=self.app_package.name,
                 fields_to_send=self.fields_to_send,
-                fields_to_update=self.fields_to_update,
+                field_to_update=self.fields_to_update[0],
                 expected_fields_from_get_operation=self.expected_fields_from_get_operation,
             )
         )
@@ -158,6 +172,7 @@ class TestCord19Application(TestApplicationCommon):
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
             expected_fields_from_get_operation=self.expected_fields_from_get_operation,
+            fields_to_update=self.fields_to_update,
         )
 
     def test_batch_operations_asynchronous_mode(self):
@@ -166,6 +181,7 @@ class TestCord19Application(TestApplicationCommon):
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
             expected_fields_from_get_operation=self.expected_fields_from_get_operation,
+            fields_to_update=self.fields_to_update,
         )
 
     def test_bert_model_input_and_output(self):
@@ -224,14 +240,17 @@ class TestQaApplication(TestApplicationCommon):
         ) as f:
             sample_context_data = json.load(f)
         self.fields_to_send_context = sample_context_data
-        self.fields_to_update = {"text": "this is my updated text"}
+        self.fields_to_update = [
+            {"id": d["id"], "text": "this is my updated text number {}".format(d["id"])}
+            for d in self.fields_to_send_sentence
+        ]
 
     def test_execute_data_operations_sentence_schema(self):
         self.execute_data_operations(
             app=self.app,
             schema_name="sentence",
             fields_to_send=self.fields_to_send_sentence[0],
-            fields_to_update=self.fields_to_update,
+            field_to_update=self.fields_to_update[0],
             expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation[
                 0
             ],
@@ -242,7 +261,7 @@ class TestQaApplication(TestApplicationCommon):
             app=self.app,
             schema_name="context",
             fields_to_send=self.fields_to_send_context[0],
-            fields_to_update=self.fields_to_update,
+            field_to_update=self.fields_to_update[0],
             expected_fields_from_get_operation=self.fields_to_send_context[0],
         )
 
@@ -252,7 +271,7 @@ class TestQaApplication(TestApplicationCommon):
                 app=self.app,
                 schema_name="sentence",
                 fields_to_send=self.fields_to_send_sentence,
-                fields_to_update=self.fields_to_update,
+                field_to_update=self.fields_to_update[0],
                 expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
             )
         )
@@ -263,6 +282,7 @@ class TestQaApplication(TestApplicationCommon):
             schema_name="sentence",
             fields_to_send=self.fields_to_send_sentence,
             expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
+            fields_to_update=self.fields_to_update,
         )
 
     def test_batch_operations_asynchronous_mode(self):
@@ -271,6 +291,7 @@ class TestQaApplication(TestApplicationCommon):
             schema_name="sentence",
             fields_to_send=self.fields_to_send_sentence,
             expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
+            fields_to_update=self.fields_to_update,
         )
 
     def tearDown(self) -> None:
