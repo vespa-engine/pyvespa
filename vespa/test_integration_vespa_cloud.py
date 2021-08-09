@@ -58,18 +58,20 @@ class TestMsmarcoApplication(TestApplicationCommon):
             )
         )
 
-    def test_feed_batch_synchronous_mode(self):
-        self.feed_batch_synchronous_mode(
+    def test_batch_operations_synchronous_mode(self):
+        self.batch_operations_synchronous_mode(
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
+            expected_fields_from_get_operation=self.fields_to_send,
         )
 
-    def test_feed_batch_asynchronous_mode(self):
-        self.feed_batch_asynchronous_mode(
+    def test_batch_operations_asynchronous_mode(self):
+        self.batch_operations_asynchronous_mode(
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
+            expected_fields_from_get_operation=self.fields_to_send,
         )
 
     def tearDown(self) -> None:
@@ -150,18 +152,20 @@ class TestCord19Application(TestApplicationCommon):
             )
         )
 
-    def test_feed_batch_synchronous_mode(self):
-        self.feed_batch_synchronous_mode(
+    def test_batch_operations_synchronous_mode(self):
+        self.batch_operations_synchronous_mode(
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
+            expected_fields_from_get_operation=self.expected_fields_from_get_operation,
         )
 
-    def test_feed_batch_asynchronous_mode(self):
-        self.feed_batch_asynchronous_mode(
+    def test_batch_operations_asynchronous_mode(self):
+        self.batch_operations_asynchronous_mode(
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
+            expected_fields_from_get_operation=self.expected_fields_from_get_operation,
         )
 
     def test_bert_model_input_and_output(self):
@@ -203,7 +207,6 @@ class TestQaApplication(TestApplicationCommon):
                 "id": d["id"],
                 "text": d["text"],
                 "dataset": d["dataset"],
-                "questions": d["questions"],
                 "context_id": d["context_id"],
                 "sentence_embedding": {
                     "cells": [
@@ -212,6 +215,8 @@ class TestQaApplication(TestApplicationCommon):
                     ]
                 },
             }
+            if len(d["questions"]) > 0:
+                expected_d.update({"questions": d["questions"]})
             self.expected_fields_from_sentence_get_operation.append(expected_d)
         with open(
             os.path.join(os.environ["RESOURCES_DIR"], "qa_sample_context_data.json"),
@@ -252,18 +257,20 @@ class TestQaApplication(TestApplicationCommon):
             )
         )
 
-    def test_feed_batch_synchronous_mode(self):
-        self.feed_batch_synchronous_mode(
+    def test_batch_operations_synchronous_mode(self):
+        self.batch_operations_synchronous_mode(
             app=self.app,
             schema_name="sentence",
             fields_to_send=self.fields_to_send_sentence,
+            expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
         )
 
-    def test_feed_batch_asynchronous_mode(self):
-        self.feed_batch_asynchronous_mode(
+    def test_batch_operations_asynchronous_mode(self):
+        self.batch_operations_asynchronous_mode(
             app=self.app,
             schema_name="sentence",
             fields_to_send=self.fields_to_send_sentence,
+            expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
         )
 
     def tearDown(self) -> None:

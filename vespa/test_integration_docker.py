@@ -579,7 +579,7 @@ class TestApplicationCommon(unittest.TestCase):
                 queries[0].result().number_documents_indexed, len(fields_to_send) - 1
             )
 
-    def feed_batch_synchronous_mode(self, app, schema_name, fields_to_send):
+    def batch_operations_synchronous_mode(self, app, schema_name, fields_to_send, expected_fields_from_get_operation):
         """
         Sync feed a batch of data to the application
 
@@ -587,6 +587,8 @@ class TestApplicationCommon(unittest.TestCase):
         :param schema_name: Schema name containing the document we want to send and retrieve data
         :param fields_to_send: List of Dicts where keys are field names and values are field values. Must
             contain 'id' field.
+        :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
+            There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
         :return:
         """
 
@@ -600,13 +602,22 @@ class TestApplicationCommon(unittest.TestCase):
             docs.append({"id": fields["id"], "fields": fields})
         app.feed_batch(schema=schema, batch=docs, asynchronous=False)
 
+        #
         # Verify that all documents are fed
+        #
         result = app.query(
             query="sddocname:{}".format(schema_name), query_model=QueryModel()
         )
         self.assertEqual(result.number_documents_indexed, num_docs)
 
-    def feed_batch_asynchronous_mode(self, app, schema_name, fields_to_send):
+        #
+        # get batch data
+        #
+        result = app.get_batch(schema=schema, batch=docs, asynchronous=False)
+        for idx, response in enumerate(result):
+            self.assertDictEqual(response.json["fields"], expected_fields_from_get_operation[idx])
+
+    def batch_operations_asynchronous_mode(self, app, schema_name, fields_to_send, expected_fields_from_get_operation):
         """
         Async feed a batch of data to the application
 
@@ -614,6 +625,8 @@ class TestApplicationCommon(unittest.TestCase):
         :param schema_name: Schema name containing the document we want to send and retrieve data
         :param fields_to_send: List of Dicts where keys are field names and values are field values. Must
             contain 'id' field.
+        :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
+            There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
         :return:
         """
         #
@@ -632,11 +645,20 @@ class TestApplicationCommon(unittest.TestCase):
             total_timeout=50,
         )
 
+        #
         # Verify that all documents are fed
+        #
         result = app.query(
             query="sddocname:{}".format(schema_name), query_model=QueryModel()
         )
         self.assertEqual(result.number_documents_indexed, num_docs)
+
+        #
+        # get batch data
+        #
+        result = app.get_batch(schema=schema, batch=docs, asynchronous=True)
+        for idx, response in enumerate(result):
+            self.assertDictEqual(response.json["fields"], expected_fields_from_get_operation[idx])
 
     @staticmethod
     def _parse_vespa_tensor(hit, feature):
@@ -813,18 +835,20 @@ class TestMsmarcoApplication(TestApplicationCommon):
             )
         )
 
-    def test_feed_batch_synchronous_mode(self):
-        self.feed_batch_synchronous_mode(
+    def test_batch_operations_synchronous_mode(self):
+        self.batch_operations_synchronous_mode(
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
+            expected_fields_from_get_operation=self.fields_to_send,
         )
 
-    def test_feed_batch_asynchronous_mode(self):
-        self.feed_batch_asynchronous_mode(
+    def test_batch_operations_asynchronous_mode(self):
+        self.batch_operations_asynchronous_mode(
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
+            expected_fields_from_get_operation=self.fields_to_send,
         )
 
     def tearDown(self) -> None:
@@ -896,18 +920,20 @@ class TestCord19Application(TestApplicationCommon):
             )
         )
 
-    def test_feed_batch_synchronous_mode(self):
-        self.feed_batch_synchronous_mode(
+    def test_batch_operations_synchronous_mode(self):
+        self.batch_operations_synchronous_mode(
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
+            expected_fields_from_get_operation=self.expected_fields_from_get_operation,
         )
 
-    def test_feed_batch_asynchronous_mode(self):
-        self.feed_batch_asynchronous_mode(
+    def test_batch_operations_asynchronous_mode(self):
+        self.batch_operations_asynchronous_mode(
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
+            expected_fields_from_get_operation=self.expected_fields_from_get_operation,
         )
 
     def test_bert_model_input_and_output(self):
@@ -948,7 +974,6 @@ class TestQaApplication(TestApplicationCommon):
                 "id": d["id"],
                 "text": d["text"],
                 "dataset": d["dataset"],
-                "questions": d["questions"],
                 "context_id": d["context_id"],
                 "sentence_embedding": {
                     "cells": [
@@ -957,6 +982,8 @@ class TestQaApplication(TestApplicationCommon):
                     ]
                 },
             }
+            if len(d["questions"]) > 0:
+                expected_d.update({"questions": d["questions"]})
             self.expected_fields_from_sentence_get_operation.append(expected_d)
         with open(
             os.path.join(os.environ["RESOURCES_DIR"], "qa_sample_context_data.json"),
@@ -997,18 +1024,20 @@ class TestQaApplication(TestApplicationCommon):
             )
         )
 
-    def test_feed_batch_synchronous_mode(self):
-        self.feed_batch_synchronous_mode(
+    def test_batch_operations_synchronous_mode(self):
+        self.batch_operations_synchronous_mode(
             app=self.app,
             schema_name="sentence",
             fields_to_send=self.fields_to_send_sentence,
+            expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
         )
 
-    def test_feed_batch_asynchronous_mode(self):
-        self.feed_batch_asynchronous_mode(
+    def test_batch_operations_asynchronous_mode(self):
+        self.batch_operations_asynchronous_mode(
             app=self.app,
             schema_name="sentence",
             fields_to_send=self.fields_to_send_sentence,
+            expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
         )
 
     def tearDown(self) -> None:

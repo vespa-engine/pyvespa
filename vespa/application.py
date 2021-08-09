@@ -110,6 +110,23 @@ class Vespa(object):
             app=self, connections=connections, total_timeout=total_timeout
         )
 
+    def _run_coroutine_new_event_loop(self, loop, coro):
+        asyncio.set_event_loop(loop)
+        return loop.run_until_complete(coro)
+
+    def _check_for_running_loop_and_run_coroutine(self, coro):
+        try:
+            _ = asyncio.get_running_loop()
+            new_loop = asyncio.new_event_loop()
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    self._run_coroutine_new_event_loop, new_loop, coro
+                )
+                return_value = future.result()
+                return return_value
+        except RuntimeError:
+            return asyncio.run(coro)
+
     def http(self, pool_maxsize: int = 10):
         return VespaSync(app=self, pool_maxsize=pool_maxsize)
 
@@ -212,10 +229,6 @@ class Vespa(object):
         ) as async_app:
             return await async_app.feed_batch(schema=schema, batch=batch)
 
-    def _run_coroutine_new_event_loop(self, loop, coro):
-        asyncio.set_event_loop(loop)
-        return loop.run_until_complete(coro)
-
     def feed_batch(
         self,
         schema: str,
@@ -242,17 +255,7 @@ class Vespa(object):
                 connections=connections,
                 total_timeout=total_timeout,
             )
-            try:
-                _ = asyncio.get_running_loop()
-                new_loop = asyncio.new_event_loop()
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(
-                        self._run_coroutine_new_event_loop, new_loop, coro
-                    )
-                    return_value = future.result()
-                    return return_value
-            except RuntimeError:
-                return asyncio.run(coro)
+            return self._check_for_running_loop_and_run_coroutine(coro=coro)
         else:
             return self._feed_batch_sync(schema=schema, batch=batch)
 
@@ -300,14 +303,45 @@ class Vespa(object):
         with VespaSync(self) as sync_app:
             return sync_app.get_data(schema=schema, data_id=data_id)
 
-    def get_batch(self, batch: List):
-        """
-        Async get a batch of data from a Vespa app.
+    def _get_batch_sync(self, schema: str, batch: List[Dict]):
+        return [self.get_data(schema, data_point["id"]) for data_point in batch]
 
-        :param batch: A list of tuples with 'schema' and 'id'.
-        :return:
+    async def _get_batch_async(
+        self, schema: str, batch: List[Dict], connections, total_timeout
+    ):
+        async with VespaAsync(
+            app=self, connections=connections, total_timeout=total_timeout
+        ) as async_app:
+            return await async_app.get_batch(schema=schema, batch=batch)
+
+    def get_batch(
+        self,
+        schema: str,
+        batch: List[Dict],
+        asynchronous=True,
+        connections: Optional[int] = 100,
+        total_timeout: int = 100,
+    ):
         """
-        return [self.get_data(schema, id) for schema, id in batch]
+        Get a batch of data from a Vespa app.
+
+        :param schema: The schema that we are getting data from.
+        :param batch: A list of dict containing the key 'id'.
+        :param asynchronous: Set True to get data in async mode. Default to True.
+        :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
+        :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
+        :return: List of HTTP POST responses
+        """
+        if asynchronous:
+            coro = self._get_batch_async(
+                schema=schema,
+                batch=batch,
+                connections=connections,
+                total_timeout=total_timeout,
+            )
+            return self._check_for_running_loop_and_run_coroutine(coro=coro)
+        else:
+            return self._get_batch_sync(schema=schema, batch=batch)
 
     def update_data(
         self, schema: str, data_id: str, fields: Dict, create: bool = False
@@ -922,8 +956,18 @@ class VespaAsync(object):
             operation_type="get",
         )
 
-    async def get_batch(self, batch):
-        return await self._wait(self.get_data, batch)
+    async def _get_data_semaphore(
+        self, schema: str, data_id: str, semaphore: asyncio.Semaphore
+    ):
+        async with semaphore:
+            return await self.get_data(schema=schema, data_id=data_id)
+
+    async def get_batch(self, schema: str, batch: List[Dict]):
+        sem = asyncio.Semaphore(self.connections)
+        return await self._wait(
+            self._get_data_semaphore,
+            [(schema, data_point["id"], sem) for data_point in batch],
+        )
 
     async def update_data(
         self, schema: str, data_id: str, fields: Dict, create: bool = False
