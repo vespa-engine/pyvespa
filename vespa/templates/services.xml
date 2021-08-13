@@ -1,9 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <services version="1.0">
     <container id="{{ application_name }}_container" version="1.0">
+        {% if schemas %}
         <search></search>
         <document-api></document-api>
+        {% endif %}
+        {% if stateless_model_evaluation %}
+        <model-evaluation/>
+        {% endif %}
     </container>
+    {% if schemas %}
     <content id="{{ application_name }}_content" version="1.0">
         <redundancy reply-after="1">1</redundancy>
         <documents>
@@ -19,4 +25,5 @@
             <node distribution-key="0" hostalias="node1"></node>
         </nodes>
     </content>
+    {% endif %}
 </services>
