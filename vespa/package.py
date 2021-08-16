@@ -1645,25 +1645,26 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
                     ),
                 )
 
-        Path(
-            os.path.join(self.disk_folder, "application/search/query-profiles/types")
-        ).mkdir(parents=True, exist_ok=True)
-        with open(
-            os.path.join(
-                self.disk_folder,
-                "application/search/query-profiles/default.xml",
-            ),
-            "w",
-        ) as f:
-            f.write(application_package.query_profile_to_text)
-        with open(
-            os.path.join(
-                self.disk_folder,
-                "application/search/query-profiles/types/root.xml",
-            ),
-            "w",
-        ) as f:
-            f.write(application_package.query_profile_type_to_text)
+        if application_package.query_profile:
+            Path(
+                os.path.join(self.disk_folder, "application/search/query-profiles/types")
+            ).mkdir(parents=True, exist_ok=True)
+            with open(
+                os.path.join(
+                    self.disk_folder,
+                    "application/search/query-profiles/default.xml",
+                ),
+                "w",
+            ) as f:
+                f.write(application_package.query_profile_to_text)
+            with open(
+                os.path.join(
+                    self.disk_folder,
+                    "application/search/query-profiles/types/root.xml",
+                ),
+                "w",
+            ) as f:
+                f.write(application_package.query_profile_type_to_text)
         with open(os.path.join(self.disk_folder, "application/hosts.xml"), "w") as f:
             f.write(application_package.hosts_to_text)
         with open(os.path.join(self.disk_folder, "application/services.xml"), "w") as f:
