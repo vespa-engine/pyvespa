@@ -10,7 +10,7 @@ from io import BytesIO
 from pathlib import Path
 from time import sleep, strftime, gmtime
 from typing import List, Mapping, Optional, IO, Union, Dict
-from shutil import copyfile
+from shutil import copyfile, copy
 from collections import OrderedDict
 
 import docker
@@ -1428,7 +1428,9 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         env.trim_blocks = True
         env.lstrip_blocks = True
         query_profile_type_template = env.get_template("query_profile_type.xml")
-        return query_profile_type_template.render(query_profile_type=self.query_profile_type)
+        return query_profile_type_template.render(
+            query_profile_type=self.query_profile_type
+        )
 
     @property
     def hosts_to_text(self):
@@ -1507,6 +1509,37 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
             repr(self.query_profile),
             repr(self.query_profile_type),
         )
+
+
+class ModelServer(ApplicationPackage):
+    def __init__(self, name: str, model_file_path: str):
+        """
+        Create a Vespa stateless model evaluation server.
+
+        A Vespa stateless model evaluation server is a simplified Vespa application without content clusters.
+
+        :param name: Application name.
+        :param model_file_path: The path to the .onnx file to include in the application package.
+        """
+        super().__init__(
+            name=name,
+            schema=None,
+            query_profile=None,
+            query_profile_type=None,
+            stateless_model_evaluation=True,
+            create_schema_by_default=False,
+            create_query_profile_by_default=False,
+        )
+        self.model_file_path = model_file_path
+
+    @staticmethod
+    def from_dict(mapping: Mapping) -> "ModelServer":
+        return ModelServer(name=mapping["name"])
+
+    @property
+    def to_dict(self) -> Mapping:
+        map = {"name": self.name}
+        return map
 
 
 class VespaDocker(ToJson, FromJson["VespaDocker"]):
@@ -1614,7 +1647,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         )
 
     def export_application_package(
-        self, application_package: ApplicationPackage
+        self, application_package: Union[ApplicationPackage, ModelServer]
     ) -> None:
         """
         Export application package to disk.
@@ -1625,6 +1658,9 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             parents=True, exist_ok=True
         )
         Path(os.path.join(self.disk_folder, "application/files")).mkdir(
+            parents=True, exist_ok=True
+        )
+        Path(os.path.join(self.disk_folder, "application/models")).mkdir(
             parents=True, exist_ok=True
         )
 
@@ -1647,7 +1683,9 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
 
         if application_package.query_profile:
             Path(
-                os.path.join(self.disk_folder, "application/search/query-profiles/types")
+                os.path.join(
+                    self.disk_folder, "application/search/query-profiles/types"
+                )
             ).mkdir(parents=True, exist_ok=True)
             with open(
                 os.path.join(
@@ -1669,6 +1707,12 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             f.write(application_package.hosts_to_text)
         with open(os.path.join(self.disk_folder, "application/services.xml"), "w") as f:
             f.write(application_package.services_to_text)
+
+        if application_package.model_file_path:
+            copy(
+                application_package.model_file_path,
+                os.path.join(self.disk_folder, "application/models"),
+            )
 
     def _execute_deployment(
         self,
