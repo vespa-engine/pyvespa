@@ -1,18 +1,18 @@
 from typing import Mapping
-from collections import OrderedDict
 
 
 from vespa.package import ApplicationPackage
 
 
 class ModelServer(ApplicationPackage):
-    def __init__(self, name: str):
+    def __init__(self, name: str, model_file_path: str):
         """
         Create a Vespa stateless model evaluation server.
 
         A Vespa stateless model evaluation server is a simplified Vespa application without content clusters.
 
         :param name: Application name.
+        :param model_file_path: The path to the .onnx file to include in the application package.
         """
         super().__init__(
             name=name,
@@ -23,6 +23,7 @@ class ModelServer(ApplicationPackage):
             create_schema_by_default=False,
             create_query_profile_by_default=False,
         )
+        self.model_file_path = model_file_path
 
     @staticmethod
     def from_dict(mapping: Mapping) -> "ModelServer":
