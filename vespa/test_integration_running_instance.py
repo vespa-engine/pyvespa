@@ -52,6 +52,7 @@ class TestRunningInstance(unittest.TestCase):
         query_result = app.query(
             query="Is remdesivir an effective treatment for COVID-19?",
             query_model=query_model,
+            timeout="60s",
         )
         self.assertTrue(query_result.number_documents_retrieved > 0)
         self.assertEqual(len(query_result.hits), 10)
@@ -153,7 +154,6 @@ class TestRunningInstance(unittest.TestCase):
             per_query=True,
         )
         self.assertEqual(evaluation.shape, (2, 7))
-
 
     def test_collect_training_data(self):
         app = Vespa(url="https://api.cord19.vespa.ai")
