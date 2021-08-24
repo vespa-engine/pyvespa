@@ -13,9 +13,10 @@ from vespa.package import (
     SecondPhaseRanking,
     RankProfile,
     ApplicationPackage,
-    VespaDocker,
+    ModelServer,
 )
-from vespa.ml import BertModelConfig
+from vespa.deployment import VespaDocker
+from vespa.ml import BertModelConfig, SequenceClassification
 from vespa.query import QueryModel, RankProfile as Ranking, OR, QueryRankingFeature
 from vespa.gallery import QuestionAnswering
 from vespa.application import VespaSync
@@ -919,6 +920,22 @@ class TestMsmarcoApplication(TestApplicationCommon):
             for i in range(10)
         ]
 
+    def test_model_endpoints(self):
+        self.assertEqual(
+            self.app.get_model_endpoint(),
+            {
+                "status_code": 404,
+                "message": "No binding for URI 'http://localhost:8080/model-evaluation/v1/'.",
+            },
+        )  # The port should be 8089 instead of 8080, see https://jira.vzbuilders.com/browse/VESPA-21365
+        self.assertEqual(
+            self.app.get_model_endpoint(model_name="bert_tiny"),
+            {
+                "status_code": 404,
+                "message": "No binding for URI 'http://localhost:8080/model-evaluation/v1/bert_tiny'.",
+            },
+        )  # The port should be 8089 instead of 8080, see https://jira.vzbuilders.com/browse/VESPA-21365
+
     def test_execute_data_operations(self):
         self.execute_data_operations(
             app=self.app,
@@ -1158,6 +1175,85 @@ class TestQaApplication(TestApplicationCommon):
             expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
             fields_to_update=self.fields_to_update,
         )
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.disk_folder, ignore_errors=True)
+        self.vespa_docker.container.stop()
+        self.vespa_docker.container.remove()
+
+
+class TestModelServer(unittest.TestCase):
+    def setUp(self) -> None:
+        self.app_package = ModelServer(
+            name="bert_model_server",
+            model_file_path=os.path.join(os.environ["RESOURCES_DIR"], "bert_tiny.onnx"),
+        )
+        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        self.app = self.vespa_docker.deploy(application_package=self.app_package)
+
+    def test_model_endpoints(self):
+        self.assertEqual(
+            self.app.get_model_endpoint(),
+            {"bert_tiny": "http://localhost:8080/model-evaluation/v1/bert_tiny"},
+        )  # The port should be 8089 instead of 8080, see https://jira.vzbuilders.com/browse/VESPA-21365
+        self.assertEqual(
+            self.app.get_model_endpoint(model_name="bert_tiny")["model"], "bert_tiny"
+        )
+
+    def test_prediction_rest_api(self):
+        from requests import get
+        from transformers import BertTokenizerFast
+        from urllib.parse import urlencode
+
+        tokenizer = BertTokenizerFast.from_pretrained(
+            "google/bert_uncased_L-2_H-128_A-2"
+        )
+        tokens = tokenizer("this is a test", padding="max_length", max_length=128)
+        cells = get(
+            "http://localhost:8089/model-evaluation/v1/bert_tiny/logits/eval?{}".format(
+                urlencode(tokens)
+            )
+        ).json()["cells"]
+        expected_values = [-0.069, 0.160]
+        for idx, cell in enumerate(cells):
+            self.assertEqual(cell["address"], {"d0": "0", "d1": str(idx)})
+            self.assertEqual(round(cell["value"], 3), expected_values[idx])
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.disk_folder, ignore_errors=True)
+        self.vespa_docker.container.stop()
+        self.vespa_docker.container.remove()
+
+
+class TestSequenceClassification(unittest.TestCase):
+    def setUp(self) -> None:
+        self.app_package = ModelServer(
+            name="bert_model_server",
+            models=[
+                SequenceClassification(
+                    model_id="bert_tiny", model="google/bert_uncased_L-2_H-128_A-2"
+                )
+            ],
+        )
+        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        self.app = self.vespa_docker.deploy(application_package=self.app_package)
+
+    def test_model_endpoints(self):
+        self.assertEqual(
+            self.app.get_model_endpoint(),
+            {"bert_tiny": "http://localhost:8080/model-evaluation/v1/bert_tiny"},
+        )  # The port should be 8089 instead of 8080, see https://jira.vzbuilders.com/browse/VESPA-21365
+        self.assertEqual(
+            self.app.get_model_endpoint(model_name="bert_tiny")["model"], "bert_tiny"
+        )
+
+    def test_prediction(self):
+        prediction = self.app.predict("this is a test", model_name="bert_tiny")
+        expected_values = self.app_package.models["bert_tiny"].predict("this is a test")
+        for idx in range(len(prediction)):
+            self.assertAlmostEqual(prediction[idx], expected_values[idx], 4)
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
