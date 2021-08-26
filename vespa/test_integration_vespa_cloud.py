@@ -3,9 +3,7 @@ import asyncio
 import shutil
 import json
 
-from vespa.package import (
-    VespaCloud,
-)
+from vespa.deployment import VespaCloud
 from vespa.test_integration_docker import (
     TestApplicationCommon,
     create_msmarco_application_package,

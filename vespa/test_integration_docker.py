@@ -13,8 +13,8 @@ from vespa.package import (
     SecondPhaseRanking,
     RankProfile,
     ApplicationPackage,
-    VespaDocker,
 )
+from vespa.deployment import VespaDocker
 from vespa.ml import BertModelConfig
 from vespa.query import QueryModel, RankProfile as Ranking, OR, QueryRankingFeature
 from vespa.gallery import QuestionAnswering
