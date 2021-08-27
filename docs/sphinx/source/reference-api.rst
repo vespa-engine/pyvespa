@@ -114,14 +114,14 @@ Deploy your application
 VespaDocker
 -----------
 
-.. autoclass:: vespa.package.VespaDocker
+.. autoclass:: vespa.deployment.VespaDocker
    :members:
    :special-members: __init__
 
 VespaCloud
 ----------
 
-.. autoclass:: vespa.package.VespaCloud
+.. autoclass:: vespa.deployment.VespaCloud
    :members:
    :special-members: __init__
 
