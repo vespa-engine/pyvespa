@@ -38,8 +38,6 @@ jobs:
       screwdriver.cd/dockerEnabled: true
       screwdriver.cd/dockerCpu: TURBO
       screwdriver.cd/dockerRam: TURBO
-    environment:
-      DOCKER_HOST: "localhost:2375"
     steps:
       - setup: |
           export WORK_DIR=$SD_DIND_SHARE_PATH
@@ -68,8 +66,6 @@ jobs:
       screwdriver.cd/dockerEnabled: true
       screwdriver.cd/dockerCpu: TURBO
       screwdriver.cd/dockerRam: TURBO
-    environment:
-      DOCKER_HOST: "localhost:2375"
     steps:
       - setup: |
           dnf install -y git
