@@ -1,3 +1,4 @@
+import warnings
 import sys
 import http.client
 import json
@@ -1505,6 +1506,11 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         :param container_memory: Docker container memory available to the application.
         :param container: Used when instantiating VespaDocker from a running container.
         """
+        warnings.warn(
+            "VespaDocker will only be available on vespa.deployment module starting at version 0.9.0. Use vespa.deployment.VespaDocker instead.",
+            category=DeprecationWarning,
+            stacklevel=2,
+        )
         self.container = container
         container_id = None
         container_name = None
@@ -1879,6 +1885,13 @@ class VespaCloud(object):
             key file is not available.
         :param output_file: Output file to write output messages.
         """
+
+        warnings.warn(
+            "VespaCloud will only be available on vespa.deployment module starting at version 0.9.0. Use vespa.deployment.VespaCloud instead.",
+            category=DeprecationWarning,
+            stacklevel=2,
+        )
+
         self.tenant = tenant
         self.application = application
         self.application_package = application_package
