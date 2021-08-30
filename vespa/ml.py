@@ -1,7 +1,8 @@
+import sys
 from os import PathLike
-from typing import List, Optional, Union, Mapping, Dict
+from typing import List, Optional, Union, Mapping, Dict, IO
 from pathlib import Path
-from importlib.util import find_spec
+from urllib.parse import urlencode
 
 from vespa.json_serialization import ToJson, FromJson
 
@@ -10,10 +11,124 @@ from vespa.json_serialization import ToJson, FromJson
 #
 try:
     from torch import tensor
-    from transformers import BertForSequenceClassification, BertTokenizerFast, Pipeline
+    from transformers import (
+        AutoTokenizer,
+        AutoModelForSequenceClassification,
+        BertForSequenceClassification,
+        BertTokenizerFast,
+        Pipeline,
+    )
     from transformers.convert_graph_to_onnx import convert_pytorch
 except ModuleNotFoundError:
     raise Exception("Use pip install pyvespa[ml] to install ml dependencies.")
+
+
+class TextTask(object):
+    def __init__(
+        self,
+        model_id: str,
+        model: str,
+        tokenizer: Optional[str] = None,
+        output_file: IO = sys.stdout,
+    ):
+        """
+        Base class for Tasks involving text inputs.
+
+        :param model_id: Id used to identify the model on Vespa applications.
+        :param model: Id of the model as used by the model hub.
+        :param tokenizer: Id of the tokenizer as used by the model hub.
+        :param output_file: Output file to write output messages.
+        """
+        self.model_id = model_id
+        self.model = model
+        self.tokenizer = tokenizer
+        if not self.tokenizer:
+            self.tokenizer = model
+        self.output = output_file
+        self._tokenizer = None
+        self._model = None
+
+    def _load_tokenizer(self):
+        if not self._tokenizer:
+            print("Downloading tokenizer.", file=self.output)
+            self._tokenizer = AutoTokenizer.from_pretrained(self.tokenizer)
+
+    def _create_pipeline(self):
+        self._load_tokenizer()
+        if not self._model:
+            print("Downloading model.", file=self.output)
+            self._model = AutoModelForSequenceClassification.from_pretrained(self.model)
+            print("Model loaded.", file=self.output)
+
+        pipeline = Pipeline(model=self._model, tokenizer=self._tokenizer)
+        return pipeline
+
+    def export_to_onnx(self, output_path: str) -> None:
+        """
+        Export a model to ONNX
+
+        :param output_path: Relative output path for the onnx model, should end in '.onnx'
+        :return: None.
+        """
+        pipeline = self._create_pipeline()
+        convert_pytorch(
+            pipeline, opset=11, output=Path(output_path), use_external_format=False
+        )
+
+    def predict(self, text: str):
+        """
+        Predict using a local instance of the model
+
+        :param text: text input for the task.
+        :return: list with predictions
+        """
+        pipeline = self._create_pipeline()
+        return pipeline(text).tolist()[0]
+
+    def parse_vespa_prediction(self, prediction):
+        return [cell["value"] for cell in prediction["cells"]]
+
+    def create_url_encoded_tokens(self, x):
+        raise NotImplementedError
+
+
+class SequenceClassification(TextTask):
+    def __init__(
+        self,
+        model_id: str,
+        model: str,
+        tokenizer: Optional[str] = None,
+        output_file: IO = sys.stdout,
+    ):
+        """
+        Sequence Classification task.
+
+        :param model_id: Id used to identify the model on Vespa applications.
+        :param model: Id of the model as used by the model hub.
+        :param tokenizer: Id of the tokenizer as used by the model hub.
+        :param output_file: Output file to write output messages.
+        """
+        super().__init__(
+            model_id=model_id, model=model, tokenizer=tokenizer, output_file=output_file
+        )
+
+    def create_url_encoded_tokens(self, x):
+        self._load_tokenizer()
+        tokens = self._tokenizer(x)
+        encoded_tokens = urlencode(
+            {
+                key: "{"
+                + ",".join(
+                    [
+                        "{{d0: 0, d1: {}}}: {}".format(idx, x)
+                        for idx, x in enumerate(value)
+                    ]
+                )
+                + "}"
+                for key, value in tokens.items()
+            }
+        )
+        return encoded_tokens
 
 
 class ModelConfig(object):
