@@ -1173,7 +1173,11 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         """
         self.name = name
         if not schema:
-            schema = [Schema(name=self.name, document=Document())] if create_schema_by_default else []
+            schema = (
+                [Schema(name=self.name, document=Document())]
+                if create_schema_by_default
+                else []
+            )
         self._schema = OrderedDict([(x.name, x) for x in schema])
         if not query_profile and create_query_profile_by_default:
             query_profile = QueryProfile()
@@ -1512,3 +1516,35 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
             repr(self.query_profile_type),
         )
 
+
+class ModelServer(ApplicationPackage):
+    def __init__(
+        self,
+        name: str,
+        models: Optional[List[SequenceClassification]] = None,
+    ):
+        """
+        Create a Vespa stateless model evaluation server.
+        A Vespa stateless model evaluation server is a simplified Vespa application without content clusters.
+        :param name: Application name.
+        :param models: List of models to be used in sequence classification tasks.
+        """
+        super().__init__(
+            name=name,
+            schema=None,
+            query_profile=None,
+            query_profile_type=None,
+            stateless_model_evaluation=True,
+            create_schema_by_default=False,
+            create_query_profile_by_default=False,
+            models=models,
+        )
+
+    @staticmethod
+    def from_dict(mapping: Mapping) -> "ModelServer":
+        return ModelServer(name=mapping["name"])
+
+    @property
+    def to_dict(self) -> Mapping:
+        map = {"name": self.name}
+        return map
