@@ -18,6 +18,7 @@ from tenacity import retry, wait_exponential, stop_after_attempt
 from vespa.io import VespaQueryResponse, VespaResponse
 from vespa.query import QueryModel
 from vespa.evaluation import EvalMetric
+from vespa.package import ApplicationPackage
 
 retry_strategy = Retry(
     total=3,
@@ -66,6 +67,7 @@ class Vespa(object):
         deployment_message: Optional[List[str]] = None,
         cert: Optional[str] = None,
         output_file: IO = sys.stdout,
+        application_package: Optional[ApplicationPackage] = None,
     ) -> None:
         """
         Establish a connection with a Vespa application.
@@ -75,6 +77,7 @@ class Vespa(object):
         :param deployment_message: Message returned by Vespa engine after deployment. Used internally by deploy methods.
         :param cert: Path to certificate and key file.
         :param output_file: Output file to write output messages.
+        :param application_package: Application package definition used to deploy the application.
 
         >>> Vespa(url = "https://cord19.vespa.ai")  # doctest: +SKIP
 
@@ -89,6 +92,7 @@ class Vespa(object):
         self.port = port
         self.deployment_message = deployment_message
         self.cert = cert
+        self._application_package = application_package
 
         if port is None:
             self.end_point = self.url
@@ -144,6 +148,16 @@ class Vespa(object):
         """
         with VespaSync(self) as sync_app:
             return sync_app.get_application_status()
+
+    def get_model_endpoint(
+        self, model_name: Optional[str] = None
+    ) -> Optional[Response]:
+        """
+        Get model evaluation endpoints
+        :return:
+        """
+        with VespaSync(self) as sync_app:
+            return sync_app.get_model_endpoint(model_name=model_name)
 
     def _build_query_body(
         self,
@@ -715,6 +729,30 @@ class Vespa(object):
             )
         return evaluation
 
+    @property
+    def application_package(self):
+        if not self._application_package:
+            raise ValueError("Application package not available.")
+        else:
+            return self._application_package
+
+    def get_model_from_application_package(self, model_name: str):
+        app_package = self.application_package
+        model = app_package.get_model(model_name=model_name)
+        return model
+
+    def predict(self, x, model_name, function_name="output_0"):
+        model = self.get_model_from_application_package(model_name)
+        encoded_tokens = model.create_url_encoded_tokens(x=x)
+        with VespaSync(self) as sync_app:
+            return model.parse_vespa_prediction(
+                sync_app.predict(
+                    model_name=model_name,
+                    function_name=function_name,
+                    encoded_tokens=encoded_tokens,
+                )
+            )
+
 
 class VespaSync(object):
     def __init__(self, app: Vespa, pool_maxsize: int = 10) -> None:
@@ -754,6 +792,38 @@ class VespaSync(object):
         end_point = "{}/ApplicationStatus".format(self.app.end_point)
         try:
             response = self.http_session.get(end_point, cert=self.app.cert)
+        except ConnectionError:
+            response = None
+        return response
+
+    def get_model_endpoint(self, model_name: Optional[str] = None) -> Optional[dict]:
+        """
+        Get model evaluation endpoints.
+        :return:
+        """
+        end_point = "{}/model-evaluation/v1/".format(self.app.end_point)
+        if model_name:
+            end_point = end_point + model_name
+        try:
+            response = self.http_session.get(end_point, cert=self.app.cert)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                return {"status_code": response.status_code, "message": response.reason}
+        except ConnectionError:
+            response = None
+        return response
+
+    def predict(self, model_name, function_name, encoded_tokens):
+        end_point = "{}/model-evaluation/v1/{}/{}/eval?{}".format(
+            self.app.end_point, model_name, function_name, encoded_tokens
+        )
+        try:
+            response = self.http_session.get(end_point, cert=self.app.cert)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                return {"status_code": response.status_code, "message": response.reason}
         except ConnectionError:
             response = None
         return response
