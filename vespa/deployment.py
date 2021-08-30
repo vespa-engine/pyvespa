@@ -20,7 +20,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 
 from vespa.application import Vespa
 from vespa.json_serialization import ToJson, FromJson
-from vespa.package import ApplicationPackage
+from vespa.package import ApplicationPackage, ModelServer
 
 
 class VespaDocker(ToJson, FromJson["VespaDocker"]):
@@ -128,7 +128,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         )
 
     def export_application_package(
-        self, application_package: ApplicationPackage
+        self, application_package: Union[ApplicationPackage, ModelServer]
     ) -> None:
         """
         Export application package to disk.
@@ -139,6 +139,9 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             parents=True, exist_ok=True
         )
         Path(os.path.join(self.disk_folder, "application/files")).mkdir(
+            parents=True, exist_ok=True
+        )
+        Path(os.path.join(self.disk_folder, "application/models")).mkdir(
             parents=True, exist_ok=True
         )
 
@@ -159,29 +162,41 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
                     ),
                 )
 
-        Path(
-            os.path.join(self.disk_folder, "application/search/query-profiles/types")
-        ).mkdir(parents=True, exist_ok=True)
-        with open(
-            os.path.join(
-                self.disk_folder,
-                "application/search/query-profiles/default.xml",
-            ),
-            "w",
-        ) as f:
-            f.write(application_package.query_profile_to_text)
-        with open(
-            os.path.join(
-                self.disk_folder,
-                "application/search/query-profiles/types/root.xml",
-            ),
-            "w",
-        ) as f:
-            f.write(application_package.query_profile_type_to_text)
+        if application_package.query_profile:
+            Path(
+                os.path.join(
+                    self.disk_folder, "application/search/query-profiles/types"
+                )
+            ).mkdir(parents=True, exist_ok=True)
+            with open(
+                os.path.join(
+                    self.disk_folder,
+                    "application/search/query-profiles/default.xml",
+                ),
+                "w",
+            ) as f:
+                f.write(application_package.query_profile_to_text)
+            with open(
+                os.path.join(
+                    self.disk_folder,
+                    "application/search/query-profiles/types/root.xml",
+                ),
+                "w",
+            ) as f:
+                f.write(application_package.query_profile_type_to_text)
         with open(os.path.join(self.disk_folder, "application/hosts.xml"), "w") as f:
             f.write(application_package.hosts_to_text)
         with open(os.path.join(self.disk_folder, "application/services.xml"), "w") as f:
             f.write(application_package.services_to_text)
+
+        if application_package.models:
+            for model_id, model in application_package.models.items():
+                model.export_to_onnx(
+                    output_path=os.path.join(
+                        self.disk_folder,
+                        "application/models/{}.onnx".format(model_id),
+                    )
+                )
 
     def _execute_deployment(
         self,
@@ -189,6 +204,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         disk_folder: str,
         container_memory: str = "4G",
         application_folder: Optional[str] = None,
+        application_package: Optional[ApplicationPackage] = None,
     ):
 
         self._run_vespa_engine_container(
@@ -221,6 +237,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             url=self.url,
             port=self.local_port,
             deployment_message=deployment_message,
+            application_package=application_package,
         )
 
         while not app.get_application_status():
@@ -248,6 +265,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             disk_folder=self.disk_folder,
             container_memory=self.container_memory,
             application_folder="application",
+            application_package=application_package,
         )
 
     def deploy_from_disk(
@@ -478,7 +496,7 @@ class VespaCloud(object):
             .public_key(key.public_key())
             .sign(key, hashes.SHA256(), default_backend())
         )
-        return (key, certificate)
+        return key, certificate
 
     def _request(
         self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
