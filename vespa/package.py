@@ -1,30 +1,12 @@
-import warnings
-import sys
-import http.client
-import json
 import os
-import re
-import zipfile
-from base64 import standard_b64encode
-from datetime import datetime, timedelta
-from io import BytesIO
 from pathlib import Path
-from time import sleep, strftime, gmtime
 from typing import List, Mapping, Optional, IO, Union, Dict
-from shutil import copyfile
 from collections import OrderedDict
 
-import docker
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives import serialization
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 from vespa.json_serialization import ToJson, FromJson
-from vespa.application import Vespa
-from vespa.ml import ModelConfig, BertModelConfig
+from vespa.ml import ModelConfig, BertModelConfig, TextTask
 
 
 class HNSW(ToJson, FromJson["HNSW"]):
@@ -1141,7 +1123,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         stateless_model_evaluation: bool = False,
         create_schema_by_default: bool = True,
         create_query_profile_by_default: bool = True,
-        models: Optional[List[SequenceClassification]] = None,
+        models: Optional[List[TextTask]] = None,
     ) -> None:
         """
         Create a Vespa Application Package.
@@ -1521,7 +1503,7 @@ class ModelServer(ApplicationPackage):
     def __init__(
         self,
         name: str,
-        models: Optional[List[SequenceClassification]] = None,
+        models: Optional[List[TextTask]] = None,
     ):
         """
         Create a Vespa stateless model evaluation server.
