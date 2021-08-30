@@ -1138,6 +1138,10 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         schema: Optional[List[Schema]] = None,
         query_profile: Optional[QueryProfile] = None,
         query_profile_type: Optional[QueryProfileType] = None,
+        stateless_model_evaluation: bool = False,
+        create_schema_by_default: bool = True,
+        create_query_profile_by_default: bool = True,
+        models: Optional[List[SequenceClassification]] = None,
     ) -> None:
         """
         Create a Vespa Application Package.
@@ -1152,6 +1156,12 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
          with :class:`QueryProfileType` named `root` will be created by default.
         :param query_profile_type: :class:`QueryProfileType` of the application. If `None`, a empty
             :class:`QueryProfileType` named `root` will be created by default.
+        :param stateless_model_evaluation: Enable stateless model evaluation. Default to False.
+        :param create_schema_by_default: Include a :class:`Schema` with the same name as the application if no Schema
+            is provided in the `schema` argument.
+        :param create_query_profile_by_default: Include a default :class:`QueryProfile` and :class:`QueryProfileType`
+            in case it is not explicitly defined by the user in the `query_profile` and `query_profile_type` parameters.
+        :param models: List of models to be used in sequence classification tasks.
 
         The easiest way to get started is to create a default application package:
 
@@ -1163,16 +1173,18 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         """
         self.name = name
         if not schema:
-            schema = [Schema(name=self.name, document=Document())]
+            schema = [Schema(name=self.name, document=Document())] if create_schema_by_default else []
         self._schema = OrderedDict([(x.name, x) for x in schema])
-        if not query_profile:
+        if not query_profile and create_query_profile_by_default:
             query_profile = QueryProfile()
         self.query_profile = query_profile
-        if not query_profile_type:
+        if not query_profile_type and create_query_profile_by_default:
             query_profile_type = QueryProfileType()
         self.query_profile_type = query_profile_type
         self.model_ids = []
         self.model_configs = {}
+        self.stateless_model_evaluation = stateless_model_evaluation
+        self.models = {} if not models else {model.model_id: model for model in models}
 
     @property
     def schemas(self) -> List[Schema]:
@@ -1181,14 +1193,14 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
     @property
     def schema(self):
         assert (
-            len(self.schemas) == 1
+            len(self.schemas) <= 1
         ), "Your application has more than one Schema, use get_schema instead."
-        return self.schemas[0]
+        return self.schemas[0] if self.schemas else None
 
     def get_schema(self, name: Optional[str] = None):
         if not name:
             assert (
-                len(self.schemas) == 1
+                len(self.schemas) <= 1
             ), "Your application has more than one Schema, specify name argument."
             return self.schema
         return self._schema[name]
@@ -1202,6 +1214,16 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         """
         for schema in schemas:
             self._schema.update({schema.name: schema})
+
+    def get_model(self, model_name: str):
+        try:
+            return self.models[model_name]
+        except KeyError:
+            raise ValueError(
+                "Model named {} not defined in the application package.".format(
+                    model_name
+                )
+            )
 
     def add_model_ranking(
         self,
@@ -1393,7 +1415,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         env.trim_blocks = True
         env.lstrip_blocks = True
         query_profile_template = env.get_template("query_profile.xml")
-        return query_profile_template.render(fields=self.query_profile.fields)
+        return query_profile_template.render(query_profile=self.query_profile)
 
     @property
     def query_profile_type_to_text(self):
@@ -1408,7 +1430,9 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         env.trim_blocks = True
         env.lstrip_blocks = True
         query_profile_type_template = env.get_template("query_profile_type.xml")
-        return query_profile_type_template.render(fields=self.query_profile_type.fields)
+        return query_profile_type_template.render(
+            query_profile_type=self.query_profile_type
+        )
 
     @property
     def hosts_to_text(self):
@@ -1441,6 +1465,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         return schema_template.render(
             application_name=self.name,
             schemas=self.schemas,
+            stateless_model_evaluation=self.stateless_model_evaluation,
         )
 
     @staticmethod
