@@ -13,9 +13,10 @@ from vespa.package import (
     SecondPhaseRanking,
     RankProfile,
     ApplicationPackage,
+    ModelServer,
 )
 from vespa.deployment import VespaDocker
-from vespa.ml import BertModelConfig
+from vespa.ml import BertModelConfig, SequenceClassification
 from vespa.query import QueryModel, RankProfile as Ranking, OR, QueryRankingFeature
 from vespa.gallery import QuestionAnswering
 from vespa.application import VespaSync
@@ -112,6 +113,18 @@ def create_qa_application_package():
     )
     app_package.get_schema("context").add_fields(
         Field(name="id", type="string", indexing=["attribute", "summary"])
+    )
+    return app_package
+
+
+def create_sequence_classification_task():
+    app_package = ModelServer(
+        name="bert-model-server",
+        models=[
+            SequenceClassification(
+                model_id="bert_tiny", model="google/bert_uncased_L-2_H-128_A-2"
+            )
+        ],
     )
     return app_package
 
@@ -758,6 +771,49 @@ class TestApplicationCommon(unittest.TestCase):
         for idx, response in enumerate(result):
             self.assertEqual(response.status_code, 404)
 
+    def get_model_endpoints_when_no_model_is_available(
+        self, app, expected_model_endpoint
+    ):
+        self.assertEqual(
+            app.get_model_endpoint(),
+            {
+                "status_code": 404,
+                "message": "No binding for URI '{}'.".format(expected_model_endpoint),
+            },
+        )
+        self.assertEqual(
+            app.get_model_endpoint(model_name="bert_tiny"),
+            {
+                "status_code": 404,
+                "message": "No binding for URI '{}bert_tiny'.".format(
+                    expected_model_endpoint
+                ),
+            },
+        )
+
+    def get_model_endpoints(self, app, expected_model_endpoint):
+        self.assertEqual(
+            app.get_model_endpoint(),
+            {"bert_tiny": "{}bert_tiny".format(expected_model_endpoint)},
+        )
+        self.assertEqual(
+            app.get_model_endpoint(model_name="bert_tiny")["model"], "bert_tiny"
+        )
+
+    def get_stateless_prediction(self, app, application_package):
+        prediction = app.predict("this is a test", model_name="bert_tiny")
+        expected_values = application_package.models["bert_tiny"].predict(
+            "this is a test"
+        )
+        for idx in range(len(prediction)):
+            self.assertAlmostEqual(prediction[idx], expected_values[idx], 4)
+
+    def get_stateless_prediction_when_model_not_defined(self, app, application_package):
+        with self.assertRaisesRegex(
+            ValueError, "Model named bert_tiny not defined in the application package"
+        ) as exc:
+            _ = app.predict("this is a test", model_name="bert_tiny")
+
     @staticmethod
     def _parse_vespa_tensor(hit, feature):
         return [x["value"] for x in hit["fields"]["summaryfeatures"][feature]["cells"]]
@@ -919,6 +975,18 @@ class TestMsmarcoApplication(TestApplicationCommon):
             for i in range(10)
         ]
 
+    def test_model_endpoints_when_no_model_is_available(self):
+        # The port should be 8089 instead of 8080, see https://jira.vzbuilders.com/browse/VESPA-21365
+        self.get_model_endpoints_when_no_model_is_available(
+            app=self.app,
+            expected_model_endpoint="http://localhost:8080/model-evaluation/v1/",
+        )
+
+    def test_prediction_when_model_not_defined(self):
+        self.get_stateless_prediction_when_model_not_defined(
+            app=self.app, application_package=self.app_package
+        )
+
     def test_execute_data_operations(self):
         self.execute_data_operations(
             app=self.app,
@@ -1009,6 +1077,18 @@ class TestCord19Application(TestApplicationCommon):
             }
             for i in range(10)
         ]
+
+    def test_model_endpoints_when_no_model_is_available(self):
+        # The port should be 8089 instead of 8080, see https://jira.vzbuilders.com/browse/VESPA-21365
+        self.get_model_endpoints_when_no_model_is_available(
+            app=self.app,
+            expected_model_endpoint="http://localhost:8080/model-evaluation/v1/",
+        )
+
+    def test_prediction_when_model_not_defined(self):
+        self.get_stateless_prediction_when_model_not_defined(
+            app=self.app, application_package=self.app_package
+        )
 
     def test_execute_data_operations(self):
         self.execute_data_operations(
@@ -1110,6 +1190,18 @@ class TestQaApplication(TestApplicationCommon):
             for d in self.fields_to_send_sentence
         ]
 
+    def test_model_endpoints_when_no_model_is_available(self):
+        # The port should be 8089 instead of 8080, see https://jira.vzbuilders.com/browse/VESPA-21365
+        self.get_model_endpoints_when_no_model_is_available(
+            app=self.app,
+            expected_model_endpoint="http://localhost:8080/model-evaluation/v1/",
+        )
+
+    def test_prediction_when_model_not_defined(self):
+        self.get_stateless_prediction_when_model_not_defined(
+            app=self.app, application_package=self.app_package
+        )
+
     def test_execute_data_operations_sentence_schema(self):
         self.execute_data_operations(
             app=self.app,
@@ -1157,6 +1249,30 @@ class TestQaApplication(TestApplicationCommon):
             fields_to_send=self.fields_to_send_sentence,
             expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
             fields_to_update=self.fields_to_update,
+        )
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.disk_folder, ignore_errors=True)
+        self.vespa_docker.container.stop()
+        self.vespa_docker.container.remove()
+
+
+class TestSequenceClassification(TestApplicationCommon):
+    def setUp(self) -> None:
+        self.app_package = create_sequence_classification_task()
+        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        self.app = self.vespa_docker.deploy(application_package=self.app_package)
+
+    def test_model_endpoints(self):
+        self.get_model_endpoints(
+            app=self.app,
+            expected_model_endpoint="http://localhost:8080/model-evaluation/v1/",
+        )
+
+    def test_prediction(self):
+        self.get_stateless_prediction(
+            app=self.app, application_package=self.app_package
         )
 
     def tearDown(self) -> None:
