@@ -561,7 +561,7 @@ class VespaCloud(object):
             raise RuntimeError("No endpoints found for container 'test_app_container'")
         return container_url[0]
 
-    def _to_application_zip(self) -> BytesIO:
+    def _to_application_zip(self, disk_folder) -> BytesIO:
         buffer = BytesIO()
         with zipfile.ZipFile(buffer, "a") as zip_archive:
 
@@ -576,14 +576,28 @@ class VespaCloud(object):
                         os.path.join("application/files", model.model_file_name),
                     )
 
-            zip_archive.writestr(
-                "application/search/query-profiles/default.xml",
-                self.application_package.query_profile_to_text,
-            )
-            zip_archive.writestr(
-                "application/search/query-profiles/types/root.xml",
-                self.application_package.query_profile_type_to_text,
-            )
+            if self.application_package.models:
+                for model_id, model in self.application_package.models.items():
+                    temp_model_file = os.path.join(
+                        disk_folder,
+                        "{}.onnx".format(model_id),
+                    )
+                    model.export_to_onnx(output_path=temp_model_file)
+                    zip_archive.write(
+                        temp_model_file,
+                        "application/models/{}.onnx".format(model_id),
+                    )
+                    os.remove(temp_model_file)
+
+            if self.application_package.query_profile:
+                zip_archive.writestr(
+                    "application/search/query-profiles/default.xml",
+                    self.application_package.query_profile_to_text,
+                )
+                zip_archive.writestr(
+                    "application/search/query-profiles/types/root.xml",
+                    self.application_package.query_profile_type_to_text,
+                )
             zip_archive.writestr(
                 "application/services.xml", self.application_package.services_to_text
             )
@@ -601,9 +615,9 @@ class VespaCloud(object):
             )
         )
 
-        application_zip_bytes = self._to_application_zip()
-
         Path(disk_folder).mkdir(parents=True, exist_ok=True)
+
+        application_zip_bytes = self._to_application_zip(disk_folder=disk_folder)
 
         self._write_private_key_and_cert(
             self.data_key, self.data_certificate, disk_folder
@@ -698,6 +712,7 @@ class VespaCloud(object):
         return Vespa(
             url=endpoint_url,
             cert=os.path.join(disk_folder, self.private_cert_file_name),
+            application_package=self.application_package
         )
 
     def delete(self, instance: str):
