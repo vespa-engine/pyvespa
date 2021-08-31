@@ -47,7 +47,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
         # The port should not be 4443, see https://jira.vzbuilders.com/browse/VESPA-21365
         self.get_model_endpoints_when_no_model_is_available(
             app=self.app,
-            expected_model_endpoint="https://msmarco-container.msmarco.pyvespa-integration.vespa-team.aws-us-east-1c.dev.z.vespa-app.cloud:4443/model-evaluation/v1/",
+            expected_model_endpoint="https://{}-container.{}.pyvespa-integration.vespa-team.aws-us-east-1c.dev.z.vespa-app.cloud:4443/model-evaluation/v1/".format(self.app_package.name, self.instance_name),
         )
 
     def test_prediction_when_model_not_defined(self):
@@ -159,7 +159,7 @@ class TestCord19Application(TestApplicationCommon):
         # The port should not be 4443, see https://jira.vzbuilders.com/browse/VESPA-21365
         self.get_model_endpoints_when_no_model_is_available(
             app=self.app,
-            expected_model_endpoint="https://msmarco-container.msmarco.pyvespa-integration.vespa-team.aws-us-east-1c.dev.z.vespa-app.cloud:4443/model-evaluation/v1/",
+            expected_model_endpoint="https://{}-container.{}.pyvespa-integration.vespa-team.aws-us-east-1c.dev.z.vespa-app.cloud:4443/model-evaluation/v1/".format(self.app_package.name, self.instance_name),
         )
 
     def test_prediction_when_model_not_defined(self):
@@ -272,7 +272,7 @@ class TestQaApplication(TestApplicationCommon):
         # The port should not be 4443, see https://jira.vzbuilders.com/browse/VESPA-21365
         self.get_model_endpoints_when_no_model_is_available(
             app=self.app,
-            expected_model_endpoint="https://msmarco-container.msmarco.pyvespa-integration.vespa-team.aws-us-east-1c.dev.z.vespa-app.cloud:4443/model-evaluation/v1/",
+            expected_model_endpoint="https://{}-container.{}.pyvespa-integration.vespa-team.aws-us-east-1c.dev.z.vespa-app.cloud:4443/model-evaluation/v1/".format(self.app_package.name, self.instance_name),
         )
 
     def test_prediction_when_model_not_defined(self):
