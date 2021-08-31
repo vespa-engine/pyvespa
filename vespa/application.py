@@ -152,10 +152,8 @@ class Vespa(object):
     def get_model_endpoint(
         self, model_name: Optional[str] = None
     ) -> Optional[Response]:
-        """
-        Get model evaluation endpoints
-        :return:
-        """
+        """Get model evaluation endpoints."""
+
         with VespaSync(self) as sync_app:
             return sync_app.get_model_endpoint(model_name=model_name)
 
@@ -731,17 +729,27 @@ class Vespa(object):
 
     @property
     def application_package(self):
+        """Get application package definition, if available."""
         if not self._application_package:
             raise ValueError("Application package not available.")
         else:
             return self._application_package
 
     def get_model_from_application_package(self, model_name: str):
+        """Get model definition from application package, if available."""
         app_package = self.application_package
         model = app_package.get_model(model_name=model_name)
         return model
 
     def predict(self, x, model_name, function_name="output_0"):
+        """
+        Obtain a stateless model evaluation.
+
+        :param x: Input where the format depends on the task that the model is serving.
+        :param model_name: The name of the model used to serve the prediction.
+        :param function_name: The name of the output function to be evaluated.
+        :return: Model prediction.
+        """
         model = self.get_model_from_application_package(model_name)
         encoded_tokens = model.create_url_encoded_tokens(x=x)
         with VespaSync(self) as sync_app:
@@ -797,10 +805,7 @@ class VespaSync(object):
         return response
 
     def get_model_endpoint(self, model_name: Optional[str] = None) -> Optional[dict]:
-        """
-        Get model evaluation endpoints.
-        :return:
-        """
+        """Get model evaluation endpoints."""
         end_point = "{}/model-evaluation/v1/".format(self.app.end_point)
         if model_name:
             end_point = end_point + model_name
@@ -815,6 +820,14 @@ class VespaSync(object):
         return response
 
     def predict(self, model_name, function_name, encoded_tokens):
+        """
+        Obtain a stateless model evaluation.
+
+        :param model_name: The name of the model used to serve the prediction.
+        :param function_name: The name of the output function to be evaluated.
+        :param encoded_tokens: URL-encoded input to the model
+        :return: Model prediction.
+        """
         end_point = "{}/model-evaluation/v1/{}/{}/eval?{}".format(
             self.app.end_point, model_name, function_name, encoded_tokens
         )
