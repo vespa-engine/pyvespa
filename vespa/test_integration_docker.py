@@ -1267,7 +1267,7 @@ class TestSequenceClassification(TestApplicationCommon):
     def test_model_endpoints(self):
         self.get_model_endpoints(
             app=self.app,
-            expected_model_endpoint="http://localhost:8080/model-evaluation/v1/",
+            expected_model_endpoint="http://localhost:8089/model-evaluation/v1/",
         )
 
     def test_prediction(self):
