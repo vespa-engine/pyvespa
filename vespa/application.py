@@ -738,7 +738,7 @@ class Vespa(object):
     def get_model_from_application_package(self, model_name: str):
         """Get model definition from application package, if available."""
         app_package = self.application_package
-        model = app_package.get_model(model_name=model_name)
+        model = app_package.get_model(model_id=model_name)
         return model
 
     def predict(self, x, model_name, function_name="output_0"):
