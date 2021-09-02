@@ -1201,13 +1201,13 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         for schema in schemas:
             self._schema.update({schema.name: schema})
 
-    def get_model(self, model_name: str):
+    def get_model(self, model_id: str):
         try:
-            return self.models[model_name]
+            return self.models[model_id]
         except KeyError:
             raise ValueError(
                 "Model named {} not defined in the application package.".format(
-                    model_name
+                    model_id
                 )
             )
 
