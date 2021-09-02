@@ -741,21 +741,21 @@ class Vespa(object):
         model = app_package.get_model(model_id=model_name)
         return model
 
-    def predict(self, x, model_name, function_name="output_0"):
+    def predict(self, x, model_id, function_name="output_0"):
         """
         Obtain a stateless model evaluation.
 
         :param x: Input where the format depends on the task that the model is serving.
-        :param model_name: The name of the model used to serve the prediction.
+        :param model_id: The id of the model used to serve the prediction.
         :param function_name: The name of the output function to be evaluated.
         :return: Model prediction.
         """
-        model = self.get_model_from_application_package(model_name)
+        model = self.get_model_from_application_package(model_id)
         encoded_tokens = model.create_url_encoded_tokens(x=x)
         with VespaSync(self) as sync_app:
             return model.parse_vespa_prediction(
                 sync_app.predict(
-                    model_name=model_name,
+                    model_id=model_id,
                     function_name=function_name,
                     encoded_tokens=encoded_tokens,
                 )
@@ -819,17 +819,17 @@ class VespaSync(object):
             response = None
         return response
 
-    def predict(self, model_name, function_name, encoded_tokens):
+    def predict(self, model_id, function_name, encoded_tokens):
         """
         Obtain a stateless model evaluation.
 
-        :param model_name: The name of the model used to serve the prediction.
+        :param model_id: The id of the model used to serve the prediction.
         :param function_name: The name of the output function to be evaluated.
         :param encoded_tokens: URL-encoded input to the model
         :return: Model prediction.
         """
         end_point = "{}/model-evaluation/v1/{}/{}/eval?{}".format(
-            self.app.end_point, model_name, function_name, encoded_tokens
+            self.app.end_point, model_id, function_name, encoded_tokens
         )
         try:
             response = self.http_session.get(end_point, cert=self.app.cert)
