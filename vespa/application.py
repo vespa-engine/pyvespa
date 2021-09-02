@@ -150,12 +150,12 @@ class Vespa(object):
             return sync_app.get_application_status()
 
     def get_model_endpoint(
-        self, model_name: Optional[str] = None
+        self, model_id: Optional[str] = None
     ) -> Optional[Response]:
         """Get model evaluation endpoints."""
 
         with VespaSync(self) as sync_app:
-            return sync_app.get_model_endpoint(model_name=model_name)
+            return sync_app.get_model_endpoint(model_id=model_id)
 
     def _build_query_body(
         self,
@@ -804,11 +804,11 @@ class VespaSync(object):
             response = None
         return response
 
-    def get_model_endpoint(self, model_name: Optional[str] = None) -> Optional[dict]:
+    def get_model_endpoint(self, model_id: Optional[str] = None) -> Optional[dict]:
         """Get model evaluation endpoints."""
         end_point = "{}/model-evaluation/v1/".format(self.app.end_point)
-        if model_name:
-            end_point = end_point + model_name
+        if model_id:
+            end_point = end_point + model_id
         try:
             response = self.http_session.get(end_point, cert=self.app.cert)
             if response.status_code == 200:
