@@ -120,7 +120,7 @@ def create_qa_application_package():
 def create_sequence_classification_task():
     app_package = ModelServer(
         name="bert-model-server",
-        models=[
+        tasks=[
             SequenceClassification(
                 model_id="bert_tiny", model="google/bert_uncased_L-2_H-128_A-2"
             )
@@ -782,7 +782,7 @@ class TestApplicationCommon(unittest.TestCase):
             },
         )
         self.assertEqual(
-            app.get_model_endpoint(model_name="bert_tiny"),
+            app.get_model_endpoint(model_id="bert_tiny"),
             {
                 "status_code": 404,
                 "message": "No binding for URI '{}bert_tiny'.".format(
@@ -797,11 +797,11 @@ class TestApplicationCommon(unittest.TestCase):
             {"bert_tiny": "{}bert_tiny".format(expected_model_endpoint)},
         )
         self.assertEqual(
-            app.get_model_endpoint(model_name="bert_tiny")["model"], "bert_tiny"
+            app.get_model_endpoint(model_id="bert_tiny")["model"], "bert_tiny"
         )
 
     def get_stateless_prediction(self, app, application_package):
-        prediction = app.predict("this is a test", model_name="bert_tiny")
+        prediction = app.predict("this is a test", model_id="bert_tiny")
         expected_values = application_package.models["bert_tiny"].predict(
             "this is a test"
         )
@@ -812,7 +812,7 @@ class TestApplicationCommon(unittest.TestCase):
         with self.assertRaisesRegex(
             ValueError, "Model named bert_tiny not defined in the application package"
         ) as exc:
-            _ = app.predict("this is a test", model_name="bert_tiny")
+            _ = app.predict("this is a test", model_id="bert_tiny")
 
     @staticmethod
     def _parse_vespa_tensor(hit, feature):
