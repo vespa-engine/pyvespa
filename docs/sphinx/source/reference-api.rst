@@ -1,8 +1,8 @@
 Reference API
 =============
 
-Define application
-******************
+Define stateful application
+***************************
 
 Create an Application Package
 -----------------------------
@@ -108,8 +108,33 @@ QueryProfile
    :members:
    :special-members: __init__
 
+Define stateless application
+****************************
+
+Create tasks
+------------
+
+SequenceClassification
+++++++++++++++++++++++
+
+.. autoclass:: vespa.ml.SequenceClassification
+   :members:
+   :special-members: __init__
+
+Create model server
+-------------------
+
+ModelServer
++++++++++++
+
+.. autoclass:: vespa.package.ModelServer
+   :members:
+   :special-members: __init__
+
 Deploy your application
 ***********************
+
+Deploy your stateful or stateless applications.
 
 VespaDocker
 -----------
