@@ -1123,7 +1123,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         stateless_model_evaluation: bool = False,
         create_schema_by_default: bool = True,
         create_query_profile_by_default: bool = True,
-        models: Optional[List[TextTask]] = None,
+        tasks: Optional[List[TextTask]] = None,
     ) -> None:
         """
         Create a Vespa Application Package.
@@ -1143,7 +1143,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
             is provided in the `schema` argument.
         :param create_query_profile_by_default: Include a default :class:`QueryProfile` and :class:`QueryProfileType`
             in case it is not explicitly defined by the user in the `query_profile` and `query_profile_type` parameters.
-        :param models: List of models to be used in sequence classification tasks.
+        :param tasks: List of tasks to be served.
 
         The easiest way to get started is to create a default application package:
 
@@ -1170,7 +1170,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         self.model_ids = []
         self.model_configs = {}
         self.stateless_model_evaluation = stateless_model_evaluation
-        self.models = {} if not models else {model.model_id: model for model in models}
+        self.models = {} if not tasks else {model.model_id: model for model in tasks}
 
     @property
     def schemas(self) -> List[Schema]:
@@ -1201,13 +1201,13 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         for schema in schemas:
             self._schema.update({schema.name: schema})
 
-    def get_model(self, model_name: str):
+    def get_model(self, model_id: str):
         try:
-            return self.models[model_name]
+            return self.models[model_id]
         except KeyError:
             raise ValueError(
                 "Model named {} not defined in the application package.".format(
-                    model_name
+                    model_id
                 )
             )
 
@@ -1503,13 +1503,15 @@ class ModelServer(ApplicationPackage):
     def __init__(
         self,
         name: str,
-        models: Optional[List[TextTask]] = None,
+        tasks: Optional[List[TextTask]] = None,
     ):
         """
         Create a Vespa stateless model evaluation server.
+
         A Vespa stateless model evaluation server is a simplified Vespa application without content clusters.
+
         :param name: Application name.
-        :param models: List of models to be used in sequence classification tasks.
+        :param tasks: List of tasks to be served.
         """
         super().__init__(
             name=name,
@@ -1519,7 +1521,7 @@ class ModelServer(ApplicationPackage):
             stateless_model_evaluation=True,
             create_schema_by_default=False,
             create_query_profile_by_default=False,
-            models=models,
+            tasks=tasks,
         )
 
     @staticmethod
