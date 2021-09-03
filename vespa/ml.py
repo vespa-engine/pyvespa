@@ -103,9 +103,16 @@ class SequenceClassification(TextTask):
         """
         Sequence Classification task.
 
+        It takes a text input and returns an array of floats depending on which
+        model is used to solve the task.
+
         :param model_id: Id used to identify the model on Vespa applications.
-        :param model: Id of the model as used by the model hub.
-        :param tokenizer: Id of the tokenizer as used by the model hub.
+        :param model: Id of the model as used by the model hub. Alternatively, it can
+            also be the path to the folder containing the model files, as long as
+            the model config is also there.
+        :param tokenizer: Id of the tokenizer as used by the model hub. Alternatively, it can
+            also be the path to the folder containing the tokenizer files, as long as
+            the model config is also there.
         :param output_file: Output file to write output messages.
         """
         super().__init__(
