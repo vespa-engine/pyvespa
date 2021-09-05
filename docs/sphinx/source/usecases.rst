@@ -12,3 +12,4 @@ This space will highlight use cases built with Vespa_.
    use_cases/cord19/cord19
    use_cases/text_search/text_search
    use_cases/qa/qa
+   sequence-classification-task-with-vespa-cloud
