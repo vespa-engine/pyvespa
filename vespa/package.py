@@ -6,7 +6,6 @@ from collections import OrderedDict
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 from vespa.json_serialization import ToJson, FromJson
-from vespa.ml import TextTask
 
 
 class HNSW(ToJson, FromJson["HNSW"]):
@@ -1130,6 +1129,19 @@ class ModelConfig(object):
         raise NotImplementedError
 
 
+class Task(object):
+    def __init__(
+        self,
+        model_id: str,
+    ):
+        """
+        Base class for ML Tasks.
+
+        :param model_id: Id used to identify the model on Vespa applications.
+        """
+        self.model_id = model_id
+
+
 class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
     def __init__(
         self,
@@ -1140,7 +1152,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         stateless_model_evaluation: bool = False,
         create_schema_by_default: bool = True,
         create_query_profile_by_default: bool = True,
-        tasks: Optional[List[TextTask]] = None,
+        tasks: Optional[List[Task]] = None,
     ) -> None:
         """
         Create a Vespa Application Package.
@@ -1398,7 +1410,7 @@ class ModelServer(ApplicationPackage):
     def __init__(
         self,
         name: str,
-        tasks: Optional[List[TextTask]] = None,
+        tasks: Optional[List[Task]] = None,
     ):
         """
         Create a Vespa stateless model evaluation server.
