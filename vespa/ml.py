@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 
 from vespa.package import (
     ModelConfig,
+    Task,
     OnnxModel,
     QueryTypeField,
     Field,
@@ -31,7 +32,7 @@ except ModuleNotFoundError:
     raise Exception("Use pip install pyvespa[ml] to install ml dependencies.")
 
 
-class TextTask(object):
+class TextTask(Task):
     def __init__(
         self,
         model_id: str,
@@ -47,7 +48,7 @@ class TextTask(object):
         :param tokenizer: Id of the tokenizer as used by the model hub.
         :param output_file: Output file to write output messages.
         """
-        self.model_id = model_id
+        super().__init__(model_id=model_id)
         self.model = model
         self.tokenizer = tokenizer
         if not self.tokenizer:
