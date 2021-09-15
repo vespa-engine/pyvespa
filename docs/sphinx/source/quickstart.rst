@@ -7,6 +7,7 @@ by clicking on the badge at the top of the tutorial.
 .. toctree::
 
    connect-to-vespa-instance
+   create-text-app
    create-and-deploy-vespa-cloud
    create-and-deploy-vespa-docker
    deploy-vespa-cloud
