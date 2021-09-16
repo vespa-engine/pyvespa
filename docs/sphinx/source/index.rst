@@ -35,8 +35,8 @@ You can install ``pyvespa`` via ``pip``:
 
 	pip install pyvespa
 
-Quick-start
-+++++++++++
+Overview
+++++++++
 
 There are three ways you can get value out of pyvespa:
 
@@ -47,31 +47,3 @@ There are three ways you can get value out of pyvespa:
 Read more:
 
 - :doc:`three-ways-to-get-started-with-pyvespa`
-
-Follow the tutorials below for a more in-depth treatment of each of the methods mentioned above.
-
-- :doc:`connect-to-vespa-instance`
-- :doc:`create-and-deploy-vespa-cloud`
-- :doc:`create-and-deploy-vespa-docker`
-
-How-to guides
-+++++++++++++
-
-- :doc:`howto/create_app_package/create_app_package`
-- :doc:`howto/deploy_app_package/deploy_app_package`
-- :doc:`query-model`
-- :doc:`query`
-- :doc:`evaluation`
-- :doc:`collect-training-data`
-
-Use cases
-+++++++++
-
-- :doc:`use_cases/cord19/cord19`
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
