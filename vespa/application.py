@@ -278,9 +278,13 @@ class Vespa(object):
         :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
         :return: List of HTTP POST responses
         """
-
         if not schema:
-            schema = self._infer_schema_name()
+            try:
+                schema = self._infer_schema_name()
+            except ValueError:
+                raise ValueError(
+                    "Not possible to infer schema name. Specify schema parameter."
+                )
 
         if asynchronous:
             coro = self._feed_batch_async(
@@ -334,6 +338,14 @@ class Vespa(object):
         :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
         :return: List of HTTP POST responses
         """
+        if not schema:
+            try:
+                schema = self._infer_schema_name()
+            except ValueError:
+                raise ValueError(
+                    "Not possible to infer schema name. Specify schema parameter."
+                )
+
         if asynchronous:
             coro = self._delete_batch_async(
                 schema=schema,
@@ -399,6 +411,14 @@ class Vespa(object):
         :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
         :return: List of HTTP POST responses
         """
+        if not schema:
+            try:
+                schema = self._infer_schema_name()
+            except ValueError:
+                raise ValueError(
+                    "Not possible to infer schema name. Specify schema parameter."
+                )
+
         if asynchronous:
             coro = self._get_batch_async(
                 schema=schema,
@@ -465,6 +485,14 @@ class Vespa(object):
         :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
         :return: List of HTTP POST responses
         """
+        if not schema:
+            try:
+                schema = self._infer_schema_name()
+            except ValueError:
+                raise ValueError(
+                    "Not possible to infer schema name. Specify schema parameter."
+                )
+
         if asynchronous:
             coro = self._update_batch_async(
                 schema=schema,
