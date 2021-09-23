@@ -18,7 +18,7 @@ from vespa.package import (
 from vespa.deployment import VespaDocker
 from vespa.ml import BertModelConfig, SequenceClassification
 from vespa.query import QueryModel, RankProfile as Ranking, OR, QueryRankingFeature
-from vespa.gallery import QuestionAnswering
+from vespa.gallery import QuestionAnswering, TextSearch
 from vespa.application import VespaSync
 
 
@@ -1255,6 +1255,33 @@ class TestQaApplication(TestApplicationCommon):
         shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_docker.container.stop()
         self.vespa_docker.container.remove()
+
+
+class TestGalleryTextSearch(unittest.TestCase):
+    def setUp(self) -> None:
+        #
+        # Create application
+        #
+        self.app_package = TextSearch(id_field="id", text_fields=["title", "body"])
+        #
+        # Deploy application
+        #
+        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        self.app = self.vespa_docker.deploy(application_package=self.app_package)
+        #
+        # Feed application
+        #
+        self.app.feed_batch(df)
+        # todo: Feed data with a pandas df
+
+    def test_query(self):
+        self.app.query(
+            query="this is a query"
+        )  # Make sure this take into account app_package
+        # is of type TextSearch, influencinng the QueryModel used.
+        #
+        # Not sure if I should parse the output
 
 
 class TestSequenceClassification(TestApplicationCommon):
