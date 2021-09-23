@@ -140,6 +140,26 @@ class Vespa(object):
         else:
             return "Vespa({})".format(self.url)
 
+    def _infer_schema_name(self):
+        if not self._application_package:
+            raise ValueError(
+                "Application Package not available. Not possible to infer schema name."
+            )
+
+        try:
+            schema = self._application_package.schema
+        except AssertionError:
+            raise ValueError(
+                "Application has more than one schema. Not possible to infer schema name."
+            )
+
+        if not schema:
+            raise ValueError(
+                "Application has no schema. Not possible to infer schema name."
+            )
+
+        return schema.name
+
     def get_application_status(self) -> Optional[Response]:
         """
         Get application status.
@@ -258,6 +278,9 @@ class Vespa(object):
         :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
         :return: List of HTTP POST responses
         """
+
+        if not schema:
+            schema = self._infer_schema_name()
 
         if asynchronous:
             coro = self._feed_batch_async(
