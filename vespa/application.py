@@ -149,9 +149,7 @@ class Vespa(object):
         with VespaSync(self) as sync_app:
             return sync_app.get_application_status()
 
-    def get_model_endpoint(
-        self, model_id: Optional[str] = None
-    ) -> Optional[Response]:
+    def get_model_endpoint(self, model_id: Optional[str] = None) -> Optional[Response]:
         """Get model evaluation endpoints."""
 
         with VespaSync(self) as sync_app:
@@ -243,8 +241,8 @@ class Vespa(object):
 
     def feed_batch(
         self,
-        schema: str,
         batch: List[Dict],
+        schema: Optional[str] = None,
         asynchronous=True,
         connections: Optional[int] = 100,
         total_timeout: int = 100,
@@ -252,8 +250,9 @@ class Vespa(object):
         """
         Feed a batch of data to a Vespa app.
 
-        :param schema: The schema that we are sending data to.
         :param batch: A list of dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
+        :param schema: The schema that we are sending data to. The schema is optional in case it is possible to infer
+            the schema from the application package.
         :param asynchronous: Set True to send data in async mode. Default to True.
         :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
         :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
@@ -295,8 +294,8 @@ class Vespa(object):
 
     def delete_batch(
         self,
-        schema: str,
         batch: List[Dict],
+        schema: Optional[str] = None,
         asynchronous=True,
         connections: Optional[int] = 100,
         total_timeout: int = 100,
@@ -304,8 +303,9 @@ class Vespa(object):
         """
         Delete a batch of data from a Vespa app.
 
-        :param schema: The schema that we are deleting data from.
         :param batch: A list of dict containing the key 'id'.
+        :param schema: The schema that we are deleting data from. The schema is optional in case it is possible to infer
+            the schema from the application package.
         :param asynchronous: Set True to get data in async mode. Default to True.
         :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
         :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
@@ -359,8 +359,8 @@ class Vespa(object):
 
     def get_batch(
         self,
-        schema: str,
         batch: List[Dict],
+        schema: Optional[str] = None,
         asynchronous=True,
         connections: Optional[int] = 100,
         total_timeout: int = 100,
@@ -368,8 +368,9 @@ class Vespa(object):
         """
         Get a batch of data from a Vespa app.
 
-        :param schema: The schema that we are getting data from.
         :param batch: A list of dict containing the key 'id'.
+        :param schema: The schema that we are getting data from. The schema is optional in case it is possible to infer
+            the schema from the application package.
         :param asynchronous: Set True to get data in async mode. Default to True.
         :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
         :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
@@ -424,8 +425,8 @@ class Vespa(object):
 
     def update_batch(
         self,
-        schema: str,
         batch: List[Dict],
+        schema: Optional[str] = None,
         asynchronous=True,
         connections: Optional[int] = 100,
         total_timeout: int = 100,
@@ -433,8 +434,9 @@ class Vespa(object):
         """
         Update a batch of data in a Vespa app.
 
-        :param schema: The schema that we are getting data from.
         :param batch: A list of dict containing the keys 'id', 'fields' and 'create' (create defaults to False).
+        :param schema: The schema that we are updating data to. The schema is optional in case it is possible to infer
+            the schema from the application package.
         :param asynchronous: Set True to update data in async mode. Default to True.
         :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
         :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
