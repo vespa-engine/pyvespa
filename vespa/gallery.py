@@ -1,3 +1,5 @@
+from typing import List
+
 from vespa.package import (
     Document,
     Field,
@@ -10,6 +12,41 @@ from vespa.package import (
     QueryProfileType,
     QueryTypeField,
 )
+
+
+class TextSearch(ApplicationPackage):
+    def __init__(
+        self, id_field: str, text_fields: List[str], name: str = "text-search"
+    ):
+        document = Document(
+            fields=[
+                Field(name=id_field, type="string", indexing=["attribute", "summary"])
+            ]
+            + [
+                Field(
+                    name=x,
+                    type="string",
+                    indexing=["index", "summary"],
+                    index="enable-bm25",
+                )
+                for x in text_fields
+            ]
+        )
+        default_field_set = FieldSet(name="default", fields=text_fields)
+
+        schema = Schema(
+            name=name,
+            document=document,
+            fieldsets=[default_field_set],
+            rank_profiles=[
+                RankProfile(name="default", first_phase="bm25(title) + bm25(abstract)"),
+                RankProfile(name="bm25", first_phase="bm25(title) + bm25(abstract)"),
+                RankProfile(
+                    name="native_rank", first_phase="bm25(title) + bm25(abstract)"
+                ),
+            ],
+        )
+        super().__init__(name=name, schema=[schema])
 
 
 class QuestionAnswering(ApplicationPackage):
