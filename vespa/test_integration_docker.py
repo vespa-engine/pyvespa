@@ -771,6 +771,93 @@ class TestApplicationCommon(unittest.TestCase):
         for idx, response in enumerate(result):
             self.assertEqual(response.status_code, 404)
 
+    def batch_operations_default_mode_with_one_schema(
+        self,
+        app,
+        schema_name,
+        fields_to_send,
+        expected_fields_from_get_operation,
+        fields_to_update,
+    ):
+        """
+        Document batch operations for applications with one schema
+
+        :param app: Vespa instance holding the connection to the application
+        :param schema_name: Schema name containing the document we want to send and retrieve data
+        :param fields_to_send: List of Dicts where keys are field names and values are field values. Must
+            contain 'id' field.
+        :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
+            There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
+        :param fields_to_update: Dict where keys are field names and values are field values.
+        :return:
+        """
+        #
+        # Create and feed documents
+        #
+        num_docs = len(fields_to_send)
+        schema = schema_name
+        docs = [{"id": fields["id"], "fields": fields} for fields in fields_to_send]
+        update_docs = [
+            {"id": fields["id"], "fields": fields} for fields in fields_to_update
+        ]
+
+        app.feed_batch(batch=docs)
+
+        #
+        # Verify that all documents are fed
+        #
+        result = app.query(
+            query="sddocname:{}".format(schema_name), query_model=QueryModel()
+        )
+        self.assertEqual(result.number_documents_indexed, num_docs)
+
+        #
+        # get batch data
+        #
+        result = app.get_batch(batch=docs)
+        for idx, response in enumerate(result):
+            self.assertDictEqual(
+                response.json["fields"], expected_fields_from_get_operation[idx]
+            )
+
+        #
+        # Update data
+        #
+        result = app.update_batch(batch=update_docs)
+        for idx, response in enumerate(result):
+            self.assertEqual(
+                response.json["id"],
+                "id:{}:{}::{}".format(schema, schema, fields_to_update[idx]["id"]),
+            )
+
+        #
+        # Get updated data
+        #
+        result = app.get_batch(batch=docs)
+        for idx, response in enumerate(result):
+            expected_updated_fields = {
+                k: v for k, v in expected_fields_from_get_operation[idx].items()
+            }
+            expected_updated_fields.update(fields_to_update[idx])
+            self.assertDictEqual(response.json["fields"], expected_updated_fields)
+
+        #
+        # Delete data
+        #
+        result = app.delete_batch(batch=docs)
+        for idx, response in enumerate(result):
+            self.assertEqual(
+                response.json["id"],
+                "id:{}:{}::{}".format(schema, schema, docs[idx]["id"]),
+            )
+
+        #
+        # get batch deleted data
+        #
+        result = app.get_batch(batch=docs)
+        for idx, response in enumerate(result):
+            self.assertEqual(response.status_code, 404)
+
     def get_model_endpoints_when_no_model_is_available(
         self, app, expected_model_endpoint
     ):
@@ -1025,6 +1112,15 @@ class TestMsmarcoApplication(TestApplicationCommon):
             fields_to_update=self.fields_to_update,
         )
 
+    def test_batch_operations_default_mode_with_one_schema(self):
+        self.batch_operations_default_mode_with_one_schema(
+            app=self.app,
+            schema_name=self.app_package.name,
+            fields_to_send=self.fields_to_send,
+            expected_fields_from_get_operation=self.fields_to_send,
+            fields_to_update=self.fields_to_update,
+        )
+
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_docker.container.stop()
@@ -1123,6 +1219,15 @@ class TestCord19Application(TestApplicationCommon):
 
     def test_batch_operations_asynchronous_mode(self):
         self.batch_operations_asynchronous_mode(
+            app=self.app,
+            schema_name=self.app_package.name,
+            fields_to_send=self.fields_to_send,
+            expected_fields_from_get_operation=self.expected_fields_from_get_operation,
+            fields_to_update=self.fields_to_update,
+        )
+
+    def test_batch_operations_default_mode_with_one_schema(self):
+        self.batch_operations_default_mode_with_one_schema(
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,

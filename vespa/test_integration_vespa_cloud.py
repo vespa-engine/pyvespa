@@ -93,6 +93,15 @@ class TestMsmarcoApplication(TestApplicationCommon):
             fields_to_update=self.fields_to_update,
         )
 
+    def test_batch_operations_default_mode_with_one_schema(self):
+        self.batch_operations_default_mode_with_one_schema(
+            app=self.app,
+            schema_name=self.app_package.name,
+            fields_to_send=self.fields_to_send,
+            expected_fields_from_get_operation=self.fields_to_send,
+            fields_to_update=self.fields_to_update,
+        )
+
     def tearDown(self) -> None:
         self.app.delete_all_docs(
             content_cluster_name="msmarco_content", schema="msmarco"
@@ -200,6 +209,15 @@ class TestCord19Application(TestApplicationCommon):
 
     def test_batch_operations_asynchronous_mode(self):
         self.batch_operations_asynchronous_mode(
+            app=self.app,
+            schema_name=self.app_package.name,
+            fields_to_send=self.fields_to_send,
+            expected_fields_from_get_operation=self.expected_fields_from_get_operation,
+            fields_to_update=self.fields_to_update,
+        )
+
+    def test_batch_operations_default_mode_with_one_schema(self):
+        self.batch_operations_default_mode_with_one_schema(
             app=self.app,
             schema_name=self.app_package.name,
             fields_to_send=self.fields_to_send,
