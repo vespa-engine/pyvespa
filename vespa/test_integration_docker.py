@@ -1385,21 +1385,22 @@ class TestGalleryTextSearch(unittest.TestCase):
                     "title": "This doc is about {}".format(x),
                     "body": "There is so much to learn about {}".format(x),
                 },
-            } for idx, x in enumerate(["finance", "sports", "celebrity", "weather", "politics"])
+            }
+            for idx, x in enumerate(
+                ["finance", "sports", "celebrity", "weather", "politics"]
+            )
         ]
         #
         # Feed application
         #
-        self.app.feed_batch()
-        # todo: Feed data with a pandas df
+        self.app.feed_batch(docs)
 
     def test_query(self):
-        self.app.query(
-            query="this is a query"
-        )  # Make sure this take into account app_package
-        # is of type TextSearch, influencinng the QueryModel used.
-        #
-        # Not sure if I should parse the output
+        result = self.app.query(
+            query="what is finance?", query_model=QueryModel(match_phase=OR())
+        )
+        for hit in result.hits:
+            self.assertIn("fields", hit)
 
 
 class TestSequenceClassification(TestApplicationCommon):
