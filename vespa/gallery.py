@@ -16,7 +16,7 @@ from vespa.package import (
 
 class TextSearch(ApplicationPackage):
     def __init__(
-        self, id_field: str, text_fields: List[str], name: str = "text-search"
+        self, id_field: str, text_fields: List[str], name: str = "text_search"
     ):
         document = Document(
             fields=[
