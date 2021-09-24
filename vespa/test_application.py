@@ -5,6 +5,7 @@ from unittest.mock import Mock, call
 from pandas import DataFrame
 from pandas.testing import assert_frame_equal
 
+from vespa.package import ApplicationPackage, ModelServer, Schema, Document
 from vespa.application import Vespa, parse_labeled_data
 from vespa.io import VespaQueryResponse
 from vespa.query import QueryModel, OR, RankProfile
@@ -21,6 +22,55 @@ class TestVespa(unittest.TestCase):
         self.assertEqual(
             Vespa(url="http://localhost/", port=8080).end_point, "http://localhost:8080"
         )
+
+    def test_infer_schema(self):
+        #
+        # No application package
+        #
+        app = Vespa(url="http://localhost", port=8080)
+        with self.assertRaisesRegex(
+            ValueError,
+            "Application Package not available. Not possible to infer schema name.",
+        ):
+            _ = app._infer_schema_name()
+        #
+        # No schema
+        #
+        app_package = ModelServer(name="test")
+        app = Vespa(url="http://localhost", port=8080, application_package=app_package)
+        with self.assertRaisesRegex(
+            ValueError,
+            "Application has no schema. Not possible to infer schema name.",
+        ):
+            _ = app._infer_schema_name()
+        #
+        # More than one schema
+        #
+        app_package = ApplicationPackage(
+            name="test",
+            schema=[
+                Schema(name="x", document=Document()),
+                Schema(name="y", document=Document()),
+            ],
+        )
+        app = Vespa(url="http://localhost", port=8080, application_package=app_package)
+        with self.assertRaisesRegex(
+            ValueError,
+            "Application has more than one schema. Not possible to infer schema name.",
+        ):
+            _ = app._infer_schema_name()
+        #
+        # One schema
+        #
+        app_package = ApplicationPackage(
+            name="test",
+            schema=[
+                Schema(name="x", document=Document()),
+            ],
+        )
+        app = Vespa(url="http://localhost", port=8080, application_package=app_package)
+        schema_name = app._infer_schema_name()
+        self.assertEqual("x", schema_name)
 
 
 class TestVespaQuery(unittest.TestCase):
@@ -216,8 +266,12 @@ class TestVespaCollectData(unittest.TestCase):
 
         self.app.query = Mock(
             side_effect=[
-                VespaQueryResponse(self.raw_vespa_result_recall, status_code=None, url=None),
-                VespaQueryResponse(self.raw_vespa_result_additional, status_code=None, url=None),
+                VespaQueryResponse(
+                    self.raw_vespa_result_recall, status_code=None, url=None
+                ),
+                VespaQueryResponse(
+                    self.raw_vespa_result_additional, status_code=None, url=None
+                ),
             ]
         )
         query_model = QueryModel(rank_profile=RankProfile(list_features=True))
@@ -281,8 +335,12 @@ class TestVespaCollectData(unittest.TestCase):
 
         self.app.query = Mock(
             side_effect=[
-                VespaQueryResponse(self.raw_vespa_result_recall, status_code=None, url=None),
-                VespaQueryResponse(self.raw_vespa_result_additional, status_code=None, url=None),
+                VespaQueryResponse(
+                    self.raw_vespa_result_recall, status_code=None, url=None
+                ),
+                VespaQueryResponse(
+                    self.raw_vespa_result_additional, status_code=None, url=None
+                ),
             ]
         )
         query_model = QueryModel(rank_profile=RankProfile(list_features=True))
@@ -358,8 +416,12 @@ class TestVespaCollectData(unittest.TestCase):
         }
         self.app.query = Mock(
             side_effect=[
-                VespaQueryResponse(self.raw_vespa_result_recall, status_code=None, url=None),
-                VespaQueryResponse(self.raw_vespa_result_additional, status_code=None, url=None),
+                VespaQueryResponse(
+                    self.raw_vespa_result_recall, status_code=None, url=None
+                ),
+                VespaQueryResponse(
+                    self.raw_vespa_result_additional, status_code=None, url=None
+                ),
             ]
         )
         query_model = QueryModel(rank_profile=RankProfile(list_features=True))
@@ -540,4 +602,3 @@ class TestVespaEvaluate(unittest.TestCase):
             evaluation,
             {"model": "default_name", "query_id": "0", "metric": 1, "metric_2": 2},
         )
-
