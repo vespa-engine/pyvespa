@@ -39,10 +39,16 @@ class TextSearch(ApplicationPackage):
             document=document,
             fieldsets=[default_field_set],
             rank_profiles=[
-                RankProfile(name="default", first_phase="bm25(title) + bm25(abstract)"),
-                RankProfile(name="bm25", first_phase="bm25(title) + bm25(abstract)"),
                 RankProfile(
-                    name="native_rank", first_phase="bm25(title) + bm25(abstract)"
+                    name="default",
+                    first_phase=" + ".join(["bm25({})".format(x) for x in text_fields]),
+                ),
+                RankProfile(
+                    name="bm25",
+                    first_phase=" + ".join(["bm25({})".format(x) for x in text_fields]),
+                ),
+                RankProfile(
+                    name="native_rank", first_phase="nativeRank({})".format(",".join(text_fields))
                 ),
             ],
         )
