@@ -2,7 +2,10 @@ import os
 import asyncio
 import shutil
 import json
+import unittest
 
+from vespa.query import QueryModel, OR
+from vespa.gallery import TextSearch
 from vespa.deployment import VespaCloud
 from vespa.test_integration_docker import (
     TestApplicationCommon,
@@ -47,7 +50,9 @@ class TestMsmarcoApplication(TestApplicationCommon):
         # The port should not be 4443, see https://jira.vzbuilders.com/browse/VESPA-21365
         self.get_model_endpoints_when_no_model_is_available(
             app=self.app,
-            expected_model_endpoint="https://{}-container.{}.pyvespa-integration.vespa-team.aws-us-east-1c.dev.z.vespa-app.cloud:4443/model-evaluation/v1/".format(self.app_package.name, self.instance_name),
+            expected_model_endpoint="https://{}-container.{}.pyvespa-integration.vespa-team.aws-us-east-1c.dev.z.vespa-app.cloud:4443/model-evaluation/v1/".format(
+                self.app_package.name, self.instance_name
+            ),
         )
 
     def test_prediction_when_model_not_defined(self):
@@ -168,7 +173,9 @@ class TestCord19Application(TestApplicationCommon):
         # The port should not be 4443, see https://jira.vzbuilders.com/browse/VESPA-21365
         self.get_model_endpoints_when_no_model_is_available(
             app=self.app,
-            expected_model_endpoint="https://{}-container.{}.pyvespa-integration.vespa-team.aws-us-east-1c.dev.z.vespa-app.cloud:4443/model-evaluation/v1/".format(self.app_package.name, self.instance_name),
+            expected_model_endpoint="https://{}-container.{}.pyvespa-integration.vespa-team.aws-us-east-1c.dev.z.vespa-app.cloud:4443/model-evaluation/v1/".format(
+                self.app_package.name, self.instance_name
+            ),
         )
 
     def test_prediction_when_model_not_defined(self):
@@ -290,7 +297,9 @@ class TestQaApplication(TestApplicationCommon):
         # The port should not be 4443, see https://jira.vzbuilders.com/browse/VESPA-21365
         self.get_model_endpoints_when_no_model_is_available(
             app=self.app,
-            expected_model_endpoint="https://{}-container.{}.pyvespa-integration.vespa-team.aws-us-east-1c.dev.z.vespa-app.cloud:4443/model-evaluation/v1/".format(self.app_package.name, self.instance_name),
+            expected_model_endpoint="https://{}-container.{}.pyvespa-integration.vespa-team.aws-us-east-1c.dev.z.vespa-app.cloud:4443/model-evaluation/v1/".format(
+                self.app_package.name, self.instance_name
+            ),
         )
 
     def test_prediction_when_model_not_defined(self):
@@ -350,6 +359,61 @@ class TestQaApplication(TestApplicationCommon):
     def tearDown(self) -> None:
         self.app.delete_all_docs(content_cluster_name="qa_content", schema="sentence")
         self.app.delete_all_docs(content_cluster_name="qa_content", schema="context")
+        shutil.rmtree(self.disk_folder, ignore_errors=True)
+
+
+class TestGalleryTextSearch(unittest.TestCase):
+    def setUp(self) -> None:
+        #
+        # Create application
+        #
+        self.app_package = TextSearch(id_field="id", text_fields=["title", "body"])
+        #
+        # Deploy application
+        #
+        self.vespa_cloud = VespaCloud(
+            tenant="vespa-team",
+            application="pyvespa-integration",
+            key_content=os.getenv("VESPA_CLOUD_USER_KEY").replace(r"\n", "\n"),
+            application_package=self.app_package,
+        )
+        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.instance_name = "text-search"
+        self.app = self.vespa_cloud.deploy(
+            instance=self.instance_name, disk_folder=self.disk_folder
+        )
+        #
+        # Create sample data
+        #
+        docs = [
+            {
+                "id": idx,
+                "fields": {
+                    "id": idx,
+                    "title": "This doc is about {}".format(x),
+                    "body": "There is so much to learn about {}".format(x),
+                },
+            }
+            for idx, x in enumerate(
+                ["finance", "sports", "celebrity", "weather", "politics"]
+            )
+        ]
+        #
+        # Feed application
+        #
+        self.app.feed_batch(docs)
+
+    def test_query(self):
+        result = self.app.query(
+            query="what is finance?", query_model=QueryModel(match_phase=OR())
+        )
+        for hit in result.hits:
+            self.assertIn("fields", hit)
+
+    def tearDown(self) -> None:
+        self.app.delete_all_docs(
+            content_cluster_name="text_search_content", schema="text_search"
+        )
         shutil.rmtree(self.disk_folder, ignore_errors=True)
 
 

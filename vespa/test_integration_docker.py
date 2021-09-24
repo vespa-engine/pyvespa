@@ -18,7 +18,7 @@ from vespa.package import (
 from vespa.deployment import VespaDocker
 from vespa.ml import BertModelConfig, SequenceClassification
 from vespa.query import QueryModel, RankProfile as Ranking, OR, QueryRankingFeature
-from vespa.gallery import QuestionAnswering
+from vespa.gallery import QuestionAnswering, TextSearch
 from vespa.application import VespaSync
 
 
@@ -1355,6 +1355,52 @@ class TestQaApplication(TestApplicationCommon):
             expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
             fields_to_update=self.fields_to_update,
         )
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.disk_folder, ignore_errors=True)
+        self.vespa_docker.container.stop()
+        self.vespa_docker.container.remove()
+
+
+class TestGalleryTextSearch(unittest.TestCase):
+    def setUp(self) -> None:
+        #
+        # Create application
+        #
+        self.app_package = TextSearch(id_field="id", text_fields=["title", "body"])
+        #
+        # Deploy application
+        #
+        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        self.app = self.vespa_docker.deploy(application_package=self.app_package)
+        #
+        # Create sample data
+        #
+        docs = [
+            {
+                "id": idx,
+                "fields": {
+                    "id": idx,
+                    "title": "This doc is about {}".format(x),
+                    "body": "There is so much to learn about {}".format(x),
+                },
+            }
+            for idx, x in enumerate(
+                ["finance", "sports", "celebrity", "weather", "politics"]
+            )
+        ]
+        #
+        # Feed application
+        #
+        self.app.feed_batch(docs)
+
+    def test_query(self):
+        result = self.app.query(
+            query="what is finance?", query_model=QueryModel(match_phase=OR())
+        )
+        for hit in result.hits:
+            self.assertIn("fields", hit)
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
