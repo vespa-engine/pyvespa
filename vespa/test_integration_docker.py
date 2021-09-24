@@ -1402,6 +1402,11 @@ class TestGalleryTextSearch(unittest.TestCase):
         for hit in result.hits:
             self.assertIn("fields", hit)
 
+    def tearDown(self) -> None:
+        shutil.rmtree(self.disk_folder, ignore_errors=True)
+        self.vespa_docker.container.stop()
+        self.vespa_docker.container.remove()
+
 
 class TestSequenceClassification(TestApplicationCommon):
     def setUp(self) -> None:
