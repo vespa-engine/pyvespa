@@ -1270,9 +1270,22 @@ class TestGalleryTextSearch(unittest.TestCase):
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
         self.app = self.vespa_docker.deploy(application_package=self.app_package)
         #
+        # Create sample data
+        #
+        docs = [
+            {
+                "id": idx,
+                "fields": {
+                    "id": idx,
+                    "title": "This doc is about {}".format(x),
+                    "body": "There is so much to learn about {}".format(x),
+                },
+            } for idx, x in enumerate(["finance", "sports", "celebrity", "weather", "politics"])
+        ]
+        #
         # Feed application
         #
-        self.app.feed_batch(df)
+        self.app.feed_batch()
         # todo: Feed data with a pandas df
 
     def test_query(self):
