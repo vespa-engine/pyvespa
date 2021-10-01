@@ -59,6 +59,31 @@ def parse_labeled_data(df):
     return labeled_data
 
 
+def parse_feed_df(df: DataFrame, include_id):
+    """
+    Convert a df into batch format for feeding
+
+    :param df: DataFrame with the following required columns ["id"]. Additional columns are assumed to be fields.
+    :param include_id: Include id on the fields to be fed.
+    :return: List of Dict containing 'id' and 'fields'.
+    """
+    required_columns = ["id"]
+    assert all(
+        [x in list(df.columns) for x in required_columns]
+    ), "DataFrame needs at least the following columns: {}".format(required_columns)
+    records = df.to_dict(orient="records")
+    batch = [
+        {
+            "id": record["id"],
+            "fields": record
+            if include_id
+            else {k: v for k, v in record.items() if k not in ["id"]},
+        }
+        for record in records
+    ]
+    return batch
+
+
 class Vespa(object):
     def __init__(
         self,
@@ -296,6 +321,18 @@ class Vespa(object):
             return self._check_for_running_loop_and_run_coroutine(coro=coro)
         else:
             return self._feed_batch_sync(schema=schema, batch=batch)
+
+    def feed_df(self, df: DataFrame, include_id: bool = True, **kwargs):
+        """
+        Feed data contained in a DataFrame.
+
+        :param df: A DataFrame containing a required 'id' column and the remaining fields to be fed.
+        :param include_id: Include id on the fields to be fed. Default to True.
+        :param kwargs: Additional parameters are passed to :func:`feed_batch`.
+        :return: List of HTTP POST responses
+        """
+        batch = parse_feed_df(df=df, include_id=include_id)
+        return self.feed_batch(batch=batch, **kwargs)
 
     def delete_data(self, schema: str, data_id: str) -> VespaResponse:
         """
