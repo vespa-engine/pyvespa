@@ -6,7 +6,7 @@ from pandas import DataFrame
 from pandas.testing import assert_frame_equal
 
 from vespa.package import ApplicationPackage, ModelServer, Schema, Document
-from vespa.application import Vespa, parse_labeled_data
+from vespa.application import Vespa, parse_labeled_data, parse_feed_df
 from vespa.io import VespaQueryResponse
 from vespa.query import QueryModel, OR, RankProfile
 
@@ -185,6 +185,62 @@ class TestLabeledData(unittest.TestCase):
         )
         with self.assertRaises(AssertionError):
             _ = parse_labeled_data(df=labeled_data_df)
+
+
+class TestParseFeedDataFrame(unittest.TestCase):
+    def setUp(self) -> None:
+        records = [
+            {
+                "id": idx,
+                "title": "This doc is about {}".format(x),
+                "body": "There is so much to learn about {}".format(x),
+            }
+            for idx, x in enumerate(
+                ["finance", "sports", "celebrity", "weather", "politics"]
+            )
+        ]
+        self.df = DataFrame.from_records(records)
+
+    def test_parse_simplified_feed_batch(self):
+        batch = parse_feed_df(self.df, include_id=True)
+        expected_batch = [
+            {
+                "id": idx,
+                "fields": {
+                    "id": idx,
+                    "title": "This doc is about {}".format(x),
+                    "body": "There is so much to learn about {}".format(x),
+                },
+            }
+            for idx, x in enumerate(
+                ["finance", "sports", "celebrity", "weather", "politics"]
+            )
+        ]
+        self.assertEqual(expected_batch, batch)
+
+    def test_parse_simplified_feed_batch_not_including_id(self):
+        batch = parse_feed_df(self.df, include_id=False)
+        expected_batch = [
+            {
+                "id": idx,
+                "fields": {
+                    "title": "This doc is about {}".format(x),
+                    "body": "There is so much to learn about {}".format(x),
+                },
+            }
+            for idx, x in enumerate(
+                ["finance", "sports", "celebrity", "weather", "politics"]
+            )
+        ]
+        self.assertEqual(expected_batch, batch)
+
+    def test_parse_simplified_feed_batch_with_wrong_columns(self):
+        missing_id_df = self.df[["title", "body"]]
+        with self.assertRaisesRegex(
+            AssertionError,
+            "DataFrame needs at least the following columns: \['id'\]",
+        ):
+            _ = parse_feed_df(df=missing_id_df, include_id=True)
 
 
 class TestVespaCollectData(unittest.TestCase):
