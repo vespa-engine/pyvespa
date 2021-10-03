@@ -628,7 +628,7 @@ class Vespa(object):
 
     def collect_training_data(
         self,
-        labeled_data: List[Dict],
+        labeled_data: Union[List[Dict], DataFrame],
         id_field: str,
         query_model: QueryModel,
         number_additional_docs: int,
@@ -640,7 +640,31 @@ class Vespa(object):
         """
         Collect training data based on a set of labelled data.
 
-        :param labeled_data: Labelled data containing query, query_id and relevant ids.
+        labeled_data can be a DataFrame or a List of Dict:
+
+        >>> labeled_data_df = DataFrame(
+        ...     data={
+        ...         "qid": [0, 0, 1, 1],
+        ...         "query": ["Intrauterine virus infections and congenital heart disease", "Intrauterine virus infections and congenital heart disease", "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus", "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus"],
+        ...         "doc_id": [0, 3, 1, 5],
+        ...         "relevance": [1,1,1,1]
+        ...     }
+        ... )
+
+        >>> labeled_data = [
+        ...     {
+        ...         "query_id": 0,
+        ...         "query": "Intrauterine virus infections and congenital heart disease",
+        ...         "relevant_docs": [{"id": 0, "score": 1}, {"id": 3, "score": 1}]
+        ...     },
+        ...     {
+        ...         "query_id": 1,
+        ...         "query": "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus",
+        ...         "relevant_docs": [{"id": 1, "score": 1}, {"id": 5, "score": 1}]
+        ...     }
+        ... ]
+
+        :param labeled_data: Labelled data containing query, query_id and relevant ids. See details about data format.
         :param id_field: The Vespa field representing the document id.
         :param query_model: Query model.
         :param number_additional_docs: Number of additional documents to retrieve for each relevant document.
@@ -652,6 +676,9 @@ class Vespa(object):
         :return: DataFrame containing document id (document_id), query id (query_id), scores (relevant)
             and vespa rank features returned by the Query model RankProfile used.
         """
+
+        if isinstance(labeled_data, DataFrame):
+            labeled_data = parse_labeled_data(df=labeled_data)
 
         training_data = []
         number_queries = len(labeled_data)
