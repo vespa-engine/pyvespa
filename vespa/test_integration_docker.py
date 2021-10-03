@@ -4,6 +4,7 @@ import re
 import shutil
 import asyncio
 import json
+from pandas import DataFrame
 from vespa.package import (
     HNSW,
     Document,
@@ -1375,25 +1376,23 @@ class TestGalleryTextSearch(unittest.TestCase):
         self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
         self.app = self.vespa_docker.deploy(application_package=self.app_package)
         #
-        # Create sample data
+        # Create a sample data frame
         #
-        docs = [
+        records = [
             {
                 "id": idx,
-                "fields": {
-                    "id": idx,
-                    "title": "This doc is about {}".format(x),
-                    "body": "There is so much to learn about {}".format(x),
-                },
+                "title": "This doc is about {}".format(x),
+                "body": "There is so much to learn about {}".format(x),
             }
             for idx, x in enumerate(
                 ["finance", "sports", "celebrity", "weather", "politics"]
             )
         ]
+        df = DataFrame.from_records(records)
         #
         # Feed application
         #
-        self.app.feed_batch(docs)
+        self.app.feed_df(df)
 
     def test_query(self):
         result = self.app.query(

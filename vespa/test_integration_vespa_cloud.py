@@ -3,7 +3,7 @@ import asyncio
 import shutil
 import json
 import unittest
-
+from pandas import DataFrame
 from vespa.query import QueryModel, OR
 from vespa.gallery import TextSearch
 from vespa.deployment import VespaCloud
@@ -383,25 +383,23 @@ class TestGalleryTextSearch(unittest.TestCase):
             instance=self.instance_name, disk_folder=self.disk_folder
         )
         #
-        # Create sample data
+        # Create a sample data frame
         #
-        docs = [
+        records = [
             {
                 "id": idx,
-                "fields": {
-                    "id": idx,
-                    "title": "This doc is about {}".format(x),
-                    "body": "There is so much to learn about {}".format(x),
-                },
+                "title": "This doc is about {}".format(x),
+                "body": "There is so much to learn about {}".format(x),
             }
             for idx, x in enumerate(
                 ["finance", "sports", "celebrity", "weather", "politics"]
             )
         ]
+        df = DataFrame.from_records(records)
         #
         # Feed application
         #
-        self.app.feed_batch(docs)
+        self.app.feed_df(df)
 
     def test_query(self):
         result = self.app.query(
