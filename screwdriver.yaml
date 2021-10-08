@@ -9,7 +9,7 @@ jobs:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
       screwdriver.cd/ram: HIGH
-      screwdriver.cd/buildPeriodically: ‘0 8 * * *’
+      screwdriver.cd/buildPeriodically: ‘H 23 * * *’
     steps:
       - setup: |
           export WORK_DIR=$SD_DIND_SHARE_PATH
@@ -39,7 +39,7 @@ jobs:
       screwdriver.cd/dockerEnabled: true
       screwdriver.cd/dockerCpu: TURBO
       screwdriver.cd/dockerRam: TURBO
-      screwdriver.cd/buildPeriodically: ‘0 8 * * *’
+      screwdriver.cd/buildPeriodically: ‘H 23 * * *’
     steps:
       - setup: |
           export WORK_DIR=$SD_DIND_SHARE_PATH
@@ -68,7 +68,7 @@ jobs:
       screwdriver.cd/dockerEnabled: true
       screwdriver.cd/dockerCpu: TURBO
       screwdriver.cd/dockerRam: TURBO
-      screwdriver.cd/buildPeriodically: ‘0 8 * * *’
+      screwdriver.cd/buildPeriodically: ‘H 23 * * *’
     steps:
       - setup: |
           dnf install -y git
@@ -99,7 +99,7 @@ jobs:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
       screwdriver.cd/ram: HIGH
-      screwdriver.cd/buildPeriodically: ‘0 8 * * *’
+      screwdriver.cd/buildPeriodically: ‘H 23 * * *’
     secrets:
       - VESPA_CLOUD_USER_KEY
     environment:
@@ -121,7 +121,6 @@ jobs:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
       screwdriver.cd/ram: HIGH
-      screwdriver.cd/buildPeriodically: ‘0 8 * * *’
     secrets:
       - VESPA_CLOUD_USER_KEY
     environment:
@@ -146,7 +145,6 @@ jobs:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
       screwdriver.cd/ram: HIGH
-      screwdriver.cd/buildPeriodically: ‘0 8 * * *’
     secrets:
       - TEST_PYPI_TOKEN
     steps:
@@ -166,7 +164,6 @@ jobs:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
       screwdriver.cd/ram: HIGH
-      screwdriver.cd/buildPeriodically: ‘0 8 * * *’
     steps:
       - setup: |
           export RESOURCES_DIR=$(pwd)/vespa/resources
