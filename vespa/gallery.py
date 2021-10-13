@@ -12,6 +12,7 @@ from vespa.package import (
     QueryProfileType,
     QueryTypeField,
 )
+from vespa.query import QueryModel, AND, RankProfile as Ranking
 
 
 class TextSearch(ApplicationPackage):
@@ -48,11 +49,18 @@ class TextSearch(ApplicationPackage):
                     first_phase=" + ".join(["bm25({})".format(x) for x in text_fields]),
                 ),
                 RankProfile(
-                    name="native_rank", first_phase="nativeRank({})".format(",".join(text_fields))
+                    name="native_rank",
+                    first_phase="nativeRank({})".format(",".join(text_fields)),
                 ),
             ],
         )
-        super().__init__(name=name, schema=[schema])
+        super().__init__(
+            name=name,
+            schema=[schema],
+            default_query_model=QueryModel(
+                name="and_bm25", match_phase=AND(), rank_profile=Ranking(name="bm25")
+            ),
+        )
 
 
 class QuestionAnswering(ApplicationPackage):
