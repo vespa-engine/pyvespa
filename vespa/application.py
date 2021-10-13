@@ -208,6 +208,8 @@ class Vespa(object):
         **kwargs
     ) -> Dict:
         assert query is not None, "No 'query' specified."
+        if not query_model:
+            query_model = self.get_default_query_model()
         assert query_model is not None, "No 'query_model' specified."
         body = query_model.create_body(query=query)
         if recall is not None:
@@ -851,6 +853,13 @@ class Vespa(object):
             raise ValueError("Application package not available.")
         else:
             return self._application_package
+
+    def get_default_query_model(self):
+        try:
+            app_package = self.application_package
+        except ValueError:
+            return None
+        return app_package.default_query_model
 
     def get_model_from_application_package(self, model_name: str):
         """Get model definition from application package, if available."""
