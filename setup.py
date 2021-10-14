@@ -32,8 +32,7 @@ setuptools.setup(
         "tenacity",
     ],
     extras_require={
-        "ml": ["transformers==4.10.3", "torch"],
-        "full": ["transformers==4.10.3", "torch", "onnxruntime"],
+        "full": ["onnxruntime"],
     },
     python_requires=">=3.6",
     zip_safe=False,
