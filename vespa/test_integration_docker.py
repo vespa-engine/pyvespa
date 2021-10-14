@@ -320,6 +320,12 @@ class TestApplicationCommon(unittest.TestCase):
             },
         )
         #
+        # Query with 'query' without QueryModel
+        #
+        with self.assertRaisesRegex(AssertionError, "No 'query_model' specified."):
+            _ = app.query(query="this should not work")
+
+        #
         # Update data
         #
         response = app.update_data(
@@ -1394,10 +1400,16 @@ class TestGalleryTextSearch(unittest.TestCase):
         #
         self.app.feed_df(df)
 
+    def test_default_query_model(self):
+        result = self.app.query(query="what is finance?", debug_request=True)
+        expected_request_body = {
+            "yql": 'select * from sources * where (userInput("what is finance?"));',
+            "ranking": {"profile": "bm25", "listFeatures": "false"},
+        }
+        self.assertDictEqual(expected_request_body, result.request_body)
+
     def test_query(self):
-        result = self.app.query(
-            query="what is finance?", query_model=QueryModel(match_phase=OR())
-        )
+        result = self.app.query(query="what is finance?")
         for hit in result.hits:
             self.assertIn("fields", hit)
 

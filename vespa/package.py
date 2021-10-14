@@ -6,6 +6,7 @@ from collections import OrderedDict
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 from vespa.json_serialization import ToJson, FromJson
+from vespa.query import QueryModel
 
 
 class HNSW(ToJson, FromJson["HNSW"]):
@@ -1153,6 +1154,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         create_schema_by_default: bool = True,
         create_query_profile_by_default: bool = True,
         tasks: Optional[List[Task]] = None,
+        default_query_model: Optional[QueryModel] = None
     ) -> None:
         """
         Create a Vespa Application Package.
@@ -1173,6 +1175,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         :param create_query_profile_by_default: Include a default :class:`QueryProfile` and :class:`QueryProfileType`
             in case it is not explicitly defined by the user in the `query_profile` and `query_profile_type` parameters.
         :param tasks: List of tasks to be served.
+        :param default_query_model: Optional QueryModel to be used as default for the application.
 
         The easiest way to get started is to create a default application package:
 
@@ -1200,6 +1203,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         self.model_configs = {}
         self.stateless_model_evaluation = stateless_model_evaluation
         self.models = {} if not tasks else {model.model_id: model for model in tasks}
+        self.default_query_model = default_query_model
 
     @property
     def schemas(self) -> List[Schema]:
