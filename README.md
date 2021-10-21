@@ -6,3 +6,8 @@
 [Vespa](https://vespa.ai/) is the scalable open-sourced serving engine that enable us to store, compute and rank big data at user serving time. `pyvespa` provides a python API to Vespa. It allow us to create, modify, deploy and interact with running Vespa instances. The main goal of the library is to allow for faster prototyping and to facilitate Machine Learning experiments for Vespa applications.
 
 * [pyvespa official documentation](https://pyvespa.readthedocs.io/en/latest/index.html) 
+
+## License
+
+Code licensed under the Apache 2.0 license. See [LICENSE](LICENSE) for terms.
+
