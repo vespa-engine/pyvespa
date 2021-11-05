@@ -1205,6 +1205,7 @@ class VespaAsync(object):
             ],
         )
 
+    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def delete_data(self, schema: str, data_id: str) -> VespaResponse:
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
             self.app.end_point, schema, schema, str(data_id)
@@ -1230,6 +1231,7 @@ class VespaAsync(object):
             [(schema, data_point["id"], sem) for data_point in batch],
         )
 
+    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def get_data(self, schema: str, data_id: str):
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
             self.app.end_point, schema, schema, str(data_id)
@@ -1255,6 +1257,7 @@ class VespaAsync(object):
             [(schema, data_point["id"], sem) for data_point in batch],
         )
 
+    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def update_data(
         self, schema: str, data_id: str, fields: Dict, create: bool = False
     ) -> VespaResponse:
