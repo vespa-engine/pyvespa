@@ -10,6 +10,7 @@ Vespa python API
    :hidden:
 
    install
+   three-ways-to-get-started-with-pyvespa
    quickstart
    howto
    usecases
