@@ -10,4 +10,5 @@ by clicking on the badge at the top of the tutorial.
    create-text-app
    deploy-vespa-docker
    deploy-vespa-cloud
+   feed-query-and-other-document-operations
 
