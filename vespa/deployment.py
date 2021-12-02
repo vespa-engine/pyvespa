@@ -35,7 +35,8 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         """
         Manage Docker deployments.
 
-        :param disk_folder: Disk folder to save the required Vespa config files.
+        :param disk_folder: Disk folder to save the required Vespa config files. Default to application name
+            folder within user's current working directory.
         :param port: Container port.
         :param output_file: Output file to write output messages.
         :param container_memory: Docker container memory available to the application.
@@ -706,7 +707,8 @@ class VespaCloud(object):
         Deploy the given application package as the given instance in the Vespa Cloud dev environment.
 
         :param instance: Name of this instance of the application, in the Vespa Cloud.
-        :param disk_folder: Disk folder to save the required Vespa config files.
+        :param disk_folder: Disk folder to save the required Vespa config files. Default to application name
+            folder within user's current working directory.
 
         :return: a Vespa connection instance.
         """
