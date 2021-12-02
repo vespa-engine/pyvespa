@@ -59,6 +59,33 @@ jobs:
           pytest vespa/test_integration_running_instance.py -s
       - run-integration-docker: |
           pytest vespa/test_integration_docker.py -s
+  integration-docker-msmarco:
+    requires: [~commit,~pr]
+    annotations:
+      screwdriver.cd/timeout: 120
+      screwdriver.cd/cpu: HIGH
+      screwdriver.cd/ram: HIGH
+      screwdriver.cd/dockerEnabled: true
+      screwdriver.cd/dockerCpu: TURBO
+      screwdriver.cd/dockerRam: TURBO
+      screwdriver.cd/buildPeriodically: H 11 * * *
+    steps:
+      - setup: |
+          export WORK_DIR=$SD_DIND_SHARE_PATH
+          export RESOURCES_DIR=$(pwd)/vespa/resources
+      - install-docker: |
+          dnf install -y dnf-plugins-core
+          dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+          dnf install -y docker-ce-cli
+          docker system info
+          ls -la $SD_DIND_SHARE_PATH
+      - install-python: |
+          dnf install -y python38-pip
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest
+          python3 -m pip install -e .[full]
+      - run-docker-msmarco: |
+          pytest vespa/test_integration_docker_msmarco.py -s
   notebooks-except-cloud:
     requires: [~commit,~pr]
     annotations:

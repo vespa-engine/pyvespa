@@ -9,11 +9,11 @@ from vespa.gallery import TextSearch
 from vespa.deployment import VespaCloud
 from vespa.test_integration_docker import (
     TestApplicationCommon,
-    create_msmarco_application_package,
     create_cord19_application_package,
     create_qa_application_package,
     create_sequence_classification_task,
 )
+from vespa.test_integration_docker_msmarco import create_msmarco_application_package
 
 
 class TestMsmarcoApplication(TestApplicationCommon):
