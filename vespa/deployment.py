@@ -26,7 +26,7 @@ from vespa.package import ApplicationPackage, ModelServer
 class VespaDocker(ToJson, FromJson["VespaDocker"]):
     def __init__(
         self,
-        disk_folder: str,
+        disk_folder: Optional[str] = None,
         port: int = 8080,
         container_memory: Union[str, int] = 4 * (1024 ** 3),
         output_file: IO = sys.stdout,
@@ -135,6 +135,9 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         :param application_package: Application package to export.
         :return: None. Application package file will be stored on `disk_folder`.
         """
+        if not self.disk_folder:
+            self.disk_folder = os.path.join(os.getcwd(), application_package.name)
+
         Path(os.path.join(self.disk_folder, "application/schemas")).mkdir(
             parents=True, exist_ok=True
         )
@@ -257,6 +260,8 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         :param application_package: ApplicationPackage to be deployed.
         :return: a Vespa connection instance.
         """
+        if not self.disk_folder:
+            self.disk_folder = os.path.join(os.getcwd(), application_package.name)
 
         self.export_application_package(application_package=application_package)
 
@@ -281,6 +286,8 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             If None, we assume `disk_folder` to be the application folder.
         :return: a Vespa connection instance.
         """
+        if not self.disk_folder:
+            self.disk_folder = os.path.join(os.getcwd(), application_name)
 
         return self._execute_deployment(
             application_name=application_name,
@@ -694,7 +701,7 @@ class VespaCloud(object):
                 file=self.output,
             )
 
-    def deploy(self, instance: str, disk_folder: str) -> Vespa:
+    def deploy(self, instance: str, disk_folder: Optional[str] = None) -> Vespa:
         """
         Deploy the given application package as the given instance in the Vespa Cloud dev environment.
 
@@ -703,6 +710,10 @@ class VespaCloud(object):
 
         :return: a Vespa connection instance.
         """
+
+        if not disk_folder:
+            disk_folder = os.path.join(os.getcwd(), self.application_package.name)
+
         region = self._get_dev_region()
         job = "dev-" + region
         run = self._start_deployment(instance, job, disk_folder)
