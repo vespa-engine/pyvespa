@@ -91,6 +91,7 @@ class Vespa(object):
         port: Optional[int] = None,
         deployment_message: Optional[List[str]] = None,
         cert: Optional[str] = None,
+        key: Optional[str] = None,
         output_file: IO = sys.stdout,
         application_package: Optional[ApplicationPackage] = None,
     ) -> None:
@@ -100,7 +101,9 @@ class Vespa(object):
         :param url: Vespa instance URL.
         :param port: Vespa instance port.
         :param deployment_message: Message returned by Vespa engine after deployment. Used internally by deploy methods.
-        :param cert: Path to certificate and key file.
+        :param cert: Path to certificate and key file in case the 'key' parameter is none. If 'key' is not None, this
+            should be the path of the certificate file.
+        :param key: Path to the key file.
         :param output_file: Output file to write output messages.
         :param application_package: Application package definition used to deploy the application.
 
@@ -117,6 +120,7 @@ class Vespa(object):
         self.port = port
         self.deployment_message = deployment_message
         self.cert = cert
+        self.key = key
         self._application_package = application_package
 
         if port is None:
@@ -891,6 +895,10 @@ class Vespa(object):
 class VespaSync(object):
     def __init__(self, app: Vespa, pool_maxsize: int = 10) -> None:
         self.app = app
+        if self.app.key:
+            self.cert = (self.app.cert, self.app.key)
+        else:
+            self.cert = self.app.cert
         self.http_session = None
         self.adapter = HTTPAdapter(
             max_retries=retry_strategy, pool_maxsize=pool_maxsize
@@ -925,7 +933,7 @@ class VespaSync(object):
         """
         end_point = "{}/ApplicationStatus".format(self.app.end_point)
         try:
-            response = self.http_session.get(end_point, cert=self.app.cert)
+            response = self.http_session.get(end_point, cert=self.cert)
         except ConnectionError:
             response = None
         return response
@@ -936,7 +944,7 @@ class VespaSync(object):
         if model_id:
             end_point = end_point + model_id
         try:
-            response = self.http_session.get(end_point, cert=self.app.cert)
+            response = self.http_session.get(end_point, cert=self.cert)
             if response.status_code == 200:
                 return response.json()
             else:
@@ -958,7 +966,7 @@ class VespaSync(object):
             self.app.end_point, model_id, function_name, encoded_tokens
         )
         try:
-            response = self.http_session.get(end_point, cert=self.app.cert)
+            response = self.http_session.get(end_point, cert=self.cert)
             if response.status_code == 200:
                 return response.json()
             else:
@@ -981,7 +989,7 @@ class VespaSync(object):
         )
         vespa_format = {"fields": fields}
         response = self.http_session.post(
-            end_point, json=vespa_format, cert=self.app.cert
+            end_point, json=vespa_format, cert=self.cert
         )
         return VespaResponse(
             json=response.json(),
@@ -1024,7 +1032,7 @@ class VespaSync(object):
             )
         else:
             r = self.http_session.post(
-                self.app.search_end_point, json=body, cert=self.app.cert
+                self.app.search_end_point, json=body, cert=self.cert
             )
         return VespaQueryResponse(
             json=r.json(), status_code=r.status_code, url=str(r.url)
@@ -1041,7 +1049,7 @@ class VespaSync(object):
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
             self.app.end_point, schema, schema, str(data_id)
         )
-        response = self.http_session.delete(end_point, cert=self.app.cert)
+        response = self.http_session.delete(end_point, cert=self.cert)
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -1060,7 +1068,7 @@ class VespaSync(object):
         end_point = "{}/document/v1/{}/{}/docid/?cluster={}&selection=true".format(
             self.app.end_point, schema, schema, content_cluster_name
         )
-        response = self.http_session.delete(end_point, cert=self.app.cert)
+        response = self.http_session.delete(end_point, cert=self.cert)
         return response
 
     def get_data(self, schema: str, data_id: str) -> VespaResponse:
@@ -1074,7 +1082,7 @@ class VespaSync(object):
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
             self.app.end_point, schema, schema, str(data_id)
         )
-        response = self.http_session.get(end_point, cert=self.app.cert)
+        response = self.http_session.get(end_point, cert=self.cert)
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -1099,7 +1107,7 @@ class VespaSync(object):
         )
         vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
         response = self.http_session.put(
-            end_point, json=vespa_format, cert=self.app.cert
+            end_point, json=vespa_format, cert=self.cert
         )
         return VespaResponse(
             json=response.json(),
@@ -1131,7 +1139,10 @@ class VespaAsync(object):
         sslcontext = False
         if self.app.cert is not None:
             sslcontext = ssl.create_default_context()
-            sslcontext.load_cert_chain(self.app.cert)
+            sslcontext.load_cert_chain(
+                self.app.cert,
+                self.app.key
+            )
         conn = aiohttp.TCPConnector(ssl=sslcontext, limit=self.connections)
         self.aiohttp_session = aiohttp.ClientSession(
             connector=conn, timeout=aiohttp.ClientTimeout(total=self.total_timeout)
