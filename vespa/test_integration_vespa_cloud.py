@@ -4,6 +4,8 @@ import shutil
 import json
 import unittest
 from pandas import DataFrame
+from cryptography.hazmat.primitives import serialization
+from vespa.application import Vespa
 from vespa.query import QueryModel, OR
 from vespa.gallery import TextSearch
 from vespa.deployment import VespaCloud
@@ -14,6 +16,61 @@ from vespa.test_integration_docker import (
     create_qa_application_package,
     create_sequence_classification_task,
 )
+
+
+class TestVespaKeyAndCertificate(unittest.TestCase):
+    def setUp(self) -> None:
+        self.app_package = create_msmarco_application_package()
+        self.vespa_cloud = VespaCloud(
+            tenant="vespa-team",
+            application="pyvespa-integration",
+            key_content=os.getenv("VESPA_CLOUD_USER_KEY").replace(r"\n", "\n"),
+            application_package=self.app_package,
+        )
+        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.instance_name = "msmarco"
+        self.app = self.vespa_cloud.deploy(
+            instance=self.instance_name, disk_folder=self.disk_folder
+        )
+
+    def test_key_cert_arguments(self):
+        #
+        # Write key and cert to different files
+        #
+        with open(os.path.join(self.disk_folder, "key_file.txt"), "w+") as file:
+            file.write(
+                self.vespa_cloud.data_key.private_bytes(
+                    serialization.Encoding.PEM,
+                    serialization.PrivateFormat.TraditionalOpenSSL,
+                    serialization.NoEncryption(),
+                ).decode("UTF-8")
+            )
+        with open(os.path.join(self.disk_folder, "cert_file.txt"), "w+") as file:
+            file.write(
+                self.vespa_cloud.data_certificate.public_bytes(
+                    serialization.Encoding.PEM
+                ).decode("UTF-8")
+            )
+        self.app = Vespa(
+            url=self.app.url,
+            key=os.path.join(self.disk_folder, "key_file.txt"),
+            cert=os.path.join(self.disk_folder, "cert_file.txt"),
+            application_package=self.app.application_package,
+        )
+        self.assertEqual(200, self.app.get_application_status().status_code)
+        self.assertDictEqual(
+            {
+                "pathId": "/document/v1/msmarco/msmarco/docid/1",
+                "id": "id:msmarco:msmarco::1",
+            },
+            self.app.get_batch(batch=[{"id": 1}])[0].json,
+        )
+
+    def tearDown(self) -> None:
+        self.app.delete_all_docs(
+            content_cluster_name="msmarco_content", schema="msmarco"
+        )
+        shutil.rmtree(self.disk_folder, ignore_errors=True)
 
 
 class TestMsmarcoApplication(TestApplicationCommon):
