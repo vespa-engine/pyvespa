@@ -85,7 +85,7 @@ jobs:
           python3 -m pip install pytest
           python3 -m pip install -e .[full]
       - run-integration-docker: |
-          pytest vespa/test_integration_docker_msmarco.py -rA -s
+          pytest vespa/test_integration_docker_msmarco.py -v -s
   notebooks-except-cloud:
     requires: [~commit,~pr]
     annotations:
