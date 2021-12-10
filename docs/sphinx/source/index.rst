@@ -12,7 +12,6 @@ Vespa python API
    install
    three-ways-to-get-started-with-pyvespa
    quickstart
-   howto
    usecases
    reference-api
 
