@@ -134,7 +134,7 @@ class ANN(MatchFilter):
         """
         Match documents according to the nearest neighbor operator.
 
-        Reference: https://docs.vespa.ai/documentation/reference/query-language-reference.html#nearestneighbor
+        Reference: https://docs.vespa.ai/documentation/reference/query-language-reference.html
 
         :param doc_vector: Name of the document field to be used in the distance calculation.
         :param query_vector: Name of the query field to be used in the distance calculation.

@@ -61,3 +61,6 @@ html_sidebars = {
         "donate.html",
     ]
 }
+
+# anchoring with github sites will always fail
+linkcheck_ignore = [r'https://github.com/.*#.*']
