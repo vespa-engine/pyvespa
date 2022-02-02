@@ -140,3 +140,7 @@ checklink/cookies.txt
 .gitconfig
 
 Pipfile
+
+# Text extraction for search
+_site/
+pyvespa_index.json

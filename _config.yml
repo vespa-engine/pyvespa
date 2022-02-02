@@ -1,0 +1,66 @@
+# Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
+# Welcome to Jekyll!
+#
+# This config file is meant for settings that affect your whole blog, values
+# which you are expected to set up once and rarely edit after that. If you find
+# yourself editing this file very often, consider using Jekyll's data files
+# feature for the data you need to update frequently.
+#
+# For technical reasons, this file is *NOT* reloaded automatically when you use
+# 'bundle exec jekyll serve'. If you change this file, please restart the server process.
+
+# Site settings
+# These are used to personalize your new site. If you look in the HTML files,
+# you will see them accessed via {{ site.title }}, {{ site.email }}, and so on.
+# You can create any custom variable you would like, and they will be accessible
+# in the templates via {{ site.myvariable }}.
+title: Vespa. Big data. Real time. Open source.
+description: >- # this means to ignore newlines until "baseurl:"
+  Vespa - the open big data serving platform
+# baseurl: "" # the subpath of your site, e.g. /blog
+url: "https://docs.vespa.ai" # the base hostname & protocol for your site, e.g. http://example.com
+# Remove this before publishing on github.com
+repository: vespa/pyvespa
+
+# Build settings
+sass:
+  sass_dir: _sass
+markdown: kramdown
+plugins:
+  - jekyll-feed
+  - jekyll-redirect-from
+
+# Exclude from processing.
+# The following items will not be processed, by default. Create a custom list
+# to override the default setting.
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/
+  - .idea
+  - pyvespa_index.json
+  - _work/
+
+search:
+  namespace: "pyvespa"
+  do_feed  : true
+  do_index_removal_before_feed: false
+  feed_endpoints:
+    - url: https://vespacloud-docsearch.vespa-team.aws-us-east-1c.z.vespa-app.cloud/
+      indexes:
+        - pyvespa_index.json
+    - url: https://vespacloud-docsearch.vespa-team.aws-ap-northeast-1a.z.vespa-app.cloud/
+      indexes:
+        - pyvespa_index.json
+
+defaults:
+  -
+    scope:
+      path  : ""
+    values:
+      layout: "default"
+      index : true
