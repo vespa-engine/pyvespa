@@ -21,12 +21,7 @@ jobs:
 
     - name: Install Sphinx
       run: |
-        sudo apt-get install -y pandoc
-        python3 -m pip install --upgrade pip
-        python3 -m pip install pytest notebook nbconvert
-        python3 -m pip install -e .[full]
-        python3 -m pip install -r docs/sphinx/source/requirements.txt
-        python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
+        sudo apt-get install python3-sphinx
 
     - name: Build site
       run: |
