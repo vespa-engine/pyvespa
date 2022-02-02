@@ -1,0 +1,35 @@
+name: Vespa Documentation Search Feed
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+
+    - uses: actions/checkout@v2
+
+    - uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: 2.6
+        bundler-cache: true
+
+    - name: Build site
+      run: |
+        sphinx-build -E -b html docs/sphinx/source docs/sphinx/build
+        find docs/sphinx/build/ -name \*.html | while read f; do (echo -e "---\n---\n"; cat ${f})>${f}.new; mv ${f}.new ${f}; done
+        bundle exec jekyll build -s docs/sphinx/build/ -p _plugins-vespafeed --config _config.yml
+
+    - name: Setup Python
+      uses: actions/setup-python@v1
+      with:
+        python-version: '3.x'
+
+    - name: Feed site
+      env:
+        DATA_PLANE_PUBLIC_KEY : ${{ secrets.VESPA_TEAM_DATA_PLANE_PUBLIC_CERT }}
+        DATA_PLANE_PRIVATE_KEY: ${{ secrets.VESPA_TEAM_DATA_PLANE_PRIVATE_KEY }}
+      run: |
+        pip3 install PyYAML
+        ./feed_to_vespa.py
