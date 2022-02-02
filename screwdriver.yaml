@@ -1,5 +1,5 @@
 shared:
-  image: docker.io/centos:8
+  image: quay.io/centos/centos:stream8
   environment:
     PYVESPA_VERSION: 0.7
 jobs:
