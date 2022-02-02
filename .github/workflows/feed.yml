@@ -21,7 +21,8 @@ jobs:
 
     - name: Install Sphinx
       run: |
-        sudo apt-get install python3-sphinx
+        sudo apt-get install -y python3-sphinx pandoc
+        python3 -m pip install nbsphinx --user
 
     - name: Build site
       run: |
