@@ -34,11 +34,6 @@ jobs:
         find docs/sphinx/build/ -name \*.html | while read f; do (echo -e "---\n---\n"; cat ${f})>${f}.new; mv ${f}.new ${f}; done
         bundle exec jekyll build -s docs/sphinx/build/ -p _plugins-vespafeed --config _config.yml
 
-    - name: Setup Python
-      uses: actions/setup-python@v1
-      with:
-        python-version: '3.x'
-
     - name: Feed site
       env:
         DATA_PLANE_PUBLIC_KEY : ${{ secrets.VESPA_TEAM_DATA_PLANE_PUBLIC_CERT }}
