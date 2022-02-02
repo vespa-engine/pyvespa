@@ -1,4 +1,4 @@
-name: Vespa Documentation Search Feed
+name: pyvespa documentation search feed
 on:
   push:
     branches: [ master ]
@@ -14,6 +14,19 @@ jobs:
       with:
         ruby-version: 2.6
         bundler-cache: true
+
+    - uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+
+    - name: Install Sphinx
+      run: |
+        dnf install -y --enablerepo=powertools pandoc
+        python3 -m pip install --upgrade pip
+        python3 -m pip install pytest notebook nbconvert
+        python3 -m pip install -e .[full]
+        python3 -m pip install -r docs/sphinx/source/requirements.txt
+        python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
 
     - name: Build site
       run: |
@@ -31,5 +44,5 @@ jobs:
         DATA_PLANE_PUBLIC_KEY : ${{ secrets.VESPA_TEAM_DATA_PLANE_PUBLIC_CERT }}
         DATA_PLANE_PRIVATE_KEY: ${{ secrets.VESPA_TEAM_DATA_PLANE_PRIVATE_KEY }}
       run: |
-        pip3 install PyYAML
+        python3 -m pip install PyYAML
         ./feed_to_vespa.py
