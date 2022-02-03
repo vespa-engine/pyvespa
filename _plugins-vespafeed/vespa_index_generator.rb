@@ -13,7 +13,8 @@ module Jekyll
             namespace = site.config["search"]["namespace"]
             operations = []
             site.pages.each do |page|
-                next if page.path.start_with?("search.html")
+                next if (page.path.start_with?("search.html") ||
+                         page.url.start_with?("/redirects.json"))
                 if page.data["index"] == true
                     title = clean_chars(extract_title(page))
                     text  = clean_chars(extract_text(page))
