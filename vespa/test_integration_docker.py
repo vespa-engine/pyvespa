@@ -605,6 +605,10 @@ class TestApplicationCommon(unittest.TestCase):
         fields_to_send,
         expected_fields_from_get_operation,
         fields_to_update,
+        query_batch=None,
+        query_model=None,
+        hit_field_to_check=None,
+        queries_first_hit=None,
     ):
         """
         Sync feed a batch of data to the application
@@ -616,6 +620,10 @@ class TestApplicationCommon(unittest.TestCase):
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
             There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
         :param fields_to_update: Dict where keys are field names and values are field values.
+        :param query_batch: Optional list of query strings.
+        :param query_model: Optional QueryModel to use with query_batch.
+        :param hit_field_to_check: Which field of the query response should be checked.
+        :param queries_first_hit: The expected field of the first hit of each query sent
         :return:
         """
 
@@ -638,6 +646,18 @@ class TestApplicationCommon(unittest.TestCase):
             query="sddocname:{}".format(schema_name), query_model=QueryModel()
         )
         self.assertEqual(result.number_documents_indexed, num_docs)
+
+        #
+        # Query data
+        #
+        if query_batch:
+            result = app.query_batch(
+                query_batch=query_batch, query_model=query_model, asynchronous=False
+            )
+            for idx, first_hit in enumerate(queries_first_hit):
+                self.assertEqual(
+                    first_hit, result[idx].hits[0]["fields"][hit_field_to_check]
+                )
 
         #
         # get batch data
@@ -693,6 +713,10 @@ class TestApplicationCommon(unittest.TestCase):
         fields_to_send,
         expected_fields_from_get_operation,
         fields_to_update,
+        query_batch=None,
+        query_model=None,
+        hit_field_to_check=None,
+        queries_first_hit=None,
     ):
         """
         Async feed a batch of data to the application
@@ -704,6 +728,10 @@ class TestApplicationCommon(unittest.TestCase):
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
             There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
         :param fields_to_update: Dict where keys are field names and values are field values.
+        :param query_batch: Optional list of query strings.
+        :param query_model: Optional QueryModel to use with query_batch.
+        :param hit_field_to_check: Which field of the query response should be checked.
+        :param queries_first_hit: The expected field of the first hit of each query sent
         :return:
         """
         #
@@ -731,6 +759,18 @@ class TestApplicationCommon(unittest.TestCase):
             query="sddocname:{}".format(schema_name), query_model=QueryModel()
         )
         self.assertEqual(result.number_documents_indexed, num_docs)
+
+        #
+        # Query data
+        #
+        if query_batch:
+            result = app.query_batch(
+                query_batch=query_batch, query_model=query_model
+            )
+            for idx, first_hit in enumerate(queries_first_hit):
+                self.assertEqual(
+                    first_hit, result[idx].hits[0]["fields"][hit_field_to_check]
+                )
 
         #
         # get batch data
@@ -1070,6 +1110,11 @@ class TestMsmarcoApplication(TestApplicationCommon):
             }
             for i in range(10)
         ]
+        self.query_batch = ["Give me title 1", "Give me title 2"]
+        self.query_model = QueryModel(
+            match_phase=OR(), rank_profile=Ranking(name="default", list_features=False)
+        )
+        self.queries_first_hit = ["this is title 1", "this is title 2"]
 
     def test_model_endpoints_when_no_model_is_available(self):
         # The port should be 8089 instead of 8080, see https://jira.vzbuilders.com/browse/VESPA-21365
@@ -1110,6 +1155,10 @@ class TestMsmarcoApplication(TestApplicationCommon):
             fields_to_send=self.fields_to_send,
             expected_fields_from_get_operation=self.fields_to_send,
             fields_to_update=self.fields_to_update,
+            query_batch=self.query_batch,
+            query_model=self.query_model,
+            hit_field_to_check="title",
+            queries_first_hit=self.queries_first_hit,
         )
 
     def test_batch_operations_asynchronous_mode(self):
@@ -1119,6 +1168,10 @@ class TestMsmarcoApplication(TestApplicationCommon):
             fields_to_send=self.fields_to_send,
             expected_fields_from_get_operation=self.fields_to_send,
             fields_to_update=self.fields_to_update,
+            query_batch=self.query_batch,
+            query_model=self.query_model,
+            hit_field_to_check="title",
+            queries_first_hit=self.queries_first_hit,
         )
 
     def test_batch_operations_default_mode_with_one_schema(self):
