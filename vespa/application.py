@@ -209,7 +209,7 @@ class Vespa(object):
         query: Optional[str] = None,
         query_model: Optional[QueryModel] = None,
         recall: Optional[Tuple] = None,
-        **kwargs
+        **kwargs,
     ) -> Dict:
         assert query is not None, "No 'query' specified."
         if not query_model:
@@ -236,7 +236,7 @@ class Vespa(object):
         query_model: Optional[QueryModel] = None,
         debug_request: bool = False,
         recall: Optional[Tuple] = None,
-        **kwargs
+        **kwargs,
     ) -> VespaQueryResponse:
         """
         Send a query request to the Vespa application.
@@ -259,7 +259,116 @@ class Vespa(object):
                 query_model=query_model,
                 debug_request=debug_request,
                 recall=recall,
-                **kwargs
+                **kwargs,
+            )
+
+    def _query_batch_sync(
+        self,
+        body_batch: Optional[List[Dict]],
+        query_batch: Optional[List[str]],
+        query_model: Optional[QueryModel],
+        recall: Optional[List[Tuple]],
+        **kwargs,
+    ):
+        if body_batch:
+            return [self.query(body=body, **kwargs) for body in body_batch]
+        else:
+            if recall:
+                return [
+                    self.query(query=q, query_model=query_model, recall=r, **kwargs)
+                    for (q, r) in zip(query_batch, recall)
+                ]
+            else:
+                return [
+                    self.query(query=query, query_model=query_model, **kwargs)
+                    for query in query_batch
+                ]
+
+    async def _query_batch_async(
+        self,
+        body_batch: Optional[List[Dict]],
+        query_batch: Optional[List[str]],
+        query_model: Optional[QueryModel],
+        recall: Optional[List[Tuple]],
+        connections,
+        total_timeout,
+        **kwargs,
+    ):
+        async with VespaAsync(
+            app=self, connections=connections, total_timeout=total_timeout
+        ) as async_app:
+            return await async_app.query_batch(
+                body_batch=body_batch,
+                query_batch=query_batch,
+                query_model=query_model,
+                recall=recall,
+                **kwargs,
+            )
+
+    def query_batch(
+        self,
+        body_batch: Optional[List[Dict]] = None,
+        query_batch: Optional[List[str]] = None,
+        query_model: Optional[QueryModel] = None,
+        recall: Optional[List[Tuple]] = None,
+        asynchronous=True,
+        connections: Optional[int] = 100,
+        total_timeout: int = 100,
+        **kwargs,
+    ):
+        """
+        Send queries in batch to a Vespa app.
+
+        :param body_batch: A list of dict containing all the request parameters. Set to None if using 'query_batch'.
+        :param query_batch: A list of query strings. Set to None if using 'body_batch'.
+        :param query_model: Query model to use when sending query strings. Set to None if using 'body_batch'.
+        :param recall: List of tuples, one for each query. Tuple of size 2 where the first element is the name
+            of the field to use to recall and the second element is a list of the values to be recalled.
+        :param asynchronous: Set True to send data in async mode. Default to True.
+        :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
+        :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
+        :param kwargs: Additional parameters to be sent along the request.
+        :return: List of HTTP POST responses
+        """
+
+        if body_batch:
+            assert (
+                query_batch is None
+            ), "'query_batch' has no effect if 'body_batch' is not None."
+        elif query_batch:
+            assert (
+                body_batch is None
+            ), "'body_batch' has no effect if 'query_batch' is not None."
+            assert (
+                query_model is not None
+            ), "Specify a 'query_model' when using 'query_batch' argument."
+            number_of_queries = len(query_batch)
+
+            if recall:
+                assert (
+                    len(recall) == number_of_queries
+                ), "Specify one recall tuple for each query in the batch."
+        else:
+            ValueError("Specify either 'query_batch' or 'body_batch'.")
+
+        if asynchronous:
+            coro = self._query_batch_async(
+                body_batch=body_batch,
+                query_batch=query_batch,
+                query_model=query_model,
+                recall=recall,
+                connections=connections,
+                total_timeout=total_timeout,
+                **kwargs,
+            )
+            return self._check_for_running_loop_and_run_coroutine(coro=coro)
+        else:
+            return self._query_batch_sync(
+                body_batch=body_batch,
+                query_batch=query_batch,
+                query_model=query_model,
+                recall=recall,
+                **kwargs,
             )
 
     def feed_data_point(self, schema: str, data_id: str, fields: Dict) -> VespaResponse:
@@ -584,7 +693,7 @@ class Vespa(object):
         fields: List[str],
         relevant_score: int = 1,
         default_score: int = 0,
-        **kwargs
+        **kwargs,
     ) -> List[Dict]:
         """
         Collect training data based on a single query
@@ -607,7 +716,7 @@ class Vespa(object):
             query=query,
             query_model=query_model,
             recall=(id_field, [relevant_id]),
-            **kwargs
+            **kwargs,
         )
         hits = relevant_id_result.hits
         features = []
@@ -617,7 +726,7 @@ class Vespa(object):
                     query=query,
                     query_model=query_model,
                     hits=number_additional_docs,
-                    **kwargs
+                    **kwargs,
                 )
                 hits.extend(random_hits_result.hits)
 
@@ -641,7 +750,7 @@ class Vespa(object):
         relevant_score: int = 1,
         default_score: int = 0,
         show_progress: Optional[int] = None,
-        **kwargs
+        **kwargs,
     ) -> DataFrame:
         """
         Collect training data based on a set of labelled data.
@@ -714,7 +823,7 @@ class Vespa(object):
                     number_additional_docs=number_additional_docs,
                     relevant_score=doc_data.get("score", relevant_score),
                     default_score=default_score,
-                    **kwargs
+                    **kwargs,
                 )
                 training_data.extend(training_data_point)
         training_data = DataFrame.from_records(training_data)
@@ -730,7 +839,7 @@ class Vespa(object):
         relevant_docs: List[Dict],
         default_score: int = 0,
         detailed_metrics=False,
-        **kwargs
+        **kwargs,
     ) -> Dict:
         """
         Evaluate a query according to evaluation metrics
@@ -771,7 +880,7 @@ class Vespa(object):
         detailed_metrics=False,
         per_query=False,
         aggregators=None,
-        **kwargs
+        **kwargs,
     ) -> DataFrame:
         """
         Evaluate a :class:`QueryModel` according to a list of :class:`EvalMetric`.
@@ -835,7 +944,7 @@ class Vespa(object):
                     relevant_docs=query_data["relevant_docs"],
                     default_score=default_score,
                     detailed_metrics=detailed_metrics,
-                    **kwargs
+                    **kwargs,
                 )
                 evaluation.append(evaluation_query)
         evaluation = DataFrame.from_records(evaluation)
@@ -988,9 +1097,7 @@ class VespaSync(object):
             self.app.end_point, schema, schema, str(data_id)
         )
         vespa_format = {"fields": fields}
-        response = self.http_session.post(
-            end_point, json=vespa_format, cert=self.cert
-        )
+        response = self.http_session.post(end_point, json=vespa_format, cert=self.cert)
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -1005,7 +1112,7 @@ class VespaSync(object):
         query_model: Optional[QueryModel] = None,
         debug_request: bool = False,
         recall: Optional[Tuple] = None,
-        **kwargs
+        **kwargs,
     ) -> VespaQueryResponse:
         """
         Send a query request to the Vespa application.
@@ -1106,9 +1213,7 @@ class VespaSync(object):
             self.app.end_point, schema, schema, str(data_id), str(create).lower()
         )
         vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
-        response = self.http_session.put(
-            end_point, json=vespa_format, cert=self.cert
-        )
+        response = self.http_session.put(end_point, json=vespa_format, cert=self.cert)
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -1139,10 +1244,7 @@ class VespaAsync(object):
         sslcontext = False
         if self.app.cert is not None:
             sslcontext = ssl.create_default_context()
-            sslcontext.load_cert_chain(
-                self.app.cert,
-                self.app.key
-            )
+            sslcontext.load_cert_chain(self.app.cert, self.app.key)
         conn = aiohttp.TCPConnector(ssl=sslcontext, limit=self.connections)
         self.aiohttp_session = aiohttp.ClientSession(
             connector=conn, timeout=aiohttp.ClientTimeout(total=self.total_timeout)
@@ -1154,11 +1256,12 @@ class VespaAsync(object):
             return
         return await self.aiohttp_session.close()
 
-    async def _wait(self, f, args):
-        tasks = [asyncio.create_task(f(*arg)) for arg in args]
+    async def _wait(self, f, args, **kwargs):
+        tasks = [asyncio.create_task(f(*arg, **kwargs)) for arg in args]
         await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
         return [result for result in map(lambda task: task.result(), tasks)]
 
+    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def query(
         self,
         body: Optional[Dict] = None,
@@ -1166,7 +1269,7 @@ class VespaAsync(object):
         query_model: Optional[QueryModel] = None,
         debug_request: bool = False,
         recall: Optional[Tuple] = None,
-        **kwargs
+        **kwargs,
     ):
         if debug_request:
             return self.app.query(
@@ -1181,6 +1284,52 @@ class VespaAsync(object):
         return VespaQueryResponse(
             json=await r.json(), status_code=r.status, url=str(r.url)
         )
+
+    async def _query_semaphore(
+        self,
+        body: Optional[Dict],
+        query: Optional[str],
+        query_model: Optional[QueryModel],
+        recall: Optional[Tuple],
+        semaphore: asyncio.Semaphore,
+        **kwargs,
+    ):
+        async with semaphore:
+            return await self.query(
+                body=body, query=query, query_model=query_model, recall=recall, **kwargs
+            )
+
+    async def query_batch(
+        self,
+        body_batch: Optional[List[Dict]],
+        query_batch: Optional[List[str]],
+        query_model: Optional[QueryModel],
+        recall: Optional[List[Tuple]],
+        **kwargs,
+    ):
+        sem = asyncio.Semaphore(self.connections)
+        if body_batch:
+            return await self._wait(
+                self._query_semaphore,
+                [(body, None, None, None, sem) for body in body_batch],
+                **kwargs,
+            )
+        else:
+            if recall:
+                return await self._wait(
+                    self._query_semaphore,
+                    [
+                        (None, q, query_model, r, sem)
+                        for (q, r) in zip(query_batch, recall)
+                    ],
+                    **kwargs,
+                )
+            else:
+                return await self._wait(
+                    self._query_semaphore,
+                    [(None, q, query_model, None, sem) for q in query_batch],
+                    **kwargs,
+                )
 
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def feed_data_point(
