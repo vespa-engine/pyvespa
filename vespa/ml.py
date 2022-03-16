@@ -25,7 +25,7 @@ try:
         AutoModelForSequenceClassification,
         BertForSequenceClassification,
         BertTokenizerFast,
-        Pipeline,
+        pipeline,
     )
     from transformers.convert_graph_to_onnx import convert_pytorch
 except ModuleNotFoundError:
@@ -69,8 +69,14 @@ class TextTask(Task):
             self._model = AutoModelForSequenceClassification.from_pretrained(self.model)
             print("Model loaded.", file=self.output)
 
-        pipeline = Pipeline(model=self._model, tokenizer=self._tokenizer)
-        return pipeline
+        _pipeline = pipeline(
+            task="text-classification",
+            model=self._model,
+            tokenizer=self._tokenizer,
+            return_all_scores=True,
+            function_to_apply="None",
+        )
+        return _pipeline
 
     def export_to_onnx(self, output_path: str) -> None:
         """
@@ -92,7 +98,8 @@ class TextTask(Task):
         :return: list with predictions
         """
         pipeline = self._create_pipeline()
-        return pipeline(text).tolist()[0]
+        predictions = pipeline(text)[0]
+        return [x["score"] for x in predictions]
 
     def parse_vespa_prediction(self, prediction):
         return [cell["value"] for cell in prediction["cells"]]
@@ -365,10 +372,14 @@ class BertModelConfig(ModelConfig, ToJson, FromJson["BertModelConfig"]):
         """
 
         if self._model:
-            pipeline = Pipeline(model=self._model, tokenizer=self._tokenizer)
-            convert_pytorch(
-                pipeline, opset=11, output=Path(output_path), use_external_format=False
+            _pipeline = pipeline(
+                task="text-classification",
+                model=self._model,
+                tokenizer=self._tokenizer,
+                return_all_scores=True,
+                function_to_apply="None",
             )
+            convert_pytorch(_pipeline, opset=11, output=Path(output_path), use_external_format=False)
         else:
             raise ValueError("No BERT model found to be exported.")
 
