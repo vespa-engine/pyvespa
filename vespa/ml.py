@@ -379,7 +379,7 @@ class BertModelConfig(ModelConfig, ToJson, FromJson["BertModelConfig"]):
                 return_all_scores=True,
                 function_to_apply="None",
             )
-            convert_pytorch(_pipeline, opset=11, output=Path(output_path))
+            convert_pytorch(_pipeline, opset=11, output=Path(output_path), use_external_format=False)
         else:
             raise ValueError("No BERT model found to be exported.")
 
