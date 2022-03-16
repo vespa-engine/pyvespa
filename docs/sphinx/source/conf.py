@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.abspath("../../.."))
 # -- Project information -----------------------------------------------------
 
 project = "pyvespa"
-copyright = "Verizon Media 2020 Licensed under Apache License 2.0"
+copyright = "Copyright Yahoo. Licensed under Apache License 2.0"
 author = "Vespa team"
 
 
