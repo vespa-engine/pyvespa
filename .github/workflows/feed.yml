@@ -26,7 +26,7 @@ jobs:
 
     - name: Build site
       run: |
-        sphinx-build -E -b html docs/sphinx/source docs/sphinx/build
+        sphinx-build -E -D nbsphinx_allow_errors=True -b html docs/sphinx/source docs/sphinx/build
         find docs/sphinx/build/ -name \*.html | while read f; do (echo -e "---\n---\n"; cat ${f})>${f}.new; mv ${f}.new ${f}; done
         bundle exec jekyll build -s docs/sphinx/build/ -p _plugins-vespafeed --config _config.yml
 
