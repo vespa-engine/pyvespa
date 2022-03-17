@@ -64,3 +64,6 @@ html_sidebars = {
 
 # anchoring with github sites will always fail
 linkcheck_ignore = [r'https://github.com/.*#.*']
+
+# input boxes will fail, ignore
+nbsphinx_allow_errors = True
