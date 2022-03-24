@@ -78,7 +78,7 @@ class Field(ToJson, FromJson["Field"]):
         """
         Create a Vespa field.
 
-        Check the `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#field>`__`
+        Check the `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#field>`__
         for more detailed information about fields.
 
         :param name: Field name.
@@ -243,7 +243,7 @@ class Document(ToJson, FromJson["Document"]):
         """
         Create a Vespa Document.
 
-        Check the `Vespa documentation <https://docs.vespa.ai/documentation/documents.html>`__`
+        Check the `Vespa documentation <https://docs.vespa.ai/documentation/documents.html>`__
         for more detailed information about documents.
 
         :param fields: A list of :class:`Field` to include in the document's schema.
@@ -314,7 +314,7 @@ class FieldSet(ToJson, FromJson["FieldSet"]):
         Create a Vespa field set.
 
         A fieldset groups fields together for searching. Check the
-        `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#fieldset>`__`
+        `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#fieldset>`__
         for more detailed information about field sets.
 
         :param name: Name of the fieldset
@@ -491,7 +491,7 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
 
         Rank profiles are used to specify an alternative ranking of the same data for different purposes, and to
         experiment with new rank settings. Check the
-        `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#rank-profile>`__`
+        `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#rank-profile>`__
         for more detailed information about rank profiles.
 
         :param name: Rank profile name.
@@ -716,7 +716,7 @@ class Schema(ToJson, FromJson["Schema"]):
         """
         Create a Vespa Schema.
 
-        Check the `Vespa documentation <https://docs.vespa.ai/documentation/schemas.html>`__`
+        Check the `Vespa documentation <https://docs.vespa.ai/documentation/schemas.html>`__
         for more detailed information about schemas.
 
         :param name: Schema name.
@@ -960,7 +960,7 @@ class QueryProfileType(ToJson, FromJson["QueryProfileType"]):
         """
         Create a Vespa Query Profile Type.
 
-        Check the `Vespa documentation <https://docs.vespa.ai/documentation/query-profiles.html#query-profile-types>`__`
+        Check the `Vespa documentation <https://docs.vespa.ai/documentation/query-profiles.html#query-profile-types>`__
         for more detailed information about query profile types.
 
         :param fields: A list of :class:`QueryTypeField`.
@@ -1068,7 +1068,7 @@ class QueryProfile(ToJson, FromJson["QueryProfile"]):
         """
         Create a Vespa Query Profile.
 
-        Check the `Vespa documentation <https://docs.vespa.ai/documentation/query-profiles.html>`__`
+        Check the `Vespa documentation <https://docs.vespa.ai/documentation/query-profiles.html>`__
         for more detailed information about query profiles.
 
         :param fields: A list of :class:`QueryField`.
