@@ -1,14 +1,12 @@
 Quick-start
 ===========
 
-The best way to get started is by following the tutorials below. You can easily run them yourself on Google Colab
-by clicking on the badge at the top of the tutorial.
+The best way to get started is by following the tutorials below.
 
 .. toctree::
 
+   getting-started-pyvespa
    connect-to-vespa-instance
    create-text-app
    deploy-vespa-docker
    deploy-vespa-cloud
-   feed-query-and-other-document-operations
-
