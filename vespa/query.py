@@ -213,6 +213,12 @@ class QueryModel(object):
         """
         Define a query model.
 
+        A :class:`~vespa.query.QueryModel` is an abstraction that encapsulates all the relevant information
+        controlling how an app matches and ranks documents.
+        A `QueryModel` can be used for querying (:func:`~vespa.application.Vespa.query`),
+        evaluating (:func:`~vespa.application.Vespa.evaluate`) and collecting data
+        (:func:`~vespa.application.Vespa.collect_training_data`) from an app.
+
         :param name: Name of the query model. Used to tag model related quantities, like evaluation metrics.
         :param query_properties: Optional list of QueryProperty.
         :param match_phase: Define the match criteria. One of the MatchFilter options available.

@@ -81,6 +81,11 @@ class Field(ToJson, FromJson["Field"]):
         Check the `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#field>`__
         for more detailed information about fields.
 
+        Once we have an :class:`ApplicationPackage` instance containing a :class:`Schema` and a :class:`Document`,
+        we usually want to add fields so that we can store our data in a structured manner.
+        We can accomplish that by creating :class:`Field` instances
+        and adding those to the :class:`ApplicationPackage` instance via :class:`Schema` and :class:`Document` methods.
+
         :param name: Field name.
         :param type: Field data type.
         :param indexing: Configures how to process data of a field during indexing.
@@ -963,6 +968,10 @@ class QueryProfileType(ToJson, FromJson["QueryProfileType"]):
         Check the `Vespa documentation <https://docs.vespa.ai/documentation/query-profiles.html#query-profile-types>`__
         for more detailed information about query profile types.
 
+        An :class:`ApplicationPackage` instance comes with a default :class:`QueryProfile` named `default`
+        that is associated with a :class:`QueryProfileType` named `root`,
+        meaning that you usually do not need to create those yourself, only add fields to them when required.
+
         :param fields: A list of :class:`QueryTypeField`.
 
         >>> QueryProfileType(
@@ -1071,6 +1080,11 @@ class QueryProfile(ToJson, FromJson["QueryProfile"]):
         Check the `Vespa documentation <https://docs.vespa.ai/documentation/query-profiles.html>`__
         for more detailed information about query profiles.
 
+        A :class:`QueryProfile` is a named collection of query request parameters given in the configuration.
+        The query request can specify a query profile whose parameters will be used as parameters of that request.
+        The query profiles may optionally be type checked.
+        Type checking is turned on by referencing a :class:`QueryProfileType` from the query profile.
+
         :param fields: A list of :class:`QueryField`.
 
         >>> QueryProfile(fields=[QueryField(name="maxHits", value=1000)])
@@ -1161,6 +1175,9 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
 
         Check the `Vespa documentation <https://docs.vespa.ai/documentation/cloudconfig/application-packages.html>`__
         for more detailed information about application packages.
+
+        An :class:`ApplicationPackage` instance comes with a default :class:`Schema`
+        that contains a default :class:`Document`
 
         :param name: Application name.
         :param schema: List of :class:`Schema`s of the application. If `None`, an empty :class:`Schema` with the same name of the

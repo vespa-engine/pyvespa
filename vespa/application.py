@@ -96,7 +96,7 @@ class Vespa(object):
         application_package: Optional[ApplicationPackage] = None,
     ) -> None:
         """
-        Establish a connection with a Vespa application.
+        Establish a connection with an existing Vespa application.
 
         :param url: Vespa instance URL.
         :param port: Vespa instance port.
