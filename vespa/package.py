@@ -78,7 +78,7 @@ class Field(ToJson, FromJson["Field"]):
         """
         Create a Vespa field.
 
-        Check the `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#field>`__
+        Check the `Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#field>`__
         for more detailed information about fields.
 
         Once we have an :class:`ApplicationPackage` instance containing a :class:`Schema` and a :class:`Document`,
@@ -248,7 +248,7 @@ class Document(ToJson, FromJson["Document"]):
         """
         Create a Vespa Document.
 
-        Check the `Vespa documentation <https://docs.vespa.ai/documentation/documents.html>`__
+        Check the `Vespa documentation <https://docs.vespa.ai/en/documents.html>`__
         for more detailed information about documents.
 
         :param fields: A list of :class:`Field` to include in the document's schema.
@@ -319,7 +319,7 @@ class FieldSet(ToJson, FromJson["FieldSet"]):
         Create a Vespa field set.
 
         A fieldset groups fields together for searching. Check the
-        `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#fieldset>`__
+        `Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#fieldset>`__
         for more detailed information about field sets.
 
         :param name: Name of the fieldset
@@ -365,7 +365,7 @@ class Function(ToJson, FromJson["Function"]):
 
         Define a named function that can be referenced as a part of the ranking expression, or (if having no arguments)
         as a feature. Check the
-        `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#function-rank>`__`
+        `Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#function-rank>`__`
         for more detailed information about rank functions.
 
         :param name: Name of the function.
@@ -439,11 +439,11 @@ class SecondPhaseRanking(ToJson, FromJson["SecondPhaseRanking"]):
         Create a Vespa second phase ranking configuration.
 
         This is the optional reranking performed on the best hits from the first phase. Check the
-        `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#secondphase-rank>`__`
+        `Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#secondphase-rank>`__`
         for more detailed information about second phase ranking configuration.
 
         :param expression: Specify the ranking expression to be used for second phase of ranking. Check also the
-            `Vespa documentation <https://docs.vespa.ai/documentation/reference/ranking-expressions.html>`__`
+            `Vespa documentation <https://docs.vespa.ai/en/reference/ranking-expressions.html>`__`
             for ranking expression.
         :param rerank_count: Specifies the number of hits to be reranked in the second phase. Default value is 100.
 
@@ -496,23 +496,23 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
 
         Rank profiles are used to specify an alternative ranking of the same data for different purposes, and to
         experiment with new rank settings. Check the
-        `Vespa documentation <https://docs.vespa.ai/documentation/reference/schema-reference.html#rank-profile>`__
+        `Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#rank-profile>`__
         for more detailed information about rank profiles.
 
         :param name: Rank profile name.
         :param first_phase: The config specifying the first phase of ranking.
-            `More info <https://docs.vespa.ai/documentation/reference/schema-reference.html#firstphase-rank>`__`
+            `More info <https://docs.vespa.ai/en/reference/schema-reference.html#firstphase-rank>`__`
             about first phase ranking.
         :param inherits: The inherits attribute is optional. If defined, it contains the name of one other
             rank profile in the same schema. Values not defined in this rank profile will then be inherited.
         :param constants: Dict of constants available in ranking expressions, resolved and optimized at
             configuration time.
-            `More info <https://docs.vespa.ai/documentation/reference/schema-reference.html#constants>`__`
+            `More info <https://docs.vespa.ai/en/reference/schema-reference.html#constants>`__`
             about constants.
         :param functions: Optional list of :class:`Function` representing rank functions to be included in the rank
             profile.
         :param summary_features: List of rank features to be included with each hit.
-            `More info <https://docs.vespa.ai/documentation/reference/schema-reference.html#summary-features>`__`
+            `More info <https://docs.vespa.ai/en/reference/schema-reference.html#summary-features>`__`
             about summary features.
         :param second_phase: Optional config specifying the second phase of ranking.
             See :class:`SecondPhaseRanking`.
@@ -637,7 +637,7 @@ class OnnxModel(ToJson, FromJson["OnnxModel"]):
 
         Vespa has support for advanced ranking models through it’s tensor API. If you have your model in the ONNX
         format, Vespa can import the models and use them directly. Check the
-        `Vespa documentation <https://docs.vespa.ai/documentation/onnx.html>`__`
+        `Vespa documentation <https://docs.vespa.ai/en/onnx.html>`__`
         for more detailed information about field sets.
 
         :param model_name: Unique model name to use as id when referencing the model.
@@ -721,7 +721,7 @@ class Schema(ToJson, FromJson["Schema"]):
         """
         Create a Vespa Schema.
 
-        Check the `Vespa documentation <https://docs.vespa.ai/documentation/schemas.html>`__
+        Check the `Vespa documentation <https://docs.vespa.ai/en/schemas.html>`__
         for more detailed information about schemas.
 
         :param name: Schema name.
@@ -965,7 +965,7 @@ class QueryProfileType(ToJson, FromJson["QueryProfileType"]):
         """
         Create a Vespa Query Profile Type.
 
-        Check the `Vespa documentation <https://docs.vespa.ai/documentation/query-profiles.html#query-profile-types>`__
+        Check the `Vespa documentation <https://docs.vespa.ai/en/query-profiles.html#query-profile-types>`__
         for more detailed information about query profile types.
 
         An :class:`ApplicationPackage` instance comes with a default :class:`QueryProfile` named `default`
@@ -1077,7 +1077,7 @@ class QueryProfile(ToJson, FromJson["QueryProfile"]):
         """
         Create a Vespa Query Profile.
 
-        Check the `Vespa documentation <https://docs.vespa.ai/documentation/query-profiles.html>`__
+        Check the `Vespa documentation <https://docs.vespa.ai/en/query-profiles.html>`__
         for more detailed information about query profiles.
 
         A :class:`QueryProfile` is a named collection of query request parameters given in the configuration.
@@ -1173,7 +1173,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         """
         Create a Vespa Application Package.
 
-        Check the `Vespa documentation <https://docs.vespa.ai/documentation/cloudconfig/application-packages.html>`__
+        Check the `Vespa documentation <https://docs.vespa.ai/en/cloudconfig/application-packages.html>`__
         for more detailed information about application packages.
 
         An :class:`ApplicationPackage` instance comes with a default :class:`Schema`
