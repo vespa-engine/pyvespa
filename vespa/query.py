@@ -102,7 +102,7 @@ class WeakAnd(MatchFilter):
         """
         Match documents according to the weakAND algorithm.
 
-        Reference: https://docs.vespa.ai/documentation/using-wand-with-vespa.html
+        Reference: https://docs.vespa.ai/en/using-wand-with-vespa.html
 
         :param hits: Lower bound on the number of hits to be retrieved.
         :param field: Which Vespa field to search.
@@ -134,7 +134,7 @@ class ANN(MatchFilter):
         """
         Match documents according to the nearest neighbor operator.
 
-        Reference: https://docs.vespa.ai/documentation/reference/query-language-reference.html
+        Reference: https://docs.vespa.ai/en/reference/query-language-reference.html
 
         :param doc_vector: Name of the document field to be used in the distance calculation.
         :param query_vector: Name of the query field to be used in the distance calculation.
