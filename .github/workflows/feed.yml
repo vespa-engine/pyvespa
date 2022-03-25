@@ -22,8 +22,7 @@ jobs:
     - name: Install Sphinx
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install -r docs/sphinx/source/requirements.txt
-        python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
+        python3 -m pip install -r docs/sphinx/source/requirements-feed.txt
 
     - name: Build site
       run: |
