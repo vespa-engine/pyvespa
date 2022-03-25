@@ -22,7 +22,7 @@ jobs:
     - name: Install Sphinx
       run: |
         sudo apt-get install -y python3-sphinx pandoc
-        python3 -m pip install nbsphinx sphinx-rtd-theme ipykernel --user
+        python3 -m pip install -r docs/sphinx/source/requirements.txt
 
     - name: Build site
       run: |
