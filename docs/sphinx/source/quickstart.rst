@@ -8,5 +8,4 @@ The best way to get started is by following the tutorials below.
    getting-started-pyvespa
    connect-to-vespa-instance
    create-text-app
-   deploy-vespa-docker
    deploy-vespa-cloud
