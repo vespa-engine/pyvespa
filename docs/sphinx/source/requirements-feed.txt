@@ -2,4 +2,3 @@ sphinx
 ipykernel
 nbsphinx
 sphinx-rtd-theme
-Jinja2<3.1.0 # https://github.com/jupyter/nbconvert/issues/1736
