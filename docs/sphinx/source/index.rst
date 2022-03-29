@@ -51,7 +51,7 @@ Query a running Vespa application
 *********************************
 When a Vespa application is already running,
 one can instantiate the `Vespa <reference-api.rst#vespa.application.Vespa>`__ class with the endpoint.
-Refer to `connect-to-vespa-instance <connect-to-vespa-instance.rst>`__ to connect to and application and run queries.
+Refer to `query application <query.rst>`__ to connect to an application and run queries.
 
 
 Deploy from Vespa config files
