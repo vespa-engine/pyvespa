@@ -16,7 +16,7 @@ Vespa python API
 
 .. image:: https://vespa.ai/assets/vespa-logo-color.png
 
-`Vespa <https://vespa.ai/>`_ is the scalable open-sourced serving engine to store,
+`Vespa <https://vespa.ai/>`__ is the scalable open-sourced serving engine to store,
 compute and rank big data at user serving time.
 ``pyvespa`` provides a python API to Vespa -
 use it to create, modify, deploy and interact with running Vespa instances.
@@ -43,16 +43,17 @@ and facilitate Machine Learning experiments for Vespa applications:
 
 Build and deploy
 ****************
-The `getting-started-pyvespa <getting-started-pyvespa.html>`_ notebook
+The `getting-started-pyvespa <getting-started-pyvespa.rst>`__ notebook
 is a good primer on how to create an application, feed data and run queries.
 
 
 Query a running Vespa application
 *********************************
 When a Vespa application is already running,
-one can instantiate the `Vespa <reference-api.html#vespa.application.Vespa>`_ class with the endpoint.
-Refer to `connect-to-vespa-instance <connect-to-vespa-instance.html>`_ to connect to and application and run queries.
+one can instantiate the `Vespa <reference-api.rst#vespa.application.Vespa>`__ class with the endpoint.
+Refer to `connect-to-vespa-instance <connect-to-vespa-instance.rst>`__ to connect to and application and run queries.
+
 
 Deploy from Vespa config files
 ******************************
-Use pyvespa to `deploy a Vespa application package <deploy-from-vespa-config-files.html>`_ to a local Docker container.
+Use pyvespa to `deploy a Vespa application package <deploy-from-vespa-config-files.rst>`__ to a local Docker container.
