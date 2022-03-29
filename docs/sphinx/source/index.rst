@@ -9,7 +9,6 @@ Vespa python API
 .. toctree::
    :hidden:
 
-   install
    overview
    quickstart
    usecases
@@ -36,12 +35,27 @@ Install ``pyvespa`` via ``pip``:
 
 	pip install pyvespa
 
-Use pyvespa to:
+pyvespa provides a python API to Vespa.
+The library’s primary goal is to allow for faster prototyping
+and facilitate Machine Learning experiments for Vespa applications:
 
 #. Build and deploy a Vespa application using pyvespa API.
 #. Connect to an existing Vespa application and run queries from python.
 #. Import a Vespa application package from files and use pyvespa to access it.
 
-Read more:
 
-- :doc:`overview`
+Build and deploy
+****************
+The `getting-started-pyvespa <getting-started-pyvespa.html>`_ notebook
+is a good primer on how to create an application, feed data and run queries.
+
+
+Query a running Vespa application
+*********************************
+When a Vespa application is already running,
+one can instantiate the `Vespa <reference-api.html#vespa.application.Vespa>`_ class with the endpoint.
+Refer to `connect-to-vespa-instance <connect-to-vespa-instance.html>`_ to connect to and application and run queries.
+
+Deploy from Vespa config files
+******************************
+Use pyvespa to `deploy a Vespa application package <overview.html>`_ to a local Docker container.
