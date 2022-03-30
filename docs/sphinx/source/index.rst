@@ -9,7 +9,11 @@ Vespa python API
 .. toctree::
    :hidden:
 
-   quickstart
+   getting-started-pyvespa
+   query
+   create-text-app
+   howto/deploy_app_package/deploy-docker
+   deploy-vespa-cloud
    usecases
    reference-api
 
