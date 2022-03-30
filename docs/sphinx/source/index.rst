@@ -9,7 +9,11 @@ Vespa python API
 .. toctree::
    :hidden:
 
-   quickstart
+   getting-started-pyvespa
+   query
+   create-text-app
+   howto/deploy_app_package/deploy-docker
+   deploy-vespa-cloud
    usecases
    reference-api
 
@@ -56,4 +60,5 @@ Refer to `query application <query.rst>`__ to connect to an application and run 
 
 Deploy from Vespa config files
 ******************************
-Use pyvespa to `deploy a Vespa application package <deploy-from-vespa-config-files.rst>`__ to a local Docker container.
+Use pyvespa to `deploy a Vespa application package <howto/deploy_app_package/deploy-docker.rst>`__
+to a local Docker container.
