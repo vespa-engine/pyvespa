@@ -56,9 +56,9 @@ jobs:
           python3 -m pip install pytest
           python3 -m pip install -e .[full]
       - run-integration-running-instance: |
-          pytest vespa/test_integration_running_instance.py -s
+          pytest vespa/test_integration_running_instance.py -s -v
       - run-integration-docker: |
-          pytest vespa/test_integration_docker.py -s
+          pytest vespa/test_integration_docker.py -s -v
   notebooks-except-cloud:
     requires: [~commit,~pr]
     annotations:
@@ -114,7 +114,7 @@ jobs:
           python3 -m pip install pytest
           python3 -m pip install -e .[full]
       - run-integration-cloud: |
-          pytest vespa/test_integration_vespa_cloud.py -s
+          pytest vespa/test_integration_vespa_cloud.py -s -v
   notebooks-cloud:
     requires: [integration-cloud]
     annotations:
@@ -175,4 +175,4 @@ jobs:
           python3 -m pip cache purge
           python3 -m pip install --no-cache-dir --no-cache --quiet --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -Iv pyvespa[full]==$PYVESPA_VERSION.$SD_EVENT_ID 2>&1 | tee $SD_ARTIFACTS_DIR/mylogfile.txt
       - test-package: |
-          pytest --ignore-glob=vespa/test_integration*.py -s
+          pytest --ignore-glob=vespa/test_integration*.py -s -v
