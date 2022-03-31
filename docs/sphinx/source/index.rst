@@ -11,7 +11,6 @@ Vespa python API
 
    getting-started-pyvespa
    query
-   create-text-app
    howto/deploy_app_package/deploy-docker
    deploy-vespa-cloud
    usecases
