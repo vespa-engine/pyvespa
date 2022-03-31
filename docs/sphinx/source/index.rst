@@ -13,6 +13,7 @@ Vespa python API
    query
    howto/deploy_app_package/deploy-docker
    deploy-vespa-cloud
+   query-model
    usecases
    reference-api
 
