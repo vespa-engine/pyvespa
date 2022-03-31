@@ -12,7 +12,11 @@ Vespa python API
    getting-started-pyvespa
    query
    howto/deploy_app_package/deploy-docker
+   howto/exchange_data_with_app/exchange-data-with-app
    deploy-vespa-cloud
+   query-model
+   collect-training-data
+   evaluation
    usecases
    reference-api
 
