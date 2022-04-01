@@ -1088,6 +1088,20 @@ class TestQaDockerDeployment(TestDockerCommon):
         self.vespa_docker.container.stop()
         self.vespa_docker.container.remove()
 
+class TestQaDockerDeploymentImage(TestDockerCommon):
+    def setUp(self) -> None:
+        self.app_package = create_qa_application_package()
+        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+
+    def test_deploy(self):
+        self.deploy(application_package=self.app_package,
+                    disk_folder=self.disk_folder,
+                    container_image="vespaengine/vespa:7.567.26")
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.disk_folder, ignore_errors=True)
+        self.vespa_docker.container.stop()
+        self.vespa_docker.container.remove()
 
 class TestMsmarcoApplication(TestApplicationCommon):
     def setUp(self) -> None:
