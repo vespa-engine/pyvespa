@@ -132,8 +132,12 @@ def create_sequence_classification_task():
 
 
 class TestDockerCommon(unittest.TestCase):
-    def deploy(self, application_package, disk_folder):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+    def deploy(self, application_package, disk_folder, container_image=""):
+        if len(container_image) > 0:
+            self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder, container_image=container_image)
+        else:
+            self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+
         app = self.vespa_docker.deploy(application_package=application_package)
         #
         # Test deployment
