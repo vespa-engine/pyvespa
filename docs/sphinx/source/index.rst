@@ -11,10 +11,10 @@ Vespa python API
 
    getting-started-pyvespa
    query
-   howto/deploy_app_package/deploy-docker
-   howto/exchange_data_with_app/exchange-data-with-app
-   deploy-vespa-cloud
    query-model
+   deploy-docker
+   deploy-vespa-cloud
+   exchange-data-with-app
    collect-training-data
    evaluation
    usecases
@@ -63,5 +63,5 @@ Refer to `query application <query.rst>`__ to connect to an application and run 
 
 Deploy from Vespa config files
 ******************************
-Use pyvespa to `deploy a Vespa application package <howto/deploy_app_package/deploy-docker.rst>`__
+Use pyvespa to `deploy a Vespa application package <deploy-docker.rst>`__
 to a local Docker container.
