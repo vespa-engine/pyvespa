@@ -31,6 +31,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         container_memory: Union[str, int] = 4 * (1024 ** 3),
         output_file: IO = sys.stdout,
         container: Optional[docker.models.containers.Container] = None,
+        container_image: str = "vespaengine/vespa"
     ) -> None:
         """
         Manage Docker deployments.
@@ -41,6 +42,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         :param output_file: Output file to write output messages.
         :param container_memory: Docker container memory available to the application.
         :param container: Used when instantiating VespaDocker from a running container.
+        :param container_image: Docker container image.
         """
         self.container = container
         container_id = None
@@ -55,6 +57,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         self.disk_folder = disk_folder
         self.container_memory = container_memory
         self.output = output_file
+        self.container_image = container_image
 
     @staticmethod
     def from_container_name_or_id(
@@ -77,6 +80,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             container.attrs["HostConfig"]["PortBindings"]["8080/tcp"][0]["HostPort"]
         )
         container_memory = container.attrs["HostConfig"]["Memory"]
+        container_image = container.image
 
         return VespaDocker(
             disk_folder=disk_folder,
@@ -84,6 +88,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             container_memory=container_memory,
             output_file=output_file,
             container=container,
+            container_image=container_image,
         )
 
     def _run_vespa_engine_container(
@@ -99,7 +104,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
                 self.container.restart()
             except docker.errors.NotFound:
                 self.container = client.containers.run(
-                    "vespaengine/vespa",
+                    self.container_image,
                     detach=True,
                     mem_limit=container_memory,
                     name=application_name,
@@ -381,6 +386,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             disk_folder=mapping["disk_folder"],
             port=mapping["port"],
             container_memory=mapping["container_memory"],
+            container_image=mapping["container_image"],
         )
         return vespa_docker
 
@@ -393,6 +399,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             "port": self.local_port,
             "disk_folder": self.disk_folder,
             "container_memory": self.container_memory,
+            "container_image": self.container_image,
         }
         return map
 
@@ -406,10 +413,11 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             and self.local_port == other.local_port
             and self.disk_folder == other.disk_folder
             and self.container_memory == other.container_memory
+            and self.container_image == other.container_image
         )
 
     def __repr__(self):
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7})".format(
             self.__class__.__name__,
             repr(self.disk_folder),
             repr(self.url),
@@ -417,6 +425,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             repr(self.container_name),
             repr(self.container_id),
             repr(self.container_memory),
+            repr(self.container_image),
         )
 
 
