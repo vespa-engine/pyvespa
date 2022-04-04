@@ -132,8 +132,12 @@ def create_sequence_classification_task():
 
 
 class TestDockerCommon(unittest.TestCase):
-    def deploy(self, application_package, disk_folder):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+    def deploy(self, application_package, disk_folder, container_image=None):
+        if container_image:
+            self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder, container_image=container_image)
+        else:
+            self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+
         app = self.vespa_docker.deploy(application_package=application_package)
         #
         # Test deployment
@@ -146,8 +150,9 @@ class TestDockerCommon(unittest.TestCase):
         # Test VespaDocker serialization
         #
         self.assertEqual(
-            self.vespa_docker, VespaDocker.from_dict(self.vespa_docker.to_dict)
+            repr(self.vespa_docker), repr(VespaDocker.from_dict(self.vespa_docker.to_dict))
         )
+
 
     def deploy_from_disk_with_disk_folder(self, application_package, disk_folder):
         self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
@@ -1082,11 +1087,18 @@ class TestQaDockerDeployment(TestDockerCommon):
 
     def test_deploy(self):
         self.deploy(application_package=self.app_package, disk_folder=self.disk_folder)
+        self.vespa_docker.container.stop()
+        self.vespa_docker.container.remove()
+
+    def test_deploy_image(self):
+        self.deploy(application_package=self.app_package,
+                    disk_folder=self.disk_folder,
+                    container_image="vespaengine/vespa:7.566.21")
+        self.vespa_docker.container.stop()
+        self.vespa_docker.container.remove()
 
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
-        self.vespa_docker.container.stop()
-        self.vespa_docker.container.remove()
 
 
 class TestMsmarcoApplication(TestApplicationCommon):
