@@ -413,7 +413,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             and self.local_port == other.local_port
             and self.disk_folder == other.disk_folder
             and self.container_memory == other.container_memory
-            and self.container_image == other.container_image
+            and self.container_image.split(":")[0] == other.container_image.split(":")[0]
         )
 
     def __repr__(self):
