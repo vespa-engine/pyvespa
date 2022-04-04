@@ -31,7 +31,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         container_memory: Union[str, int] = 4 * (1024 ** 3),
         output_file: IO = sys.stdout,
         container: Optional[docker.models.containers.Container] = None,
-        container_image: str = "vespaengine/vespa:latest"
+        container_image: str = "vespaengine/vespa"
     ) -> None:
         """
         Manage Docker deployments.
@@ -425,7 +425,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             repr(self.container_name),
             repr(self.container_id),
             repr(self.container_memory),
-            repr(self.container_image),
+            repr(self.container_image.split(":")[0]),
         )
 
 
