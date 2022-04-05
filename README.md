@@ -11,3 +11,24 @@
 
 Code licensed under the Apache 2.0 license. See [LICENSE](LICENSE) for terms.
 
+## Release instructions
+
+We currently release new pyvespa versions manually.
+
+* Check out master branch
+* Manually change library version number on setup.py from `get_target_version()` to the desired version, e.g. "0.16.0".
+* Run the following command from the pyvespa root directory to create the library files
+
+```
+python3 setup.py sdist bdist_wheel
+``` 
+
+* Make sure you have the python library `twine` installed and access to the pyvespa project on PyPI. Run the following command to send the library to PyPI, it requires your username and password:
+
+```
+python3 -m twine upload dist/*
+```
+
+At this point, the latest package has been released. 
+
+* Please, create a new release tag on the Github project (https://github.com/vespa-engine/pyvespa/releases/new) with a summary of the code changes included in the release. Look at previous release notes and follow the same pattern.
