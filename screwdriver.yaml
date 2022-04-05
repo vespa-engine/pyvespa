@@ -89,10 +89,13 @@ jobs:
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
       - run-notebooks-except-cloud-related: |
           set -e
-          dnf install -y tree
-          dnf install -y wget
+          dnf install -y tree wget
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
-          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' -exec ls {} \; -name '*.ipynb' ! -name '*cloud*.ipynb' -exec runnb --allow-not-trusted {} \;
+          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' \
+            -exec echo '**********' \; \
+            -exec echo "Running runnb --allow-not-trusted " {} \; \
+            -exec echo '**********' \; \
+            -exec runnb --allow-not-trusted {} \;
   integration-cloud:
     requires: [~commit]
     annotations:
