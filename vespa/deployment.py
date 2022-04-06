@@ -271,6 +271,8 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         deployment_message = deployment.output.decode("utf-8").split("\n")
 
         if not any(re.match("Generation: [0-9]+", line) for line in deployment_message):
+            dir_dump = self.container.exec_run("bash -c 'ls -la /app'")
+            logging.debug(dir_dump.output.decode("utf-8"))
             raise RuntimeError(deployment_message)
 
         app = Vespa(
