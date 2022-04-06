@@ -263,6 +263,9 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
                     _application_folder + "/" + application_folder
             )  # using os.path.join break on windows
 
+        app_content = self.container.exec_run("bash -c 'cd /; ls -la; ls -la {}'".format(_application_folder))
+        logging.debug("Package: " + app_content)
+
         deploy_cmd = "bash -c '/opt/vespa/bin/vespa-deploy prepare {} && /opt/vespa/bin/vespa-deploy activate'".format(
             _application_folder)
         logging.debug("Deploy cmd: " + deploy_cmd)
