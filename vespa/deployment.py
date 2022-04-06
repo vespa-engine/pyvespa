@@ -262,11 +262,11 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             _application_folder = (
                     _application_folder + "/" + application_folder
             )  # using os.path.join break on windows
-        deployment = self.container.exec_run(
-            "bash -c '/opt/vespa/bin/vespa-deploy prepare {} && /opt/vespa/bin/vespa-deploy activate'".format(
-                _application_folder
-            )
-        )
+
+        deploy_cmd = "bash -c '/opt/vespa/bin/vespa-deploy prepare {} && /opt/vespa/bin/vespa-deploy activate'".format(
+            _application_folder)
+        logging.debug("Deploy cmd: " + deploy_cmd)
+        deployment = self.container.exec_run(deploy_cmd)
 
         deployment_message = deployment.output.decode("utf-8").split("\n")
 
