@@ -4,6 +4,7 @@ import os
 import re
 import sys
 import zipfile
+import logging
 from base64 import standard_b64encode
 from datetime import datetime, timedelta
 from io import BytesIO
@@ -59,6 +60,9 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         self.output = output_file
         self.container_image = container_image
 
+        if os.getenv("PYVESPA_DEBUG") == "true":
+            logging.basicConfig(level=logging.DEBUG)
+
     @staticmethod
     def from_container_name_or_id(
         name_or_id: str, output_file: IO = sys.stdout
@@ -100,9 +104,24 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         client = docker.from_env()
         if self.container is None:
             try:
+                logging.debug("Try Docker container restart")
                 self.container = client.containers.get(application_name)
                 self.container.restart()
             except docker.errors.NotFound:
+                logging.debug("Start a Docker container: "
+                              "image: {image}, "
+                              "mem_limit: {mem_limit}, "
+                              "name: {name}, "
+                              "hostname: {hostname}, "
+                              "volumes: {volumes}, "
+                              "ports: {ports}".format(
+                    image=self.container_image,
+                    mem_limit=container_memory,
+                    name=application_name,
+                    hostname=application_name,
+                    volumes={disk_folder: {"bind": "/app", "mode": "rw"}},
+                    ports={8080: self.local_port}
+                ))
                 self.container = client.containers.run(
                     self.container_image,
                     detach=True,
@@ -116,6 +135,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             self.container_name = self.container.name
             self.container_id = self.container.id
         else:
+            logging.debug("Try Docker container restart")
             self.container.restart()
 
     def _check_configuration_server(self) -> bool:
@@ -123,18 +143,19 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         Check if configuration server is running and ready for deployment
         :return: True if configuration server is running.
         """
-        return (
-            self.container is not None
-            and self.container.exec_run(
-                "bash -c 'curl -s --head http://localhost:19071/ApplicationStatus'"
-            )
-            .output.decode("utf-8")
-            .split("\r\n")[0]
-            == "HTTP/1.1 200 OK"
-        )
+        if self.container is None:
+            return False
+
+        output=self.container.exec_run(
+            "bash -c 'curl -s --head http://localhost:19071/ApplicationStatus'"
+        ).output.decode("utf-8")
+
+        logging.debug("Config Server check:" + output)
+
+        return output.split("\r\n")[0] == "HTTP/1.1 200 OK"
 
     def export_application_package(
-        self, application_package: Union[ApplicationPackage, ModelServer]
+            self, application_package: Union[ApplicationPackage, ModelServer]
     ) -> None:
         """
         Export application package to disk.
@@ -156,11 +177,11 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
 
         for schema in application_package.schemas:
             with open(
-                os.path.join(
-                    self.disk_folder,
-                    "application/schemas/{}.sd".format(schema.name),
-                ),
-                "w",
+                    os.path.join(
+                        self.disk_folder,
+                        "application/schemas/{}.sd".format(schema.name),
+                    ),
+                    "w",
             ) as f:
                 f.write(schema.schema_to_text)
             for model in schema.models:
@@ -178,19 +199,19 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
                 )
             ).mkdir(parents=True, exist_ok=True)
             with open(
-                os.path.join(
-                    self.disk_folder,
-                    "application/search/query-profiles/default.xml",
-                ),
-                "w",
+                    os.path.join(
+                        self.disk_folder,
+                        "application/search/query-profiles/default.xml",
+                    ),
+                    "w",
             ) as f:
                 f.write(application_package.query_profile_to_text)
             with open(
-                os.path.join(
-                    self.disk_folder,
-                    "application/search/query-profiles/types/root.xml",
-                ),
-                "w",
+                    os.path.join(
+                        self.disk_folder,
+                        "application/search/query-profiles/types/root.xml",
+                    ),
+                    "w",
             ) as f:
                 f.write(application_package.query_profile_type_to_text)
         with open(os.path.join(self.disk_folder, "application/hosts.xml"), "w") as f:
@@ -208,12 +229,12 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
                 )
 
     def _execute_deployment(
-        self,
-        application_name: str,
-        disk_folder: str,
-        container_memory: str = "4G",
-        application_folder: Optional[str] = None,
-        application_package: Optional[ApplicationPackage] = None,
+            self,
+            application_name: str,
+            disk_folder: str,
+            container_memory: str = "4G",
+            application_folder: Optional[str] = None,
+            application_package: Optional[ApplicationPackage] = None,
     ):
 
         self._run_vespa_engine_container(
@@ -222,14 +243,24 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             container_memory=container_memory,
         )
 
-        while not self._check_configuration_server():
-            print("Waiting for configuration server.", file=self.output)
-            sleep(5)
+        try_interval = 5
+        max_wait = 30
+        waited = 0
+
+        while not self._check_configuration_server() and (waited < max_wait):
+            print("Waited for configuration server, {0}/{1} seconds...".format(waited, max_wait), file=self.output)
+            sleep(try_interval)
+            waited += try_interval
+
+        if waited >= max_wait:
+            log_dump = self.container.exec_run("bash -c 'cat /opt/vespa/logs/vespa/vespa.log'")
+            logging.debug(log_dump.output.decode("utf-8"))
+            raise RuntimeError("Config server did not start, waited for {0} seconds.".format(max_wait))
 
         _application_folder = "/app"
         if application_folder:
             _application_folder = (
-                _application_folder + "/" + application_folder
+                    _application_folder + "/" + application_folder
             )  # using os.path.join break on windows
         deployment = self.container.exec_run(
             "bash -c '/opt/vespa/bin/vespa-deploy prepare {} && /opt/vespa/bin/vespa-deploy activate'".format(
@@ -258,8 +289,8 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         return app
 
     def deploy(
-        self,
-        application_package: ApplicationPackage,
+            self,
+            application_package: ApplicationPackage,
     ) -> Vespa:
         """
         Deploy the application package into a Vespa container.
@@ -280,9 +311,9 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         )
 
     def deploy_from_disk(
-        self,
-        application_name: str,
-        application_folder: Optional[str] = None,
+            self,
+            application_name: str,
+            application_folder: Optional[str] = None,
     ) -> Vespa:
         """
         Deploy disk-based application package into a Vespa container.
@@ -407,13 +438,13 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         if not isinstance(other, self.__class__):
             return False
         return (
-            self.container_id == other.container_id
-            and self.container_name == other.container_name
-            and self.url == other.url
-            and self.local_port == other.local_port
-            and self.disk_folder == other.disk_folder
-            and self.container_memory == other.container_memory
-            and self.container_image.split(":")[0] == other.container_image.split(":")[0]
+                self.container_id == other.container_id
+                and self.container_name == other.container_name
+                and self.url == other.url
+                and self.local_port == other.local_port
+                and self.disk_folder == other.disk_folder
+                and self.container_memory == other.container_memory
+                and self.container_image.split(":")[0] == other.container_image.split(":")[0]
         )
 
     def __repr__(self):
@@ -431,13 +462,13 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
 
 class VespaCloud(object):
     def __init__(
-        self,
-        tenant: str,
-        application: str,
-        application_package: ApplicationPackage,
-        key_location: Optional[str] = None,
-        key_content: Optional[str] = None,
-        output_file: IO = sys.stdout,
+            self,
+            tenant: str,
+            application: str,
+            application_package: ApplicationPackage,
+            key_location: Optional[str] = None,
+            key_content: Optional[str] = None,
+            output_file: IO = sys.stdout,
     ) -> None:
         """
         Deploy application to the Vespa Cloud (cloud.vespa.ai)
@@ -469,7 +500,7 @@ class VespaCloud(object):
 
     @staticmethod
     def _read_private_key(
-        key_location: Optional[str] = None, key_content: Optional[str] = None
+            key_location: Optional[str] = None, key_content: Optional[str] = None
     ) -> ec.EllipticCurvePrivateKey:
 
         if key_content:
@@ -486,7 +517,7 @@ class VespaCloud(object):
         return key
 
     def _write_private_key_and_cert(
-        self, key: ec.EllipticCurvePrivateKey, cert: x509.Certificate, disk_folder: str
+            self, key: ec.EllipticCurvePrivateKey, cert: x509.Certificate, disk_folder: str
     ) -> None:
         cert_file = os.path.join(disk_folder, self.private_cert_file_name)
         with open(cert_file, "w+") as file:
@@ -505,25 +536,25 @@ class VespaCloud(object):
         name = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, u"localhost")])
         certificate = (
             x509.CertificateBuilder()
-            .subject_name(name)
-            .issuer_name(name)
-            .serial_number(x509.random_serial_number())
-            .not_valid_before(datetime.utcnow() - timedelta(minutes=1))
-            .not_valid_after(datetime.utcnow() + timedelta(days=7))
-            .public_key(key.public_key())
-            .sign(key, hashes.SHA256(), default_backend())
+                .subject_name(name)
+                .issuer_name(name)
+                .serial_number(x509.random_serial_number())
+                .not_valid_before(datetime.utcnow() - timedelta(minutes=1))
+                .not_valid_after(datetime.utcnow() + timedelta(days=7))
+                .public_key(key.public_key())
+                .sign(key, hashes.SHA256(), default_backend())
         )
         return key, certificate
 
     def _request(
-        self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
+            self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
     ) -> dict:
         digest = hashes.Hash(hashes.SHA256(), default_backend())
         body.seek(0)
         digest.update(body.read())
         content_hash = standard_b64encode(digest.finalize()).decode("UTF-8")
         timestamp = (
-            datetime.utcnow().isoformat() + "Z"
+                datetime.utcnow().isoformat() + "Z"
         )  # Java's Instant.parse requires the neutral time zone appended
         url = "https://" + self.connection.host + ":" + str(self.connection.port) + path
 
@@ -572,7 +603,7 @@ class VespaCloud(object):
             endpoint["url"]
             for endpoint in endpoints
             if endpoint["cluster"]
-            == "{}_container".format(self.application_package.name)
+               == "{}_container".format(self.application_package.name)
         ]
         if not container_url:
             raise RuntimeError("No endpoints found for container 'test_app_container'")
@@ -650,7 +681,7 @@ class VespaCloud(object):
         return response["run"]
 
     def _get_deployment_status(
-        self, instance: str, job: str, run: int, last: int
+            self, instance: str, job: str, run: int, last: int
     ) -> (str, int):
 
         update = self._request(
