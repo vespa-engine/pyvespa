@@ -7,6 +7,8 @@ import asyncio
 import concurrent.futures
 
 from typing import Optional, Dict, Tuple, List, IO, Union
+
+import requests
 from pandas import DataFrame
 from requests import Session
 from requests.models import Response
@@ -195,8 +197,12 @@ class Vespa(object):
 
         :return:
         """
-        with VespaSync(self) as sync_app:
-            return sync_app.get_application_status()
+        endpoint = "{}/ApplicationStatus".format(self.end_point)
+        try:
+            response = requests.get(endpoint, cert=self.cert)
+        except ConnectionError:
+            response = None
+        return response
 
     def get_model_endpoint(self, model_id: Optional[str] = None) -> Optional[Response]:
         """Get model evaluation endpoints."""
@@ -1033,19 +1039,6 @@ class VespaSync(object):
         if self.http_session is None:
             return
         self.http_session.close()
-
-    def get_application_status(self) -> Optional[Response]:
-        """
-        Get application status.
-
-        :return:
-        """
-        end_point = "{}/ApplicationStatus".format(self.app.end_point)
-        try:
-            response = self.http_session.get(end_point, cert=self.cert)
-        except ConnectionError:
-            response = None
-        return response
 
     def get_model_endpoint(self, model_id: Optional[str] = None) -> Optional[dict]:
         """Get model evaluation endpoints."""

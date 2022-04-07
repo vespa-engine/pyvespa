@@ -17,7 +17,7 @@ from vespa.query import QueryModel, AND, RankProfile as Ranking
 
 class TextSearch(ApplicationPackage):
     def __init__(
-        self, id_field: str, text_fields: List[str], name: str = "text_search"
+        self, id_field: str, text_fields: List[str], name: str = "textSearch"
     ):
         document = Document(
             fields=[
