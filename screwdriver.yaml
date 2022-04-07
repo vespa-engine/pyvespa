@@ -59,7 +59,7 @@ jobs:
           set -e
           dnf install -y tree wget
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
-          runnb --allow-not-trusted docs/sphinx/source/use_cases/qa/semantic-retrieval-for-question-answering-applications.ipynb
+          runnb --allow-not-trusted docs/sphinx/source/use_cases/image_search/image-search-scratch.ipynb
   integration-cloud:
     requires: [~commit]
     annotations:
