@@ -60,6 +60,7 @@ jobs:
           # Exclude non-testable notebooks below
           #
           dnf install -y tree wget
+          echo "All non-cloud notebooks:"
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
           for notebook in "docs/sphinx/source/use_cases/sequence-classification-task.ipynb"; \
             do echo -e "**********\n*** Running $notebook ***\n**********"; \
