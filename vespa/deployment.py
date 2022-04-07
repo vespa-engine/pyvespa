@@ -278,7 +278,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         try_interval = 5
         waited = 0
         while not self._check_configuration_server() and (waited < max_wait):
-            print("Waited for configuration server, {0}/{1} seconds...".format(waited, max_wait), file=self.output)
+            print("Waiting for configuration server, {0}/{1} seconds...".format(waited, max_wait), file=self.output)
             sleep(try_interval)
             waited += try_interval
         if waited >= max_wait:
@@ -772,12 +772,25 @@ class VespaCloud(object):
         run = self._start_deployment(instance, job, disk_folder)
         self._follow_deployment(instance, job, run)
         endpoint_url = self._get_endpoint(instance=instance, region=region)
-        print("Finished deployment.", file=self.output)
-        return Vespa(
+        app = Vespa(
             url=endpoint_url,
             cert=os.path.join(disk_folder, self.private_cert_file_name),
             application_package=self.application_package
         )
+        self.wait_for_application_up(app, max_wait=300)
+        print("Finished deployment.", file=self.output)
+        return app
+
+    def wait_for_application_up(self, app, max_wait):
+        try_interval = 5
+        waited = 0
+        while not app.get_application_status() and (waited < max_wait):
+            print("Waiting for application status, {0}/{1} seconds...".format(waited, max_wait), file=self.output)
+            sleep(try_interval)
+            waited += try_interval
+        if waited >= max_wait:
+            self.dump_vespa_log()
+            raise RuntimeError("Application did not start, waited for {0} seconds.".format(max_wait))
 
     def delete(self, instance: str):
         """
