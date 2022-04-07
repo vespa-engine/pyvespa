@@ -4,6 +4,7 @@ import os
 import re
 import sys
 import zipfile
+import logging
 from base64 import standard_b64encode
 from datetime import datetime, timedelta
 from io import BytesIO
@@ -59,6 +60,9 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         self.output = output_file
         self.container_image = container_image
 
+        if os.getenv("PYVESPA_DEBUG") == "true":
+            logging.basicConfig(level=logging.DEBUG)
+
     @staticmethod
     def from_container_name_or_id(
         name_or_id: str, output_file: IO = sys.stdout
@@ -100,9 +104,24 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         client = docker.from_env()
         if self.container is None:
             try:
+                logging.debug("Try Docker container restart")
                 self.container = client.containers.get(application_name)
                 self.container.restart()
             except docker.errors.NotFound:
+                logging.debug("Start a Docker container: "
+                              "image: {image}, "
+                              "mem_limit: {mem_limit}, "
+                              "name: {name}, "
+                              "hostname: {hostname}, "
+                              "volumes: {volumes}, "
+                              "ports: {ports}".format(
+                    image=self.container_image,
+                    mem_limit=container_memory,
+                    name=application_name,
+                    hostname=application_name,
+                    volumes={disk_folder: {"bind": "/app", "mode": "rw"}},
+                    ports={8080: self.local_port}
+                ))
                 self.container = client.containers.run(
                     self.container_image,
                     detach=True,
@@ -116,6 +135,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             self.container_name = self.container.name
             self.container_id = self.container.id
         else:
+            logging.debug("Try Docker container restart")
             self.container.restart()
 
     def _check_configuration_server(self) -> bool:
@@ -123,15 +143,14 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         Check if configuration server is running and ready for deployment
         :return: True if configuration server is running.
         """
-        return (
-            self.container is not None
-            and self.container.exec_run(
-                "bash -c 'curl -s --head http://localhost:19071/ApplicationStatus'"
-            )
-            .output.decode("utf-8")
-            .split("\r\n")[0]
-            == "HTTP/1.1 200 OK"
-        )
+        if self.container is None:
+            return False
+
+        output=self.container.exec_run(
+            "bash -c 'curl -s --head http://localhost:19071/ApplicationStatus'"
+        ).output.decode("utf-8")
+        logging.debug("Config Server ApplicationStatus head response: " + output)
+        return output.split("\r\n")[0] == "HTTP/1.1 200 OK"
 
     def export_application_package(
         self, application_package: Union[ApplicationPackage, ModelServer]
@@ -222,20 +241,20 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             container_memory=container_memory,
         )
 
-        while not self._check_configuration_server():
-            print("Waiting for configuration server.", file=self.output)
-            sleep(5)
+        self.wait_for_config_server_start(max_wait=300)
 
         _application_folder = "/app"
         if application_folder:
             _application_folder = (
                 _application_folder + "/" + application_folder
             )  # using os.path.join break on windows
-        deployment = self.container.exec_run(
-            "bash -c '/opt/vespa/bin/vespa-deploy prepare {} && /opt/vespa/bin/vespa-deploy activate'".format(
-                _application_folder
-            )
-        )
+
+        app_content = self.container.exec_run("bash -c 'ls -la {}'".format(_application_folder)).output.decode("utf-8")
+        logging.debug("Application Package files: \n" + app_content)
+        deploy_cmd = "bash -c '/opt/vespa/bin/vespa-deploy prepare {} && /opt/vespa/bin/vespa-deploy activate'"\
+            .format(_application_folder)
+        logging.debug("Deploy command: " + deploy_cmd)
+        deployment = self.container.exec_run(deploy_cmd)
 
         deployment_message = deployment.output.decode("utf-8").split("\n")
 
@@ -249,13 +268,38 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             application_package=application_package,
         )
 
-        while not app.get_application_status():
-            print("Waiting for application status.", file=self.output)
-            sleep(10)
+        self.wait_for_application_up(app, max_wait=300)
 
         print("Finished deployment.", file=self.output)
 
         return app
+
+    def wait_for_config_server_start(self, max_wait):
+        try_interval = 5
+        waited = 0
+        while not self._check_configuration_server() and (waited < max_wait):
+            print("Waited for configuration server, {0}/{1} seconds...".format(waited, max_wait), file=self.output)
+            sleep(try_interval)
+            waited += try_interval
+        if waited >= max_wait:
+            self.dump_vespa_log()
+            raise RuntimeError("Config server did not start, waited for {0} seconds.".format(max_wait))
+
+    def wait_for_application_up(self, app, max_wait):
+        try_interval = 5
+        waited = 0
+        while not app.get_application_status() and (waited < max_wait):
+            print("Waiting for application status, {0}/{1} seconds...".format(waited, max_wait), file=self.output)
+            sleep(try_interval)
+            waited += try_interval
+        if waited >= max_wait:
+            self.dump_vespa_log()
+            raise RuntimeError("Application did not start, waited for {0} seconds.".format(max_wait))
+
+    def dump_vespa_log(self):
+        log_dump = self.container.exec_run("bash -c 'cat /opt/vespa/logs/vespa/vespa.log'")
+        logging.debug("Dumping vespa.log:")
+        logging.debug(log_dump.output.decode("utf-8"))
 
     def deploy(
         self,
@@ -344,9 +388,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
                 url=self.url,
                 port=self.local_port,
             )
-            while not app.get_application_status():
-                print("Waiting for application status.", file=self.output)
-                sleep(10)
+            self.wait_for_application_up(app, max_wait=1000000) # wait indefinitely...
             for line in start_services.output.decode("utf-8").split("\n"):
                 print(line, file=self.output)
         else:
