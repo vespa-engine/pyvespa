@@ -56,15 +56,19 @@ jobs:
           python3 -m pip install -r docs/sphinx/source/requirements.txt
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
       - run-notebooks-except-cloud-related: |
+          #
+          # Exclude non-testable notebooks below
+          #
           dnf install -y tree wget
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
           for notebook in `find docs -name '*.ipynb' -and \
             ! -name '*cloud*.ipynb' -and \
             ! -path '*/.ipynb_checkpoints/*' -and \
             ! -name 'image-search-scratch.ipynb'`; \
-            do echo "*** Running $notebook ***"; \
+            do echo -e "**********\n*** Running $notebook ***\n**********"; \
             runnb --allow-not-trusted $notebook || break;\
           done
+
   integration-cloud:
     requires: [~commit]
     annotations:
