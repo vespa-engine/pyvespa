@@ -61,10 +61,7 @@ jobs:
           #
           dnf install -y tree wget
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
-          for notebook in `find docs -name '*.ipynb' -and \
-            ! -name '*cloud*.ipynb' -and \
-            ! -path '*/.ipynb_checkpoints/*' -and \
-            ! -name 'image-search-scratch.ipynb'`; \
+          for notebook in "docs/sphinx/source/use_cases/sequence-classification-task.ipynb"; \
             do echo -e "**********\n*** Running $notebook ***\n**********"; \
             runnb --allow-not-trusted $notebook || break;\
           done
