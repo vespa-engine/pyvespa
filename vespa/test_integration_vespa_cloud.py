@@ -57,6 +57,7 @@ class TestVespaKeyAndCertificate(unittest.TestCase):
             cert=os.path.join(self.disk_folder, "cert_file.txt"),
             application_package=self.app.application_package,
         )
+        self.app.wait_for_application_up(max_wait=300)
         self.assertEqual(200, self.app.get_application_status().status_code)
         self.assertDictEqual(
             {
