@@ -41,7 +41,7 @@ jobs:
           dnf install -y git
           export WORK_DIR=$SD_DIND_SHARE_PATH
           export RESOURCES_DIR=$(pwd)/vespa/resources
-          #export PYVESPA_DEBUG=true
+          export PYVESPA_DEBUG=true
       - install-docker: |
           dnf install -y dnf-plugins-core
           dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
