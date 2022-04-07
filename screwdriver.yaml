@@ -63,7 +63,7 @@ jobs:
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
           for notebook in "docs/sphinx/source/use_cases/sequence-classification-task.ipynb"; \
             do echo -e "**********\n*** Running $notebook ***\n**********"; \
-            runnb --allow-not-trusted $notebook || break;\
+            runnb --allow-not-trusted $notebook || exit 1;\
           done
 
   integration-cloud:
