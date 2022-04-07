@@ -278,7 +278,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         try_interval = 5
         waited = 0
         while not self._check_configuration_server() and (waited < max_wait):
-            print("Waited for configuration server, {0}/{1} seconds...".format(waited, max_wait), file=self.output)
+            print("Waiting for configuration server, {0}/{1} seconds...".format(waited, max_wait), file=self.output)
             sleep(try_interval)
             waited += try_interval
         if waited >= max_wait:
