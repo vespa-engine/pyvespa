@@ -59,7 +59,7 @@ jobs:
           set -e
           dnf install -y tree wget
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
-          runnb --allow-not-trusted getting-started-pyvespa.ipynb
+          runnb --allow-not-trusted docs/sphinx/source/getting-started-pyvespa.ipynb
   integration-cloud:
     requires: [~commit]
     annotations:
