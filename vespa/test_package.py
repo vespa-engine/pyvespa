@@ -1,6 +1,8 @@
 import unittest, os
 from shutil import rmtree
 
+import pytest
+
 from vespa.package import (
     HNSW,
     Field,
@@ -613,7 +615,7 @@ class TestApplicationPackage(unittest.TestCase):
             ]
         )
         self.app_package = ApplicationPackage(
-            name="test_app",
+            name="testapp",
             schema=[self.test_schema],
             query_profile=test_query_profile,
             query_profile_type=test_query_profile_type,
@@ -754,11 +756,11 @@ class TestApplicationPackage(unittest.TestCase):
         expected_result = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<services version="1.0">\n'
-            '    <container id="test_app_container" version="1.0">\n'
+            '    <container id="testapp_container" version="1.0">\n'
             "        <search></search>\n"
             "        <document-api></document-api>\n"
             "    </container>\n"
-            '    <content id="test_app_content" version="1.0">\n'
+            '    <content id="testapp_content" version="1.0">\n'
             '        <redundancy reply-after="1">1</redundancy>\n'
             "        <documents>\n"
             '            <document type="msmarco" mode="index"></document>\n'
@@ -840,7 +842,7 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
             ),
         )
         self.app_package = ApplicationPackage(
-            name="test_app",
+            name="testapp",
             schema=[self.news_schema, self.user_schema, self.category_ctr_schema],
         )
 
@@ -907,11 +909,11 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
         expected_result = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<services version="1.0">\n'
-            '    <container id="test_app_container" version="1.0">\n'
+            '    <container id="testapp_container" version="1.0">\n'
             "        <search></search>\n"
             "        <document-api></document-api>\n"
             "    </container>\n"
-            '    <content id="test_app_content" version="1.0">\n'
+            '    <content id="testapp_content" version="1.0">\n'
             '        <redundancy reply-after="1">1</redundancy>\n'
             "        <documents>\n"
             '            <document type="news" mode="index"></document>\n'
@@ -951,7 +953,7 @@ class TestApplicationPackageAddBertRankingWithMultipleSchemas(unittest.TestCase)
             ),
         )
         self.app_package = ApplicationPackage(
-            name="test_app",
+            name="testapp",
             schema=[news_schema, user_schema],
         )
         bert_config = BertModelConfig(
@@ -1087,11 +1089,11 @@ class TestApplicationPackageAddBertRankingWithMultipleSchemas(unittest.TestCase)
         expected_result = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<services version="1.0">\n'
-            '    <container id="test_app_container" version="1.0">\n'
+            '    <container id="testapp_container" version="1.0">\n'
             "        <search></search>\n"
             "        <document-api></document-api>\n"
             "    </container>\n"
-            '    <content id="test_app_content" version="1.0">\n'
+            '    <content id="testapp_content" version="1.0">\n'
             '        <redundancy reply-after="1">1</redundancy>\n'
             "        <documents>\n"
             '            <document type="news" mode="index"></document>\n'
@@ -1133,7 +1135,7 @@ class TestApplicationPackageAddBertRankingWithMultipleSchemas(unittest.TestCase)
 
 class TestSimplifiedApplicationPackage(unittest.TestCase):
     def setUp(self) -> None:
-        self.app_package = ApplicationPackage(name="test_app")
+        self.app_package = ApplicationPackage(name="testapp")
 
         self.app_package.schema.add_fields(
             Field(name="id", type="string", indexing=["attribute", "summary"]),
@@ -1192,8 +1194,8 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
 
     def test_schema_to_text(self):
         expected_result = (
-            "schema test_app {\n"
-            "    document test_app {\n"
+            "schema testapp {\n"
+            "    document testapp {\n"
             "        field id type string {\n"
             "            indexing: attribute | summary\n"
             "        }\n"
@@ -1253,14 +1255,14 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
         expected_result = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<services version="1.0">\n'
-            '    <container id="test_app_container" version="1.0">\n'
+            '    <container id="testapp_container" version="1.0">\n'
             "        <search></search>\n"
             "        <document-api></document-api>\n"
             "    </container>\n"
-            '    <content id="test_app_content" version="1.0">\n'
+            '    <content id="testapp_content" version="1.0">\n'
             '        <redundancy reply-after="1">1</redundancy>\n'
             "        <documents>\n"
-            '            <document type="test_app" mode="index"></document>\n'
+            '            <document type="testapp" mode="index"></document>\n'
             "        </documents>\n"
             "        <nodes>\n"
             '            <node distribution-key="0" hostalias="node1"></node>\n'
@@ -1366,7 +1368,7 @@ class TestSimplifiedApplicationPackageWithMultipleSchemas(unittest.TestCase):
 
 class TestSimplifiedApplicationPackageAddBertRanking(unittest.TestCase):
     def setUp(self) -> None:
-        self.app_package = ApplicationPackage(name="test_app")
+        self.app_package = ApplicationPackage(name="testapp")
 
         self.app_package.schema.add_fields(
             Field(name="id", type="string", indexing=["attribute", "summary"]),
@@ -1431,8 +1433,8 @@ class TestSimplifiedApplicationPackageAddBertRanking(unittest.TestCase):
 
     def test_schema_to_text(self):
         expected_result = (
-            "schema test_app {\n"
-            "    document test_app {\n"
+            "schema testapp {\n"
+            "    document testapp {\n"
             "        field id type string {\n"
             "            indexing: attribute | summary\n"
             "        }\n"
@@ -1544,14 +1546,14 @@ class TestSimplifiedApplicationPackageAddBertRanking(unittest.TestCase):
         expected_result = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<services version="1.0">\n'
-            '    <container id="test_app_container" version="1.0">\n'
+            '    <container id="testapp_container" version="1.0">\n'
             "        <search></search>\n"
             "        <document-api></document-api>\n"
             "    </container>\n"
-            '    <content id="test_app_content" version="1.0">\n'
+            '    <content id="testapp_content" version="1.0">\n'
             '        <redundancy reply-after="1">1</redundancy>\n'
             "        <documents>\n"
-            '            <document type="test_app" mode="index"></document>\n'
+            '            <document type="testapp" mode="index"></document>\n'
             "        </documents>\n"
             "        <nodes>\n"
             '            <node distribution-key="0" hostalias="node1"></node>\n'
@@ -1591,9 +1593,18 @@ class TestSimplifiedApplicationPackageAddBertRanking(unittest.TestCase):
         rmtree(self.disk_folder, ignore_errors=True)
 
 
+class TestValidAppName(unittest.TestCase):
+
+    def test_invalid_name(self):
+        with pytest.raises(ValueError):
+            app_package = ApplicationPackage(name="test_app")
+        with pytest.raises(ValueError):
+            app_package = ApplicationPackage(name="test-app")
+
+
 class TestModelServer(unittest.TestCase):
     def setUp(self) -> None:
-        self.server_name = "test_server"
+        self.server_name = "testserver"
         self.model_server = ModelServer(
             name=self.server_name,
         )
@@ -1623,7 +1634,7 @@ class TestModelServer(unittest.TestCase):
         expected_result = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<services version="1.0">\n'
-            '    <container id="test_server_container" version="1.0">\n'
+            '    <container id="testserver_container" version="1.0">\n'
             "        <model-evaluation/>\n"
             "    </container>\n"
             "</services>"

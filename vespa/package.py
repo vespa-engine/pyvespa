@@ -1179,11 +1179,12 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         An :class:`ApplicationPackage` instance comes with a default :class:`Schema`
         that contains a default :class:`Document`
 
-        :param name: Application name.
-        :param schema: List of :class:`Schema`s of the application. If `None`, an empty :class:`Schema` with the same name of the
-            application will be created by default.
-        :param query_profile: :class:`QueryProfile` of the application. If `None`, a :class:`QueryProfile` named `default`
-         with :class:`QueryProfileType` named `root` will be created by default.
+        :param name: Application name. Cannot contain '-' or '_'.
+        :param schema: List of :class:`Schema`s of the application.
+            If `None`, an empty :class:`Schema` with the same name of the application will be created by default.
+        :param query_profile: :class:`QueryProfile` of the application.
+            If `None`, a :class:`QueryProfile` named `default` with :class:`QueryProfileType` named `root`
+            will be created by default.
         :param query_profile_type: :class:`QueryProfileType` of the application. If `None`, a empty
             :class:`QueryProfileType` named `root` will be created by default.
         :param stateless_model_evaluation: Enable stateless model evaluation. Default to False.
@@ -1196,12 +1197,14 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
 
         The easiest way to get started is to create a default application package:
 
-        >>> ApplicationPackage(name="test_app")
-        ApplicationPackage('test_app', [Schema('test_app', Document(None, None), None, None, [], False, None)], QueryProfile(None), QueryProfileType(None))
+        >>> ApplicationPackage(name="testapp")
+        ApplicationPackage('testapp', [Schema('testapp', Document(None, None), None, None, [], False, None)], QueryProfile(None), QueryProfileType(None))
 
         It will create a default :class:`Schema`, :class:`QueryProfile` and :class:`QueryProfileType` that you can then
         populate with specifics of your application.
         """
+        if not name.isalnum():
+            raise ValueError("Application package name can only contain [a-zA-Z0-9], was '{}'".format(name))
         self.name = name
         if not schema:
             schema = (
