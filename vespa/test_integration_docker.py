@@ -121,7 +121,7 @@ def create_qa_application_package():
 
 def create_sequence_classification_task():
     app_package = ModelServer(
-        name="bertModelServer",
+        name="bertmodelserver",
         tasks=[
             SequenceClassification(
                 model_id="bert_tiny", model="google/bert_uncased_L-2_H-128_A-2"
