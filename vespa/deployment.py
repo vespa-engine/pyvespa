@@ -23,6 +23,8 @@ from vespa.application import Vespa
 from vespa.json_serialization import ToJson, FromJson
 from vespa.package import ApplicationPackage, ModelServer
 
+CFG_SERVER_START_TIMEOUT = 300
+APP_INIT_TIMEOUT = 300
 
 class VespaDocker(ToJson, FromJson["VespaDocker"]):
     def __init__(
@@ -241,7 +243,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             container_memory=container_memory,
         )
 
-        self.wait_for_config_server_start(max_wait=300)
+        self.wait_for_config_server_start(max_wait=CFG_SERVER_START_TIMEOUT)
 
         _application_folder = "/app"
         if application_folder:
@@ -267,7 +269,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             deployment_message=deployment_message,
             application_package=application_package,
         )
-        app.wait_for_application_up(max_wait=300)
+        app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
 
         print("Finished deployment.", file=self.output)
 
@@ -771,7 +773,7 @@ class VespaCloud(object):
             cert=os.path.join(disk_folder, self.private_cert_file_name),
             application_package=self.application_package
         )
-        app.wait_for_application_up(max_wait=300)
+        app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
         print("Finished deployment.", file=self.output)
         return app
 
