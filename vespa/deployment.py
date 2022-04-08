@@ -267,14 +267,19 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             deployment_message=deployment_message,
             application_package=application_package,
         )
-
-        self.wait_for_application_up(app, max_wait=300)
+        app.wait_for_application_up(max_wait=300)
 
         print("Finished deployment.", file=self.output)
 
         return app
 
     def wait_for_config_server_start(self, max_wait):
+        """
+        Waits for for Config Server to start inside the Docker image
+
+        :param max_wait: Seconds to wait for the application endpoint
+        :return:
+        """
         try_interval = 5
         waited = 0
         while not self._check_configuration_server() and (waited < max_wait):
@@ -284,17 +289,6 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         if waited >= max_wait:
             self.dump_vespa_log()
             raise RuntimeError("Config server did not start, waited for {0} seconds.".format(max_wait))
-
-    def wait_for_application_up(self, app, max_wait):
-        try_interval = 5
-        waited = 0
-        while not app.get_application_status() and (waited < max_wait):
-            print("Waiting for application status, {0}/{1} seconds...".format(waited, max_wait), file=self.output)
-            sleep(try_interval)
-            waited += try_interval
-        if waited >= max_wait:
-            self.dump_vespa_log()
-            raise RuntimeError("Application did not start, waited for {0} seconds.".format(max_wait))
 
     def dump_vespa_log(self):
         log_dump = self.container.exec_run("bash -c 'cat /opt/vespa/logs/vespa/vespa.log'")
@@ -388,7 +382,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
                 url=self.url,
                 port=self.local_port,
             )
-            self.wait_for_application_up(app, max_wait=1000000) # wait indefinitely...
+            app.wait_for_application_up(max_wait=1000000) # wait indefinitely...
             for line in start_services.output.decode("utf-8").split("\n"):
                 print(line, file=self.output)
         else:
@@ -777,20 +771,9 @@ class VespaCloud(object):
             cert=os.path.join(disk_folder, self.private_cert_file_name),
             application_package=self.application_package
         )
-        self.wait_for_application_up(app, max_wait=300)
+        app.wait_for_application_up(max_wait=300)
         print("Finished deployment.", file=self.output)
         return app
-
-    def wait_for_application_up(self, app, max_wait):
-        try_interval = 5
-        waited = 0
-        while not app.get_application_status() and (waited < max_wait):
-            print("Waiting for application status, {0}/{1} seconds...".format(waited, max_wait), file=self.output)
-            sleep(try_interval)
-            waited += try_interval
-        if waited >= max_wait:
-            self.dump_vespa_log()
-            raise RuntimeError("Application did not start, waited for {0} seconds.".format(max_wait))
 
     def delete(self, instance: str):
         """

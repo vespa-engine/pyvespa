@@ -16,6 +16,7 @@ from requests.exceptions import ConnectionError
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 from tenacity import retry, wait_exponential, stop_after_attempt
+from time import sleep
 
 from vespa.io import VespaQueryResponse, VespaResponse
 from vespa.query import QueryModel
@@ -190,6 +191,22 @@ class Vespa(object):
             )
 
         return schema.name
+
+    def wait_for_application_up(self, max_wait):
+        """
+        Wait for application ready.
+
+        :param max_wait: Seconds to wait for the application endpoint
+        :return:
+        """
+        try_interval = 5
+        waited = 0
+        while not self.get_application_status() and (waited < max_wait):
+            print("Waiting for application status, {0}/{1} seconds...".format(waited, max_wait), file=self.output_file)
+            sleep(try_interval)
+            waited += try_interval
+        if waited >= max_wait:
+            raise RuntimeError("Application did not start, waited for {0} seconds.".format(max_wait))
 
     def get_application_status(self) -> Optional[Response]:
         """
