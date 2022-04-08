@@ -1,6 +1,8 @@
 import unittest, os
 from shutil import rmtree
 
+import pytest
+
 from vespa.package import (
     HNSW,
     Field,
@@ -1589,6 +1591,15 @@ class TestSimplifiedApplicationPackageAddBertRanking(unittest.TestCase):
 
     def tearDown(self) -> None:
         rmtree(self.disk_folder, ignore_errors=True)
+
+
+class TestValidAppName(unittest.TestCase):
+
+    def test_invalid_name(self):
+        with pytest.raises(ValueError):
+            app_package = ApplicationPackage(name="test_app")
+        with pytest.raises(ValueError):
+            app_package = ApplicationPackage(name="test-app")
 
 
 class TestModelServer(unittest.TestCase):
