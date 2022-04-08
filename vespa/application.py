@@ -216,7 +216,7 @@ class Vespa(object):
         """
         endpoint = "{}/ApplicationStatus".format(self.end_point)
         if self.key:
-            self.cert = (self.app.cert, self.app.key)
+            self.cert = (self.cert, self.key)
         try:
             response = requests.get(endpoint, cert=self.cert)
         except ConnectionError:
