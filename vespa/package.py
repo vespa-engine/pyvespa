@@ -1204,7 +1204,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         populate with specifics of your application.
         """
         if not name.isalnum():
-            raise ValueError("Application package name can only contain [a-zA-Z0-9].")
+            raise ValueError("Application package name can only contain [a-zA-Z0-9], was '{}'".format(name))
         self.name = name
         if not schema:
             schema = (
