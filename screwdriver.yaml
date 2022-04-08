@@ -116,6 +116,7 @@ jobs:
       - setup: |
           export WORK_DIR=$SD_DIND_SHARE_PATH
           export RESOURCES_DIR=$(pwd)/vespa/resources
+          export PYVESPA_DEBUG=true
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
