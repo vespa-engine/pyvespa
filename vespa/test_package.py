@@ -743,7 +743,7 @@ class TestApplicationPackage(unittest.TestCase):
     def test_hosts_to_text(self):
         expected_result = (
             '<?xml version="1.0" encoding="utf-8" ?>\n'
-            "<!-- Copyright 2019 Oath Inc. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->\n"
+            "<!-- Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->\n"
             "<hosts>\n"
             '    <host name="localhost">\n'
             "        <alias>node1</alias>\n"
@@ -1076,7 +1076,7 @@ class TestApplicationPackageAddBertRankingWithMultipleSchemas(unittest.TestCase)
     def test_hosts_to_text(self):
         expected_result = (
             '<?xml version="1.0" encoding="utf-8" ?>\n'
-            "<!-- Copyright 2019 Oath Inc. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->\n"
+            "<!-- Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->\n"
             "<hosts>\n"
             '    <host name="localhost">\n'
             "        <alias>node1</alias>\n"
@@ -1242,7 +1242,7 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
     def test_hosts_to_text(self):
         expected_result = (
             '<?xml version="1.0" encoding="utf-8" ?>\n'
-            "<!-- Copyright 2019 Oath Inc. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->\n"
+            "<!-- Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->\n"
             "<hosts>\n"
             '    <host name="localhost">\n'
             "        <alias>node1</alias>\n"
@@ -1533,7 +1533,7 @@ class TestSimplifiedApplicationPackageAddBertRanking(unittest.TestCase):
     def test_hosts_to_text(self):
         expected_result = (
             '<?xml version="1.0" encoding="utf-8" ?>\n'
-            "<!-- Copyright 2019 Oath Inc. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->\n"
+            "<!-- Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->\n"
             "<hosts>\n"
             '    <host name="localhost">\n'
             "        <alias>node1</alias>\n"
@@ -1621,7 +1621,7 @@ class TestModelServer(unittest.TestCase):
     def test_hosts_to_text(self):
         expected_result = (
             '<?xml version="1.0" encoding="utf-8" ?>\n'
-            "<!-- Copyright 2019 Oath Inc. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->\n"
+            "<!-- Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->\n"
             "<hosts>\n"
             '    <host name="localhost">\n'
             "        <alias>node1</alias>\n"
