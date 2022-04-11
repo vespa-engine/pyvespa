@@ -315,6 +315,8 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
                           data=app_package.to_zip(),
                           verify=False)
         logging.debug("Deploy status code: {}".format(r.status_code))
+        if r.status_code != 200:
+            raise RuntimeError("Deployment failed, code: {}".format(r.status_code))
 
         app = Vespa(
             url=self.url,
