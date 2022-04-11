@@ -153,6 +153,12 @@ class TestDockerCommon(unittest.TestCase):
             repr(self.vespa_docker), repr(VespaDocker.from_dict(self.vespa_docker.to_dict))
         )
 
+    def deploy_without_disk_folder(self, application_package):
+        self.vespa_docker = VespaDocker(port=8089)
+        try:
+            app = self.vespa_docker.deploy(application_package=application_package)
+        except RuntimeError as e:
+            assert False, "Deployment error: {}".format(e)
 
     def deploy_from_disk_with_disk_folder(self, application_package, disk_folder):
         self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
@@ -1028,6 +1034,9 @@ class TestMsmarcoDockerDeployment(TestDockerCommon):
 
     def test_deploy(self):
         self.deploy(application_package=self.app_package, disk_folder=self.disk_folder)
+
+    def test_deploy_without_disk_folder(self):
+        self.deploy_without_disk_folder(application_package=self.app_package)
 
     def test_deploy_from_disk_with_disk_folder(self):
         self.deploy_from_disk_with_disk_folder(

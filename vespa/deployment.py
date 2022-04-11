@@ -14,6 +14,7 @@ from time import sleep, strftime, gmtime
 from typing import Union, IO, Optional, Mapping
 
 import docker
+import requests
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization, hashes
@@ -26,6 +27,7 @@ from vespa.package import ApplicationPackage, ModelServer
 CFG_SERVER_START_TIMEOUT = 300
 APP_INIT_TIMEOUT = 300
 
+
 class VespaDocker(ToJson, FromJson["VespaDocker"]):
     def __init__(
         self,
@@ -34,7 +36,8 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         container_memory: Union[str, int] = 4 * (1024 ** 3),
         output_file: IO = sys.stdout,
         container: Optional[docker.models.containers.Container] = None,
-        container_image: str = "vespaengine/vespa"
+        container_image: str = "vespaengine/vespa",
+        cfgsrv_port: int = 19071
     ) -> None:
         """
         Manage Docker deployments.
@@ -42,6 +45,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         :param disk_folder: Disk folder to save the required Vespa config files. Default to application name
             folder within user's current working directory.
         :param port: Container port.
+        :param cfgsrv_port: Config Server port.
         :param output_file: Output file to write output messages.
         :param container_memory: Docker container memory available to the application.
         :param container: Used when instantiating VespaDocker from a running container.
@@ -57,6 +61,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         self.container_id = container_id
         self.url = "http://localhost"
         self.local_port = port
+        self.cfgsrv_port = cfgsrv_port
         self.disk_folder = disk_folder
         self.container_memory = container_memory
         self.output = output_file
@@ -100,8 +105,8 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
     def _run_vespa_engine_container(
         self,
         application_name: str,
-        disk_folder: str,
         container_memory: str,
+        disk_folder: Optional[str] = None
     ):
         client = docker.from_env()
         if self.container is None:
@@ -110,30 +115,49 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
                 self.container = client.containers.get(application_name)
                 self.container.restart()
             except docker.errors.NotFound:
-                logging.debug("Start a Docker container: "
-                              "image: {image}, "
-                              "mem_limit: {mem_limit}, "
-                              "name: {name}, "
-                              "hostname: {hostname}, "
-                              "volumes: {volumes}, "
-                              "ports: {ports}".format(
-                    image=self.container_image,
-                    mem_limit=container_memory,
-                    name=application_name,
-                    hostname=application_name,
-                    volumes={disk_folder: {"bind": "/app", "mode": "rw"}},
-                    ports={8080: self.local_port}
-                ))
-                self.container = client.containers.run(
-                    self.container_image,
-                    detach=True,
-                    mem_limit=container_memory,
-                    name=application_name,
-                    hostname=application_name,
-                    privileged=True,
-                    volumes={disk_folder: {"bind": "/app", "mode": "rw"}},
-                    ports={8080: self.local_port},
-                )
+                if disk_folder:
+                    logging.debug("Start a Docker container: "
+                                  "image: {image}, "
+                                  "mem_limit: {mem_limit}, "
+                                  "name: {name}, "
+                                  "hostname: {hostname}, "
+                                  "volumes: {volumes}, "
+                                  "ports: {ports}".format(
+                        image=self.container_image,
+                        mem_limit=container_memory,
+                        name=application_name,
+                        hostname=application_name,
+                        volumes={disk_folder: {"bind": "/app", "mode": "rw"}},
+                        ports={8080: self.local_port, 19071: self.cfgsrv_port}))
+                    self.container = client.containers.run(
+                        self.container_image,
+                        detach=True,
+                        mem_limit=container_memory,
+                        name=application_name,
+                        hostname=application_name,
+                        privileged=True,
+                        volumes={disk_folder: {"bind": "/app", "mode": "rw"}},
+                        ports={8080: self.local_port, 19071: self.cfgsrv_port})
+                else:
+                    logging.debug("Start a Docker container: "
+                                  "image: {image}, "
+                                  "mem_limit: {mem_limit}, "
+                                  "name: {name}, "
+                                  "hostname: {hostname}, "
+                                  "ports: {ports}".format(
+                        image=self.container_image,
+                        mem_limit=container_memory,
+                        name=application_name,
+                        hostname=application_name,
+                        ports={8080: self.local_port, 19071: self.cfgsrv_port}))
+                    self.container = client.containers.run(
+                        self.container_image,
+                        detach=True,
+                        mem_limit=container_memory,
+                        name=application_name,
+                        hostname=application_name,
+                        privileged=True,
+                        ports={8080: self.local_port, 19071: self.cfgsrv_port})
             self.container_name = self.container.name
             self.container_id = self.container.id
         else:
@@ -148,7 +172,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         if self.container is None:
             return False
 
-        output=self.container.exec_run(
+        output = self.container.exec_run(
             "bash -c 'curl -s --head http://localhost:19071/ApplicationStatus'"
         ).output.decode("utf-8")
         logging.debug("Config Server ApplicationStatus head response: " + output)
@@ -249,7 +273,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         if application_folder:
             _application_folder = (
                 _application_folder + "/" + application_folder
-            )  # using os.path.join break on windows
+            )  # using os.path.join break on Windows
 
         app_content = self.container.exec_run("bash -c 'ls -la {}'".format(_application_folder)).output.decode("utf-8")
         logging.debug("Application Package files: \n" + app_content)
@@ -275,9 +299,37 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
 
         return app
 
+    def _execute_deployment_zip(
+            self,
+            app_package: ApplicationPackage
+    ) -> Vespa:
+
+        self._run_vespa_engine_container(
+            application_name=app_package.name,
+            container_memory=self.container_memory,
+        )
+        self.wait_for_config_server_start(max_wait=CFG_SERVER_START_TIMEOUT)
+
+        r = requests.post("http://localhost:{}/application/v2/tenant/default/prepareandactivate".format(self.cfgsrv_port),
+                          headers={"Content-Type": "application/zip"},
+                          data=app_package.to_zip(),
+                          verify=False)
+        logging.debug("Deploy status code: {}".format(r.status_code))
+        if r.status_code != 200:
+            raise RuntimeError("Deployment failed, code: {}".format(r.status_code))
+
+        app = Vespa(
+            url=self.url,
+            port=self.local_port,
+        )
+        app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
+
+        print("Finished deployment.", file=self.output)
+        return app
+
     def wait_for_config_server_start(self, max_wait):
         """
-        Waits for for Config Server to start inside the Docker image
+        Waits for Config Server to start inside the Docker image
 
         :param max_wait: Seconds to wait for the application endpoint
         :return:
@@ -307,10 +359,9 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         :return: a Vespa connection instance.
         """
         if not self.disk_folder:
-            self.disk_folder = os.path.join(os.getcwd(), application_package.name)
+            return self._execute_deployment_zip(app_package=application_package)
 
         self.export_application_package(application_package=application_package)
-
         return self._execute_deployment(
             application_name=application_package.name,
             disk_folder=self.disk_folder,

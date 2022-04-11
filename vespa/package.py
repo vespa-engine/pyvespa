@@ -1,9 +1,12 @@
 import os
+import zipfile
+
 from pathlib import Path
+from shutil import copyfile
 from typing import List, Mapping, Optional, Union, Dict
 from collections import OrderedDict
-
 from jinja2 import Environment, PackageLoader, select_autoescape
+from io import BytesIO
 
 from vespa.json_serialization import ToJson, FromJson
 from vespa.query import QueryModel
@@ -1414,6 +1417,90 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         file_path = ApplicationPackage._application_package_file_name(disk_folder)
         with open(file_path, "r") as f:
             return ApplicationPackage.from_json(f.read())
+
+    def to_zip(self) -> BytesIO:
+        buffer = BytesIO()
+        with zipfile.ZipFile(buffer, "a") as zip_archive:
+            zip_archive.writestr(
+                "services.xml", self.services_to_text
+            )
+
+            for schema in self.schemas:
+                zip_archive.writestr(
+                    "schemas/{}.sd".format(schema.name),
+                    schema.schema_to_text,
+                )
+
+            for model in schema.models:
+                zip_archive.write(
+                    model.model_file_path,
+                    os.path.join("files", model.model_file_name),
+                )
+                if self.models:
+                    for model_id, model in self.models.items():
+                        temp_model_file = "{}.onnx".format(model_id)
+                        model.export_to_onnx(output_path=temp_model_file)
+                        zip_archive.write(
+                            temp_model_file,
+                            "models/{}.onnx".format(model_id),
+                        )
+                        os.remove(temp_model_file)
+
+            if self.query_profile:
+                zip_archive.writestr(
+                    "search/query-profiles/default.xml",
+                    self.query_profile_to_text,
+                )
+                zip_archive.writestr(
+                    "search/query-profiles/types/root.xml",
+                    self.query_profile_type_to_text,
+                )
+
+        buffer.seek(0)
+        return buffer
+
+        # ToDo: use this for the Vespa Cloud app package
+        #zip_archive.writestr(
+        #    "application/security/clients.pem",
+        #    app.public_bytes(serialization.Encoding.PEM),
+        #)
+
+    def to_zipfile(self, path):
+        with open(path, "wb") as f:
+            f.write(self.to_zip().getbuffer().tobytes())
+
+    def to_files(self, root: Path) -> None:
+        if not os.path.exists(root):
+            raise ValueError("Invalid path for export: {}".format(root))
+
+        Path(os.path.join(root, "schemas")).mkdir(parents=True, exist_ok=True)
+        Path(os.path.join(root, "files")).mkdir(parents=True, exist_ok=True)
+        Path(os.path.join(root, "models")).mkdir(parents=True, exist_ok=True)
+        Path(os.path.join(root, "search/query-profiles/types")).mkdir(parents=True, exist_ok=True)
+
+        for schema in self.schemas:
+            with open(os.path.join(root, "schemas/{}.sd".format(schema.name)), "w") as f:
+                f.write(schema.schema_to_text)
+            for model in schema.models:
+                copyfile(
+                    model.model_file_path,
+                    os.path.join(root, "files", model.model_file_name)
+                )
+
+        if self.query_profile:
+            with open(os.path.join(root, "search/query-profiles/default.xml"), "w") as f:
+                f.write(self.query_profile_to_text)
+            with open(os.path.join(root, "search/query-profiles/types/root.xml"), "w") as f:
+                f.write(self.query_profile_type_to_text)
+
+        # with open(os.path.join(root, "hosts.xml"), "w") as f:
+        #     f.write(self.hosts_to_text)
+        with open(os.path.join(root, "services.xml"), "w") as f:
+            f.write(self.services_to_text)
+
+        if self.models:
+            for model_id, model in self.models.items():
+                model.export_to_onnx(output_path=os.path.join(root, "models/{}.onnx".format(model_id)))
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
