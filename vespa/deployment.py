@@ -273,7 +273,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         if application_folder:
             _application_folder = (
                 _application_folder + "/" + application_folder
-            )  # using os.path.join break on windows
+            )  # using os.path.join break on Windows
 
         app_content = self.container.exec_run("bash -c 'ls -la {}'".format(_application_folder)).output.decode("utf-8")
         logging.debug("Application Package files: \n" + app_content)
@@ -329,7 +329,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
 
     def wait_for_config_server_start(self, max_wait):
         """
-        Waits for for Config Server to start inside the Docker image
+        Waits for Config Server to start inside the Docker image
 
         :param max_wait: Seconds to wait for the application endpoint
         :return:
