@@ -2,6 +2,7 @@ import os
 import zipfile
 
 from pathlib import Path
+from shutil import copyfile
 from typing import List, Mapping, Optional, Union, Dict
 from collections import OrderedDict
 from jinja2 import Environment, PackageLoader, select_autoescape
@@ -1467,6 +1468,39 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
     def to_zipfile(self, path):
         with open(path, "wb") as f:
             f.write(self.to_zip().getbuffer().tobytes())
+
+    def to_files(self, root: Path) -> None:
+        if not os.path.exists(root):
+            raise ValueError("Invalid path for export: {}".format(root))
+
+        Path(os.path.join(root, "schemas")).mkdir(parents=True, exist_ok=True)
+        Path(os.path.join(root, "files")).mkdir(parents=True, exist_ok=True)
+        Path(os.path.join(root, "models")).mkdir(parents=True, exist_ok=True)
+        Path(os.path.join(root, "search/query-profiles/types")).mkdir(parents=True, exist_ok=True)
+
+        for schema in self.schemas:
+            with open(os.path.join(root, "schemas/{}.sd".format(schema.name)), "w") as f:
+                f.write(schema.schema_to_text)
+            for model in schema.models:
+                copyfile(
+                    model.model_file_path,
+                    os.path.join(root, "files", model.model_file_name)
+                )
+
+        if self.query_profile:
+            with open(os.path.join(root, "search/query-profiles/default.xml"), "w") as f:
+                f.write(self.query_profile_to_text)
+            with open(os.path.join(root, "search/query-profiles/types/root.xml"), "w") as f:
+                f.write(self.query_profile_type_to_text)
+
+        # with open(os.path.join(root, "hosts.xml"), "w") as f:
+        #     f.write(self.hosts_to_text)
+        with open(os.path.join(root, "services.xml"), "w") as f:
+            f.write(self.services_to_text)
+
+        if self.models:
+            for model_id, model in self.models.items():
+                model.export_to_onnx(output_path=os.path.join(root, "models/{}.onnx".format(model_id)))
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
