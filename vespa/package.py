@@ -1174,11 +1174,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         default_query_model: Optional[QueryModel] = None
     ) -> None:
         """
-        Create a Vespa Application Package.
-
-        Check the `Vespa documentation <https://docs.vespa.ai/en/cloudconfig/application-packages.html>`__
-        for more detailed information about application packages.
-
+        Create an `Application Package <https://docs.vespa.ai/en/cloudconfig/application-packages.html>`__.
         An :class:`ApplicationPackage` instance comes with a default :class:`Schema`
         that contains a default :class:`Document`
 
@@ -1201,7 +1197,8 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         The easiest way to get started is to create a default application package:
 
         >>> ApplicationPackage(name="testapp")
-        ApplicationPackage('testapp', [Schema('testapp', Document(None, None), None, None, [], False, None)], QueryProfile(None), QueryProfileType(None))
+        ApplicationPackage('testapp', [Schema('testapp', Document(None, None), None, None, [], False, None)],
+        QueryProfile(None), QueryProfileType(None))
 
         It will create a default :class:`Schema`, :class:`QueryProfile` and :class:`QueryProfileType` that you can then
         populate with specifics of your application.
@@ -1418,7 +1415,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         with open(file_path, "r") as f:
             return ApplicationPackage.from_json(f.read())
 
-    def to_zip(self) -> BytesIO:
+    def _to_zip(self) -> BytesIO:
         buffer = BytesIO()
         with zipfile.ZipFile(buffer, "a") as zip_archive:
             zip_archive.writestr(
@@ -1465,11 +1462,25 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         #    app.public_bytes(serialization.Encoding.PEM),
         #)
 
-    def to_zipfile(self, path):
-        with open(path, "wb") as f:
-            f.write(self.to_zip().getbuffer().tobytes())
+    def to_zipfile(self, zipfile: Path) -> None:
+        """
+        Export the application package as a deployable zipfile.
+        See `application packages <https://docs.vespa.ai/en/cloudconfig/application-packages.html>`__
+        for deployment options.
+
+        :param zipfile: Filename to export to
+        :return:
+        """
+        with open(zipfile, "wb") as f:
+            f.write(self._to_zip().getbuffer().tobytes())
 
     def to_files(self, root: Path) -> None:
+        """
+        Export the application package as a directory tree.
+
+        :param root: Directory to export files to
+        :return:
+        """
         if not os.path.exists(root):
             raise ValueError("Invalid path for export: {}".format(root))
 
@@ -1493,8 +1504,6 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
             with open(os.path.join(root, "search/query-profiles/types/root.xml"), "w") as f:
                 f.write(self.query_profile_type_to_text)
 
-        # with open(os.path.join(root, "hosts.xml"), "w") as f:
-        #     f.write(self.hosts_to_text)
         with open(os.path.join(root, "services.xml"), "w") as f:
             f.write(self.services_to_text)
 
