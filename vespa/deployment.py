@@ -186,6 +186,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         :param application_package: Application package to export.
         :return: None. Application package file will be stored on `disk_folder`.
         """
+        # ToDo: remove this method, not needed with ApplicationPackage::tofiles
         if not self.disk_folder:
             self.disk_folder = os.path.join(os.getcwd(), application_package.name)
 
@@ -260,6 +261,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         application_folder: Optional[str] = None,
         application_package: Optional[ApplicationPackage] = None,
     ):
+        # ToDo: Remove this method
 
         self._run_vespa_engine_container(
             application_name=application_name,
@@ -299,34 +301,6 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
 
         return app
 
-    def _execute_deployment_zip(
-            self,
-            app_package: ApplicationPackage
-    ) -> Vespa:
-
-        self._run_vespa_engine_container(
-            application_name=app_package.name,
-            container_memory=self.container_memory,
-        )
-        self.wait_for_config_server_start(max_wait=CFG_SERVER_START_TIMEOUT)
-
-        r = requests.post("http://localhost:{}/application/v2/tenant/default/prepareandactivate".format(self.cfgsrv_port),
-                          headers={"Content-Type": "application/zip"},
-                          data=app_package.to_zip(),
-                          verify=False)
-        logging.debug("Deploy status code: {}".format(r.status_code))
-        if r.status_code != 200:
-            raise RuntimeError("Deployment failed, code: {}".format(r.status_code))
-
-        app = Vespa(
-            url=self.url,
-            port=self.local_port,
-        )
-        app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
-
-        print("Finished deployment.", file=self.output)
-        return app
-
     def wait_for_config_server_start(self, max_wait):
         """
         Waits for Config Server to start inside the Docker image
@@ -359,7 +333,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         :return: a Vespa connection instance.
         """
         if not self.disk_folder:
-            return self._execute_deployment_zip(app_package=application_package)
+            return self._deploy_data(application_package.name, application_package.to_zip())
 
         self.export_application_package(application_package=application_package)
         return self._execute_deployment(
@@ -383,6 +357,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             If None, we assume `disk_folder` to be the application folder.
         :return: a Vespa connection instance.
         """
+        # ToDo: Remove this method in a later release - deploy_zipped_from_disk will replace this / take its place
         if not self.disk_folder:
             self.disk_folder = os.path.join(os.getcwd(), application_name)
 
@@ -392,6 +367,63 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             container_memory=self.container_memory,
             application_folder=application_folder,
         )
+
+    def deploy_zipped_from_disk(self, app_name: str, app_root: Path) -> Vespa:
+        """
+        Deploy from a directory tree.
+        Used when making changes to application package files not supported by pyvespa -
+        This is why this method is not found in the ApplicationPackage class.
+
+        :param app_name: Application package name
+        :param app_root: Application package directory root
+        :return: A Vespa connection instance
+        """
+        TMP_ZIP="tmp_app_package.zip"
+        orig_dir = os.getcwd()
+        zipf = zipfile.ZipFile(TMP_ZIP, "w", zipfile.ZIP_DEFLATED)
+        os.chdir(app_root)  # Workaround to avoid the top-level directory
+        for root, dirs, files in os.walk("."):
+            for file in files:
+                zipf.write(os.path.join(root, file))
+        zipf.close()
+        os.chdir(orig_dir)
+        with open(TMP_ZIP, "rb") as f:
+            data = f.read()
+        os.remove(TMP_ZIP)
+
+        return self._deploy_data(app_name, data)
+
+
+    def _deploy_data(self, app_name: str, data) -> Vespa:
+        """
+        Deploys an Application Package as zipped data
+
+        :param app_name: Application package name
+        :param app_root: Application package directory root
+        :return: A Vespa connection instance
+        """
+        self._run_vespa_engine_container(
+            application_name=app_name,
+            container_memory=self.container_memory,
+        )
+        self.wait_for_config_server_start(max_wait=CFG_SERVER_START_TIMEOUT)
+
+        r = requests.post("http://localhost:{}/application/v2/tenant/default/prepareandactivate".format(self.cfgsrv_port),
+                          headers={"Content-Type": "application/zip"},
+                          data=data,
+                          verify=False)
+        logging.debug("Deploy status code: {}".format(r.status_code))
+        if r.status_code != 200:
+            raise RuntimeError("Deployment failed, code: {}".format(r.status_code))
+
+        app = Vespa(
+            url=self.url,
+            port=self.local_port,
+        )
+        app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
+
+        print("Finished deployment.", file=self.output)
+        return app
 
     def stop_services(self):
         """
