@@ -30,6 +30,7 @@ jobs:
           pytest --doctest-modules --ignore-glob=vespa/test_*.py
       - run-unit-tests: |
           pytest --ignore-glob=vespa/test_integration*.py
+
   integration-except-cloud:
     requires: [~commit,~pr]
     annotations:
@@ -59,6 +60,7 @@ jobs:
           pytest vespa/test_integration_running_instance.py -s -v
       - run-integration-docker: |
           pytest vespa/test_integration_docker.py -s -v
+
   notebooks-except-cloud:
     requires: [~commit,~pr]
     annotations:
@@ -101,6 +103,7 @@ jobs:
             do echo -e "**********\n*** Running $notebook ***\n**********"; \
             runnb --allow-not-trusted $notebook || exit 1;\
           done
+
   integration-cloud:
     requires: [~commit]
     annotations:
@@ -116,7 +119,6 @@ jobs:
       - setup: |
           export WORK_DIR=$SD_DIND_SHARE_PATH
           export RESOURCES_DIR=$(pwd)/vespa/resources
-          export PYVESPA_DEBUG=true
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
@@ -124,6 +126,7 @@ jobs:
           python3 -m pip install -e .[full]
       - run-integration-cloud: |
           pytest vespa/test_integration_vespa_cloud.py -s -v
+
   notebooks-cloud:
     requires: [integration-cloud]
     annotations:
@@ -148,7 +151,8 @@ jobs:
       - run-notebooks-cloud-related: |
           find docs -name '*cloud*.ipynb'
           find docs -name '*cloud*.ipynb' -exec ls {} \; -name '*cloud*.ipynb' -exec runnb --allow-not-trusted {} \;
-  deploy-retrieve-install-test:
+
+  deploy-test-server:
     requires: [unit-tests, integration-except-cloud, notebooks-except-cloud, notebooks-cloud]
     annotations:
       screwdriver.cd/timeout: 120
@@ -157,18 +161,30 @@ jobs:
     secrets:
       - TEST_PYPI_TOKEN
     steps:
+      - install-python: |
+          dnf install -y python38-pip
+          python3 -m pip install --upgrade pip
+          python3 -m pip install twine wheel
+      - build: |
+          python3 setup.py bdist_wheel
+      - publish: |
+          python3 -m twine upload --repository testpypi dist/* -u __token__ -p $TEST_PYPI_TOKEN
+      - sleep: |
+          sleep 300 # sleep to give time for latest version to show on test pypi index
+
+  retrieve-install-test:
+    requires: [deploy-test-server]
+    annotations:
+      screwdriver.cd/timeout: 120
+      screwdriver.cd/cpu: HIGH
+      screwdriver.cd/ram: HIGH
+    steps:
       - setup: |
           export RESOURCES_DIR=$(pwd)/vespa/resources
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
-          python3 -m pip install twine wheel pytest
-      - build-package: |
-          python3 setup.py bdist_wheel
-      - publish-package: |
-          python3 -m twine upload --repository testpypi dist/* -u __token__ -p $TEST_PYPI_TOKEN
-      - sleep: |
-          sleep 300 # sleep to give time for latest version to show on test pypi index
+          python3 -m pip install pytest
       - install-package: |
           python3 -m pip cache purge
           python3 -m pip install --no-cache-dir --no-cache --quiet \
