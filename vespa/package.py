@@ -1197,8 +1197,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         The easiest way to get started is to create a default application package:
 
         >>> ApplicationPackage(name="testapp")
-        ApplicationPackage('testapp', [Schema('testapp', Document(None, None), None, None, [], False, None)],
-        QueryProfile(None), QueryProfileType(None))
+        ApplicationPackage('testapp', [Schema('testapp', Document(None, None), None, None, [], False, None)], QueryProfile(None), QueryProfileType(None))
 
         It will create a default :class:`Schema`, :class:`QueryProfile` and :class:`QueryProfileType` that you can then
         populate with specifics of your application.
@@ -1353,6 +1352,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
 
     @property
     def hosts_to_text(self):
+        # ToDo: Remove, not needed anymore
         env = Environment(
             loader=PackageLoader("vespa", "templates"),
             autoescape=select_autoescape(
@@ -1415,7 +1415,12 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         with open(file_path, "r") as f:
             return ApplicationPackage.from_json(f.read())
 
-    def _to_zip(self) -> BytesIO:
+    def to_zip(self) -> BytesIO:
+        """
+        Return the application package as zipped bytes,
+        to be used in a subsequent deploy
+        :return: BytesIO buffer
+        """
         buffer = BytesIO()
         with zipfile.ZipFile(buffer, "a") as zip_archive:
             zip_archive.writestr(
@@ -1472,7 +1477,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         :return:
         """
         with open(zipfile, "wb") as f:
-            f.write(self._to_zip().getbuffer().tobytes())
+            f.write(self.to_zip().getbuffer().tobytes())
 
     def to_files(self, root: Path) -> None:
         """
