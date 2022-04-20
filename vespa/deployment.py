@@ -332,10 +332,8 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         :param application_package: ApplicationPackage to be deployed.
         :return: a Vespa connection instance.
         """
-        if not self.disk_folder:
-            return self._deploy_data(application_package, application_package.to_zip())
-        else:
-            raise RuntimeError("NO FILE DEPLOY")
+        return self._deploy_data(application_package, application_package.to_zip())
+
 
     def deploy_from_disk(
         self,
