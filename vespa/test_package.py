@@ -740,18 +740,6 @@ class TestApplicationPackage(unittest.TestCase):
         )
         self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
 
-    def test_hosts_to_text(self):
-        expected_result = (
-            '<?xml version="1.0" encoding="utf-8" ?>\n'
-            "<!-- Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->\n"
-            "<hosts>\n"
-            '    <host name="localhost">\n'
-            "        <alias>node1</alias>\n"
-            "    </host>\n"
-            "</hosts>"
-        )
-        self.assertEqual(self.app_package.hosts_to_text, expected_result)
-
     def test_services_to_text(self):
         expected_result = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
