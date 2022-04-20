@@ -1351,22 +1351,6 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         )
 
     @property
-    def hosts_to_text(self):
-        # ToDo: Remove, not needed anymore
-        env = Environment(
-            loader=PackageLoader("vespa", "templates"),
-            autoescape=select_autoescape(
-                disabled_extensions=("txt",),
-                default_for_string=True,
-                default=True,
-            ),
-        )
-        env.trim_blocks = True
-        env.lstrip_blocks = True
-        schema_template = env.get_template("hosts.xml")
-        return schema_template.render()
-
-    @property
     def services_to_text(self):
         env = Environment(
             loader=PackageLoader("vespa", "templates"),

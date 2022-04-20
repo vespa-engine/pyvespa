@@ -334,7 +334,6 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         """
         return self._deploy_data(application_package, application_package.to_zip())
 
-
     def deploy_from_disk(
         self,
         application_name: str,
