@@ -86,7 +86,6 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             container = client.containers.get(name_or_id)
         except docker.errors.NotFound:
             raise ValueError("The container does not exist.")
-        disk_folder = container.attrs["Mounts"][0]["Source"]
         port = int(
             container.attrs["HostConfig"]["PortBindings"]["8080/tcp"][0]["HostPort"]
         )
@@ -94,7 +93,6 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         container_image = container.image.tags[0]  # vespaengine/vespa:latest
 
         return VespaDocker(
-            disk_folder=disk_folder,
             port=port,
             container_memory=container_memory,
             output_file=output_file,
