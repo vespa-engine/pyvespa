@@ -334,6 +334,8 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         """
         if not self.disk_folder:
             return self._deploy_data(application_package.name, application_package.to_zip())
+        else:
+            raise RuntimeError("NO FILE DEPLOY")
 
         self.export_application_package(application_package=application_package)
         return self._execute_deployment(
@@ -357,16 +359,8 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             If None, we assume `disk_folder` to be the application folder.
         :return: a Vespa connection instance.
         """
-        # ToDo: Remove this method in a later release - deploy_zipped_from_disk will replace this / take its place
-        if not self.disk_folder:
-            self.disk_folder = os.path.join(os.getcwd(), application_name)
-
-        return self._execute_deployment(
-            application_name=application_name,
-            disk_folder=self.disk_folder,
-            container_memory=self.container_memory,
-            application_folder=application_folder,
-        )
+        # ToDo: Merge this method in a later release with deploy_zipped_from_disk
+        return self.deploy_zipped_from_disk(app_name=application_name, app_root=application_folder)
 
     def deploy_zipped_from_disk(self, app_name: str, app_root: Path) -> Vespa:
         """

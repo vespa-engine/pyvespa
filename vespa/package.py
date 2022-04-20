@@ -1432,21 +1432,21 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
                     "schemas/{}.sd".format(schema.name),
                     schema.schema_to_text,
                 )
+                for model in schema.models:
+                    zip_archive.write(
+                        model.model_file_path,
+                        os.path.join("files", model.model_file_name),
+                    )
 
-            for model in schema.models:
-                zip_archive.write(
-                    model.model_file_path,
-                    os.path.join("files", model.model_file_name),
-                )
-                if self.models:
-                    for model_id, model in self.models.items():
-                        temp_model_file = "{}.onnx".format(model_id)
-                        model.export_to_onnx(output_path=temp_model_file)
-                        zip_archive.write(
-                            temp_model_file,
-                            "models/{}.onnx".format(model_id),
-                        )
-                        os.remove(temp_model_file)
+            if self.models:
+                for model_id, model in self.models.items():
+                    temp_model_file = "{}.onnx".format(model_id)
+                    model.export_to_onnx(output_path=temp_model_file)
+                    zip_archive.write(
+                        temp_model_file,
+                        "models/{}.onnx".format(model_id),
+                    )
+                    os.remove(temp_model_file)
 
             if self.query_profile:
                 zip_archive.writestr(
