@@ -93,7 +93,7 @@ jobs:
           #
           # Exclude non-testable notebooks below
           #
-          dnf install -y tree wget
+          dnf install -y tree
           echo "All non-cloud notebooks:"
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
           for notebook in `find docs -name '*.ipynb' -and \
