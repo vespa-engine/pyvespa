@@ -239,8 +239,6 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
                 "w",
             ) as f:
                 f.write(application_package.query_profile_type_to_text)
-        with open(os.path.join(self.disk_folder, "application/hosts.xml"), "w") as f:
-            f.write(application_package.hosts_to_text)
         with open(os.path.join(self.disk_folder, "application/services.xml"), "w") as f:
             f.write(application_package.services_to_text)
 
