@@ -397,33 +397,37 @@ class Vespa(object):
                 **kwargs,
             )
 
-    def feed_data_point(self, schema: str, data_id: str, fields: Dict) -> VespaResponse:
+    def feed_data_point(self, schema: str, data_id: str, fields: Dict, namespace: str=None) -> VespaResponse:
         """
         Feed a data point to a Vespa app.
 
         :param schema: The schema that we are sending data to.
         :param data_id: Unique id associated with this data point.
         :param fields: Dict containing all the fields required by the `schema`.
+        :param namespace: The namespace that we are sending data to.
         :return: Response of the HTTP POST request.
         """
+        if not namespace:
+            namespace = schema
+
         with VespaSync(app=self) as sync_app:
             return sync_app.feed_data_point(
-                schema=schema, data_id=data_id, fields=fields
+                namespace=namespace, schema=schema, data_id=data_id, fields=fields
             )
 
-    def _feed_batch_sync(self, schema: str, batch: List[Dict]):
+    def _feed_batch_sync(self, namespace: str, schema: str, batch: List[Dict], **kwargs) -> VespaResponse:
         return [
-            self.feed_data_point(schema, data_point["id"], data_point["fields"])
+            self.feed_data_point(namespace, schema, data_point["id"], data_point["fields"])
             for data_point in batch
         ]
 
     async def _feed_batch_async(
-        self, schema: str, batch: List[Dict], connections, total_timeout
+        self, namespace: str, schema: str, batch: List[Dict], connections, total_timeout
     ):
         async with VespaAsync(
             app=self, connections=connections, total_timeout=total_timeout
         ) as async_app:
-            return await async_app.feed_batch(schema=schema, batch=batch)
+            return await async_app.feed_batch(schema=schema, batch=batch, namespace=namespace)
 
     def feed_batch(
         self,
@@ -432,6 +436,7 @@ class Vespa(object):
         asynchronous=True,
         connections: Optional[int] = 100,
         total_timeout: int = 100,
+        namespace: Optional[str] = None,
     ):
         """
         Feed a batch of data to a Vespa app.
@@ -452,16 +457,20 @@ class Vespa(object):
                     "Not possible to infer schema name. Specify schema parameter."
                 )
 
+        if not namespace:
+            namespace = schema
+
         if asynchronous:
             coro = self._feed_batch_async(
                 schema=schema,
+                namespace=namespace,
                 batch=batch,
                 connections=connections,
                 total_timeout=total_timeout,
             )
             return self._check_for_running_loop_and_run_coroutine(coro=coro)
-        else:
-            return self._feed_batch_sync(schema=schema, batch=batch)
+        else:                
+            return self._feed_batch_sync(namespace=namespace, schema=schema, batch=batch)
 
     def feed_df(self, df: DataFrame, include_id: bool = True, **kwargs):
         """
@@ -475,27 +484,31 @@ class Vespa(object):
         batch = parse_feed_df(df=df, include_id=include_id)
         return self.feed_batch(batch=batch, **kwargs)
 
-    def delete_data(self, schema: str, data_id: str) -> VespaResponse:
+    def delete_data(self, schema: str, data_id: str, namespace: str = None) -> VespaResponse:
         """
         Delete a data point from a Vespa app.
 
         :param schema: The schema that we are deleting data from.
         :param data_id: Unique id associated with this data point.
+        :param namespace: The namespace that we are deleting data from.
         :return: Response of the HTTP DELETE request.
         """
-        with VespaSync(self) as sync_app:
-            return sync_app.delete_data(schema=schema, data_id=data_id)
+        if not namespace:
+            namespace = schema
 
-    def _delete_batch_sync(self, schema: str, batch: List[Dict]):
-        return [self.delete_data(schema, data_point["id"]) for data_point in batch]
+        with VespaSync(self) as sync_app:
+            return sync_app.delete_data(namespace=namespace, schema=schema, data_id=data_id)
+
+    def _delete_batch_sync(self, namespace: str,  schema: str, batch: List[Dict]):
+        return [self.delete_data(namespace, schema, data_point["id"]) for data_point in batch]
 
     async def _delete_batch_async(
-        self, schema: str, batch: List[Dict], connections, total_timeout
+        self, namespace: str, schema: str, batch: List[Dict], connections, total_timeout
     ):
         async with VespaAsync(
             app=self, connections=connections, total_timeout=total_timeout
         ) as async_app:
-            return await async_app.delete_batch(schema=schema, batch=batch)
+            return await async_app.delete_batch(namespace=namespace, schema=schema, batch=batch)
 
     def delete_batch(
         self,
@@ -504,6 +517,7 @@ class Vespa(object):
         asynchronous=True,
         connections: Optional[int] = 100,
         total_timeout: int = 100,
+        namespace: Optional[str] = None,
     ):
         """
         Delete a batch of data from a Vespa app.
@@ -524,8 +538,12 @@ class Vespa(object):
                     "Not possible to infer schema name. Specify schema parameter."
                 )
 
+        if not namespace:
+            namespace = schema
+
         if asynchronous:
             coro = self._delete_batch_async(
+                namespace=namespace,
                 schema=schema,
                 batch=batch,
                 connections=connections,
@@ -533,22 +551,26 @@ class Vespa(object):
             )
             return self._check_for_running_loop_and_run_coroutine(coro=coro)
         else:
-            return self._delete_batch_sync(schema=schema, batch=batch)
+            return self._delete_batch_sync(namespace=namespace, schema=schema, batch=batch)
 
-    def delete_all_docs(self, content_cluster_name: str, schema: str) -> Response:
+    def delete_all_docs(self, content_cluster_name: str, schema: str,  namespace: str = None) -> Response:
         """
         Delete all documents associated with the schema
 
         :param content_cluster_name: Name of content cluster to GET from, or visit.
         :param schema: The schema that we are deleting data from.
+        :param namespace: The  namespace that we are deleting data from.
         :return: Response of the HTTP DELETE request.
         """
+        if not namespace:
+            namespace = schema
+
         with VespaSync(self) as sync_app:
             return sync_app.delete_all_docs(
-                content_cluster_name=content_cluster_name, schema=schema
+                content_cluster_name=content_cluster_name, namespace=namespace, schema=schema
             )
 
-    def get_data(self, schema: str, data_id: str) -> VespaResponse:
+    def get_data(self, namespace: str, schema: str, data_id: str) -> VespaResponse:
         """
         Get a data point from a Vespa app.
 
@@ -557,18 +579,18 @@ class Vespa(object):
         :return: Response of the HTTP GET request.
         """
         with VespaSync(self) as sync_app:
-            return sync_app.get_data(schema=schema, data_id=data_id)
+            return sync_app.get_data(namespace=namespace, schema=schema, data_id=data_id)
 
-    def _get_batch_sync(self, schema: str, batch: List[Dict]):
-        return [self.get_data(schema, data_point["id"]) for data_point in batch]
+    def _get_batch_sync(self, namespace: str, schema: str, batch: List[Dict]):
+        return [self.get_data(namespace, schema, data_point["id"]) for data_point in batch]
 
     async def _get_batch_async(
-        self, schema: str, batch: List[Dict], connections, total_timeout
+        self, namespace: str, schema: str, batch: List[Dict], connections, total_timeout
     ):
         async with VespaAsync(
             app=self, connections=connections, total_timeout=total_timeout
         ) as async_app:
-            return await async_app.get_batch(schema=schema, batch=batch)
+            return await async_app.get_batch(namespace=namespace, schema=schema, batch=batch)
 
     def get_batch(
         self,
@@ -577,6 +599,7 @@ class Vespa(object):
         asynchronous=True,
         connections: Optional[int] = 100,
         total_timeout: int = 100,
+        namespace: Optional[str] = None,
     ):
         """
         Get a batch of data from a Vespa app.
@@ -587,6 +610,7 @@ class Vespa(object):
         :param asynchronous: Set True to get data in async mode. Default to True.
         :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
         :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
+        :param namespace: The namespace that we are getting data from.
         :return: List of HTTP POST responses
         """
         if not schema:
@@ -597,8 +621,12 @@ class Vespa(object):
                     "Not possible to infer schema name. Specify schema parameter."
                 )
 
+        if not namespace:
+            namespace = schema
+
         if asynchronous:
             coro = self._get_batch_async(
+                namespace=namespace,
                 schema=schema,
                 batch=batch,
                 connections=connections,
@@ -606,10 +634,10 @@ class Vespa(object):
             )
             return self._check_for_running_loop_and_run_coroutine(coro=coro)
         else:
-            return self._get_batch_sync(schema=schema, batch=batch)
+            return self._get_batch_sync(namespace=namespace, schema=schema, batch=batch)
 
     def update_data(
-        self, schema: str, data_id: str, fields: Dict, create: bool = False
+        self, schema: str, data_id: str, fields: Dict, create: bool = False, namespace: str = None
     ) -> VespaResponse:
         """
         Update a data point in a Vespa app.
@@ -618,16 +646,21 @@ class Vespa(object):
         :param data_id: Unique id associated with this data point.
         :param fields: Dict containing all the fields you want to update.
         :param create: If true, updates to non-existent documents will create an empty document to update
+        :param namespace: The namespace that we are updating data.
         :return: Response of the HTTP PUT request.
         """
+        if not namespace:
+            namespace = schema
+
         with VespaSync(self) as sync_app:
             return sync_app.update_data(
-                schema=schema, data_id=data_id, fields=fields, create=create
+                namespace=namespace, schema=schema, data_id=data_id, fields=fields, create=create
             )
 
-    def _update_batch_sync(self, schema: str, batch: List[Dict]):
+    def _update_batch_sync(self, namespace: str, schema: str, batch: List[Dict]):
         return [
             self.update_data(
+                namespace,
                 schema,
                 data_point["id"],
                 data_point["fields"],
@@ -637,12 +670,12 @@ class Vespa(object):
         ]
 
     async def _update_batch_async(
-        self, schema: str, batch: List[Dict], connections, total_timeout
+        self, namespace: str, schema: str, batch: List[Dict], connections, total_timeout
     ):
         async with VespaAsync(
             app=self, connections=connections, total_timeout=total_timeout
         ) as async_app:
-            return await async_app.update_batch(schema=schema, batch=batch)
+            return await async_app.update_batch(namespace=namespace, schema=schema, batch=batch)
 
     def update_batch(
         self,
@@ -651,6 +684,7 @@ class Vespa(object):
         asynchronous=True,
         connections: Optional[int] = 100,
         total_timeout: int = 100,
+        namespace: Optional[str] = None,
     ):
         """
         Update a batch of data in a Vespa app.
@@ -661,6 +695,7 @@ class Vespa(object):
         :param asynchronous: Set True to update data in async mode. Default to True.
         :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
         :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
+        :param namespace: The namespace that we are updating data.
         :return: List of HTTP POST responses
         """
         if not schema:
@@ -671,8 +706,12 @@ class Vespa(object):
                     "Not possible to infer schema name. Specify schema parameter."
                 )
 
+        if not namespace:
+            namespace = schema
+
         if asynchronous:
             coro = self._update_batch_async(
+                namespace=namespace,
                 schema=schema,
                 batch=batch,
                 connections=connections,
@@ -680,7 +719,7 @@ class Vespa(object):
             )
             return self._check_for_running_loop_and_run_coroutine(coro=coro)
         else:
-            return self._update_batch_sync(schema=schema, batch=batch)
+            return self._update_batch_sync(namespace=namespace, schema=schema, batch=batch)
 
     @staticmethod
     def annotate_data(
@@ -1097,7 +1136,7 @@ class VespaSync(object):
             response = None
         return response
 
-    def feed_data_point(self, schema: str, data_id: str, fields: Dict) -> VespaResponse:
+    def feed_data_point(self, namespace: str, schema: str, data_id: str, fields: Dict) -> VespaResponse:
         """
         Feed a data point to a Vespa app.
 
@@ -1107,10 +1146,12 @@ class VespaSync(object):
         :return: Response of the HTTP POST request.
         """
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.app.end_point, schema, schema, str(data_id)
+            self.app.end_point, namespace, schema, str(data_id)
         )
         vespa_format = {"fields": fields}
-        response = self.http_session.post(end_point, json=vespa_format, cert=self.cert)
+        response = self.http_session.post(
+            end_point, json=vespa_format, cert=self.cert
+        )
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -1158,16 +1199,20 @@ class VespaSync(object):
             json=r.json(), status_code=r.status_code, url=str(r.url)
         )
 
-    def delete_data(self, schema: str, data_id: str) -> VespaResponse:
+    def delete_data(self, schema: str, data_id: str, namespace: str = None) -> VespaResponse:
         """
         Delete a data point from a Vespa app.
 
         :param schema: The schema that we are deleting data from.
         :param data_id: Unique id associated with this data point.
+        :param namespace: The namespace that we are deleting data from.
         :return: Response of the HTTP DELETE request.
         """
+        if not namespace:
+            namespace = schema
+
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.app.end_point, schema, schema, str(data_id)
+            self.app.end_point, namespace, schema, str(data_id)
         )
         response = self.http_session.delete(end_point, cert=self.cert)
         return VespaResponse(
@@ -1177,30 +1222,38 @@ class VespaSync(object):
             operation_type="delete",
         )
 
-    def delete_all_docs(self, content_cluster_name: str, schema: str) -> Response:
+    def delete_all_docs(self, content_cluster_name: str, schema: str,  namespace: str = None) -> Response:
         """
         Delete all documents associated with the schema
 
         :param content_cluster_name: Name of content cluster to GET from, or visit.
         :param schema: The schema that we are deleting data from.
+        :param namespace: The namespace that we are deleting data from.
         :return: Response of the HTTP DELETE request.
         """
+        if not namespace:
+            namespace = schema
+
         end_point = "{}/document/v1/{}/{}/docid/?cluster={}&selection=true".format(
-            self.app.end_point, schema, schema, content_cluster_name
+            self.app.end_point, namespace, schema, content_cluster_name
         )
         response = self.http_session.delete(end_point, cert=self.cert)
         return response
 
-    def get_data(self, schema: str, data_id: str) -> VespaResponse:
+    def get_data(self, schema: str, data_id: str, namespace: str = None) -> VespaResponse:
         """
         Get a data point from a Vespa app.
 
         :param schema: The schema that we are getting data from.
         :param data_id: Unique id associated with this data point.
+        :param namespace: The namespace that we are getting data from.
         :return: Response of the HTTP GET request.
         """
+        if not namespace:
+            namespace = schema
+
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.app.end_point, schema, schema, str(data_id)
+            self.app.end_point, namespace, schema, str(data_id)
         )
         response = self.http_session.get(end_point, cert=self.cert)
         return VespaResponse(
@@ -1211,7 +1264,7 @@ class VespaSync(object):
         )
 
     def update_data(
-        self, schema: str, data_id: str, fields: Dict, create: bool = False
+        self, schema: str, data_id: str, fields: Dict, create: bool = False, namespace: str = None
     ) -> VespaResponse:
         """
         Update a data point in a Vespa app.
@@ -1220,13 +1273,19 @@ class VespaSync(object):
         :param data_id: Unique id associated with this data point.
         :param fields: Dict containing all the fields you want to update.
         :param create: If true, updates to non-existent documents will create an empty document to update
+        :param namespace: The namespace that we are updating data.
         :return: Response of the HTTP PUT request.
         """
+        if not namespace:
+            namespace = schema
+
         end_point = "{}/document/v1/{}/{}/docid/{}?create={}".format(
-            self.app.end_point, schema, schema, str(data_id), str(create).lower()
+            self.app.end_point, namespace, schema, str(data_id), str(create).lower()
         )
         vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
-        response = self.http_session.put(end_point, json=vespa_format, cert=self.cert)
+        response = self.http_session.put(
+            end_point, json=vespa_format, cert=self.cert
+        )
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -1257,7 +1316,10 @@ class VespaAsync(object):
         sslcontext = False
         if self.app.cert is not None:
             sslcontext = ssl.create_default_context()
-            sslcontext.load_cert_chain(self.app.cert, self.app.key)
+            sslcontext.load_cert_chain(
+                self.app.cert,
+                self.app.key
+            )
         conn = aiohttp.TCPConnector(ssl=sslcontext, limit=self.connections)
         self.aiohttp_session = aiohttp.ClientSession(
             connector=conn, timeout=aiohttp.ClientTimeout(total=self.total_timeout)
@@ -1346,10 +1408,10 @@ class VespaAsync(object):
 
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def feed_data_point(
-        self, schema: str, data_id: str, fields: Dict
+        self, namespace: str, schema: str, data_id: str, fields: Dict
     ) -> VespaResponse:
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.app.end_point, schema, schema, str(data_id)
+            self.app.end_point, namespace, schema, str(data_id)
         )
         vespa_format = {"fields": fields}
         response = await self.aiohttp_session.post(end_point, json=vespa_format)
@@ -1361,27 +1423,32 @@ class VespaAsync(object):
         )
 
     async def _feed_data_point_semaphore(
-        self, schema: str, data_id: str, fields: Dict, semaphore: asyncio.Semaphore
+        self, namespace: str, schema: str, data_id: str, fields: Dict, semaphore: asyncio.Semaphore
     ):
         async with semaphore:
             return await self.feed_data_point(
-                schema=schema, data_id=data_id, fields=fields
+                namespace=namespace, schema=schema, data_id=data_id, fields=fields
             )
 
-    async def feed_batch(self, schema: str, batch: List[Dict]):
+    async def feed_batch(self, schema: str, batch: List[Dict], namespace=None):
+        if not namespace:
+            namespace = schema
         sem = asyncio.Semaphore(self.connections)
         return await self._wait(
             self._feed_data_point_semaphore,
             [
-                (schema, data_point["id"], data_point["fields"], sem)
+                (namespace, schema, data_point["id"], data_point["fields"], sem)
                 for data_point in batch
             ],
         )
 
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
-    async def delete_data(self, schema: str, data_id: str) -> VespaResponse:
+    async def delete_data(self, schema: str, data_id: str, namespace: str = None) -> VespaResponse:
+        if not namespace:
+            namespace = schema
+
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.app.end_point, schema, schema, str(data_id)
+            self.app.end_point, namespace, schema, str(data_id)
         )
         response = await self.aiohttp_session.delete(end_point)
         return VespaResponse(
@@ -1392,22 +1459,26 @@ class VespaAsync(object):
         )
 
     async def _delete_data_semaphore(
-        self, schema: str, data_id: str, semaphore: asyncio.Semaphore
+        self, namespace: str, schema: str, data_id: str, semaphore: asyncio.Semaphore
     ):
         async with semaphore:
-            return await self.delete_data(schema=schema, data_id=data_id)
+            return await self.delete_data(namespace=namespace, schema=schema, data_id=data_id)
 
-    async def delete_batch(self, schema: str, batch: List[Dict]):
+    async def delete_batch(self, schema: str, batch: List[Dict], namespace: str = None):
         sem = asyncio.Semaphore(self.connections)
+        if not namespace:
+            namespace = schema
         return await self._wait(
             self._delete_data_semaphore,
-            [(schema, data_point["id"], sem) for data_point in batch],
+            [(namespace, schema, data_point["id"], sem) for data_point in batch],
         )
 
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
-    async def get_data(self, schema: str, data_id: str):
+    async def get_data(self,  schema: str, data_id: str, namespace: str = None) -> VespaResponse:
+        if not namespace:
+            namespace = schema
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
-            self.app.end_point, schema, schema, str(data_id)
+            self.app.end_point, namespace, schema, str(data_id)
         )
         response = await self.aiohttp_session.get(end_point)
         return VespaResponse(
@@ -1418,24 +1489,30 @@ class VespaAsync(object):
         )
 
     async def _get_data_semaphore(
-        self, schema: str, data_id: str, semaphore: asyncio.Semaphore
+        self, namespace: str, schema: str, data_id: str, semaphore: asyncio.Semaphore
     ):
         async with semaphore:
-            return await self.get_data(schema=schema, data_id=data_id)
+            return await self.get_data(namespace=namespace, schema=schema, data_id=data_id)
 
-    async def get_batch(self, schema: str, batch: List[Dict]):
+    async def get_batch(self, schema: str, batch: List[Dict], namespace: str=None):
+        if not namespace:
+            namespace = schema
+
         sem = asyncio.Semaphore(self.connections)
         return await self._wait(
             self._get_data_semaphore,
-            [(schema, data_point["id"], sem) for data_point in batch],
+            [(namespace, schema, data_point["id"], sem) for data_point in batch],
         )
 
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def update_data(
-        self, schema: str, data_id: str, fields: Dict, create: bool = False
+        self, schema: str, data_id: str, fields: Dict, create: bool = False, namespace: str = None
     ) -> VespaResponse:
+        if not namespace:
+            namespace = schema
+
         end_point = "{}/document/v1/{}/{}/docid/{}?create={}".format(
-            self.app.end_point, schema, schema, str(data_id), str(create).lower()
+            self.app.end_point, namespace, schema, str(data_id), str(create).lower()
         )
         vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
         response = await self.aiohttp_session.put(end_point, json=vespa_format)
@@ -1448,6 +1525,7 @@ class VespaAsync(object):
 
     async def _update_data_semaphore(
         self,
+        namespace: str,
         schema: str,
         data_id: str,
         fields: Dict,
@@ -1456,15 +1534,18 @@ class VespaAsync(object):
     ):
         async with semaphore:
             return await self.update_data(
-                schema=schema, data_id=data_id, fields=fields, create=create
+                namespace=namespace, schema=schema, data_id=data_id, fields=fields, create=create
             )
 
-    async def update_batch(self, schema: str, batch: List[Dict]):
+    async def update_batch(self, schema: str, batch: List[Dict], namespace: str = None):
+        if not namespace:
+            namespace = schema
         sem = asyncio.Semaphore(self.connections)
         return await self._wait(
             self._update_data_semaphore,
             [
                 (
+                    namespace,
                     schema,
                     data_point["id"],
                     data_point["fields"],
