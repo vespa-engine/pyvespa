@@ -86,7 +86,6 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             container = client.containers.get(name_or_id)
         except docker.errors.NotFound:
             raise ValueError("The container does not exist.")
-        disk_folder = container.attrs["Mounts"][0]["Source"]
         port = int(
             container.attrs["HostConfig"]["PortBindings"]["8080/tcp"][0]["HostPort"]
         )
@@ -94,7 +93,6 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         container_image = container.image.tags[0]  # vespaengine/vespa:latest
 
         return VespaDocker(
-            disk_folder=disk_folder,
             port=port,
             container_memory=container_memory,
             output_file=output_file,
@@ -186,7 +184,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         :param application_package: Application package to export.
         :return: None. Application package file will be stored on `disk_folder`.
         """
-        # ToDo: remove this method, not needed with ApplicationPackage::tofiles
+        # ToDo: remove this method, not needed with ApplicationPackage::to_files
         if not self.disk_folder:
             self.disk_folder = os.path.join(os.getcwd(), application_package.name)
 
@@ -239,8 +237,6 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
                 "w",
             ) as f:
                 f.write(application_package.query_profile_type_to_text)
-        with open(os.path.join(self.disk_folder, "application/hosts.xml"), "w") as f:
-            f.write(application_package.hosts_to_text)
         with open(os.path.join(self.disk_folder, "application/services.xml"), "w") as f:
             f.write(application_package.services_to_text)
 
@@ -332,17 +328,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         :param application_package: ApplicationPackage to be deployed.
         :return: a Vespa connection instance.
         """
-        if not self.disk_folder:
-            return self._deploy_data(application_package.name, application_package.to_zip())
-
-        self.export_application_package(application_package=application_package)
-        return self._execute_deployment(
-            application_name=application_package.name,
-            disk_folder=self.disk_folder,
-            container_memory=self.container_memory,
-            application_folder="application",
-            application_package=application_package,
-        )
+        return self._deploy_data(application_package, application_package.to_zip())
 
     def deploy_from_disk(
         self,
@@ -357,16 +343,8 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             If None, we assume `disk_folder` to be the application folder.
         :return: a Vespa connection instance.
         """
-        # ToDo: Remove this method in a later release - deploy_zipped_from_disk will replace this / take its place
-        if not self.disk_folder:
-            self.disk_folder = os.path.join(os.getcwd(), application_name)
-
-        return self._execute_deployment(
-            application_name=application_name,
-            disk_folder=self.disk_folder,
-            container_memory=self.container_memory,
-            application_folder=application_folder,
-        )
+        # ToDo: Merge this method in a later release with deploy_zipped_from_disk
+        return self.deploy_zipped_from_disk(app_name=application_name, app_root=Path(application_folder))
 
     def deploy_zipped_from_disk(self, app_name: str, app_root: Path) -> Vespa:
         """
@@ -391,10 +369,11 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             data = f.read()
         os.remove(TMP_ZIP)
 
-        return self._deploy_data(app_name, data)
+        app = ApplicationPackage(name=app_name)
+        return self._deploy_data(app, data)
 
 
-    def _deploy_data(self, app_name: str, data) -> Vespa:
+    def _deploy_data(self, application: ApplicationPackage, data) -> Vespa:
         """
         Deploys an Application Package as zipped data
 
@@ -403,7 +382,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         :return: A Vespa connection instance
         """
         self._run_vespa_engine_container(
-            application_name=app_name,
+            application_name=application.name,
             container_memory=self.container_memory,
         )
         self.wait_for_config_server_start(max_wait=CFG_SERVER_START_TIMEOUT)
@@ -419,6 +398,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         app = Vespa(
             url=self.url,
             port=self.local_port,
+            application_package=application
         )
         app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
 

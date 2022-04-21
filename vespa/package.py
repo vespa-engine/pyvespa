@@ -1351,22 +1351,6 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         )
 
     @property
-    def hosts_to_text(self):
-        # ToDo: Remove, not needed anymore
-        env = Environment(
-            loader=PackageLoader("vespa", "templates"),
-            autoescape=select_autoescape(
-                disabled_extensions=("txt",),
-                default_for_string=True,
-                default=True,
-            ),
-        )
-        env.trim_blocks = True
-        env.lstrip_blocks = True
-        schema_template = env.get_template("hosts.xml")
-        return schema_template.render()
-
-    @property
     def services_to_text(self):
         env = Environment(
             loader=PackageLoader("vespa", "templates"),
@@ -1432,21 +1416,21 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
                     "schemas/{}.sd".format(schema.name),
                     schema.schema_to_text,
                 )
+                for model in schema.models:
+                    zip_archive.write(
+                        model.model_file_path,
+                        os.path.join("files", model.model_file_name),
+                    )
 
-            for model in schema.models:
-                zip_archive.write(
-                    model.model_file_path,
-                    os.path.join("files", model.model_file_name),
-                )
-                if self.models:
-                    for model_id, model in self.models.items():
-                        temp_model_file = "{}.onnx".format(model_id)
-                        model.export_to_onnx(output_path=temp_model_file)
-                        zip_archive.write(
-                            temp_model_file,
-                            "models/{}.onnx".format(model_id),
-                        )
-                        os.remove(temp_model_file)
+            if self.models:
+                for model_id, model in self.models.items():
+                    temp_model_file = "{}.onnx".format(model_id)
+                    model.export_to_onnx(output_path=temp_model_file)
+                    zip_archive.write(
+                        temp_model_file,
+                        "models/{}.onnx".format(model_id),
+                    )
+                    os.remove(temp_model_file)
 
             if self.query_profile:
                 zip_archive.writestr(

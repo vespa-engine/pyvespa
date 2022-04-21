@@ -93,10 +93,10 @@ jobs:
           #
           # Exclude non-testable notebooks below
           #
-          dnf install -y tree wget
+          dnf install -y tree
           echo "All non-cloud notebooks:"
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
-          for notebook in `find docs -name '*.ipynb' -and \
+          for notebook in `find docs/sphinx/source -name '*.ipynb' -and \
             ! -name '*cloud*.ipynb' -and \
             ! -path '*/.ipynb_checkpoints/*' -and \
             ! -name 'image-search-scratch.ipynb'`; \
