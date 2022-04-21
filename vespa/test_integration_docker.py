@@ -145,9 +145,9 @@ class TestDockerCommon(unittest.TestCase):
         #
         # Test VespaDocker serialization
         #
-        #self.assertEqual(
-        #    repr(self.vespa_docker), repr(VespaDocker.from_dict(self.vespa_docker.to_dict))
-        #)
+        self.assertEqual(
+            repr(self.vespa_docker), repr(VespaDocker.from_dict(self.vespa_docker.to_dict))
+        )
 
     def create_vespa_docker_from_container_name_or_id(
         self, application_package
