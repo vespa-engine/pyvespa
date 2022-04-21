@@ -1034,9 +1034,6 @@ class TestQaDockerDeployment(TestDockerCommon):
         self.vespa_docker.container.stop()
         self.vespa_docker.container.remove()
 
-    def tearDown(self) -> None:
-        pass
-
 
 class TestMsmarcoApplication(TestApplicationCommon):
     def setUp(self) -> None:
