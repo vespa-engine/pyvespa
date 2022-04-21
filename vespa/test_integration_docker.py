@@ -2,7 +2,6 @@ import unittest
 import pytest
 import os
 import re
-import shutil
 import asyncio
 import json
 from pandas import DataFrame
@@ -139,7 +138,7 @@ class TestDockerCommon(unittest.TestCase):
             self.vespa_docker = VespaDocker(port=8089)
 
         try:
-            app = self.vespa_docker.deploy(application_package=application_package)
+            self.vespa_docker.deploy(application_package=application_package)
         except RuntimeError as e:
             assert False, "Deployment error: {}".format(e)
         #
@@ -167,12 +166,9 @@ class TestDockerCommon(unittest.TestCase):
         )
         self.assertEqual(self.vespa_docker, vespa_docker_from_container)
 
-    def redeploy_with_container_stopped(self, application_package, disk_folder):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
-        app = self.vespa_docker.deploy(application_package=application_package)
-        self.assertTrue(
-            any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
-        )
+    def redeploy_with_container_stopped(self, application_package):
+        self.vespa_docker = VespaDocker(port=8089)
+        self.vespa_docker.deploy(application_package=application_package)
         self.vespa_docker.container.stop()
         app = self.vespa_docker.deploy(application_package=application_package)
         self.assertEqual(app.get_application_status().status_code, 200)
@@ -246,7 +242,7 @@ class TestApplicationCommon(unittest.TestCase):
         :param fields_to_send: Dict where keys are field names and values are field values. Must contain 'id' field
         :param field_to_update: Dict where keys are field names and values are field values.
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
-            There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
+            There are cases where fields returned from Vespa are different from inputs, e.g. when dealing with Tensors.
         :return:
         """
         assert "id" in fields_to_send, "fields_to_send must contain 'id' field."
@@ -410,7 +406,7 @@ class TestApplicationCommon(unittest.TestCase):
             contain 'id' field.
         :param field_to_update: Dict where keys are field names and values are field values.
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
-            There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
+            There are cases where fields returned from Vespa are different from inputs, e.g. when dealing with Tensors.
         :return:
         """
         async with app.asyncio(connections=120, total_timeout=50) as async_app:
@@ -584,7 +580,7 @@ class TestApplicationCommon(unittest.TestCase):
         :param fields_to_send: List of Dicts where keys are field names and values are field values. Must
             contain 'id' field.
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
-            There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
+            There are cases where fields returned from Vespa are different from inputs, e.g. when dealing with Tensors.
         :param fields_to_update: Dict where keys are field names and values are field values.
         :param query_batch: Optional list of query strings.
         :param query_model: Optional QueryModel to use with query_batch.
@@ -692,7 +688,7 @@ class TestApplicationCommon(unittest.TestCase):
         :param fields_to_send: List of Dicts where keys are field names and values are field values. Must
             contain 'id' field.
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
-            There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
+            There are cases where fields returned from Vespa are different from inputs, e.g. when dealing with Tensors.
         :param fields_to_update: Dict where keys are field names and values are field values.
         :param query_batch: Optional list of query strings.
         :param query_model: Optional QueryModel to use with query_batch.
@@ -801,7 +797,7 @@ class TestApplicationCommon(unittest.TestCase):
         :param fields_to_send: List of Dicts where keys are field names and values are field values. Must
             contain 'id' field.
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
-            There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
+            There are cases where fields returned from Vespa are different from inputs, e.g. when dealing with Tensors.
         :param fields_to_update: Dict where keys are field names and values are field values.
         :return:
         """
