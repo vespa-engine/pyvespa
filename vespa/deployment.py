@@ -356,29 +356,27 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         :param app_root: Application package directory root
         :return: A Vespa connection instance
         """
-        TMP_ZIP="tmp_app_package.zip"
+        tmp_zip="tmp_app_package.zip"
         orig_dir = os.getcwd()
-        zipf = zipfile.ZipFile(TMP_ZIP, "w", zipfile.ZIP_DEFLATED)
+        zipf = zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED)
         os.chdir(app_root)  # Workaround to avoid the top-level directory
         for root, dirs, files in os.walk("."):
             for file in files:
                 zipf.write(os.path.join(root, file))
         zipf.close()
         os.chdir(orig_dir)
-        with open(TMP_ZIP, "rb") as f:
+        with open(tmp_zip, "rb") as f:
             data = f.read()
-        os.remove(TMP_ZIP)
+        os.remove(tmp_zip)
 
         app = ApplicationPackage(name=app_name)
         return self._deploy_data(app, data)
-
 
     def _deploy_data(self, application: ApplicationPackage, data) -> Vespa:
         """
         Deploys an Application Package as zipped data
 
-        :param app_name: Application package name
-        :param app_root: Application package directory root
+        :param application: Application package
         :return: A Vespa connection instance
         """
         self._run_vespa_engine_container(
@@ -493,7 +491,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
 
     @property
     def to_dict(self) -> Mapping:
-        map = {
+        return {
             "container_id": self.container_id,
             "container_name": self.container_name,
             "url": self.url,
@@ -502,7 +500,6 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             "container_memory": self.container_memory,
             "container_image": self.container_image,
         }
-        return map
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):

@@ -146,7 +146,8 @@ class Vespa(object):
             app=self, connections=connections, total_timeout=total_timeout
         )
 
-    def _run_coroutine_new_event_loop(self, loop, coro):
+    @staticmethod
+    def _run_coroutine_new_event_loop(loop, coro):
         asyncio.set_event_loop(loop)
         return loop.run_until_complete(coro)
 
@@ -1269,7 +1270,8 @@ class VespaAsync(object):
             return
         return await self.aiohttp_session.close()
 
-    async def _wait(self, f, args, **kwargs):
+    @staticmethod
+    async def _wait(f, args, **kwargs):
         tasks = [asyncio.create_task(f(*arg, **kwargs)) for arg in args]
         await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
         return [result for result in map(lambda task: task.result(), tasks)]

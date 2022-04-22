@@ -101,7 +101,8 @@ class TextTask(Task):
         predictions = pipeline(text)[0]
         return [x["score"] for x in predictions]
 
-    def parse_vespa_prediction(self, prediction):
+    @staticmethod
+    def parse_vespa_prediction(prediction):
         return [cell["value"] for cell in prediction["cells"]]
 
     def create_url_encoded_tokens(self, x):
@@ -315,6 +316,7 @@ class BertModelConfig(ModelConfig, ToJson, FromJson["BertModelConfig"]):
 
         :param queries: A List of query texts.
         :param docs: A List of document texts.
+        :param return_tensors: Return tensors
         :return: Dict containing `input_ids`, `token_type_ids` and `attention_mask` encodings.
         """
         query_input_ids = self._query_input_ids(queries=queries)
@@ -507,14 +509,13 @@ class BertModelConfig(ModelConfig, ToJson, FromJson["BertModelConfig"]):
 
     @property
     def to_dict(self) -> Mapping:
-        map = {
+        return {
             "model_id": self.model_id,
             "query_input_size": self.query_input_size,
             "doc_input_size": self.doc_input_size,
             "tokenizer": self.tokenizer,
             "model": self.model,
         }
-        return map
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
