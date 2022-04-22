@@ -230,7 +230,7 @@ class Vespa(object):
         with VespaSync(self) as sync_app:
             return sync_app.get_model_endpoint(model_id=model_id)
 
-    def _build_query_body(
+    def build_query_body(
         self,
         query: Optional[str] = None,
         query_model: Optional[QueryModel] = None,
@@ -1142,7 +1142,7 @@ class VespaSync(object):
         :return: Either the request body if debug_request is True or the result from the Vespa application
         """
         body = (
-            self.app._build_query_body(query, query_model, recall, **kwargs)
+            self.app.build_query_body(query, query_model, recall, **kwargs)
             if body is None
             else body
         )
@@ -1289,7 +1289,7 @@ class VespaAsync(object):
                 body, query, query_model, debug_request, recall, **kwargs
             )
         body = (
-            self.app._build_query_body(query, query_model, recall, **kwargs)
+            self.app.build_query_body(query, query_model, recall, **kwargs)
             if body is None
             else body
         )
