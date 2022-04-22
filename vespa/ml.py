@@ -420,8 +420,9 @@ class BertModelConfig(ModelConfig, ToJson, FromJson["BertModelConfig"]):
 
     def rank_profile(self, include_model_summary_features, **kwargs):
         constants = {"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102}
-        if "contants" in kwargs:
-            constants.update(kwargs.pop("contants"))
+        # ToDo: Add a unit test for constants
+        if "constants" in kwargs:
+            constants.update(kwargs.pop("constants"))
 
         functions = [
             Function(
