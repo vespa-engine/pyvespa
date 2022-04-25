@@ -113,7 +113,8 @@ class TestBertModelConfig(unittest.TestCase):
         self.assertEqual(len(prediction[0]), 2)
         self.assertEqual(len(prediction[1]), 2)
 
-    def _predict_with_onnx(self, onnx_file_path, model_inputs):
+    @staticmethod
+    def _predict_with_onnx(onnx_file_path, model_inputs):
         os.environ[
             "KMP_DUPLICATE_LIB_OK"
         ] = "True"  # required to run on mac https://stackoverflow.com/a/53014308

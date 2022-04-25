@@ -42,12 +42,11 @@ class HNSW(ToJson, FromJson["HNSW"]):
 
     @property
     def to_dict(self) -> Mapping:
-        map = {
+        return {
             "distance_metric": self.distance_metric,
             "max_links_per_node": self.max_links_per_node,
             "neighbors_to_explore_at_insert": self.neighbors_to_explore_at_insert,
         }
-        return map
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -145,16 +144,16 @@ class Field(ToJson, FromJson["Field"]):
 
     @property
     def to_dict(self) -> Mapping:
-        map = {"name": self.name, "type": self.type}
+        m = {"name": self.name, "type": self.type}
         if self.indexing is not None:
-            map.update(indexing=self.indexing)
+            m.update(indexing=self.indexing)
         if self.index is not None:
-            map.update(index=self.index)
+            m.update(index=self.index)
         if self.attribute is not None:
-            map.update(attribute=self.attribute)
+            m.update(attribute=self.attribute)
         if self.ann is not None:
-            map.update(ann=self.ann.to_envelope)
-        return map
+            m.update(ann=self.ann.to_envelope)
+        return m
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -219,12 +218,11 @@ class ImportedField(ToJson, FromJson["ImportedField"]):
 
     @property
     def to_dict(self) -> Mapping:
-        map = {
+        return {
             "name": self.name,
             "reference_field": self.reference_field,
             "field_to_import": self.field_to_import,
         }
-        return map
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -297,11 +295,10 @@ class Document(ToJson, FromJson["Document"]):
 
     @property
     def to_dict(self) -> Mapping:
-        map = {
+        return {
             "fields": [field.to_envelope for field in self.fields],
             "inherits": self.inherits,
         }
-        return map
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -345,8 +342,7 @@ class FieldSet(ToJson, FromJson["FieldSet"]):
 
     @property
     def to_dict(self) -> Mapping:
-        map = {"name": self.name, "fields": self.fields}
-        return map
+        return {"name": self.name, "fields": self.fields}
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -415,8 +411,7 @@ class Function(ToJson, FromJson["Function"]):
 
     @property
     def to_dict(self) -> Mapping:
-        map = {"name": self.name, "expression": self.expression, "args": self.args}
-        return map
+        return {"name": self.name, "expression": self.expression, "args": self.args}
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -464,8 +459,7 @@ class SecondPhaseRanking(ToJson, FromJson["SecondPhaseRanking"]):
 
     @property
     def to_dict(self) -> Mapping:
-        map = {"expression": self.expression, "rerank_count": self.rerank_count}
-        return map
+        return {"expression": self.expression, "rerank_count": self.rerank_count}
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -584,22 +578,22 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
 
     @property
     def to_dict(self) -> Mapping:
-        map = {
+        m = {
             "name": self.name,
             "first_phase": self.first_phase,
         }
         if self.inherits is not None:
-            map.update({"inherits": self.inherits})
+            m.update({"inherits": self.inherits})
         if self.constants is not None:
-            map.update({"constants": self.constants})
+            m.update({"constants": self.constants})
         if self.functions is not None:
-            map.update({"functions": [f.to_envelope for f in self.functions]})
+            m.update({"functions": [f.to_envelope for f in self.functions]})
         if self.summary_features is not None:
-            map.update({"summary_features": self.summary_features})
+            m.update({"summary_features": self.summary_features})
         if self.second_phase is not None:
-            map.update({"second_phase": self.second_phase.to_envelope})
+            m.update({"second_phase": self.second_phase.to_envelope})
 
-        return map
+        return m
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -682,13 +676,12 @@ class OnnxModel(ToJson, FromJson["OnnxModel"]):
 
     @property
     def to_dict(self) -> Mapping:
-        map = {
+        return {
             "model_name": self.model_name,
             "model_file_path": self.model_file_path,
             "inputs": self.inputs,
             "outputs": self.outputs,
         }
-        return map
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -858,28 +851,28 @@ class Schema(ToJson, FromJson["Schema"]):
 
     @property
     def to_dict(self) -> Mapping:
-        map = {
+        m = {
             "name": self.name,
             "document": self.document.to_envelope,
             "global_document": self.global_document,
         }
         if self.fieldsets:
-            map["fieldsets"] = [
+            m["fieldsets"] = [
                 self.fieldsets[name].to_envelope for name in self.fieldsets.keys()
             ]
         if self.rank_profiles:
-            map["rank_profiles"] = [
+            m["rank_profiles"] = [
                 self.rank_profiles[name].to_envelope
                 for name in self.rank_profiles.keys()
             ]
         if self.models:
-            map["models"] = [model.to_envelope for model in self.models]
+            m["models"] = [model.to_envelope for model in self.models]
         if self.imported_fields:
-            map["imported_fields"] = [
+            m["imported_fields"] = [
                 self.imported_fields[name].to_envelope
                 for name in self.imported_fields.keys()
             ]
-        return map
+        return m
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -947,8 +940,7 @@ class QueryTypeField(ToJson, FromJson["QueryTypeField"]):
 
     @property
     def to_dict(self) -> Mapping:
-        map = {"name": self.name, "type": self.type}
-        return map
+        return {"name": self.name, "type": self.type}
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -1018,8 +1010,7 @@ class QueryProfileType(ToJson, FromJson["QueryProfileType"]):
 
     @property
     def to_dict(self) -> Mapping:
-        map = {"fields": [field.to_envelope for field in self.fields]}
-        return map
+        return {"fields": [field.to_envelope for field in self.fields]}
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -1059,8 +1050,7 @@ class QueryField(ToJson, FromJson["QueryField"]):
 
     @property
     def to_dict(self) -> Mapping:
-        map = {"name": self.name, "value": self.value}
-        return map
+        return {"name": self.name, "value": self.value}
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -1116,8 +1106,7 @@ class QueryProfile(ToJson, FromJson["QueryProfile"]):
 
     @property
     def to_dict(self) -> Mapping:
-        map = {"fields": [field.to_envelope for field in self.fields]}
-        return map
+        return {"fields": [field.to_envelope for field in self.fields]}
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -1378,10 +1367,10 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
 
     @property
     def to_dict(self) -> Mapping:
-        map = {"name": self.name}
+        m = {"name": self.name}
         if self._schema is not None:
-            map.update({"schema": [x.to_envelope for x in self.schemas]})
-        return map
+            m.update({"schema": [x.to_envelope for x in self.schemas]})
+        return m
 
     @staticmethod
     def _application_package_file_name(disk_folder):
@@ -1451,16 +1440,16 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         #    app.public_bytes(serialization.Encoding.PEM),
         #)
 
-    def to_zipfile(self, zipfile: Path) -> None:
+    def to_zipfile(self, zfile: Path) -> None:
         """
         Export the application package as a deployable zipfile.
         See `application packages <https://docs.vespa.ai/en/cloudconfig/application-packages.html>`__
         for deployment options.
 
-        :param zipfile: Filename to export to
+        :param zfile: Filename to export to
         :return:
         """
-        with open(zipfile, "wb") as f:
+        with open(zfile, "wb") as f:
             f.write(self.to_zip().getbuffer().tobytes())
 
     def to_files(self, root: Path) -> None:
@@ -1546,5 +1535,4 @@ class ModelServer(ApplicationPackage):
 
     @property
     def to_dict(self) -> Mapping:
-        map = {"name": self.name}
-        return map
+        return {"name": self.name}

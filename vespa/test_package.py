@@ -1,4 +1,5 @@
-import unittest, os
+import unittest
+import os
 from shutil import rmtree
 
 import pytest
@@ -66,14 +67,14 @@ class TestField(unittest.TestCase):
         self.assertEqual(field, Field.from_dict(field.to_dict))
         self.assertEqual(field.indexing_to_text, "index | summary")
 
-    def test_tensor_with_hsnw(self):
+    def test_tensor_with_hnsw(self):
         field = Field(
             name="tensor_field",
             type="tensor<float>(x[128])",
             indexing=["attribute"],
             attribute=["fast-search", "fast-access"],
             ann=HNSW(
-                distance_metric="enclidean",
+                distance_metric="euclidean",
                 max_links_per_node=16,
                 neighbors_to_explore_at_insert=200,
             ),
