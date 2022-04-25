@@ -151,13 +151,14 @@ class Vespa(object):
         asyncio.set_event_loop(loop)
         return loop.run_until_complete(coro)
 
-    def _check_for_running_loop_and_run_coroutine(self, coro):
+    @staticmethod
+    def _check_for_running_loop_and_run_coroutine(coro):
         try:
             _ = asyncio.get_running_loop()
             new_loop = asyncio.new_event_loop()
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(
-                    self._run_coroutine_new_event_loop, new_loop, coro
+                    Vespa._run_coroutine_new_event_loop, new_loop, coro
                 )
                 return_value = future.result()
                 return return_value
@@ -388,7 +389,7 @@ class Vespa(object):
                 total_timeout=total_timeout,
                 **kwargs,
             )
-            return self._check_for_running_loop_and_run_coroutine(coro=coro)
+            return Vespa._check_for_running_loop_and_run_coroutine(coro=coro)
         else:
             return self._query_batch_sync(
                 body_batch=body_batch,
@@ -460,7 +461,7 @@ class Vespa(object):
                 connections=connections,
                 total_timeout=total_timeout,
             )
-            return self._check_for_running_loop_and_run_coroutine(coro=coro)
+            return Vespa._check_for_running_loop_and_run_coroutine(coro=coro)
         else:
             return self._feed_batch_sync(schema=schema, batch=batch)
 
@@ -532,7 +533,7 @@ class Vespa(object):
                 connections=connections,
                 total_timeout=total_timeout,
             )
-            return self._check_for_running_loop_and_run_coroutine(coro=coro)
+            return Vespa._check_for_running_loop_and_run_coroutine(coro=coro)
         else:
             return self._delete_batch_sync(schema=schema, batch=batch)
 
@@ -605,7 +606,7 @@ class Vespa(object):
                 connections=connections,
                 total_timeout=total_timeout,
             )
-            return self._check_for_running_loop_and_run_coroutine(coro=coro)
+            return Vespa._check_for_running_loop_and_run_coroutine(coro=coro)
         else:
             return self._get_batch_sync(schema=schema, batch=batch)
 
@@ -679,7 +680,7 @@ class Vespa(object):
                 connections=connections,
                 total_timeout=total_timeout,
             )
-            return self._check_for_running_loop_and_run_coroutine(coro=coro)
+            return Vespa._check_for_running_loop_and_run_coroutine(coro=coro)
         else:
             return self._update_batch_sync(schema=schema, batch=batch)
 
@@ -1324,14 +1325,14 @@ class VespaAsync(object):
     ):
         sem = asyncio.Semaphore(self.connections)
         if body_batch:
-            return await self._wait(
+            return await VespaAsync._wait(
                 self._query_semaphore,
                 [(body, None, None, None, sem) for body in body_batch],
                 **kwargs,
             )
         else:
             if recall:
-                return await self._wait(
+                return await VespaAsync._wait(
                     self._query_semaphore,
                     [
                         (None, q, query_model, r, sem)
@@ -1340,7 +1341,7 @@ class VespaAsync(object):
                     **kwargs,
                 )
             else:
-                return await self._wait(
+                return await VespaAsync._wait(
                     self._query_semaphore,
                     [(None, q, query_model, None, sem) for q in query_batch],
                     **kwargs,
@@ -1372,7 +1373,7 @@ class VespaAsync(object):
 
     async def feed_batch(self, schema: str, batch: List[Dict]):
         sem = asyncio.Semaphore(self.connections)
-        return await self._wait(
+        return await VespaAsync._wait(
             self._feed_data_point_semaphore,
             [
                 (schema, data_point["id"], data_point["fields"], sem)
@@ -1401,7 +1402,7 @@ class VespaAsync(object):
 
     async def delete_batch(self, schema: str, batch: List[Dict]):
         sem = asyncio.Semaphore(self.connections)
-        return await self._wait(
+        return await VespaAsync._wait(
             self._delete_data_semaphore,
             [(schema, data_point["id"], sem) for data_point in batch],
         )
@@ -1427,7 +1428,7 @@ class VespaAsync(object):
 
     async def get_batch(self, schema: str, batch: List[Dict]):
         sem = asyncio.Semaphore(self.connections)
-        return await self._wait(
+        return await VespaAsync._wait(
             self._get_data_semaphore,
             [(schema, data_point["id"], sem) for data_point in batch],
         )
@@ -1463,7 +1464,7 @@ class VespaAsync(object):
 
     async def update_batch(self, schema: str, batch: List[Dict]):
         sem = asyncio.Semaphore(self.connections)
-        return await self._wait(
+        return await VespaAsync._wait(
             self._update_data_semaphore,
             [
                 (
