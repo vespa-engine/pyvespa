@@ -11,6 +11,19 @@
 
 Code licensed under the Apache 2.0 license. See [LICENSE](LICENSE) for terms.
 
+## Development setup environment
+
+1. Install  
+   1. unittest
+   2. pytest
+
+2. Testing environment  
+The following environment variables are required
+    1. ["RESOURCES_DIR"] to the `resources` folder path
+    2. ["WORK_DIR"] to the `vespa` folder path
+
+3. The test suite includes Docker images  
+
 ## Release instructions
 
 We currently release new pyvespa versions manually.
@@ -20,6 +33,8 @@ We currently release new pyvespa versions manually.
 * Run the following command from the pyvespa root directory to create the library files
 
 ```
+pip install wheel
+
 python3 setup.py sdist bdist_wheel
 ``` 
 

@@ -23,6 +23,7 @@ from vespa.query import QueryModel, RankProfile as Ranking, OR, QueryRankingFeat
 from vespa.gallery import QuestionAnswering, TextSearch
 from vespa.application import VespaSync
 
+PORT=8089
 
 def create_msmarco_application_package():
     #
@@ -134,9 +135,9 @@ def create_sequence_classification_task():
 class TestDockerCommon(unittest.TestCase):
     def deploy(self, application_package, disk_folder, container_image=None):
         if container_image:
-            self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder, container_image=container_image)
+            self.vespa_docker = VespaDocker(port=PORT, disk_folder=disk_folder, container_image=container_image)
         else:
-            self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+            self.vespa_docker = VespaDocker(port=PORT, disk_folder=disk_folder)
 
         app = self.vespa_docker.deploy(application_package=application_package)
         #
@@ -154,14 +155,14 @@ class TestDockerCommon(unittest.TestCase):
         )
 
     def deploy_without_disk_folder(self, application_package):
-        self.vespa_docker = VespaDocker(port=8089)
+        self.vespa_docker = VespaDocker(port=PORT)
         try:
             app = self.vespa_docker.deploy(application_package=application_package)
         except RuntimeError as e:
             assert False, "Deployment error: {}".format(e)
 
     def deploy_from_disk_with_disk_folder(self, application_package, disk_folder):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+        self.vespa_docker = VespaDocker(port=PORT, disk_folder=disk_folder)
         self.vespa_docker.export_application_package(
             application_package=application_package
         )
@@ -179,7 +180,7 @@ class TestDockerCommon(unittest.TestCase):
     def deploy_from_disk_with_application_folder(
         self, application_package, disk_folder
     ):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+        self.vespa_docker = VespaDocker(port=PORT, disk_folder=disk_folder)
         self.vespa_docker.export_application_package(
             application_package=application_package
         )
@@ -205,7 +206,7 @@ class TestDockerCommon(unittest.TestCase):
         #
         # Test VespaDocker instance created from container
         #
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+        self.vespa_docker = VespaDocker(port=PORT, disk_folder=disk_folder)
         _ = self.vespa_docker.deploy(application_package=application_package)
         vespa_docker_from_container = VespaDocker.from_container_name_or_id(
             application_package.name
@@ -213,7 +214,7 @@ class TestDockerCommon(unittest.TestCase):
         self.assertEqual(self.vespa_docker, vespa_docker_from_container)
 
     def redeploy_with_container_stopped(self, application_package, disk_folder):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+        self.vespa_docker = VespaDocker(port=PORT, disk_folder=disk_folder)
         app = self.vespa_docker.deploy(application_package=application_package)
         self.assertTrue(
             any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
@@ -225,7 +226,7 @@ class TestDockerCommon(unittest.TestCase):
     def redeploy_with_application_package_changes(
         self, application_package, disk_folder
     ):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+        self.vespa_docker = VespaDocker(port=PORT, disk_folder=disk_folder)
         app = self.vespa_docker.deploy(application_package=application_package)
         res = app.query(
             body={
@@ -254,7 +255,7 @@ class TestDockerCommon(unittest.TestCase):
         self.assertTrue("errors" not in res["root"])
 
     def trigger_start_stop_and_restart_services(self, application_package, disk_folder):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+        self.vespa_docker = VespaDocker(port=PORT, disk_folder=disk_folder)
         with self.assertRaises(RuntimeError):
             self.vespa_docker.stop_services()
         with self.assertRaises(RuntimeError):
@@ -1114,7 +1115,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
     def setUp(self) -> None:
         self.app_package = create_msmarco_application_package()
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        self.vespa_docker = VespaDocker(port=PORT, disk_folder=self.disk_folder)
         self.app = self.vespa_docker.deploy(application_package=self.app_package)
         self.fields_to_send = [
             {
@@ -1141,7 +1142,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
         # The port should be 8089 instead of 8080, see https://jira.vzbuilders.com/browse/VESPA-21365
         self.get_model_endpoints_when_no_model_is_available(
             app=self.app,
-            expected_model_endpoint="http://localhost:8080/model-evaluation/v1/",
+            expected_model_endpoint=f"http://localhost:{PORT}/model-evaluation/v1/"
         )
 
     def test_prediction_when_model_not_defined(self):
@@ -1214,7 +1215,7 @@ class TestCord19Application(TestApplicationCommon):
     def setUp(self) -> None:
         self.app_package = create_cord19_application_package()
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        self.vespa_docker = VespaDocker(port=PORT, disk_folder=self.disk_folder)
         self.app = self.vespa_docker.deploy(application_package=self.app_package)
         self.model_config = self.app_package.model_configs["pretrained_bert_tiny"]
         self.fields_to_send = []
@@ -1261,7 +1262,7 @@ class TestCord19Application(TestApplicationCommon):
         # The port should be 8089 instead of 8080, see https://jira.vzbuilders.com/browse/VESPA-21365
         self.get_model_endpoints_when_no_model_is_available(
             app=self.app,
-            expected_model_endpoint="http://localhost:8080/model-evaluation/v1/",
+            expected_model_endpoint=f"http://localhost:{PORT}/model-evaluation/v1/",
         )
 
     def test_prediction_when_model_not_defined(self):
@@ -1342,7 +1343,7 @@ class TestQaApplication(TestApplicationCommon):
             Field(name="id", type="string", indexing=["attribute", "summary"])
         )
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        self.vespa_docker = VespaDocker(port=PORT, disk_folder=self.disk_folder)
         self.app = self.vespa_docker.deploy(application_package=self.app_package)
         with open(
             os.path.join(os.environ["RESOURCES_DIR"], "qa_sample_sentence_data.json"),
@@ -1382,7 +1383,7 @@ class TestQaApplication(TestApplicationCommon):
         # The port should be 8089 instead of 8080, see https://jira.vzbuilders.com/browse/VESPA-21365
         self.get_model_endpoints_when_no_model_is_available(
             app=self.app,
-            expected_model_endpoint="http://localhost:8080/model-evaluation/v1/",
+            expected_model_endpoint=f"http://localhost:{PORT}/model-evaluation/v1/",
         )
 
     def test_prediction_when_model_not_defined(self):
@@ -1455,7 +1456,7 @@ class TestGalleryTextSearch(unittest.TestCase):
         # Deploy application
         #
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        self.vespa_docker = VespaDocker(port=PORT, disk_folder=self.disk_folder)
         self.app = self.vespa_docker.deploy(application_package=self.app_package)
         #
         # Create a sample data frame
@@ -1499,13 +1500,13 @@ class TestSequenceClassification(TestApplicationCommon):
     def setUp(self) -> None:
         self.app_package = create_sequence_classification_task()
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        self.vespa_docker = VespaDocker(port=PORT, disk_folder=self.disk_folder)
         self.app = self.vespa_docker.deploy(application_package=self.app_package)
 
     def test_model_endpoints(self):
         self.get_model_endpoints(
             app=self.app,
-            expected_model_endpoint="http://localhost:8089/model-evaluation/v1/",
+            expected_model_endpoint=f"http://localhost:{PORT}/model-evaluation/v1/",
         )
 
     def test_prediction(self):
