@@ -1058,7 +1058,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
         self.queries_first_hit = ["this is title 1", "this is title 2"]
 
     def test_model_endpoints_when_no_model_is_available(self):
-        # The port should be 8089 instead of 8080, see https://jira.vzbuilders.com/browse/VESPA-21365
+        # The port should be 8089 instead of 8080, see https://jira.ouryahoo.com/browse/VESPA-21365
         self.get_model_endpoints_when_no_model_is_available(
             app=self.app,
             expected_model_endpoint="http://localhost:8080/model-evaluation/v1/",
@@ -1176,7 +1176,7 @@ class TestCord19Application(TestApplicationCommon):
         ]
 
     def test_model_endpoints_when_no_model_is_available(self):
-        # The port should be 8089 instead of 8080, see https://jira.vzbuilders.com/browse/VESPA-21365
+        # The port should be 8089 instead of 8080, see https://jira.ouryahoo.com/browse/VESPA-21365
         self.get_model_endpoints_when_no_model_is_available(
             app=self.app,
             expected_model_endpoint="http://localhost:8080/model-evaluation/v1/",
@@ -1295,7 +1295,7 @@ class TestQaApplication(TestApplicationCommon):
         ]
 
     def test_model_endpoints_when_no_model_is_available(self):
-        # The port should be 8089 instead of 8080, see https://jira.vzbuilders.com/browse/VESPA-21365
+        # The port should be 8089 instead of 8080, see https://jira.ouryahoo.com/browse/VESPA-21365
         self.get_model_endpoints_when_no_model_is_available(
             app=self.app,
             expected_model_endpoint="http://localhost:8080/model-evaluation/v1/",
