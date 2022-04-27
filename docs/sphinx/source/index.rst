@@ -84,7 +84,6 @@ minimum memory requirement is 4 Gb unless other documented:
 
     $ docker info | grep "Total Memory"
 
-One can also use `Vespa Cloud <deploy-vespa-cloud.html>`__
-to run the notebooks.
+One can also use `Vespa Cloud <deploy-vespa-cloud.rst>`__ to run the notebooks.
 
 The `Vespa FAQ <https://docs.vespa.ai/en/faq.html>`__ is a great resource for troubleshooting.
