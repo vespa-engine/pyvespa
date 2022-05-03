@@ -1408,7 +1408,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
                 for model in schema.models:
                     zip_archive.write(
                         model.model_file_path,
-                        os.path.join("files", model.model_file_name),
+                        "files/{}".format(model.model_file_name),
                     )
 
             if self.models:
