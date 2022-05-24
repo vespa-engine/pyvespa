@@ -32,8 +32,8 @@ setuptools.setup(
         "tenacity",
     ],
     extras_require={
-        "ml": ["transformers", "torch"],
-        "full": ["transformers", "torch", "onnxruntime"],
+        "ml": ["transformers", "torch", "tensorflow", "tensorflow_ranking", "keras_tuner", "beir"],
+        "full": ["transformers", "torch", "tensorflow", "tensorflow_ranking", "keras_tuner", "beir"],
     },
     python_requires=">=3.6",
     zip_safe=False,
