@@ -13,16 +13,8 @@ Code licensed under the Apache 2.0 license. See [LICENSE](LICENSE) for terms.
 
 ## Development setup environment
 
-1. Install  
-   1. unittest
-   2. pytest
-
-2. Testing environment  
-The following environment variables are required
-    1. ["RESOURCES_DIR"] to the `resources` folder path
-    2. ["WORK_DIR"] to the `vespa` folder path
-
-3. The test suite includes Docker images  
+Check the file `screwdriver.yaml` to see which packages and environment variables
+need to be set to run unit and integration tests.
 
 ## Release instructions
 
@@ -33,7 +25,8 @@ We currently release new pyvespa versions manually.
 * Run the following command from the pyvespa root directory to create the library files
 
 ```
-pip install wheel
+python3 -m pip install --upgrade pip
+python3 -m pip install twine wheel
 
 python3 setup.py sdist bdist_wheel
 ``` 
