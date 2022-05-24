@@ -1,4 +1,5 @@
-import unittest, os
+import unittest
+import os
 from shutil import rmtree
 
 import pytest
@@ -66,14 +67,14 @@ class TestField(unittest.TestCase):
         self.assertEqual(field, Field.from_dict(field.to_dict))
         self.assertEqual(field.indexing_to_text, "index | summary")
 
-    def test_tensor_with_hsnw(self):
+    def test_tensor_with_hnsw(self):
         field = Field(
             name="tensor_field",
             type="tensor<float>(x[128])",
             indexing=["attribute"],
             attribute=["fast-search", "fast-access"],
             ann=HNSW(
-                distance_metric="enclidean",
+                distance_metric="euclidean",
                 max_links_per_node=16,
                 neighbors_to_explore_at_insert=200,
             ),
@@ -740,18 +741,6 @@ class TestApplicationPackage(unittest.TestCase):
         )
         self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
 
-    def test_hosts_to_text(self):
-        expected_result = (
-            '<?xml version="1.0" encoding="utf-8" ?>\n'
-            "<!-- Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->\n"
-            "<hosts>\n"
-            '    <host name="localhost">\n'
-            "        <alias>node1</alias>\n"
-            "    </host>\n"
-            "</hosts>"
-        )
-        self.assertEqual(self.app_package.hosts_to_text, expected_result)
-
     def test_services_to_text(self):
         expected_result = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -1073,18 +1062,6 @@ class TestApplicationPackageAddBertRankingWithMultipleSchemas(unittest.TestCase)
             self.app_package.get_schema("user").schema_to_text, expected_user_result
         )
 
-    def test_hosts_to_text(self):
-        expected_result = (
-            '<?xml version="1.0" encoding="utf-8" ?>\n'
-            "<!-- Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->\n"
-            "<hosts>\n"
-            '    <host name="localhost">\n'
-            "        <alias>node1</alias>\n"
-            "    </host>\n"
-            "</hosts>"
-        )
-        self.assertEqual(self.app_package.hosts_to_text, expected_result)
-
     def test_services_to_text(self):
         expected_result = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -1238,18 +1215,6 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
             "}"
         )
         self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
-
-    def test_hosts_to_text(self):
-        expected_result = (
-            '<?xml version="1.0" encoding="utf-8" ?>\n'
-            "<!-- Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->\n"
-            "<hosts>\n"
-            '    <host name="localhost">\n'
-            "        <alias>node1</alias>\n"
-            "    </host>\n"
-            "</hosts>"
-        )
-        self.assertEqual(self.app_package.hosts_to_text, expected_result)
 
     def test_services_to_text(self):
         expected_result = (
@@ -1530,18 +1495,6 @@ class TestSimplifiedApplicationPackageAddBertRanking(unittest.TestCase):
         )
         self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
 
-    def test_hosts_to_text(self):
-        expected_result = (
-            '<?xml version="1.0" encoding="utf-8" ?>\n'
-            "<!-- Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->\n"
-            "<hosts>\n"
-            '    <host name="localhost">\n'
-            "        <alias>node1</alias>\n"
-            "    </host>\n"
-            "</hosts>"
-        )
-        self.assertEqual(self.app_package.hosts_to_text, expected_result)
-
     def test_services_to_text(self):
         expected_result = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -1617,18 +1570,6 @@ class TestModelServer(unittest.TestCase):
     def test_get_schema(self):
         self.assertIsNone(self.model_server.schema)
         self.assertEqual(self.model_server.schema, self.model_server.get_schema())
-
-    def test_hosts_to_text(self):
-        expected_result = (
-            '<?xml version="1.0" encoding="utf-8" ?>\n'
-            "<!-- Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->\n"
-            "<hosts>\n"
-            '    <host name="localhost">\n'
-            "        <alias>node1</alias>\n"
-            "    </host>\n"
-            "</hosts>"
-        )
-        self.assertEqual(self.model_server.hosts_to_text, expected_result)
 
     def test_services_to_text(self):
         expected_result = (

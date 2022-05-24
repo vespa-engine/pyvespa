@@ -2,7 +2,6 @@ import unittest
 import pytest
 import os
 import re
-import shutil
 import asyncio
 import json
 from pandas import DataFrame
@@ -132,20 +131,16 @@ def create_sequence_classification_task():
 
 
 class TestDockerCommon(unittest.TestCase):
-    def deploy(self, application_package, disk_folder, container_image=None):
+    def deploy(self, application_package, container_image=None):
         if container_image:
-            self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder, container_image=container_image)
+            self.vespa_docker = VespaDocker(port=8089, container_image=container_image)
         else:
-            self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+            self.vespa_docker = VespaDocker(port=8089)
 
-        app = self.vespa_docker.deploy(application_package=application_package)
-        #
-        # Test deployment
-        #
-        self.assertTrue(
-            any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
-        )
-        self.assertEqual(app.get_application_status().status_code, 200)
+        try:
+            self.vespa_docker.deploy(application_package=application_package)
+        except RuntimeError as e:
+            assert False, "Deployment error: {}".format(e)
         #
         # Test VespaDocker serialization
         #
@@ -153,49 +148,8 @@ class TestDockerCommon(unittest.TestCase):
             repr(self.vespa_docker), repr(VespaDocker.from_dict(self.vespa_docker.to_dict))
         )
 
-    def deploy_without_disk_folder(self, application_package):
-        self.vespa_docker = VespaDocker(port=8089)
-        try:
-            app = self.vespa_docker.deploy(application_package=application_package)
-        except RuntimeError as e:
-            assert False, "Deployment error: {}".format(e)
-
-    def deploy_from_disk_with_disk_folder(self, application_package, disk_folder):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
-        self.vespa_docker.export_application_package(
-            application_package=application_package
-        )
-        #
-        # Disk folder as the application folder
-        #
-        self.vespa_docker.disk_folder = os.path.join(disk_folder, "application")
-        app = self.vespa_docker.deploy_from_disk(
-            application_name=application_package.name,
-        )
-        self.assertTrue(
-            any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
-        )
-
-    def deploy_from_disk_with_application_folder(
-        self, application_package, disk_folder
-    ):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
-        self.vespa_docker.export_application_package(
-            application_package=application_package
-        )
-        #
-        # Application folder inside disk folder
-        #
-        app = self.vespa_docker.deploy_from_disk(
-            application_name=application_package.name,
-            application_folder="application",
-        )
-        self.assertTrue(
-            any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
-        )
-
     def create_vespa_docker_from_container_name_or_id(
-        self, application_package, disk_folder
+        self, application_package
     ):
         #
         # Raises ValueError if container does not exist
@@ -205,31 +159,28 @@ class TestDockerCommon(unittest.TestCase):
         #
         # Test VespaDocker instance created from container
         #
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+        self.vespa_docker = VespaDocker(port=8089)
         _ = self.vespa_docker.deploy(application_package=application_package)
         vespa_docker_from_container = VespaDocker.from_container_name_or_id(
             application_package.name
         )
         self.assertEqual(self.vespa_docker, vespa_docker_from_container)
 
-    def redeploy_with_container_stopped(self, application_package, disk_folder):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
-        app = self.vespa_docker.deploy(application_package=application_package)
-        self.assertTrue(
-            any(re.match("Generation: [0-9]+", line) for line in app.deployment_message)
-        )
+    def redeploy_with_container_stopped(self, application_package):
+        self.vespa_docker = VespaDocker(port=8089)
+        self.vespa_docker.deploy(application_package=application_package)
         self.vespa_docker.container.stop()
         app = self.vespa_docker.deploy(application_package=application_package)
         self.assertEqual(app.get_application_status().status_code, 200)
 
     def redeploy_with_application_package_changes(
-        self, application_package, disk_folder
+        self, application_package
     ):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+        self.vespa_docker = VespaDocker(port=8089)
         app = self.vespa_docker.deploy(application_package=application_package)
         res = app.query(
             body={
-                "yql": "select * from sources * where default contains 'music';",
+                "yql": "select * from sources * where default contains 'music'",
                 "ranking": "new-rank-profile",
             }
         ).json
@@ -247,14 +198,14 @@ class TestDockerCommon(unittest.TestCase):
         app = self.vespa_docker.deploy(application_package=application_package)
         res = app.query(
             body={
-                "yql": "select * from sources * where default contains 'music';",
+                "yql": "select * from sources * where default contains 'music'",
                 "ranking": "new-rank-profile",
             }
         ).json
         self.assertTrue("errors" not in res["root"])
 
-    def trigger_start_stop_and_restart_services(self, application_package, disk_folder):
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=disk_folder)
+    def trigger_start_stop_and_restart_services(self, application_package):
+        self.vespa_docker = VespaDocker(port=8089)
         with self.assertRaises(RuntimeError):
             self.vespa_docker.stop_services()
         with self.assertRaises(RuntimeError):
@@ -291,7 +242,7 @@ class TestApplicationCommon(unittest.TestCase):
         :param fields_to_send: Dict where keys are field names and values are field values. Must contain 'id' field
         :param field_to_update: Dict where keys are field names and values are field values.
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
-            There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
+            There are cases where fields returned from Vespa are different from inputs, e.g. when dealing with Tensors.
         :return:
         """
         assert "id" in fields_to_send, "fields_to_send must contain 'id' field."
@@ -455,7 +406,7 @@ class TestApplicationCommon(unittest.TestCase):
             contain 'id' field.
         :param field_to_update: Dict where keys are field names and values are field values.
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
-            There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
+            There are cases where fields returned from Vespa are different from inputs, e.g. when dealing with Tensors.
         :return:
         """
         async with app.asyncio(connections=120, total_timeout=50) as async_app:
@@ -629,7 +580,7 @@ class TestApplicationCommon(unittest.TestCase):
         :param fields_to_send: List of Dicts where keys are field names and values are field values. Must
             contain 'id' field.
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
-            There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
+            There are cases where fields returned from Vespa are different from inputs, e.g. when dealing with Tensors.
         :param fields_to_update: Dict where keys are field names and values are field values.
         :param query_batch: Optional list of query strings.
         :param query_model: Optional QueryModel to use with query_batch.
@@ -737,7 +688,7 @@ class TestApplicationCommon(unittest.TestCase):
         :param fields_to_send: List of Dicts where keys are field names and values are field values. Must
             contain 'id' field.
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
-            There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
+            There are cases where fields returned from Vespa are different from inputs, e.g. when dealing with Tensors.
         :param fields_to_update: Dict where keys are field names and values are field values.
         :param query_batch: Optional list of query strings.
         :param query_model: Optional QueryModel to use with query_batch.
@@ -846,7 +797,7 @@ class TestApplicationCommon(unittest.TestCase):
         :param fields_to_send: List of Dicts where keys are field names and values are field values. Must
             contain 'id' field.
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
-            There are cases where fields returned from Vespa are different than inputs, e.g. when dealing with Tensors.
+            There are cases where fields returned from Vespa are different from inputs, e.g. when dealing with Tensors.
         :param fields_to_update: Dict where keys are field names and values are field values.
         :return:
         """
@@ -1030,47 +981,24 @@ class TestApplicationCommon(unittest.TestCase):
 class TestMsmarcoDockerDeployment(TestDockerCommon):
     def setUp(self) -> None:
         self.app_package = create_msmarco_application_package()
-        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
 
     def test_deploy(self):
-        self.deploy(application_package=self.app_package, disk_folder=self.disk_folder)
-
-    def test_deploy_without_disk_folder(self):
-        self.deploy_without_disk_folder(application_package=self.app_package)
-
-    def test_deploy_from_disk_with_disk_folder(self):
-        self.deploy_from_disk_with_disk_folder(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
-
-    def test_deploy_from_disk_with_application_folder(self):
-        self.deploy_from_disk_with_application_folder(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
+        self.deploy(application_package=self.app_package)
 
     def test_instantiate_vespa_docker_from_container_name_or_id(self):
-        self.create_vespa_docker_from_container_name_or_id(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
+        self.create_vespa_docker_from_container_name_or_id(application_package=self.app_package)
 
     @pytest.mark.skip(reason="Works locally but fails on Screwdriver")
     def test_redeploy_with_container_stopped(self):
-        self.redeploy_with_container_stopped(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
+        self.redeploy_with_container_stopped(application_package=self.app_package)
 
     def test_redeploy_with_application_package_changes(self):
-        self.redeploy_with_application_package_changes(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
+        self.redeploy_with_application_package_changes(application_package=self.app_package)
 
     def test_trigger_start_stop_and_restart_services(self):
-        self.trigger_start_stop_and_restart_services(
-            application_package=self.app_package, disk_folder=self.disk_folder
-        )
+        self.trigger_start_stop_and_restart_services(application_package=self.app_package)
 
     def tearDown(self) -> None:
-        shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_docker.container.stop()
         self.vespa_docker.container.remove()
 
@@ -1078,13 +1006,11 @@ class TestMsmarcoDockerDeployment(TestDockerCommon):
 class TestCord19DockerDeployment(TestDockerCommon):
     def setUp(self) -> None:
         self.app_package = create_cord19_application_package()
-        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
 
     def test_deploy(self):
-        self.deploy(application_package=self.app_package, disk_folder=self.disk_folder)
+        self.deploy(application_package=self.app_package)
 
     def tearDown(self) -> None:
-        shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_docker.container.stop()
         self.vespa_docker.container.remove()
 
@@ -1092,29 +1018,23 @@ class TestCord19DockerDeployment(TestDockerCommon):
 class TestQaDockerDeployment(TestDockerCommon):
     def setUp(self) -> None:
         self.app_package = create_qa_application_package()
-        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
 
     def test_deploy(self):
-        self.deploy(application_package=self.app_package, disk_folder=self.disk_folder)
+        self.deploy(application_package=self.app_package)
         self.vespa_docker.container.stop()
         self.vespa_docker.container.remove()
 
     def test_deploy_image(self):
         self.deploy(application_package=self.app_package,
-                    disk_folder=self.disk_folder,
                     container_image="vespaengine/vespa:7.566.21")
         self.vespa_docker.container.stop()
         self.vespa_docker.container.remove()
-
-    def tearDown(self) -> None:
-        shutil.rmtree(self.disk_folder, ignore_errors=True)
 
 
 class TestMsmarcoApplication(TestApplicationCommon):
     def setUp(self) -> None:
         self.app_package = create_msmarco_application_package()
-        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        self.vespa_docker = VespaDocker(port=8089)
         self.app = self.vespa_docker.deploy(application_package=self.app_package)
         self.fields_to_send = [
             {
@@ -1138,7 +1058,6 @@ class TestMsmarcoApplication(TestApplicationCommon):
         self.queries_first_hit = ["this is title 1", "this is title 2"]
 
     def test_model_endpoints_when_no_model_is_available(self):
-        # The port should be 8089 instead of 8080, see https://jira.vzbuilders.com/browse/VESPA-21365
         self.get_model_endpoints_when_no_model_is_available(
             app=self.app,
             expected_model_endpoint="http://localhost:8080/model-evaluation/v1/",
@@ -1205,7 +1124,6 @@ class TestMsmarcoApplication(TestApplicationCommon):
         )
 
     def tearDown(self) -> None:
-        shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_docker.container.stop()
         self.vespa_docker.container.remove()
 
@@ -1213,8 +1131,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
 class TestCord19Application(TestApplicationCommon):
     def setUp(self) -> None:
         self.app_package = create_cord19_application_package()
-        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        self.vespa_docker = VespaDocker(port=8089)
         self.app = self.vespa_docker.deploy(application_package=self.app_package)
         self.model_config = self.app_package.model_configs["pretrained_bert_tiny"]
         self.fields_to_send = []
@@ -1258,7 +1175,6 @@ class TestCord19Application(TestApplicationCommon):
         ]
 
     def test_model_endpoints_when_no_model_is_available(self):
-        # The port should be 8089 instead of 8080, see https://jira.vzbuilders.com/browse/VESPA-21365
         self.get_model_endpoints_when_no_model_is_available(
             app=self.app,
             expected_model_endpoint="http://localhost:8080/model-evaluation/v1/",
@@ -1327,7 +1243,6 @@ class TestCord19Application(TestApplicationCommon):
         )
 
     def tearDown(self) -> None:
-        shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_docker.container.stop()
         self.vespa_docker.container.remove()
 
@@ -1341,8 +1256,7 @@ class TestQaApplication(TestApplicationCommon):
         self.app_package.get_schema("context").add_fields(
             Field(name="id", type="string", indexing=["attribute", "summary"])
         )
-        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        self.vespa_docker = VespaDocker(port=8089)
         self.app = self.vespa_docker.deploy(application_package=self.app_package)
         with open(
             os.path.join(os.environ["RESOURCES_DIR"], "qa_sample_sentence_data.json"),
@@ -1379,7 +1293,6 @@ class TestQaApplication(TestApplicationCommon):
         ]
 
     def test_model_endpoints_when_no_model_is_available(self):
-        # The port should be 8089 instead of 8080, see https://jira.vzbuilders.com/browse/VESPA-21365
         self.get_model_endpoints_when_no_model_is_available(
             app=self.app,
             expected_model_endpoint="http://localhost:8080/model-evaluation/v1/",
@@ -1440,7 +1353,6 @@ class TestQaApplication(TestApplicationCommon):
         )
 
     def tearDown(self) -> None:
-        shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_docker.container.stop()
         self.vespa_docker.container.remove()
 
@@ -1454,8 +1366,7 @@ class TestGalleryTextSearch(unittest.TestCase):
         #
         # Deploy application
         #
-        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        self.vespa_docker = VespaDocker(port=8089)
         self.app = self.vespa_docker.deploy(application_package=self.app_package)
         #
         # Create a sample data frame
@@ -1490,7 +1401,6 @@ class TestGalleryTextSearch(unittest.TestCase):
             self.assertIn("fields", hit)
 
     def tearDown(self) -> None:
-        shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_docker.container.stop()
         self.vespa_docker.container.remove()
 
@@ -1498,8 +1408,7 @@ class TestGalleryTextSearch(unittest.TestCase):
 class TestSequenceClassification(TestApplicationCommon):
     def setUp(self) -> None:
         self.app_package = create_sequence_classification_task()
-        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-        self.vespa_docker = VespaDocker(port=8089, disk_folder=self.disk_folder)
+        self.vespa_docker = VespaDocker(port=8089)
         self.app = self.vespa_docker.deploy(application_package=self.app_package)
 
     def test_model_endpoints(self):
@@ -1514,6 +1423,5 @@ class TestSequenceClassification(TestApplicationCommon):
         )
 
     def tearDown(self) -> None:
-        shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_docker.container.stop()
         self.vespa_docker.container.remove()

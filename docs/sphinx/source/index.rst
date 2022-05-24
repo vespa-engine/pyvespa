@@ -33,12 +33,6 @@ and to facilitate Machine Learning experiments for Vespa applications.
 .. warning::
     The library is under active development and backward incompatible changes may occur.
 
-Install ``pyvespa``:
-
-.. code:: bash
-
-	python3 -m pip install pyvespa
-
 pyvespa provides a python API to Vespa.
 The library’s primary goal is to allow for faster prototyping
 and facilitate Machine Learning experiments for Vespa applications:
@@ -65,3 +59,31 @@ Deploy from Vespa config files
 ******************************
 Use pyvespa to `deploy a Vespa application package <deploy-docker.rst>`__
 to a local Docker container.
+
+
+Requirements
+************
+This documentation assumes ``pyvespa`` is installed:
+
+.. code:: bash
+
+	$ python3 -m pip install pyvespa
+
+Install `jupyter notebook <https://jupyter.org/install#jupyter-notebook>`__
+to run the notebooks in the browser:
+
+.. code:: bash
+
+    $ git clone --depth 1 https://github.com/vespa-engine/pyvespa.git
+    $ jupyter notebook --notebook-dir pyvespa/docs/sphinx/source
+
+Many of the pyvespa guides / notebooks use Docker -
+minimum memory requirement is 4 Gb unless other documented:
+
+.. code:: bash
+
+    $ docker info | grep "Total Memory"
+
+One can also use `Vespa Cloud <deploy-vespa-cloud.rst>`__ to run the notebooks.
+
+The `Vespa FAQ <https://docs.vespa.ai/en/faq.html>`__ is a great resource for troubleshooting.
