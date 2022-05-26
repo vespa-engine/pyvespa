@@ -17,6 +17,7 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           dnf install -y --enablerepo=powertools pandoc
+          dnf groupinstall "Development Tools"
           python3 -m pip install --upgrade pip
           python3 -m pip install pytest notebook nbconvert
           python3 -m pip install -e .[full]
