@@ -12,7 +12,7 @@ min_python = "3.6"
 
 setuptools.setup(
     name="pyvespa",
-    version="0.19.0",
+    version=get_target_version(),
     description="Python API for vespa.ai",
     keywords="vespa, search engine, data science",
     author="Thiago G. Martins",
