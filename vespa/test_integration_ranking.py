@@ -15,25 +15,18 @@ from vespa.experimental.ranking import (
 
 class TestBeirData(unittest.TestCase):
     def setUp(self) -> None:
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.data_source = BeirData(data_dir=self.temp_dir.name, dataset_name="fiqa")
+        self.data_source = BeirData(data_dir=os.environ["RESOURCES_DIR"])
 
     def test_sample_data(self):
         #
-        # Download data
-        #
-        data_path = self.data_source.download_and_unzip_dataset()
-        self.assertEqual(
-            {"qrels", "corpus.jsonl", "queries.jsonl"}, set(os.listdir(data_path))
-        )
-        #
         # Load the full dataset
         #
-        full_data = self.data_source.load_full_data(split_types=["train", "dev"])
+        full_data = self.data_source.load_data(file_name="beir_data.json")
         #
         # Sample from dataset
         #
         sample_data = self.data_source.sample_data(
+            data=full_data,
             number_positive_samples=2,
             number_negative_samples=5,
             split_types=["train", "dev"],
@@ -63,15 +56,15 @@ class TestBeirData(unittest.TestCase):
         #
         # Save sample data
         #
-        self.data_source.save_sample(sample_data, file_name="sample.json")
+        self.data_source.save_data(sample_data, file_name="sample.json")
         #
         # Load sample data
         #
-        loaded_sample = self.data_source.load_sample(file_name="sample.json")
+        loaded_sample = self.data_source.load_data(file_name="sample.json")
         self.assertDictEqual(sample_data, loaded_sample)
 
     def tearDown(self) -> None:
-        self.temp_dir.cleanup()
+        os.remove(os.path.join(os.environ["RESOURCES_DIR"], "sample.json"))
 
 
 class TestSparseBeirApp(unittest.TestCase):
@@ -131,7 +124,7 @@ class TestSparseBeirApp(unittest.TestCase):
             rank_profile=Ranking(name="first_phase_test"),
         )
         evaluation = app.evaluate(self.data_sample, query_model=query_model)
-        self.assertGreater(evaluation, 0)
+        self.assertGreaterEqual(evaluation, 0)
 
 
 class TestListwiseRankingFramework(unittest.TestCase):

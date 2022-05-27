@@ -12,7 +12,7 @@ min_python = "3.6"
 
 setuptools.setup(
     name="pyvespa",
-    version=get_target_version(),
+    version="0.19.0",
     description="Python API for vespa.ai",
     keywords="vespa, search engine, data science",
     author="Thiago G. Martins",
@@ -32,8 +32,8 @@ setuptools.setup(
         "tenacity",
     ],
     extras_require={
-        "ml": ["transformers", "torch", "tensorflow", "tensorflow_ranking", "keras_tuner", "beir"],
-        "full": ["transformers", "torch", "tensorflow", "tensorflow_ranking", "keras_tuner", "beir"],
+        "ml": ["transformers", "torch", "tensorflow", "tensorflow_ranking", "keras_tuner"],
+        "full": ["transformers", "torch", "tensorflow", "tensorflow_ranking", "keras_tuner"],
     },
     python_requires=">=3.6",
     zip_safe=False,
