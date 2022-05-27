@@ -33,7 +33,7 @@ setuptools.setup(
     ],
     extras_require={
         "ml": ["transformers", "torch", "tensorflow", "tensorflow_ranking", "keras_tuner"],
-        "full": ["transformers", "torch", "tensorflow", "tensorflow_ranking", "keras_tuner"],
+        "full": ["onnxruntime", "transformers", "torch", "tensorflow", "tensorflow_ranking", "keras_tuner"],
     },
     python_requires=">=3.6",
     zip_safe=False,
