@@ -11,6 +11,11 @@
 
 Code licensed under the Apache 2.0 license. See [LICENSE](LICENSE) for terms.
 
+## Development setup environment
+
+Check the file `screwdriver.yaml` to see which packages and environment variables
+need to be set to run unit and integration tests.
+
 ## Release instructions
 
 We currently release new pyvespa versions manually.
@@ -20,6 +25,9 @@ We currently release new pyvespa versions manually.
 * Run the following command from the pyvespa root directory to create the library files
 
 ```
+python3 -m pip install --upgrade pip
+python3 -m pip install twine wheel
+
 python3 setup.py sdist bdist_wheel
 ``` 
 
