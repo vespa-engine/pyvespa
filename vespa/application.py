@@ -447,7 +447,7 @@ class Vespa(object):
                 schema=schema, batch=batch, namespace=namespace
             )
 
-    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(10))
+    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     def _feed_batch(
         self,
         batch: List[Dict],
@@ -522,7 +522,7 @@ class Vespa(object):
         ]
         for idx, mini_batch in enumerate(mini_batches):
             feed_results = self._feed_batch(
-                feed_batch=mini_batch,
+                batch=mini_batch,
                 schema=schema,
                 asynchronous=asynchronous,
                 connections=connections,
