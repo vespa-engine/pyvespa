@@ -150,7 +150,8 @@ jobs:
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
       - run-notebooks-cloud-related: |
           find docs -name '*cloud*.ipynb'
-          find docs -name '*cloud*.ipynb' -exec ls {} \; -name '*cloud*.ipynb' -exec runnb --allow-not-trusted {} \;
+          find docs -name '*cloud*.ipynb' -exec jupyter nbconvert --to notebook --ExecutePreprocessor.timeout=600 --execute {} +
+          find docs -name '*.nbconvert.ipynb' -exec rm {} + 
 
   deploy-test-server:
     requires: [unit-tests, integration-except-cloud, notebooks-except-cloud, notebooks-cloud]
