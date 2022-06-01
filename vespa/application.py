@@ -5,7 +5,7 @@ import ssl
 import aiohttp
 import asyncio
 import concurrent.futures
-
+from collections import Counter
 from typing import Optional, Dict, Tuple, List, IO, Union
 
 import requests
@@ -429,7 +429,7 @@ class Vespa(object):
 
     def _feed_batch_sync(
         self, schema: str, batch: List[Dict], namespace: str
-    ) -> VespaResponse:
+    ) -> List[VespaResponse]:
         return [
             self.feed_data_point(
                 schema, data_point["id"], data_point["fields"], namespace
@@ -447,7 +447,8 @@ class Vespa(object):
                 schema=schema, batch=batch, namespace=namespace
             )
 
-    def feed_batch(
+    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
+    def _feed_batch(
         self,
         batch: List[Dict],
         schema: Optional[str] = None,
@@ -492,6 +493,52 @@ class Vespa(object):
             return self._feed_batch_sync(
                 schema=schema, batch=batch, namespace=namespace
             )
+
+    def feed_batch(
+        self,
+        batch: List[Dict],
+        schema: Optional[str] = None,
+        asynchronous=True,
+        connections: Optional[int] = 100,
+        total_timeout: int = 100,
+        namespace: Optional[str] = None,
+        batch_size=1000,
+    ):
+        """
+        Feed a batch of data to a Vespa app.
+
+        :param batch: A list of dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
+        :param schema: The schema that we are sending data to. The schema is optional in case it is possible to infer
+            the schema from the application package.
+        :param asynchronous: Set True to send data in async mode. Default to True.
+        :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
+        :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
+        :param namespace: The namespace that we are sending data to. If no namespace is provided the schema is used.
+        :param batch_size: The number of documents to feed per batch.
+        :return: List of HTTP POST responses
+        """
+        mini_batches = [
+            batch[i : i + batch_size] for i in range(0, len(batch), batch_size)
+        ]
+        for idx, mini_batch in enumerate(mini_batches):
+            feed_results = self._feed_batch(
+                batch=mini_batch,
+                schema=schema,
+                asynchronous=asynchronous,
+                connections=connections,
+                total_timeout=total_timeout,
+                namespace=namespace,
+            )
+            status_code_summary = Counter([x.status_code for x in feed_results])
+            print(
+                "Successful documents fed: {}/{}.\nBatch progress: {}/{}.".format(
+                    status_code_summary[200],
+                    len(mini_batch),
+                    idx + 1,
+                    len(mini_batches),
+                )
+            )
+        return 0
 
     def feed_df(self, df: DataFrame, include_id: bool = True, **kwargs):
         """
