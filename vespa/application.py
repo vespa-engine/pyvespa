@@ -502,7 +502,7 @@ class Vespa(object):
         connections: Optional[int] = 100,
         total_timeout: int = 100,
         namespace: Optional[str] = None,
-        batch_size=100,
+        batch_size=1000,
     ):
         """
         Feed a batch of data to a Vespa app.
@@ -514,6 +514,7 @@ class Vespa(object):
         :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
         :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
         :param namespace: The namespace that we are sending data to. If no namespace is provided the schema is used.
+        :param batch_size: The number of documents to feed per batch.
         :return: List of HTTP POST responses
         """
         mini_batches = [
