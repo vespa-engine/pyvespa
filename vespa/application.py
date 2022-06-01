@@ -520,9 +520,9 @@ class Vespa(object):
         mini_batches = [
             batch[i : i + batch_size] for i in range(0, len(batch), batch_size)
         ]
-        for idx, feed_batch in enumerate(mini_batches):
+        for idx, mini_batch in enumerate(mini_batches):
             feed_results = self._feed_batch(
-                feed_batch=feed_batch,
+                feed_batch=mini_batch,
                 schema=schema,
                 asynchronous=asynchronous,
                 connections=connections,
@@ -533,7 +533,7 @@ class Vespa(object):
             print(
                 "Successful documents fed: {}/{}.\nBatch progress: {}/{}.".format(
                     status_code_summary[200],
-                    len(feed_batch),
+                    len(mini_batch),
                     idx + 1,
                     len(mini_batches),
                 )
