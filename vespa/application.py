@@ -19,7 +19,6 @@ from tenacity import retry, wait_exponential, stop_after_attempt
 from time import sleep
 
 from vespa.io import VespaQueryResponse, VespaResponse
-from vespa.ml import TextTask
 from vespa.query import QueryModel
 from vespa.evaluation import EvalMetric
 from vespa.package import ApplicationPackage
@@ -1166,7 +1165,7 @@ class Vespa(object):
         model = self.get_model_from_application_package(model_id)
         encoded_tokens = model.create_url_encoded_tokens(x=x)
         with VespaSync(self) as sync_app:
-            return TextTask.parse_vespa_prediction(
+            return model.parse_vespa_prediction(
                 sync_app.predict(
                     model_id=model_id,
                     function_name=function_name,
