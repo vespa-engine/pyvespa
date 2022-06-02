@@ -90,7 +90,7 @@ class TextTask(Task):
             pipeline, opset=11, output=Path(output_path), use_external_format=False
         )
 
-    def predict(self, text: str):
+    def predict(self, text: str) -> List:
         """
         Predict using a local instance of the model
 
@@ -102,7 +102,7 @@ class TextTask(Task):
         return [x["score"] for x in predictions]
 
     @staticmethod
-    def parse_vespa_prediction(prediction):
+    def parse_vespa_prediction(prediction) -> List:
         return [cell["value"] for cell in prediction["cells"]]
 
     def create_url_encoded_tokens(self, x):
