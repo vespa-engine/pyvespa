@@ -145,12 +145,11 @@ class TestDockerCommon(unittest.TestCase):
         # Test VespaDocker serialization
         #
         self.assertEqual(
-            repr(self.vespa_docker), repr(VespaDocker.from_dict(self.vespa_docker.to_dict))
+            repr(self.vespa_docker),
+            repr(VespaDocker.from_dict(self.vespa_docker.to_dict)),
         )
 
-    def create_vespa_docker_from_container_name_or_id(
-        self, application_package
-    ):
+    def create_vespa_docker_from_container_name_or_id(self, application_package):
         #
         # Raises ValueError if container does not exist
         #
@@ -173,9 +172,7 @@ class TestDockerCommon(unittest.TestCase):
         app = self.vespa_docker.deploy(application_package=application_package)
         self.assertEqual(app.get_application_status().status_code, 200)
 
-    def redeploy_with_application_package_changes(
-        self, application_package
-    ):
+    def redeploy_with_application_package_changes(self, application_package):
         self.vespa_docker = VespaDocker(port=8089)
         app = self.vespa_docker.deploy(application_package=application_package)
         res = app.query(
@@ -726,9 +723,7 @@ class TestApplicationCommon(unittest.TestCase):
         # Query data
         #
         if query_batch:
-            result = app.query_batch(
-                query_batch=query_batch, query_model=query_model
-            )
+            result = app.query_batch(query_batch=query_batch, query_model=query_model)
             for idx, first_hit in enumerate(queries_first_hit):
                 self.assertEqual(
                     first_hit, result[idx].hits[0]["fields"][hit_field_to_check]
@@ -986,17 +981,23 @@ class TestMsmarcoDockerDeployment(TestDockerCommon):
         self.deploy(application_package=self.app_package)
 
     def test_instantiate_vespa_docker_from_container_name_or_id(self):
-        self.create_vespa_docker_from_container_name_or_id(application_package=self.app_package)
+        self.create_vespa_docker_from_container_name_or_id(
+            application_package=self.app_package
+        )
 
     @pytest.mark.skip(reason="Works locally but fails on Screwdriver")
     def test_redeploy_with_container_stopped(self):
         self.redeploy_with_container_stopped(application_package=self.app_package)
 
     def test_redeploy_with_application_package_changes(self):
-        self.redeploy_with_application_package_changes(application_package=self.app_package)
+        self.redeploy_with_application_package_changes(
+            application_package=self.app_package
+        )
 
     def test_trigger_start_stop_and_restart_services(self):
-        self.trigger_start_stop_and_restart_services(application_package=self.app_package)
+        self.trigger_start_stop_and_restart_services(
+            application_package=self.app_package
+        )
 
     def tearDown(self) -> None:
         self.vespa_docker.container.stop()
@@ -1025,8 +1026,10 @@ class TestQaDockerDeployment(TestDockerCommon):
         self.vespa_docker.container.remove()
 
     def test_deploy_image(self):
-        self.deploy(application_package=self.app_package,
-                    container_image="vespaengine/vespa:7.566.21")
+        self.deploy(
+            application_package=self.app_package,
+            container_image="vespaengine/vespa:7.566.21",
+        )
         self.vespa_docker.container.stop()
         self.vespa_docker.container.remove()
 
@@ -1173,6 +1176,32 @@ class TestCord19Application(TestApplicationCommon):
             }
             for i in range(10)
         ]
+
+    def test_check_duplicated_features(self):
+        schema = "cord19"
+        docs = [
+            {"id": fields["id"], "fields": fields} for fields in self.fields_to_send
+        ]
+        self.app.feed_batch(
+            schema=schema,
+            batch=docs,
+            asynchronous=True,
+            connections=120,
+            total_timeout=50,
+        )
+        data = self.app.collect_training_data_point(
+            query="give me title 1",
+            query_id="0",
+            relevant_id="1",
+            id_field="id",
+            query_model=QueryModel(
+                match_phase=OR(), rank_profile=Ranking(name="bm25", list_features=True)
+            ),
+            number_additional_docs=10,
+            fields=["rankfeatures", "summaryfeatures"],
+        )
+        document_ids = [x["document_id"] for x in data]
+        self.assertEqual(len(document_ids), len(set(document_ids)))
 
     def test_model_endpoints_when_no_model_is_available(self):
         self.get_model_endpoints_when_no_model_is_available(
