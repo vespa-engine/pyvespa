@@ -16,6 +16,11 @@ Code licensed under the Apache 2.0 license. See [LICENSE](LICENSE) for terms.
 Check the file `screwdriver.yaml` to see which packages and environment variables
 need to be set to run unit and integration tests.
 
+## Code format
+
+This repo uses the default configuration of [Black](https://github.com/psf/black) to 
+standardize code formatting. 
+
 ## Release instructions
 
 We currently release new pyvespa versions manually.
