@@ -1,5 +1,6 @@
 # Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
+import os
 import sys
 import ssl
 import aiohttp
@@ -340,6 +341,7 @@ class Vespa(object):
                 **kwargs,
             )
 
+    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     def query_batch(
         self,
         body_batch: Optional[List[Dict]] = None,
@@ -1116,6 +1118,71 @@ class Vespa(object):
         df = DataFrame.from_records(result)
         df = df.drop_duplicates(["document_id", "query_id", "label"])
         return df
+
+    def store_rank_features(
+        self,
+        output_file_path: str,
+        labeled_data: Union[List[Dict], DataFrame],
+        id_field: str,
+        query_model: QueryModel,
+        number_additional_docs: int,
+        fields: List[str],
+        relevant_score: int = 1,
+        default_score: int = 0,
+        batch_size=1000,
+        **kwargs,
+    ):
+        """
+        Retrieve Vespa rank features and store them in a .csv file.
+
+        :param output_file_path: Path of the .csv output file. It will create the file of it does not exist and
+            append the vespa features to an pre-existing file.
+        :param labeled_data: Labelled data containing query, query_id and relevant ids. See details about data format.
+        :param id_field: The Vespa field representing the document id.
+        :param query_model: Query model.
+        :param number_additional_docs: Number of additional documents to retrieve for each relevant document.
+        :param fields: Vespa fields to be included in the data-frame.
+        :param relevant_score: Score to assign to relevant documents. Default to 1.
+        :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
+        :param batch_size: The size of the batch of labeled data points to be processed.
+        :param kwargs: Extra keyword arguments to be included in the Vespa Query.
+        :return: returns 0 upon success.    
+        """
+
+        if isinstance(labeled_data, DataFrame):
+            labeled_data = parse_labeled_data(df=labeled_data)
+
+        mini_batches = [
+            labeled_data[i : i + batch_size]
+            for i in range(0, len(labeled_data), batch_size)
+        ]
+        for idx, mini_batch in enumerate(mini_batches):
+            vespa_features = self.collect_vespa_features(
+                labeled_data=mini_batch,
+                id_field=id_field,
+                query_model=query_model,
+                number_additional_docs=number_additional_docs,
+                fields=fields,
+                relevant_score=relevant_score,
+                default_score=default_score,
+                **kwargs,
+            )
+            if os.path.isfile(output_file_path):
+                vespa_features.to_csv(
+                    path_or_buf=output_file_path, header=False, index=False, mode="a"
+                )
+            else:
+                vespa_features.to_csv(
+                    path_or_buf=output_file_path, header=True, index=False, mode="w"
+                )
+            print(
+                "Rows collected: {}.\nBatch progress: {}/{}.".format(
+                    vespa_features.shape[0],
+                    idx + 1,
+                    len(mini_batches),
+                )
+            )
+        return 0
 
     def evaluate_query(
         self,
