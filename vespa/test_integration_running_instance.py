@@ -154,7 +154,6 @@ class TestRunningInstance(unittest.TestCase):
         )
         self.assertEqual(evaluation.shape, (2, 7))
 
-
     def test_collect_training_data(self):
         app = Vespa(url="https://api.cord19.vespa.ai")
         query_model = QueryModel(
@@ -172,6 +171,16 @@ class TestRunningInstance(unittest.TestCase):
                 "relevant_docs": [{"id": 1, "score": 1}, {"id": 5, "score": 1}],
             },
         ]
+        rank_features = app.collect_vespa_features(
+            labeled_data=labeled_data,
+            id_field="id",
+            query_model=query_model,
+            number_additional_docs=2,
+            fields=["rankfeatures"],
+        )
+        self.assertTrue(rank_features.shape[0] > 4)
+        # It should have at least one rank feature in addition to document_id, query_id and	label
+        self.assertTrue(rank_features.shape[1] > 3)
         training_data_batch = app.collect_training_data(
             labeled_data=labeled_data,
             id_field="id",
