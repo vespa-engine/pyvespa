@@ -1119,7 +1119,7 @@ class Vespa(object):
         df = df.drop_duplicates(["document_id", "query_id", "label"])
         return df
 
-    def store_rank_features(
+    def store_vespa_features(
         self,
         output_file_path: str,
         labeled_data: Union[List[Dict], DataFrame],
@@ -1146,7 +1146,7 @@ class Vespa(object):
         :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
         :param batch_size: The size of the batch of labeled data points to be processed.
         :param kwargs: Extra keyword arguments to be included in the Vespa Query.
-        :return: returns 0 upon success.    
+        :return: returns 0 upon success.
         """
 
         if isinstance(labeled_data, DataFrame):
