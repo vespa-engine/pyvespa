@@ -1247,7 +1247,7 @@ class TestCord19Application(TestApplicationCommon):
         self.assertTrue(rank_features.shape[0] > 2)
         # at least one feature besides document_id, query_id and label
         self.assertTrue(rank_features.shape[1] > 3)
-    
+
     def test_model_endpoints_when_no_model_is_available(self):
         self.get_model_endpoints_when_no_model_is_available(
             app=self.app,
