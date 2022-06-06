@@ -1117,6 +1117,7 @@ class Vespa(object):
                 )
         df = DataFrame.from_records(result)
         df = df.drop_duplicates(["document_id", "query_id", "label"])
+        df = df.sort_values("query_id")
         return df
 
     def store_vespa_features(
