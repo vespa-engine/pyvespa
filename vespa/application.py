@@ -901,7 +901,12 @@ class Vespa(object):
                     hits=number_additional_docs,
                     **kwargs,
                 )
-                hits.extend(random_hits_result.hits)
+                new_hits = [
+                    hit
+                    for hit in random_hits_result.hits
+                    if hit["fields"][id_field] != relevant_id
+                ]
+                hits.extend(new_hits)
 
             features = self.annotate_data(
                 hits=hits,
