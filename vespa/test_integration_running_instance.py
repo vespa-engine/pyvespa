@@ -181,6 +181,17 @@ class TestRunningInstance(unittest.TestCase):
         self.assertTrue(rank_features.shape[0] > 4)
         # It should have at least one rank feature in addition to document_id, query_id and	label
         self.assertTrue(rank_features.shape[1] > 3)
+        rank_features = app.collect_vespa_features(
+            labeled_data=labeled_data,
+            id_field="id",
+            query_model=query_model,
+            number_additional_docs=2,
+            fields=["rankfeatures"],
+            keep_features=["textSimilarity(title).score"]
+        )
+        self.assertTrue(rank_features.shape[0] > 4)
+        # It should have at least one rank feature in addition to document_id, query_id and	label
+        self.assertTrue(rank_features.shape[1] == 4)
         training_data_batch = app.collect_training_data(
             labeled_data=labeled_data,
             id_field="id",
