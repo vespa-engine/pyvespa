@@ -1016,6 +1016,7 @@ class Vespa(object):
         query_model: QueryModel,
         number_additional_docs: int,
         fields: List[str],
+        keep_features: Optional[List[str]] = None,
         relevant_score: int = 1,
         default_score: int = 0,
         **kwargs,
@@ -1051,6 +1052,9 @@ class Vespa(object):
         :param id_field: The Vespa field representing the document id.
         :param query_model: Query model.
         :param number_additional_docs: Number of additional documents to retrieve for each relevant document.
+        :param fields: List of Vespa fields to collect, e.g. ["rankfeatures", "summaryfeatures"]
+        :param keep_features: List containing the names of the features that should be returned. Default to None,
+            which return all the features contained in the 'fields' argument.
         :param relevant_score: Score to assign to relevant documents. Default to 1.
         :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
         :param kwargs: Extra keyword arguments to be included in the Vespa Query.
@@ -1118,6 +1122,8 @@ class Vespa(object):
         df = DataFrame.from_records(result)
         df = df.drop_duplicates(["document_id", "query_id", "label"])
         df = df.sort_values("query_id")
+        if keep_features:
+            df = df[["document_id", "query_id", "label"] + keep_features]
         return df
 
     def store_vespa_features(
@@ -1128,6 +1134,7 @@ class Vespa(object):
         query_model: QueryModel,
         number_additional_docs: int,
         fields: List[str],
+        keep_features: Optional[List[str]] = None,
         relevant_score: int = 1,
         default_score: int = 0,
         batch_size=1000,
@@ -1142,7 +1149,9 @@ class Vespa(object):
         :param id_field: The Vespa field representing the document id.
         :param query_model: Query model.
         :param number_additional_docs: Number of additional documents to retrieve for each relevant document.
-        :param fields: Vespa fields to be included in the data-frame.
+        :param fields: List of Vespa fields to collect, e.g. ["rankfeatures", "summaryfeatures"]
+        :param keep_features: List containing the names of the features that should be returned. Default to None,
+            which return all the features contained in the 'fields' argument.
         :param relevant_score: Score to assign to relevant documents. Default to 1.
         :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
         :param batch_size: The size of the batch of labeled data points to be processed.
@@ -1164,6 +1173,7 @@ class Vespa(object):
                 query_model=query_model,
                 number_additional_docs=number_additional_docs,
                 fields=fields,
+                keep_features=keep_features,
                 relevant_score=relevant_score,
                 default_score=default_score,
                 **kwargs,
