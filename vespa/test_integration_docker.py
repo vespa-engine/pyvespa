@@ -4,7 +4,7 @@ import os
 import re
 import asyncio
 import json
-from pandas import DataFrame
+from pandas import DataFrame, read_csv
 from vespa.package import (
     HNSW,
     Document,
@@ -1203,6 +1203,51 @@ class TestCord19Application(TestApplicationCommon):
         document_ids = [x["document_id"] for x in data]
         self.assertEqual(len(document_ids), len(set(document_ids)))
 
+    def test_store_vespa_features(self):
+        schema = "cord19"
+        docs = [
+            {"id": fields["id"], "fields": fields} for fields in self.fields_to_send
+        ]
+        self.app.feed_batch(
+            schema=schema,
+            batch=docs,
+            asynchronous=True,
+            connections=120,
+            total_timeout=50,
+        )
+        labeled_data = [
+            {
+                "query_id": 0,
+                "query": "give me title 1",
+                "relevant_docs": [{"id": "1", "score": 1}],
+            },
+            {
+                "query_id": 1,
+                "query": "give me title 3",
+                "relevant_docs": [{"id": "3", "score": 1}],
+            },
+        ]
+
+        self.app.store_vespa_features(
+            output_file_path=os.path.join(
+                os.environ["RESOURCES_DIR"], "vespa_features.csv"
+            ),
+            labeled_data=labeled_data,
+            id_field="id",
+            query_model=QueryModel(
+                match_phase=OR(), rank_profile=Ranking(name="bm25", list_features=True)
+            ),
+            number_additional_docs=2,
+            fields=["rankfeatures", "summaryfeatures"],
+        )
+        rank_features = read_csv(
+            os.path.join(os.environ["RESOURCES_DIR"], "vespa_features.csv")
+        )
+        # at least two relevant docs
+        self.assertTrue(rank_features.shape[0] > 2)
+        # at least one feature besides document_id, query_id and label
+        self.assertTrue(rank_features.shape[1] > 3)
+
     def test_model_endpoints_when_no_model_is_available(self):
         self.get_model_endpoints_when_no_model_is_available(
             app=self.app,
@@ -1274,6 +1319,10 @@ class TestCord19Application(TestApplicationCommon):
     def tearDown(self) -> None:
         self.vespa_docker.container.stop()
         self.vespa_docker.container.remove()
+        try:
+            os.remove(os.path.join(os.environ["RESOURCES_DIR"], "vespa_features.csv"))
+        except OSError:
+            pass
 
 
 class TestQaApplication(TestApplicationCommon):
