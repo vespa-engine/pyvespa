@@ -1,6 +1,6 @@
 import unittest
-import tempfile
 import os
+import shutil
 import json
 import pandas as pd
 from vespa.deployment import VespaDocker
@@ -11,7 +11,6 @@ from vespa.experimental.ranking import (
     SparseBeirApp,
     ListwiseRankingFramework,
 )
-
 
 class TestBeirData(unittest.TestCase):
     def setUp(self) -> None:
@@ -334,6 +333,7 @@ class TestListwiseRankingFramework(unittest.TestCase):
         self.assertEqual(3, len(results[3]["weights"]["feature_names"]))
 
     def tearDown(self) -> None:
+        shutil.rmtree("keras_tuner")
         try:
             os.remove(
                 os.path.join(os.environ["RESOURCES_DIR"], "lasso_model_search.json")
