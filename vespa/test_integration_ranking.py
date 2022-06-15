@@ -131,8 +131,8 @@ class TestListwiseRankingFramework(unittest.TestCase):
         #
         # Load train and dev sample data
         #
-        self.train_df = pd.read_csv("resources/beir_train_df.csv")
-        self.dev_df = pd.read_csv("resources/beir_dev_df.csv")
+        self.train_df = pd.read_csv(os.path.join(os.environ["RESOURCES_DIR"], "beir_train_df.csv"))
+        self.dev_df = pd.read_csv(os.path.join(os.environ["RESOURCES_DIR"], "beir_dev_df.csv"))
         #
         # Data config
         #
