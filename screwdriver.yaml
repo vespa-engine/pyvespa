@@ -60,6 +60,8 @@ jobs:
           pytest vespa/test_integration_running_instance.py -s -v
       - run-integration-docker: |
           pytest vespa/test_integration_docker.py -s -v
+      - run-integration-ranking: |
+          pytest vespa/test_integration_ranking.py -s -v
 
   notebooks-except-cloud:
     requires: [~commit,~pr]
