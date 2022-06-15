@@ -4,13 +4,12 @@ import shutil
 import json
 import pandas as pd
 from vespa.deployment import VespaDocker
-from vespa.query import QueryModel, WeakAnd, RankProfile as Ranking
 from vespa.experimental.ranking import (
     BeirData,
     SparseBeirApplicationPackage,
-    SparseBeirApp,
     ListwiseRankingFramework,
 )
+
 
 class TestBeirData(unittest.TestCase):
     def setUp(self) -> None:
@@ -90,40 +89,7 @@ class TestSparseBeirApp(unittest.TestCase):
 
         # deploy application package
         vespa_docker = VespaDocker(port=8089)
-        app = vespa_docker.deploy(app_package)
-
-        # interact with app
-        app = SparseBeirApp(app)
-
-        # feed app
-        feed_responses = app.feed(self.data_sample)
-        self.assertEqual(
-            9, sum([1 if x.status_code == 200 else 0 for x in feed_responses])
-        )
-
-        # collect data
-        number_additional_docs = 2
-        train_df = app.collect_vespa_features(
-            data=self.data_sample,
-            split_type="train",
-            number_additional_docs=number_additional_docs,
-        )
-        dev_df = app.collect_vespa_features(
-            data=self.data_sample,
-            split_type="dev",
-            number_additional_docs=number_additional_docs,
-        )
-        self.assertIsInstance(train_df, pd.DataFrame)
-        self.assertIsInstance(dev_df, pd.DataFrame)
-
-        # evaluate ranking function
-        query_model = QueryModel(
-            name="first_phase_test",
-            match_phase=WeakAnd(hits=number_additional_docs),
-            rank_profile=Ranking(name="first_phase_test"),
-        )
-        evaluation = app.evaluate(self.data_sample, query_model=query_model)
-        self.assertGreaterEqual(evaluation, 0)
+        _ = vespa_docker.deploy(app_package)
 
 
 class TestListwiseRankingFramework(unittest.TestCase):
@@ -131,8 +97,12 @@ class TestListwiseRankingFramework(unittest.TestCase):
         #
         # Load train and dev sample data
         #
-        self.train_df = pd.read_csv(os.path.join(os.environ["RESOURCES_DIR"], "beir_train_df.csv"))
-        self.dev_df = pd.read_csv(os.path.join(os.environ["RESOURCES_DIR"], "beir_dev_df.csv"))
+        self.train_df = pd.read_csv(
+            os.path.join(os.environ["RESOURCES_DIR"], "beir_train_df.csv")
+        )
+        self.dev_df = pd.read_csv(
+            os.path.join(os.environ["RESOURCES_DIR"], "beir_dev_df.csv")
+        )
         #
         # Data config
         #
