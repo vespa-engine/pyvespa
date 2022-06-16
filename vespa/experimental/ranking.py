@@ -417,12 +417,12 @@ class ListwiseRankingFramework:
     def __init__(
         self,
         number_documents_per_query,
-        batch_size,
-        tuner_max_trials,
-        tuner_executions_per_trial,
-        tuner_epochs,
-        tuner_early_stop_patience,
-        final_epochs,
+        batch_size=32,
+        tuner_max_trials=3,
+        tuner_executions_per_trial=1,
+        tuner_epochs=1,
+        tuner_early_stop_patience=None,
+        final_epochs=1,
         top_n=10,
         l1_penalty_range=None,
         learning_rate_range=None,
@@ -513,16 +513,19 @@ class ListwiseRankingFramework:
             max_trials=self.tuner_max_trials,
             executions_per_trial=self.tuner_executions_per_trial,
         )
-        early_stopping_callback = tf.keras.callbacks.EarlyStopping(
-            monitor="val_ndcg_stateless",
-            patience=self.tuner_early_stop_patience,
-            mode="max",
-        )
+        callbacks = []
+        if self.tuner_early_stop_patience:
+            early_stopping_callback = tf.keras.callbacks.EarlyStopping(
+                monitor="val_ndcg_stateless",
+                patience=self.tuner_early_stop_patience,
+                mode="max",
+            )
+            callbacks.append(early_stopping_callback)
         tuner.search(
             train_ds.batch(self.batch_size),
             validation_data=dev_ds.batch(self.batch_size),
             epochs=self.tuner_epochs,
-            callbacks=[early_stopping_callback],
+            callbacks=callbacks,
         )
         best_hyperparams = tuner.get_best_hyperparameters()[0].values
         print(best_hyperparams)
@@ -580,16 +583,19 @@ class ListwiseRankingFramework:
             max_trials=self.tuner_max_trials,
             executions_per_trial=self.tuner_executions_per_trial,
         )
-        early_stopping_callback = tf.keras.callbacks.EarlyStopping(
-            monitor="val_ndcg_stateless",
-            patience=self.tuner_early_stop_patience,
-            mode="max",
-        )
+        callbacks = []
+        if self.tuner_early_stop_patience:
+            early_stopping_callback = tf.keras.callbacks.EarlyStopping(
+                monitor="val_ndcg_stateless",
+                patience=self.tuner_early_stop_patience,
+                mode="max",
+            )
+            callbacks.append(early_stopping_callback)
         tuner.search(
             train_ds.batch(self.batch_size),
             validation_data=dev_ds.batch(self.batch_size),
             epochs=self.tuner_epochs,
-            callbacks=[early_stopping_callback],
+            callbacks=callbacks,
         )
         best_hyperparams = tuner.get_best_hyperparameters()[0].values
         print(best_hyperparams)
