@@ -7,6 +7,7 @@ import os.path
 import tensorflow as tf
 import tensorflow_ranking as tfr
 import keras_tuner as kt
+import pandas as pd
 
 from vespa.package import (
     ApplicationPackage,
@@ -418,6 +419,7 @@ class ListwiseRankingFramework:
         self,
         number_documents_per_query,
         batch_size=32,
+        shuffle_buffer_size=1000,
         tuner_max_trials=3,
         tuner_executions_per_trial=1,
         tuner_epochs=1,
@@ -430,6 +432,7 @@ class ListwiseRankingFramework:
     ):
         self.number_documents_per_query = number_documents_per_query
         self.batch_size = batch_size
+        self.shuffle_buffer_size = shuffle_buffer_size
         self.tuner_max_trials = tuner_max_trials
         self.tuner_executions_per_trial = tuner_executions_per_trial
         self.tuner_epochs = tuner_epochs
@@ -523,28 +526,43 @@ class ListwiseRankingFramework:
         listwise_ds = listwise_ds.batch(batch_size=batch_size)
         return listwise_ds
 
+    def create_dataset(self, df_or_file, feature_names):
+        if isinstance(df_or_file, pd.DataFrame):
+            ds = self.listwise_tf_dataset_from_df(
+                df=df_or_file,
+                feature_names=feature_names,
+                shuffle_buffer_size=self.shuffle_buffer_size,
+                batch_size=self.batch_size,
+            )
+        else:
+            ds = self.listwise_tf_dataset_from_csv(
+                file_path=df_or_file,
+                feature_names=feature_names,
+                shuffle_buffer_size=self.shuffle_buffer_size,
+                batch_size=self.batch_size,
+            )
+        return ds
+
     def create_and_train_normalization_layer(self, train_ds):
         normalization_layer = tf.keras.layers.Normalization()
         train_feature_ds = train_ds.map(lambda x, y: x)
-        normalization_layer.adapt(train_feature_ds.batch(self.batch_size))
+        normalization_layer.adapt(train_feature_ds)
         return normalization_layer
 
     def tune_linear_model(
         self,
-        train_df,
-        dev_df,
+        train_data,
+        dev_data,
         feature_names,
     ):
 
         number_features = len(feature_names)
-        train_ds = self.listwise_tf_dataset_from_df(
-            df=train_df,
-            feature_names=feature_names,
+
+        train_ds = self.create_dataset(
+            df_or_file=train_data, feature_names=feature_names
         )
-        dev_ds = self.listwise_tf_dataset_from_df(
-            df=dev_df,
-            feature_names=feature_names,
-        )
+        dev_ds = self.create_dataset(df_or_file=dev_data, feature_names=feature_names)
+
         linear_hyper_model = LinearHyperModel(
             number_documents_per_query=self.number_documents_per_query,
             number_features=number_features,
@@ -569,8 +587,8 @@ class ListwiseRankingFramework:
             )
             callbacks.append(early_stopping_callback)
         tuner.search(
-            train_ds.batch(self.batch_size),
-            validation_data=dev_ds.batch(self.batch_size),
+            train_ds,
+            validation_data=dev_ds,
             epochs=self.tuner_epochs,
             callbacks=callbacks,
         )
@@ -579,8 +597,8 @@ class ListwiseRankingFramework:
         best_hps = tuner.get_best_hyperparameters()[0]
         model = linear_hyper_model.build(best_hps)
         model.fit(
-            train_ds.batch(self.batch_size),
-            validation_data=dev_ds.batch(self.batch_size),
+            train_ds,
+            validation_data=dev_ds,
             epochs=self.final_epochs,
         )
         weights = model.get_weights()
@@ -596,20 +614,17 @@ class ListwiseRankingFramework:
 
     def tune_lasso_linear_model(
         self,
-        train_df,
-        dev_df,
+        train_data,
+        dev_data,
         feature_names,
     ):
 
         number_features = len(feature_names)
-        train_ds = self.listwise_tf_dataset_from_df(
-            df=train_df,
-            feature_names=feature_names,
+        train_ds = self.create_dataset(
+            df_or_file=train_data, feature_names=feature_names
         )
-        dev_ds = self.listwise_tf_dataset_from_df(
-            df=dev_df,
-            feature_names=feature_names,
-        )
+        dev_ds = self.create_dataset(df_or_file=dev_data, feature_names=feature_names)
+
         trained_normalization_layer = self.create_and_train_normalization_layer(
             train_ds=train_ds
         )
@@ -639,8 +654,8 @@ class ListwiseRankingFramework:
             )
             callbacks.append(early_stopping_callback)
         tuner.search(
-            train_ds.batch(self.batch_size),
-            validation_data=dev_ds.batch(self.batch_size),
+            train_ds,
+            validation_data=dev_ds,
             epochs=self.tuner_epochs,
             callbacks=callbacks,
         )
@@ -649,8 +664,8 @@ class ListwiseRankingFramework:
         best_hps = tuner.get_best_hyperparameters()[0]
         model = lasso_hyper_model.build(best_hps)
         model.fit(
-            train_ds.batch(self.batch_size),
-            validation_data=dev_ds.batch(self.batch_size),
+            train_ds,
+            validation_data=dev_ds,
             epochs=self.final_epochs,
         )
         weights = model.get_weights()
@@ -669,8 +684,8 @@ class ListwiseRankingFramework:
 
     def lasso_model_search(
         self,
-        train_df,
-        dev_df,
+        train_data,
+        dev_data,
         feature_names,
         protected_features=None,
         output_file="lasso_model_search.json",
@@ -691,8 +706,8 @@ class ListwiseRankingFramework:
             feature_names
         ) > 0:
             (weights, evaluation, best_hyperparams) = self.tune_lasso_linear_model(
-                train_df=train_df,
-                dev_df=dev_df,
+                train_data=train_data,
+                dev_data=dev_data,
                 feature_names=feature_names,
             )
             partial_result = {
@@ -728,10 +743,10 @@ class ListwiseRankingFramework:
 
         return results
 
-    def _forward_selection_iteration(self, train_df, dev_df, feature_names):
+    def _forward_selection_iteration(self, train_data, dev_data, feature_names):
         (weights, evaluation, best_hyperparams) = self.tune_lasso_linear_model(
-            train_df=train_df,
-            dev_df=dev_df,
+            train_data=train_data,
+            dev_data=dev_data,
             feature_names=feature_names,
         )
         partial_result = {
@@ -752,8 +767,8 @@ class ListwiseRankingFramework:
 
     def forward_selection_model_search(
         self,
-        train_df,
-        dev_df,
+        train_data,
+        dev_data,
         feature_names,
         maximum_number_of_features=None,
         output_file="forward_selection_model_search.json",
@@ -781,7 +796,7 @@ class ListwiseRankingFramework:
             protected_features = []
         else:
             partial_result = self._forward_selection_iteration(
-                train_df=train_df, dev_df=dev_df, feature_names=protected_features
+                train_data=train_data, dev_data=dev_data, feature_names=protected_features
             )
             results.append(partial_result)
         while len(protected_features) < maximum_number_of_features:
@@ -791,8 +806,8 @@ class ListwiseRankingFramework:
             for new_feature in feature_names:
                 experimental_features = protected_features + [new_feature]
                 partial_result = self._forward_selection_iteration(
-                    train_df=train_df,
-                    dev_df=dev_df,
+                    train_data=train_data,
+                    dev_data=dev_data,
                     feature_names=experimental_features,
                 )
                 evaluation = partial_result["evaluation"]

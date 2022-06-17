@@ -97,11 +97,13 @@ class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
         #
         # Load train and dev sample data
         #
+        self.train_csv_file = os.path.join(os.environ["RESOURCES_DIR"], "beir_train_df.csv")
         self.train_df = pd.read_csv(
-            os.path.join(os.environ["RESOURCES_DIR"], "beir_train_df.csv")
+            self.train_csv_file
         )
+        self.dev_csv_file = os.path.join(os.environ["RESOURCES_DIR"], "beir_dev_df.csv")
         self.dev_df = pd.read_csv(
-            os.path.join(os.environ["RESOURCES_DIR"], "beir_dev_df.csv")
+            self.dev_csv_file
         )
 
         self.ranking_framework = ListwiseRankingFramework(
@@ -136,8 +138,44 @@ class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
             eval_metric,
             best_hyperparams,
         ) = self.ranking_framework.tune_linear_model(
-            train_df=self.train_df,
-            dev_df=self.dev_df,
+            train_data=self.train_df,
+            dev_data=self.dev_df,
+            feature_names=[
+                "fieldMatch(body).significance",
+                "fieldMatch(body).queryCompleteness",
+                "nativeRank",
+            ],
+        )
+        #
+        # Check weights format
+        #
+        self.assertEqual(
+            [
+                "fieldMatch(body).significance",
+                "fieldMatch(body).queryCompleteness",
+                "nativeRank",
+            ],
+            weights["feature_names"],
+        )
+        self.assertEqual(3, len(weights["linear_model_weights"]))
+        #
+        # Check evaluation metric
+        #
+        self.assertGreater(eval_metric, 0)
+        #
+        # Check best hyperparams
+        #
+        self.assertEqual(list(best_hyperparams.keys()), ["learning_rate"])
+
+    def test_tune_linear_model_csv_files(self):
+
+        (
+            weights,
+            eval_metric,
+            best_hyperparams,
+        ) = self.ranking_framework.tune_linear_model(
+            train_data=self.train_csv_file,
+            dev_data=self.dev_csv_file,
             feature_names=[
                 "fieldMatch(body).significance",
                 "fieldMatch(body).queryCompleteness",
@@ -172,8 +210,8 @@ class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
             eval_metric,
             best_hyperparams,
         ) = self.ranking_framework.tune_lasso_linear_model(
-            train_df=self.train_df,
-            dev_df=self.dev_df,
+            train_data=self.train_df,
+            dev_data=self.dev_df,
             feature_names=[
                 "fieldMatch(body).significance",
                 "fieldMatch(body).queryCompleteness",
@@ -207,8 +245,8 @@ class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
     def test_lasso_model_search(self):
 
         results = self.ranking_framework.lasso_model_search(
-            train_df=self.train_df,
-            dev_df=self.dev_df,
+            train_data=self.train_df,
+            dev_data=self.dev_df,
             feature_names=[
                 "fieldMatch(body).significance",
                 "fieldMatch(body).queryCompleteness",
@@ -226,8 +264,8 @@ class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
     def test_lasso_model_search_protected_features(self):
 
         results = self.ranking_framework.lasso_model_search(
-            train_df=self.train_df,
-            dev_df=self.dev_df,
+            train_data=self.train_df,
+            dev_data=self.dev_df,
             feature_names=[
                 "fieldMatch(body).significance",
                 "fieldMatch(body).queryCompleteness",
@@ -249,8 +287,8 @@ class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
     def test_forward_selection_model_search(self):
 
         results = self.ranking_framework.forward_selection_model_search(
-            train_df=self.train_df,
-            dev_df=self.dev_df,
+            train_data=self.train_df,
+            dev_data=self.dev_df,
             feature_names=[
                 "fieldMatch(body).significance",
                 "fieldMatch(body).queryCompleteness",
@@ -271,8 +309,8 @@ class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
     def test_forward_selection_model_search_with_protected_features(self):
 
         results = self.ranking_framework.forward_selection_model_search(
-            train_df=self.train_df,
-            dev_df=self.dev_df,
+            train_data=self.train_df,
+            dev_data=self.dev_df,
             feature_names=[
                 "fieldMatch(body).significance",
                 "fieldMatch(body).queryCompleteness",
@@ -367,8 +405,8 @@ class TestListwiseRankingFramework(unittest.TestCase):
             eval_metric,
             best_hyperparams,
         ) = self.ranking_framework.tune_linear_model(
-            train_df=self.train_df,
-            dev_df=self.dev_df,
+            train_data=self.train_df,
+            dev_data=self.dev_df,
             feature_names=[
                 "fieldMatch(body).significance",
                 "fieldMatch(body).queryCompleteness",
@@ -403,8 +441,8 @@ class TestListwiseRankingFramework(unittest.TestCase):
             eval_metric,
             best_hyperparams,
         ) = self.ranking_framework.tune_lasso_linear_model(
-            train_df=self.train_df,
-            dev_df=self.dev_df,
+            train_data=self.train_df,
+            dev_data=self.dev_df,
             feature_names=[
                 "fieldMatch(body).significance",
                 "fieldMatch(body).queryCompleteness",
@@ -438,8 +476,8 @@ class TestListwiseRankingFramework(unittest.TestCase):
     def test_lasso_model_search(self):
 
         results = self.ranking_framework.lasso_model_search(
-            train_df=self.train_df,
-            dev_df=self.dev_df,
+            train_data=self.train_df,
+            dev_data=self.dev_df,
             feature_names=[
                 "fieldMatch(body).significance",
                 "fieldMatch(body).queryCompleteness",
@@ -457,8 +495,8 @@ class TestListwiseRankingFramework(unittest.TestCase):
     def test_lasso_model_search_protected_features(self):
 
         results = self.ranking_framework.lasso_model_search(
-            train_df=self.train_df,
-            dev_df=self.dev_df,
+            train_data=self.train_df,
+            dev_data=self.dev_df,
             feature_names=[
                 "fieldMatch(body).significance",
                 "fieldMatch(body).queryCompleteness",
@@ -480,8 +518,8 @@ class TestListwiseRankingFramework(unittest.TestCase):
     def test_forward_selection_model_search(self):
 
         results = self.ranking_framework.forward_selection_model_search(
-            train_df=self.train_df,
-            dev_df=self.dev_df,
+            train_data=self.train_df,
+            dev_data=self.dev_df,
             feature_names=[
                 "fieldMatch(body).significance",
                 "fieldMatch(body).queryCompleteness",
@@ -502,8 +540,8 @@ class TestListwiseRankingFramework(unittest.TestCase):
     def test_forward_selection_model_search_with_protected_features(self):
 
         results = self.ranking_framework.forward_selection_model_search(
-            train_df=self.train_df,
-            dev_df=self.dev_df,
+            train_data=self.train_df,
+            dev_data=self.dev_df,
             feature_names=[
                 "fieldMatch(body).significance",
                 "fieldMatch(body).queryCompleteness",
