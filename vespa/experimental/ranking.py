@@ -440,31 +440,30 @@ class ListwiseRankingFramework:
         self.learning_rate_range = learning_rate_range
         self.folder_dir = folder_dir
 
-    def listwise_dataset_from_collected_features(
-        self,
-        df,
-        feature_names,
+        self.query_id_name = "query_id"
+        self.target_name = "label"
+
+    def listwise_tf_dataset_from_df(
+        self, df, feature_names, shuffle_buffer_size, batch_size
     ):
         """
         Create TensorFlow dataframe suited for listwise loss function from pandas df.
 
         :param df: Pandas df containing the data.
         :param feature_names: Features to be used in the tensorflow model.
-        :param number_documents_per_query: Number of documents per query. This will be used as the batch size
-            of the TF dataset.
+        :param shuffle_buffer_size: The size of the buffer used to sample data from.
+        :param batch_size: The size of the batch for each sample from the dataset.
         :return: TF dataset
         """
-        query_id_name = "query_id"
-        target_name = "label"
         ds = tf.data.Dataset.from_tensor_slices(
             {
                 "features": tf.cast(df[feature_names].values, tf.float32),
-                "label": tf.cast(df[target_name].values, tf.float32),
-                "query_id": tf.cast(df[query_id_name].values, tf.int64),
+                "label": tf.cast(df[self.target_name].values, tf.float32),
+                "query_id": tf.cast(df[self.query_id_name].values, tf.int64),
             }
         )
 
-        key_func = lambda x: x[query_id_name]
+        key_func = lambda x: x[self.query_id_name]
         reduce_func = lambda key, dataset: dataset.batch(
             self.number_documents_per_query, drop_remainder=True
         )
@@ -474,6 +473,54 @@ class ListwiseRankingFramework:
             window_size=self.number_documents_per_query,
         )
         listwise_ds = listwise_ds.map(lambda x: (x["features"], x["label"]))
+        listwise_ds = listwise_ds.shuffle(buffer_size=shuffle_buffer_size).batch(
+            batch_size=batch_size
+        )
+        return listwise_ds
+
+    def listwise_tf_dataset_from_csv(
+        self, file_path, feature_names, shuffle_buffer_size, batch_size
+    ):
+        """
+        Create TensorFlow dataframe suited for listwise loss function from a .csv file.
+
+        :param file_path: The path to the csv file.
+        :param feature_names: Features to be used in the tensorflow model.
+        :param shuffle_buffer_size: The size of the buffer used to sample data from.
+        :param batch_size: The size of the batch for each sample from the dataset.
+        :return: TF dataset
+        """
+        ds = tf.data.experimental.make_csv_dataset(
+            file_path,
+            batch_size=1,
+            num_epochs=1,
+            shuffle_buffer_size=shuffle_buffer_size,
+        )
+
+        def create_dict_slices(x):
+            return {
+                "query_id": tf.reshape(tf.cast(x["query_id"], tf.int64), []),
+                "label": tf.reshape(tf.cast(x["label"], tf.float32), []),
+                "features": tf.cast(
+                    tf.reshape(
+                        [x[name] for name in feature_names], [len(feature_names)]
+                    ),
+                    tf.float32,
+                ),
+            }
+
+        ds_mapped = ds.map(lambda x: create_dict_slices(x))
+        key_func = lambda x: x[self.query_id_name]
+        reduce_func = lambda key, dataset: dataset.batch(
+            self.number_documents_per_query, drop_remainder=True
+        )
+        listwise_ds = ds_mapped.group_by_window(
+            key_func=key_func,
+            reduce_func=reduce_func,
+            window_size=self.number_documents_per_query,
+        )
+        listwise_ds = listwise_ds.map(lambda x: (x["features"], x["label"]))
+        listwise_ds = listwise_ds.batch(batch_size=batch_size)
         return listwise_ds
 
     def create_and_train_normalization_layer(self, train_ds):
@@ -490,11 +537,11 @@ class ListwiseRankingFramework:
     ):
 
         number_features = len(feature_names)
-        train_ds = self.listwise_dataset_from_collected_features(
+        train_ds = self.listwise_tf_dataset_from_df(
             df=train_df,
             feature_names=feature_names,
         )
-        dev_ds = self.listwise_dataset_from_collected_features(
+        dev_ds = self.listwise_tf_dataset_from_df(
             df=dev_df,
             feature_names=feature_names,
         )
@@ -555,11 +602,11 @@ class ListwiseRankingFramework:
     ):
 
         number_features = len(feature_names)
-        train_ds = self.listwise_dataset_from_collected_features(
+        train_ds = self.listwise_tf_dataset_from_df(
             df=train_df,
             feature_names=feature_names,
         )
-        dev_ds = self.listwise_dataset_from_collected_features(
+        dev_ds = self.listwise_tf_dataset_from_df(
             df=dev_df,
             feature_names=feature_names,
         )

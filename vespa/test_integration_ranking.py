@@ -108,6 +108,27 @@ class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
             number_documents_per_query=3,
         )
 
+    def test_dataset_from_csv_file(self):
+        tf_ds = self.ranking_framework.listwise_tf_dataset_from_csv(
+            file_path=os.path.join(os.environ["RESOURCES_DIR"], "beir_train_df.csv"),
+            feature_names=["nativeRank", "nativeProximity"],
+            shuffle_buffer_size=3,
+            batch_size=1,
+        )
+        for features, labels in tf_ds:
+            self.assertEqual(features.shape, (1, 3, 2))
+            self.assertEqual(labels.shape, (1, 3))
+
+        tf_ds = self.ranking_framework.listwise_tf_dataset_from_csv(
+            file_path=os.path.join(os.environ["RESOURCES_DIR"], "beir_train_df.csv"),
+            feature_names=["nativeRank", "nativeProximity"],
+            shuffle_buffer_size=3,
+            batch_size=2,
+        )
+        for features, labels in tf_ds:
+            self.assertEqual(features.shape, (2, 3, 2))
+            self.assertEqual(labels.shape, (2, 3))
+
     def test_tune_linear_model(self):
 
         (
@@ -269,7 +290,10 @@ class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
         self.assertEqual(3, len(results[3]["weights"]["feature_names"]))
 
     def tearDown(self) -> None:
-        shutil.rmtree("keras_tuner")
+        try:
+            shutil.rmtree("keras_tuner")
+        except FileNotFoundError:
+            pass
         try:
             os.remove(
                 os.path.join(os.environ["RESOURCES_DIR"], "lasso_model_search.json")
