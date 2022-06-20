@@ -1496,7 +1496,7 @@ class TestSequenceClassification(TestApplicationCommon):
         )
 
     def test_prediction(self):
-        self.get_stateless_prediction(
+            self.get_stateless_prediction(
             app=self.app, application_package=self.app_package
         )
 
