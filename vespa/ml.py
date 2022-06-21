@@ -73,7 +73,7 @@ class TextTask(Task):
             task="text-classification",
             model=self._model,
             tokenizer=self._tokenizer,
-            return_all_scores=True,
+            top_k=2,
             function_to_apply="None",
         )
         return _pipeline
@@ -98,8 +98,11 @@ class TextTask(Task):
         :return: list with predictions
         """
         pipeline = self._create_pipeline()
-        predictions = pipeline(text)[0]
-        return [x["score"] for x in predictions]
+        predictions = pipeline(text)
+        return [
+            [x["score"] for x in predictions if x["label"] == "LABEL_0"][0],
+            [x["score"] for x in predictions if x["label"] == "LABEL_1"][0],
+        ]
 
     @staticmethod
     def parse_vespa_prediction(prediction) -> List:
@@ -381,7 +384,9 @@ class BertModelConfig(ModelConfig, ToJson, FromJson["BertModelConfig"]):
                 return_all_scores=True,
                 function_to_apply="None",
             )
-            convert_pytorch(_pipeline, opset=11, output=Path(output_path), use_external_format=False)
+            convert_pytorch(
+                _pipeline, opset=11, output=Path(output_path), use_external_format=False
+            )
         else:
             raise ValueError("No BERT model found to be exported.")
 
