@@ -137,7 +137,7 @@ class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
             weights,
             eval_metric,
             best_hyperparams,
-        ) = self.ranking_framework.tune_linear_model(
+        ) = self.ranking_framework.fit_linear_model(
             train_data=self.train_df,
             dev_data=self.dev_df,
             feature_names=[
@@ -167,13 +167,50 @@ class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
         #
         self.assertEqual(list(best_hyperparams.keys()), ["learning_rate"])
 
+    def test_fit_linear_model(self):
+
+        (
+            weights,
+            eval_metric,
+            best_hyperparams,
+        ) = self.ranking_framework.fit_linear_model(
+            train_data=self.train_df,
+            dev_data=self.dev_df,
+            feature_names=[
+                "fieldMatch(body).significance",
+                "fieldMatch(body).queryCompleteness",
+                "nativeRank",
+            ],
+            hyperparameters={"learning_rate": 0.05}
+        )
+        #
+        # Check weights format
+        #
+        self.assertEqual(
+            [
+                "fieldMatch(body).significance",
+                "fieldMatch(body).queryCompleteness",
+                "nativeRank",
+            ],
+            weights["feature_names"],
+        )
+        self.assertEqual(3, len(weights["linear_model_weights"]))
+        #
+        # Check evaluation metric
+        #
+        self.assertGreater(eval_metric, 0)
+        #
+        # Check best hyperparams
+        #
+        self.assertEqual(list(best_hyperparams.keys()), ["learning_rate"])
+
     def test_tune_linear_model_csv_files(self):
 
         (
             weights,
             eval_metric,
             best_hyperparams,
-        ) = self.ranking_framework.tune_linear_model(
+        ) = self.ranking_framework.fit_linear_model(
             train_data=self.train_csv_file,
             dev_data=self.dev_csv_file,
             feature_names=[
@@ -209,7 +246,7 @@ class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
             weights,
             eval_metric,
             best_hyperparams,
-        ) = self.ranking_framework.tune_lasso_linear_model(
+        ) = self.ranking_framework.fit_lasso_linear_model(
             train_data=self.train_df,
             dev_data=self.dev_df,
             feature_names=[
@@ -217,6 +254,46 @@ class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
                 "fieldMatch(body).queryCompleteness",
                 "nativeRank",
             ],
+        )
+        #
+        # Check weights format
+        #
+        self.assertEqual(
+            [
+                "fieldMatch(body).significance",
+                "fieldMatch(body).queryCompleteness",
+                "nativeRank",
+            ],
+            weights["feature_names"],
+        )
+        self.assertEqual(3, len(weights["normalization_mean"]))
+        self.assertEqual(3, len(weights["normalization_sd"]))
+        self.assertEqual(6, weights["normalization_number_data"])
+        self.assertEqual(3, len(weights["linear_model_weights"]))
+        #
+        # Check evaluation metric
+        #
+        self.assertGreater(eval_metric, 0)
+        #
+        # Check best hyperparams
+        #
+        self.assertEqual(list(best_hyperparams.keys()), ["lambda", "learning_rate"])
+
+    def test_fit_lasso_linear_model(self):
+
+        (
+            weights,
+            eval_metric,
+            best_hyperparams,
+        ) = self.ranking_framework.fit_lasso_linear_model(
+            train_data=self.train_df,
+            dev_data=self.dev_df,
+            feature_names=[
+                "fieldMatch(body).significance",
+                "fieldMatch(body).queryCompleteness",
+                "nativeRank",
+            ],
+            hyperparameters={'lambda': 0.0001, 'learning_rate': 9}
         )
         #
         # Check weights format
@@ -255,6 +332,26 @@ class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
             output_file=os.path.join(
                 os.environ["RESOURCES_DIR"], "lasso_model_search.json"
             ),
+        )
+        self.assertEqual(3, len(results))
+        self.assertEqual(3, len(results[0]["weights"]["feature_names"]))
+        self.assertEqual(2, len(results[1]["weights"]["feature_names"]))
+        self.assertEqual(1, len(results[2]["weights"]["feature_names"]))
+
+    def test_lasso_model_search_with_fixed_hyperparams(self):
+
+        results = self.ranking_framework.lasso_model_search(
+            train_data=self.train_df,
+            dev_data=self.dev_df,
+            feature_names=[
+                "fieldMatch(body).significance",
+                "fieldMatch(body).queryCompleteness",
+                "nativeRank",
+            ],
+            output_file=os.path.join(
+                os.environ["RESOURCES_DIR"], "lasso_model_search.json"
+            ),
+            hyperparameter={"learning_rate": 2, "lambda": 0.001}
         )
         self.assertEqual(3, len(results))
         self.assertEqual(3, len(results[0]["weights"]["feature_names"]))
@@ -404,7 +501,7 @@ class TestListwiseRankingFramework(unittest.TestCase):
             weights,
             eval_metric,
             best_hyperparams,
-        ) = self.ranking_framework.tune_linear_model(
+        ) = self.ranking_framework.fit_linear_model(
             train_data=self.train_df,
             dev_data=self.dev_df,
             feature_names=[
@@ -440,7 +537,7 @@ class TestListwiseRankingFramework(unittest.TestCase):
             weights,
             eval_metric,
             best_hyperparams,
-        ) = self.ranking_framework.tune_lasso_linear_model(
+        ) = self.ranking_framework.fit_lasso_linear_model(
             train_data=self.train_df,
             dev_data=self.dev_df,
             feature_names=[

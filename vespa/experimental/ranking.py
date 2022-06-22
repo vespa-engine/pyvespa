@@ -549,28 +549,9 @@ class ListwiseRankingFramework:
         normalization_layer.adapt(train_feature_ds)
         return normalization_layer
 
-    def tune_linear_model(
-        self,
-        train_data,
-        dev_data,
-        feature_names,
-    ):
-
-        number_features = len(feature_names)
-
-        train_ds = self.create_dataset(
-            df_or_file=train_data, feature_names=feature_names
-        )
-        dev_ds = self.create_dataset(df_or_file=dev_data, feature_names=feature_names)
-
-        linear_hyper_model = LinearHyperModel(
-            number_documents_per_query=self.number_documents_per_query,
-            number_features=number_features,
-            top_n=self.top_n,
-            learning_rate_range=self.learning_rate_range,
-        )
+    def tune_model(self, model, train_ds, dev_ds):
         tuner = kt.RandomSearch(
-            linear_hyper_model,
+            model,
             objective=kt.Objective("val_ndcg_stateless", direction="max"),
             directory=self.folder_dir,
             project_name="keras_tuner",
@@ -592,9 +573,34 @@ class ListwiseRankingFramework:
             epochs=self.tuner_epochs,
             callbacks=callbacks,
         )
-        best_hyperparams = tuner.get_best_hyperparameters()[0].values
-        print(best_hyperparams)
-        best_hps = tuner.get_best_hyperparameters()[0]
+        return tuner.get_best_hyperparameters()[0]
+
+    def fit_linear_model(
+        self, train_data, dev_data, feature_names, hyperparameters=None
+    ):
+
+        number_features = len(feature_names)
+
+        train_ds = self.create_dataset(
+            df_or_file=train_data, feature_names=feature_names
+        )
+        dev_ds = self.create_dataset(df_or_file=dev_data, feature_names=feature_names)
+
+        linear_hyper_model = LinearHyperModel(
+            number_documents_per_query=self.number_documents_per_query,
+            number_features=number_features,
+            top_n=self.top_n,
+            learning_rate_range=self.learning_rate_range,
+        )
+        if not hyperparameters:
+            best_hps = self.tune_model(
+                model=linear_hyper_model, train_ds=train_ds, dev_ds=dev_ds
+            )
+            best_hyperparams = best_hps.values
+        else:
+            best_hyperparams = hyperparameters
+            best_hps = kt.HyperParameters()
+            best_hps.values = hyperparameters
         model = linear_hyper_model.build(best_hps)
         model.fit(
             train_ds,
@@ -612,11 +618,8 @@ class ListwiseRankingFramework:
 
         return weights, eval_result_from_fit, best_hyperparams
 
-    def tune_lasso_linear_model(
-        self,
-        train_data,
-        dev_data,
-        feature_names,
+    def fit_lasso_linear_model(
+        self, train_data, dev_data, feature_names, hyperparameters=None
     ):
 
         number_features = len(feature_names)
@@ -624,7 +627,6 @@ class ListwiseRankingFramework:
             df_or_file=train_data, feature_names=feature_names
         )
         dev_ds = self.create_dataset(df_or_file=dev_data, feature_names=feature_names)
-
         trained_normalization_layer = self.create_and_train_normalization_layer(
             train_ds=train_ds
         )
@@ -636,32 +638,15 @@ class ListwiseRankingFramework:
             l1_penalty_range=self.l1_penalty_range,
             learning_rate_range=self.learning_rate_range,
         )
-        tuner = kt.RandomSearch(
-            lasso_hyper_model,
-            objective=kt.Objective("val_ndcg_stateless", direction="max"),
-            directory=self.folder_dir,
-            project_name="keras_tuner",
-            overwrite=True,
-            max_trials=self.tuner_max_trials,
-            executions_per_trial=self.tuner_executions_per_trial,
-        )
-        callbacks = []
-        if self.tuner_early_stop_patience:
-            early_stopping_callback = tf.keras.callbacks.EarlyStopping(
-                monitor="val_ndcg_stateless",
-                patience=self.tuner_early_stop_patience,
-                mode="max",
+        if not hyperparameters:
+            best_hps = self.tune_model(
+                model=lasso_hyper_model, train_ds=train_ds, dev_ds=dev_ds
             )
-            callbacks.append(early_stopping_callback)
-        tuner.search(
-            train_ds,
-            validation_data=dev_ds,
-            epochs=self.tuner_epochs,
-            callbacks=callbacks,
-        )
-        best_hyperparams = tuner.get_best_hyperparameters()[0].values
-        print(best_hyperparams)
-        best_hps = tuner.get_best_hyperparameters()[0]
+            best_hyperparams = best_hps.values
+        else:
+            best_hyperparams = hyperparameters
+            best_hps = kt.HyperParameters()
+            best_hps.values = hyperparameters
         model = lasso_hyper_model.build(best_hps)
         model.fit(
             train_ds,
@@ -688,6 +673,7 @@ class ListwiseRankingFramework:
         dev_data,
         feature_names,
         protected_features=None,
+        hyperparameter=None,
         output_file="lasso_model_search.json",
     ):
 
@@ -705,10 +691,11 @@ class ListwiseRankingFramework:
         while (len(feature_names) >= len(protected_features)) and len(
             feature_names
         ) > 0:
-            (weights, evaluation, best_hyperparams) = self.tune_lasso_linear_model(
+            (weights, evaluation, best_hyperparams) = self.fit_lasso_linear_model(
                 train_data=train_data,
                 dev_data=dev_data,
                 feature_names=feature_names,
+                hyperparameters=hyperparameter,
             )
             partial_result = {
                 "evaluation": evaluation,
@@ -743,11 +730,14 @@ class ListwiseRankingFramework:
 
         return results
 
-    def _forward_selection_iteration(self, train_data, dev_data, feature_names):
-        (weights, evaluation, best_hyperparams) = self.tune_lasso_linear_model(
+    def _forward_selection_iteration(
+        self, train_data, dev_data, feature_names, hyperparameter=None
+    ):
+        (weights, evaluation, best_hyperparams) = self.fit_lasso_linear_model(
             train_data=train_data,
             dev_data=dev_data,
             feature_names=feature_names,
+            hyperparameters=hyperparameter,
         )
         partial_result = {
             "number_features": len(feature_names),
@@ -773,6 +763,7 @@ class ListwiseRankingFramework:
         maximum_number_of_features=None,
         output_file="forward_selection_model_search.json",
         protected_features=None,
+        hyperparameter=None,
     ):
 
         output_file = os.path.join(self.folder_dir, output_file)
@@ -796,7 +787,10 @@ class ListwiseRankingFramework:
             protected_features = []
         else:
             partial_result = self._forward_selection_iteration(
-                train_data=train_data, dev_data=dev_data, feature_names=protected_features
+                train_data=train_data,
+                dev_data=dev_data,
+                feature_names=protected_features,
+                hyperparameter=hyperparameter,
             )
             results.append(partial_result)
         while len(protected_features) < maximum_number_of_features:
@@ -809,6 +803,7 @@ class ListwiseRankingFramework:
                     train_data=train_data,
                     dev_data=dev_data,
                     feature_names=experimental_features,
+                    hyperparameter=hyperparameter,
                 )
                 evaluation = partial_result["evaluation"]
                 results.append(partial_result)
