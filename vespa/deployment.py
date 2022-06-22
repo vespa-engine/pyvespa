@@ -516,13 +516,13 @@ class VespaCloud(object):
 
             for schema in self.application_package.schemas:
                 zip_archive.writestr(
-                    "application/schemas/{}.sd".format(schema.name),
+                    "schemas/{}.sd".format(schema.name),
                     schema.schema_to_text,
                 )
                 for model in schema.models:
                     zip_archive.write(
                         model.model_file_path,
-                        os.path.join("application/files", model.model_file_name),
+                        os.path.join("files", model.model_file_name),
                     )
 
             if self.application_package.models:
@@ -534,24 +534,24 @@ class VespaCloud(object):
                     model.export_to_onnx(output_path=temp_model_file)
                     zip_archive.write(
                         temp_model_file,
-                        "application/models/{}.onnx".format(model_id),
+                        "models/{}.onnx".format(model_id),
                     )
                     os.remove(temp_model_file)
 
             if self.application_package.query_profile:
                 zip_archive.writestr(
-                    "application/search/query-profiles/default.xml",
+                    "search/query-profiles/default.xml",
                     self.application_package.query_profile_to_text,
                 )
                 zip_archive.writestr(
-                    "application/search/query-profiles/types/root.xml",
+                    "search/query-profiles/types/root.xml",
                     self.application_package.query_profile_type_to_text,
                 )
             zip_archive.writestr(
-                "application/services.xml", self.application_package.services_to_text
+                "services.xml", self.application_package.services_to_text
             )
             zip_archive.writestr(
-                "application/security/clients.pem",
+                "security/clients.pem",
                 self.data_certificate.public_bytes(serialization.Encoding.PEM),
             )
 
