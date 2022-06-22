@@ -22,6 +22,7 @@ from vespa.query import QueryModel, RankProfile as Ranking, OR, QueryRankingFeat
 from vespa.gallery import QuestionAnswering, TextSearch
 from vespa.application import VespaSync
 
+CONTAINER_STOP_TIMEOUT = 600
 
 def create_msmarco_application_package():
     #
@@ -168,7 +169,7 @@ class TestDockerCommon(unittest.TestCase):
     def redeploy_with_container_stopped(self, application_package):
         self.vespa_docker = VespaDocker(port=8089)
         self.vespa_docker.deploy(application_package=application_package)
-        self.vespa_docker.container.stop()
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         app = self.vespa_docker.deploy(application_package=application_package)
         self.assertEqual(app.get_application_status().status_code, 200)
 
@@ -1000,7 +1001,7 @@ class TestMsmarcoDockerDeployment(TestDockerCommon):
         )
 
     def tearDown(self) -> None:
-        self.vespa_docker.container.stop()
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
 
 
@@ -1012,7 +1013,7 @@ class TestCord19DockerDeployment(TestDockerCommon):
         self.deploy(application_package=self.app_package)
 
     def tearDown(self) -> None:
-        self.vespa_docker.container.stop()
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
 
 
@@ -1022,7 +1023,7 @@ class TestQaDockerDeployment(TestDockerCommon):
 
     def test_deploy(self):
         self.deploy(application_package=self.app_package)
-        self.vespa_docker.container.stop()
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
 
     def test_deploy_image(self):
@@ -1030,7 +1031,7 @@ class TestQaDockerDeployment(TestDockerCommon):
             application_package=self.app_package,
             container_image="vespaengine/vespa:7.566.21",
         )
-        self.vespa_docker.container.stop()
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
 
 
@@ -1127,7 +1128,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
         )
 
     def tearDown(self) -> None:
-        self.vespa_docker.container.stop()
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
 
 
@@ -1317,7 +1318,7 @@ class TestCord19Application(TestApplicationCommon):
         )
 
     def tearDown(self) -> None:
-        self.vespa_docker.container.stop()
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
         try:
             os.remove(os.path.join(os.environ["RESOURCES_DIR"], "vespa_features.csv"))
@@ -1431,7 +1432,7 @@ class TestQaApplication(TestApplicationCommon):
         )
 
     def tearDown(self) -> None:
-        self.vespa_docker.container.stop()
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
 
 
@@ -1479,7 +1480,7 @@ class TestGalleryTextSearch(unittest.TestCase):
             self.assertIn("fields", hit)
 
     def tearDown(self) -> None:
-        self.vespa_docker.container.stop()
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
 
 
@@ -1496,10 +1497,10 @@ class TestSequenceClassification(TestApplicationCommon):
         )
 
     def test_prediction(self):
-            self.get_stateless_prediction(
+        self.get_stateless_prediction(
             app=self.app, application_package=self.app_package
         )
 
     def tearDown(self) -> None:
-        self.vespa_docker.container.stop()
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
