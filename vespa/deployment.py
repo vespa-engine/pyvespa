@@ -24,6 +24,7 @@ from vespa.package import ApplicationPackage
 
 CFG_SERVER_START_TIMEOUT = 300
 APP_INIT_TIMEOUT = 300
+DOCKER_TIMEOUT = 600
 
 
 class VespaDocker(ToJson, FromJson["VespaDocker"]):
@@ -34,7 +35,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         output_file: IO = sys.stdout,
         container: Optional[docker.models.containers.Container] = None,
         container_image: str = "vespaengine/vespa",
-        cfgsrv_port: int = 19071
+        cfgsrv_port: int = 19071,
     ) -> None:
         """
         Manage Docker deployments.
@@ -100,24 +101,27 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         application_name: str,
         container_memory: str,
     ):
-        client = docker.from_env()
+        client = docker.from_env(timeout=DOCKER_TIMEOUT)
         if self.container is None:
             try:
                 logging.debug("Try Docker container restart")
                 self.container = client.containers.get(application_name)
                 self.container.restart()
             except docker.errors.NotFound:
-                logging.debug("Start a Docker container: "
-                              "image: {image}, "
-                              "mem_limit: {mem_limit}, "
-                              "name: {name}, "
-                              "hostname: {hostname}, "
-                              "ports: {ports}".format(
-                    image=self.container_image,
-                    mem_limit=container_memory,
-                    name=application_name,
-                    hostname=application_name,
-                    ports={8080: self.local_port, 19071: self.cfgsrv_port}))
+                logging.debug(
+                    "Start a Docker container: "
+                    "image: {image}, "
+                    "mem_limit: {mem_limit}, "
+                    "name: {name}, "
+                    "hostname: {hostname}, "
+                    "ports: {ports}".format(
+                        image=self.container_image,
+                        mem_limit=container_memory,
+                        name=application_name,
+                        hostname=application_name,
+                        ports={8080: self.local_port, 19071: self.cfgsrv_port},
+                    )
+                )
                 self.container = client.containers.run(
                     self.container_image,
                     detach=True,
@@ -125,7 +129,8 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
                     name=application_name,
                     hostname=application_name,
                     privileged=True,
-                    ports={8080: self.local_port, 19071: self.cfgsrv_port})
+                    ports={8080: self.local_port, 19071: self.cfgsrv_port},
+                )
             self.container_name = self.container.name
             self.container_id = self.container.id
         else:
@@ -157,15 +162,24 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         try_interval = 5
         waited = 0
         while not self._check_configuration_server() and (waited < max_wait):
-            print("Waiting for configuration server, {0}/{1} seconds...".format(waited, max_wait), file=self.output)
+            print(
+                "Waiting for configuration server, {0}/{1} seconds...".format(
+                    waited, max_wait
+                ),
+                file=self.output,
+            )
             sleep(try_interval)
             waited += try_interval
         if waited >= max_wait:
             self.dump_vespa_log()
-            raise RuntimeError("Config server did not start, waited for {0} seconds.".format(max_wait))
+            raise RuntimeError(
+                "Config server did not start, waited for {0} seconds.".format(max_wait)
+            )
 
     def dump_vespa_log(self):
-        log_dump = self.container.exec_run("bash -c 'cat /opt/vespa/logs/vespa/vespa.log'")
+        log_dump = self.container.exec_run(
+            "bash -c 'cat /opt/vespa/logs/vespa/vespa.log'"
+        )
         logging.debug("Dumping vespa.log:")
         logging.debug(log_dump.output.decode("utf-8"))
 
@@ -180,11 +194,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         """
         return self._deploy_data(application_package, application_package.to_zip())
 
-    def deploy_from_disk(
-        self,
-        application_name: str,
-        application_root: Path
-    ) -> Vespa:
+    def deploy_from_disk(self, application_name: str, application_root: Path) -> Vespa:
         """
         Deploy from a directory tree.
         Used when making changes to application package files not supported by pyvespa -
@@ -217,25 +227,27 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         :return: A Vespa connection instance
         """
         self._run_vespa_engine_container(
-            application_name=application.name,
-            container_memory=self.container_memory
+            application_name=application.name, container_memory=self.container_memory
         )
         self.wait_for_config_server_start(max_wait=CFG_SERVER_START_TIMEOUT)
 
-        r = requests.post("http://localhost:{}/application/v2/tenant/default/prepareandactivate".format(self.cfgsrv_port),
-                          headers={"Content-Type": "application/zip"},
-                          data=data,
-                          verify=False)
+        r = requests.post(
+            "http://localhost:{}/application/v2/tenant/default/prepareandactivate".format(
+                self.cfgsrv_port
+            ),
+            headers={"Content-Type": "application/zip"},
+            data=data,
+            verify=False,
+        )
         logging.debug("Deploy status code: {}".format(r.status_code))
         if r.status_code != 200:
-            raise RuntimeError("Deployment failed, code: {}, message: {}".format(r.status_code,
-                                                                                 json.loads(r.content.decode('utf8'))))
+            raise RuntimeError(
+                "Deployment failed, code: {}, message: {}".format(
+                    r.status_code, json.loads(r.content.decode("utf8"))
+                )
+            )
 
-        app = Vespa(
-            url=self.url,
-            port=self.local_port,
-            application_package=application
-        )
+        app = Vespa(url=self.url, port=self.local_port, application_package=application)
         app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
 
         print("Finished deployment.", file=self.output)
@@ -283,7 +295,7 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
                 url=self.url,
                 port=self.local_port,
             )
-            app.wait_for_application_up(max_wait=1000000) # wait indefinitely...
+            app.wait_for_application_up(max_wait=1000000)  # wait indefinitely...
             for line in start_services.output.decode("utf-8").split("\n"):
                 print(line, file=self.output)
         else:
@@ -346,7 +358,8 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
             and self.url == other.url
             and self.local_port == other.local_port
             and self.container_memory == other.container_memory
-            and self.container_image.split(":")[0] == other.container_image.split(":")[0]
+            and self.container_image.split(":")[0]
+            == other.container_image.split(":")[0]
         )
 
     def __repr__(self):
@@ -665,7 +678,7 @@ class VespaCloud(object):
         app = Vespa(
             url=endpoint_url,
             cert=os.path.join(disk_folder, self.private_cert_file_name),
-            application_package=self.application_package
+            application_package=self.application_package,
         )
         app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
         print("Finished deployment.", file=self.output)
