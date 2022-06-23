@@ -106,7 +106,7 @@ class TextTask(Task):
 
     @staticmethod
     def parse_vespa_prediction(prediction) -> List:
-        return [cell["value"] for cell in prediction["cells"]]
+        return prediction["values"][0]
 
     def create_url_encoded_tokens(self, x):
         raise NotImplementedError
