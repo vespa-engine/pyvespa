@@ -1347,10 +1347,8 @@ class TestQaApplication(TestApplicationCommon):
                 "dataset": d["dataset"],
                 "context_id": d["context_id"],
                 "sentence_embedding": {
-                    "cells": [
-                        {"address": {"x": str(idx)}, "value": value}
-                        for idx, value in enumerate(d["sentence_embedding"]["values"])
-                    ]
+                    "type": f"tensor<float>(x[{len(d['sentence_embedding']['values'])}])",
+                    "values": d["sentence_embedding"]["values"]
                 },
             }
             if len(d["questions"]) > 0:
