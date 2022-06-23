@@ -24,6 +24,7 @@ from vespa.application import VespaSync
 
 CONTAINER_STOP_TIMEOUT = 600
 
+
 def create_msmarco_application_package():
     #
     # Application package
@@ -909,7 +910,7 @@ class TestApplicationCommon(unittest.TestCase):
 
     @staticmethod
     def _parse_vespa_tensor(hit, feature):
-        return [x["value"] for x in hit["fields"]["summaryfeatures"][feature]["cells"]]
+        return hit["fields"]["summaryfeatures"][feature]["values"][0]
 
     def bert_model_input_and_output(
         self, app, schema_name, fields_to_send, model_config
@@ -943,13 +944,13 @@ class TestApplicationCommon(unittest.TestCase):
             ),
         )
         vespa_input_ids = self._parse_vespa_tensor(
-            result.hits[0], "rankingExpression(input_ids)"
+            result.hits[0], "input_ids"
         )
         vespa_attention_mask = self._parse_vespa_tensor(
-            result.hits[0], "rankingExpression(attention_mask)"
+            result.hits[0], "attention_mask"
         )
         vespa_token_type_ids = self._parse_vespa_tensor(
-            result.hits[0], "rankingExpression(token_type_ids)"
+            result.hits[0], "token_type_ids"
         )
 
         expected_inputs = model_config.create_encodings(
@@ -963,12 +964,12 @@ class TestApplicationCommon(unittest.TestCase):
             queries=["this is a test"], docs=[fields_to_send["title"]]
         )
         self.assertAlmostEqual(
-            result.hits[0]["fields"]["summaryfeatures"]["rankingExpression(logit0)"],
+            result.hits[0]["fields"]["summaryfeatures"]["logit0"],
             expected_logits[0][0],
             5,
         )
         self.assertAlmostEqual(
-            result.hits[0]["fields"]["summaryfeatures"]["rankingExpression(logit1)"],
+            result.hits[0]["fields"]["summaryfeatures"]["logit1"],
             expected_logits[0][1],
             5,
         )
@@ -1159,13 +1160,8 @@ class TestCord19Application(TestApplicationCommon):
             expected_fields.update(
                 {
                     "pretrained_bert_tiny_doc_token_ids": {
-                        "cells": [
-                            {
-                                "address": {"d0": str(x)},
-                                "value": float(tensor_field_values[x]),
-                            }
-                            for x in range(len(tensor_field_values))
-                        ]
+                        "type": f"tensor<float>(d0[{len(tensor_field_values)}])",
+                        "values": tensor_field_values,
                     }
                 }
             )
