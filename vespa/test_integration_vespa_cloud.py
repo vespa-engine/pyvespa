@@ -209,13 +209,8 @@ class TestCord19Application(TestApplicationCommon):
             expected_fields.update(
                 {
                     "pretrained_bert_tiny_doc_token_ids": {
-                        "cells": [
-                            {
-                                "address": {"d0": str(x)},
-                                "value": float(tensor_field_values[x]),
-                            }
-                            for x in range(len(tensor_field_values))
-                        ]
+                        "type": f"tensor<float>(d0[{len(tensor_field_values)}])",
+                        "values": tensor_field_values,
                     }
                 }
             )
@@ -331,10 +326,8 @@ class TestQaApplication(TestApplicationCommon):
                 "dataset": d["dataset"],
                 "context_id": d["context_id"],
                 "sentence_embedding": {
-                    "cells": [
-                        {"address": {"x": str(idx)}, "value": value}
-                        for idx, value in enumerate(d["sentence_embedding"]["values"])
-                    ]
+                    "type": f"tensor<float>(x[{len(d['sentence_embedding']['values'])}])",
+                    "values": d["sentence_embedding"]["values"],
                 },
             }
             if len(d["questions"]) > 0:
