@@ -185,7 +185,7 @@ class TestDockerCommon(unittest.TestCase):
         ).json
         self.assertIsNotNone(
             re.search(
-                "Requested rank profile 'new-rank-profile' is undefined for document type ",
+                r"schema[\s\S]+ does not contain requested rank profile",
                 res["root"]["errors"][0]["message"],
             )
         )
@@ -943,9 +943,7 @@ class TestApplicationCommon(unittest.TestCase):
                 rank_profile=Ranking(name="pretrained_bert_tiny"),
             ),
         )
-        vespa_input_ids = self._parse_vespa_tensor(
-            result.hits[0], "input_ids"
-        )
+        vespa_input_ids = self._parse_vespa_tensor(result.hits[0], "input_ids")
         vespa_attention_mask = self._parse_vespa_tensor(
             result.hits[0], "attention_mask"
         )
@@ -1348,7 +1346,7 @@ class TestQaApplication(TestApplicationCommon):
                 "context_id": d["context_id"],
                 "sentence_embedding": {
                     "type": f"tensor<float>(x[{len(d['sentence_embedding']['values'])}])",
-                    "values": d["sentence_embedding"]["values"]
+                    "values": d["sentence_embedding"]["values"],
                 },
             }
             if len(d["questions"]) > 0:
