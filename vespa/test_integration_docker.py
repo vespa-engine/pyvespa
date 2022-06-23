@@ -22,6 +22,8 @@ from vespa.query import QueryModel, RankProfile as Ranking, OR, QueryRankingFeat
 from vespa.gallery import QuestionAnswering, TextSearch
 from vespa.application import VespaSync
 
+CONTAINER_STOP_TIMEOUT = 600
+
 
 def create_msmarco_application_package():
     #
@@ -168,7 +170,7 @@ class TestDockerCommon(unittest.TestCase):
     def redeploy_with_container_stopped(self, application_package):
         self.vespa_docker = VespaDocker(port=8089)
         self.vespa_docker.deploy(application_package=application_package)
-        self.vespa_docker.container.stop()
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         app = self.vespa_docker.deploy(application_package=application_package)
         self.assertEqual(app.get_application_status().status_code, 200)
 
@@ -183,7 +185,7 @@ class TestDockerCommon(unittest.TestCase):
         ).json
         self.assertIsNotNone(
             re.search(
-                "Requested rank profile 'new-rank-profile' is undefined for document type ",
+                r"schema[\s\S]+ does not contain requested rank profile",
                 res["root"]["errors"][0]["message"],
             )
         )
@@ -908,7 +910,7 @@ class TestApplicationCommon(unittest.TestCase):
 
     @staticmethod
     def _parse_vespa_tensor(hit, feature):
-        return [x["value"] for x in hit["fields"]["summaryfeatures"][feature]["cells"]]
+        return hit["fields"]["summaryfeatures"][feature]["values"][0]
 
     def bert_model_input_and_output(
         self, app, schema_name, fields_to_send, model_config
@@ -941,14 +943,12 @@ class TestApplicationCommon(unittest.TestCase):
                 rank_profile=Ranking(name="pretrained_bert_tiny"),
             ),
         )
-        vespa_input_ids = self._parse_vespa_tensor(
-            result.hits[0], "rankingExpression(input_ids)"
-        )
+        vespa_input_ids = self._parse_vespa_tensor(result.hits[0], "input_ids")
         vespa_attention_mask = self._parse_vespa_tensor(
-            result.hits[0], "rankingExpression(attention_mask)"
+            result.hits[0], "attention_mask"
         )
         vespa_token_type_ids = self._parse_vespa_tensor(
-            result.hits[0], "rankingExpression(token_type_ids)"
+            result.hits[0], "token_type_ids"
         )
 
         expected_inputs = model_config.create_encodings(
@@ -962,12 +962,12 @@ class TestApplicationCommon(unittest.TestCase):
             queries=["this is a test"], docs=[fields_to_send["title"]]
         )
         self.assertAlmostEqual(
-            result.hits[0]["fields"]["summaryfeatures"]["rankingExpression(logit0)"],
+            result.hits[0]["fields"]["summaryfeatures"]["logit0"],
             expected_logits[0][0],
             5,
         )
         self.assertAlmostEqual(
-            result.hits[0]["fields"]["summaryfeatures"]["rankingExpression(logit1)"],
+            result.hits[0]["fields"]["summaryfeatures"]["logit1"],
             expected_logits[0][1],
             5,
         )
@@ -1000,7 +1000,7 @@ class TestMsmarcoDockerDeployment(TestDockerCommon):
         )
 
     def tearDown(self) -> None:
-        self.vespa_docker.container.stop()
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
 
 
@@ -1012,7 +1012,7 @@ class TestCord19DockerDeployment(TestDockerCommon):
         self.deploy(application_package=self.app_package)
 
     def tearDown(self) -> None:
-        self.vespa_docker.container.stop()
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
 
 
@@ -1022,7 +1022,7 @@ class TestQaDockerDeployment(TestDockerCommon):
 
     def test_deploy(self):
         self.deploy(application_package=self.app_package)
-        self.vespa_docker.container.stop()
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
 
     def test_deploy_image(self):
@@ -1030,7 +1030,7 @@ class TestQaDockerDeployment(TestDockerCommon):
             application_package=self.app_package,
             container_image="vespaengine/vespa:7.566.21",
         )
-        self.vespa_docker.container.stop()
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
 
 
@@ -1127,7 +1127,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
         )
 
     def tearDown(self) -> None:
-        self.vespa_docker.container.stop()
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
 
 
@@ -1158,13 +1158,8 @@ class TestCord19Application(TestApplicationCommon):
             expected_fields.update(
                 {
                     "pretrained_bert_tiny_doc_token_ids": {
-                        "cells": [
-                            {
-                                "address": {"d0": str(x)},
-                                "value": float(tensor_field_values[x]),
-                            }
-                            for x in range(len(tensor_field_values))
-                        ]
+                        "type": f"tensor<float>(d0[{len(tensor_field_values)}])",
+                        "values": tensor_field_values,
                     }
                 }
             )
@@ -1317,7 +1312,7 @@ class TestCord19Application(TestApplicationCommon):
         )
 
     def tearDown(self) -> None:
-        self.vespa_docker.container.stop()
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
         try:
             os.remove(os.path.join(os.environ["RESOURCES_DIR"], "vespa_features.csv"))
@@ -1350,10 +1345,8 @@ class TestQaApplication(TestApplicationCommon):
                 "dataset": d["dataset"],
                 "context_id": d["context_id"],
                 "sentence_embedding": {
-                    "cells": [
-                        {"address": {"x": str(idx)}, "value": value}
-                        for idx, value in enumerate(d["sentence_embedding"]["values"])
-                    ]
+                    "type": f"tensor<float>(x[{len(d['sentence_embedding']['values'])}])",
+                    "values": d["sentence_embedding"]["values"],
                 },
             }
             if len(d["questions"]) > 0:
@@ -1431,7 +1424,7 @@ class TestQaApplication(TestApplicationCommon):
         )
 
     def tearDown(self) -> None:
-        self.vespa_docker.container.stop()
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
 
 
@@ -1479,7 +1472,7 @@ class TestGalleryTextSearch(unittest.TestCase):
             self.assertIn("fields", hit)
 
     def tearDown(self) -> None:
-        self.vespa_docker.container.stop()
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
 
 
@@ -1496,10 +1489,10 @@ class TestSequenceClassification(TestApplicationCommon):
         )
 
     def test_prediction(self):
-            self.get_stateless_prediction(
+        self.get_stateless_prediction(
             app=self.app, application_package=self.app_package
         )
 
     def tearDown(self) -> None:
-        self.vespa_docker.container.stop()
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
