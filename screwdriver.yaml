@@ -100,6 +100,7 @@ jobs:
           find docs -name '*.ipynb' ! -name '*cloud*.ipynb'
           for notebook in `find docs/sphinx/source -name '*.ipynb' -and \
             ! -name '*cloud*.ipynb' -and \
+            ! -name '*ignore*.ipynb' -and \
             ! -path '*/.ipynb_checkpoints/*' -and \
             ! -name 'image-search-scratch.ipynb'`; \
             do echo -e "**********\n*** Running $notebook ***\n**********"; \
