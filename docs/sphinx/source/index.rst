@@ -17,6 +17,7 @@ Vespa python API
    exchange-data-with-app
    collect-training-data
    evaluation
+   learning-to-rank-ignore
    usecases
    reference-api
 
