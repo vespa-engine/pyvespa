@@ -539,7 +539,7 @@ class Vespa(object):
                     len(mini_batches),
                 )
             )
-        return 0
+        return feed_results
 
     def feed_df(self, df: DataFrame, include_id: bool = True, **kwargs):
         """
