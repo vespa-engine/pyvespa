@@ -521,6 +521,7 @@ class Vespa(object):
         mini_batches = [
             batch[i : i + batch_size] for i in range(0, len(batch), batch_size)
         ]
+        batch_http_responses = []
         for idx, mini_batch in enumerate(mini_batches):
             feed_results = self._feed_batch(
                 batch=mini_batch,
@@ -530,6 +531,7 @@ class Vespa(object):
                 total_timeout=total_timeout,
                 namespace=namespace,
             )
+            batch_http_responses.extend(feed_results)
             status_code_summary = Counter([x.status_code for x in feed_results])
             print(
                 "Successful documents fed: {}/{}.\nBatch progress: {}/{}.".format(
@@ -539,7 +541,7 @@ class Vespa(object):
                     len(mini_batches),
                 )
             )
-        return 0
+        return batch_http_responses
 
     def feed_df(self, df: DataFrame, include_id: bool = True, **kwargs):
         """
