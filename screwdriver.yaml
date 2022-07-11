@@ -93,7 +93,7 @@ jobs:
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
       - install-openmp: |
           # required for using lightgbm
-          - dnf install -y libgomp
+          dnf install -y libgomp
       - run-notebooks-except-cloud-related: |
           #
           # Exclude non-testable notebooks below
