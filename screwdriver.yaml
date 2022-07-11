@@ -91,6 +91,8 @@ jobs:
           python3 -m pip install -e .[full]
           python3 -m pip install -r docs/sphinx/source/requirements.txt
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
+      - install-openmp: |
+          - dnf install -y libgomp
       - run-notebooks-except-cloud-related: |
           #
           # Exclude non-testable notebooks below
