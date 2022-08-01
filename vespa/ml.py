@@ -100,8 +100,8 @@ class TextTask(Task):
         pipeline = self._create_pipeline()
         predictions = pipeline(text)
         return [
-            [x["score"] for x in predictions if x["label"] == "LABEL_0"][0],
-            [x["score"] for x in predictions if x["label"] == "LABEL_1"][0],
+            [x["score"] for x in predictions[0] if x["label"] == "LABEL_0"][0],
+            [x["score"] for x in predictions[0] if x["label"] == "LABEL_1"][0],
         ]
 
     @staticmethod
