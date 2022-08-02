@@ -16,3 +16,4 @@ This space will highlight use cases built with Vespa_.
    use_cases/sequence-classification-task
    use_cases/lightgbm-with-categorical
    use_cases/lightgbm-with-categorical-mapping
+   use_cases/tensorflow-via-onnx
