@@ -91,7 +91,7 @@ class OR(MatchFilter):
         super().__init__()
 
     def create_match_filter(self, query: str) -> str:
-        return '([{{"grammar": "any"}}]userInput("{}"))'.format(query)
+        return '({{grammar: "any"}}userInput("{}"))'.format(query)
 
     def get_query_properties(self, query: Optional[str] = None) -> Dict:
         return {}
@@ -116,7 +116,7 @@ class WeakAnd(MatchFilter):
         terms = ", ".join(
             ['{} contains "{}"'.format(self.field, token) for token in query_tokens]
         )
-        return '([{{"targetNumHits": {}}}]weakAnd({}))'.format(self.hits, terms)
+        return '({{targetNumHits: {}}}weakAnd({}))'.format(self.hits, terms)
 
     def get_query_properties(self, query: Optional[str] = None) -> Dict:
         return {}
@@ -151,7 +151,7 @@ class ANN(MatchFilter):
         self._approximate = "true" if self.approximate is True else "false"
 
     def create_match_filter(self, query: str) -> str:
-        return '([{{"targetNumHits": {}, "label": "{}", "approximate": {}}}]nearestNeighbor({}, {}))'.format(
+        return '({{targetNumHits: {}, label: "{}", approximate: {}}}nearestNeighbor({}, {}))'.format(
             self.hits, self.label, self._approximate, self.doc_vector, self.query_vector
         )
 
