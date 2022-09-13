@@ -90,7 +90,7 @@ class TestVespaQuery(unittest.TestCase):
                 hits=10,
             ).request_body,
             {
-                "yql": 'select * from sources * where ([{"grammar": "any"}]userInput("this is a test"));',
+                "yql": 'select * from sources * where ({grammar: "any"}userInput("this is a test"));',
                 "ranking": {"profile": "default", "listFeatures": "false"},
                 "hits": 10,
             },
@@ -105,7 +105,7 @@ class TestVespaQuery(unittest.TestCase):
                 recall=("id", [1, 5]),
             ).request_body,
             {
-                "yql": 'select * from sources * where ([{"grammar": "any"}]userInput("this is a test"));',
+                "yql": 'select * from sources * where ({grammar: "any"}userInput("this is a test"));',
                 "ranking": {"profile": "default", "listFeatures": "false"},
                 "hits": 10,
                 "recall": "+(id:1 id:5)",

@@ -47,7 +47,7 @@ class TestMatchFilter(unittest.TestCase):
         match_filter = OR()
         self.assertEqual(
             match_filter.create_match_filter(query=self.query),
-            '([{"grammar": "any"}]userInput("this is  a test"))',
+            '({grammar: "any"}userInput("this is  a test"))',
         )
         self.assertDictEqual(match_filter.get_query_properties(query=self.query), {})
 
@@ -55,7 +55,7 @@ class TestMatchFilter(unittest.TestCase):
         match_filter = WeakAnd(hits=10, field="field_name")
         self.assertEqual(
             match_filter.create_match_filter(query=self.query),
-            '([{"targetNumHits": 10}]weakAnd(field_name contains "this", field_name contains "is", field_name contains "", '
+            '({targetHits: 10}weakAnd(field_name contains "this", field_name contains "is", field_name contains "", '
             'field_name contains "a", field_name contains "test"))',
         )
         self.assertDictEqual(match_filter.get_query_properties(query=self.query), {})
@@ -69,7 +69,7 @@ class TestMatchFilter(unittest.TestCase):
         )
         self.assertEqual(
             match_filter.create_match_filter(query=self.query),
-            '([{"targetNumHits": 10, "label": "label", "approximate": true}]nearestNeighbor(doc_vector, query_vector))',
+            '({targetHits: 10, label: "label", approximate: true}nearestNeighbor(doc_vector, query_vector))',
         )
         self.assertDictEqual(
             match_filter.get_query_properties(query=self.query),
@@ -85,7 +85,7 @@ class TestMatchFilter(unittest.TestCase):
         )
         self.assertEqual(
             match_filter.create_match_filter(query=self.query),
-            '([{"targetNumHits": 10, "label": "label", "approximate": false}]nearestNeighbor(doc_vector, query_vector))',
+            '({targetHits: 10, label: "label", approximate: false}nearestNeighbor(doc_vector, query_vector))',
         )
         self.assertDictEqual(
             match_filter.get_query_properties(query=self.query),
@@ -104,10 +104,10 @@ class TestMatchFilter(unittest.TestCase):
         )
         self.assertEqual(
             match_filter.create_match_filter(query=self.query),
-            '([{"targetNumHits": 10}]weakAnd(field_name contains "this", field_name contains "is", '
+            '({targetHits: 10}weakAnd(field_name contains "this", field_name contains "is", '
             'field_name contains "", '
             'field_name contains "a", field_name contains "test")) or '
-            '([{"targetNumHits": 10, "label": "label", "approximate": true}]nearestNeighbor(doc_vector, query_vector))',
+            '({targetHits: 10, label: "label", approximate: true}nearestNeighbor(doc_vector, query_vector))',
         )
         self.assertDictEqual(
             match_filter.get_query_properties(query=self.query),
@@ -169,7 +169,7 @@ class TestQuery(unittest.TestCase):
         self.assertDictEqual(
             query_model.create_body(query=self.query),
             {
-                "yql": 'select * from sources * where ([{"grammar": "any"}]userInput("this is  a test"));',
+                "yql": 'select * from sources * where ({grammar: "any"}userInput("this is  a test"));',
                 "ranking": {"profile": "bm25", "listFeatures": "true"},
                 "ranking.features.query(query_vector)": "[1, 2, 3]",
             },
@@ -190,7 +190,7 @@ class TestQuery(unittest.TestCase):
         self.assertDictEqual(
             query_model.create_body(query=self.query),
             {
-                "yql": 'select * from sources * where ([{"targetNumHits": 10, "label": "label", "approximate": true}]nearestNeighbor(doc_vector, query_vector));',
+                "yql": 'select * from sources * where ({targetHits: 10, label: "label", approximate: true}nearestNeighbor(doc_vector, query_vector));',
                 "ranking": {"profile": "bm25", "listFeatures": "true"},
                 "ranking.features.query(query_vector)": "[1, 2, 3]",
             },
