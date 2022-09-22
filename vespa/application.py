@@ -1240,94 +1240,94 @@ class Vespa(object):
             )
         return evaluation
 
-    def evaluate(
-        self,
-        labeled_data: Union[List[Dict], DataFrame],
-        eval_metrics: List[EvalMetric],
-        query_model: Union[QueryModel, List[QueryModel]],
-        id_field: str,
-        default_score: int = 0,
-        detailed_metrics=False,
-        per_query=False,
-        aggregators=None,
-        **kwargs,
-    ) -> DataFrame:
-        """
-        Evaluate a :class:`QueryModel` according to a list of :class:`EvalMetric`.
-
-        labeled_data can be a DataFrame or a List of Dict:
-
-        >>> labeled_data_df = DataFrame(
-        ...     data={
-        ...         "qid": [0, 0, 1, 1],
-        ...         "query": ["Intrauterine virus infections and congenital heart disease", "Intrauterine virus infections and congenital heart disease", "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus", "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus"],
-        ...         "doc_id": [0, 3, 1, 5],
-        ...         "relevance": [1,1,1,1]
-        ...     }
-        ... )
-
-        >>> labeled_data = [
-        ...     {
-        ...         "query_id": 0,
-        ...         "query": "Intrauterine virus infections and congenital heart disease",
-        ...         "relevant_docs": [{"id": 0, "score": 1}, {"id": 3, "score": 1}]
-        ...     },
-        ...     {
-        ...         "query_id": 1,
-        ...         "query": "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus",
-        ...         "relevant_docs": [{"id": 1, "score": 1}, {"id": 5, "score": 1}]
-        ...     }
-        ... ]
-
-        :param labeled_data: Labelled data containing query, query_id and relevant ids. See details about data format.
-        :param eval_metrics: A list of evaluation metrics.
-        :param query_model: Accept a Query model or a list of Query Models.
-        :param id_field: The Vespa field representing the document id.
-        :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
-        :param detailed_metrics: Return intermediate computations if available.
-        :param per_query: Set to True to return evaluation metrics per query.
-        :param aggregators: Used only if `per_query=False`. List of pandas friendly aggregators to summarize per model
-            metrics. We use ["mean", "median", "std"] by default.
-        :param kwargs: Extra keyword arguments to be included in the Vespa Query.
-        :return: DataFrame containing query_id and metrics according to the selected evaluation metrics.
-        """
-        if isinstance(labeled_data, DataFrame):
-            labeled_data = parse_labeled_data(df=labeled_data)
-
-        if isinstance(query_model, QueryModel):
-            query_model = [query_model]
-
-        model_names = [model.name for model in query_model]
-        assert len(model_names) == len(
-            set(model_names)
-        ), "Duplicate model names. Choose unique model names."
-
-        evaluation = []
-        for query_data in labeled_data:
-            for model in query_model:
-                evaluation_query = self.evaluate_query(
-                    eval_metrics=eval_metrics,
-                    query_model=model,
-                    query_id=query_data["query_id"],
-                    query=query_data["query"],
-                    id_field=id_field,
-                    relevant_docs=query_data["relevant_docs"],
-                    default_score=default_score,
-                    detailed_metrics=detailed_metrics,
-                    **kwargs,
-                )
-                evaluation.append(evaluation_query)
-        evaluation = DataFrame.from_records(evaluation)
-        if not per_query:
-            if not aggregators:
-                aggregators = ["mean", "median", "std"]
-            evaluation = (
-                evaluation[[x for x in evaluation.columns if x != "query_id"]]
-                .groupby(by="model")
-                .agg(aggregators)
-                .T
-            )
-        return evaluation
+    # def evaluate(
+    #     self,
+    #     labeled_data: Union[List[Dict], DataFrame],
+    #     eval_metrics: List[EvalMetric],
+    #     query_model: Union[QueryModel, List[QueryModel]],
+    #     id_field: str,
+    #     default_score: int = 0,
+    #     detailed_metrics=False,
+    #     per_query=False,
+    #     aggregators=None,
+    #     **kwargs,
+    # ) -> DataFrame:
+    #     """
+    #     Evaluate a :class:`QueryModel` according to a list of :class:`EvalMetric`.
+    #
+    #     labeled_data can be a DataFrame or a List of Dict:
+    #
+    #     >>> labeled_data_df = DataFrame(
+    #     ...     data={
+    #     ...         "qid": [0, 0, 1, 1],
+    #     ...         "query": ["Intrauterine virus infections and congenital heart disease", "Intrauterine virus infections and congenital heart disease", "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus", "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus"],
+    #     ...         "doc_id": [0, 3, 1, 5],
+    #     ...         "relevance": [1,1,1,1]
+    #     ...     }
+    #     ... )
+    #
+    #     >>> labeled_data = [
+    #     ...     {
+    #     ...         "query_id": 0,
+    #     ...         "query": "Intrauterine virus infections and congenital heart disease",
+    #     ...         "relevant_docs": [{"id": 0, "score": 1}, {"id": 3, "score": 1}]
+    #     ...     },
+    #     ...     {
+    #     ...         "query_id": 1,
+    #     ...         "query": "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus",
+    #     ...         "relevant_docs": [{"id": 1, "score": 1}, {"id": 5, "score": 1}]
+    #     ...     }
+    #     ... ]
+    #
+    #     :param labeled_data: Labelled data containing query, query_id and relevant ids. See details about data format.
+    #     :param eval_metrics: A list of evaluation metrics.
+    #     :param query_model: Accept a Query model or a list of Query Models.
+    #     :param id_field: The Vespa field representing the document id.
+    #     :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
+    #     :param detailed_metrics: Return intermediate computations if available.
+    #     :param per_query: Set to True to return evaluation metrics per query.
+    #     :param aggregators: Used only if `per_query=False`. List of pandas friendly aggregators to summarize per model
+    #         metrics. We use ["mean", "median", "std"] by default.
+    #     :param kwargs: Extra keyword arguments to be included in the Vespa Query.
+    #     :return: DataFrame containing query_id and metrics according to the selected evaluation metrics.
+    #     """
+    #     if isinstance(labeled_data, DataFrame):
+    #         labeled_data = parse_labeled_data(df=labeled_data)
+    #
+    #     if isinstance(query_model, QueryModel):
+    #         query_model = [query_model]
+    #
+    #     model_names = [model.name for model in query_model]
+    #     assert len(model_names) == len(
+    #         set(model_names)
+    #     ), "Duplicate model names. Choose unique model names."
+    #
+    #     evaluation = []
+    #     for query_data in labeled_data:
+    #         for model in query_model:
+    #             evaluation_query = self.evaluate_query(
+    #                 eval_metrics=eval_metrics,
+    #                 query_model=model,
+    #                 query_id=query_data["query_id"],
+    #                 query=query_data["query"],
+    #                 id_field=id_field,
+    #                 relevant_docs=query_data["relevant_docs"],
+    #                 default_score=default_score,
+    #                 detailed_metrics=detailed_metrics,
+    #                 **kwargs,
+    #             )
+    #             evaluation.append(evaluation_query)
+    #     evaluation = DataFrame.from_records(evaluation)
+    #     if not per_query:
+    #         if not aggregators:
+    #             aggregators = ["mean", "median", "std"]
+    #         evaluation = (
+    #             evaluation[[x for x in evaluation.columns if x != "query_id"]]
+    #             .groupby(by="model")
+    #             .agg(aggregators)
+    #             .T
+    #         )
+    #     return evaluation
 
     @property
     def application_package(self):
