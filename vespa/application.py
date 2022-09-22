@@ -1199,46 +1199,46 @@ class Vespa(object):
             )
         return 0
 
-    def evaluate_query(
-        self,
-        eval_metrics: List[EvalMetric],
-        query_model: QueryModel,
-        query_id: str,
-        query: str,
-        id_field: str,
-        relevant_docs: List[Dict],
-        default_score: int = 0,
-        detailed_metrics=False,
-        **kwargs,
-    ) -> Dict:
-        """
-        Evaluate a query according to evaluation metrics
-
-        :param eval_metrics: A list of evaluation metrics.
-        :param query_model: Query model.
-        :param query_id: Query id represented as str.
-        :param query: Query string.
-        :param id_field: The Vespa field representing the document id.
-        :param relevant_docs: A list with dicts where each dict contains a doc id a optionally a doc score.
-        :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
-        :param detailed_metrics: Return intermediate computations if available.
-        :param kwargs: Extra keyword arguments to be included in the Vespa Query.
-        :return: Dict containing query_id and metrics according to the selected evaluation metrics.
-        """
-
-        query_results = self.query(query=query, query_model=query_model, **kwargs)
-        evaluation = {"model": query_model.name, "query_id": query_id}
-        for evaluator in eval_metrics:
-            evaluation.update(
-                evaluator.evaluate_query(
-                    query_results,
-                    relevant_docs,
-                    id_field,
-                    default_score,
-                    detailed_metrics,
-                )
-            )
-        return evaluation
+    # def evaluate_query(
+    #     self,
+    #     eval_metrics: List[EvalMetric],
+    #     query_model: QueryModel,
+    #     query_id: str,
+    #     query: str,
+    #     id_field: str,
+    #     relevant_docs: List[Dict],
+    #     default_score: int = 0,
+    #     detailed_metrics=False,
+    #     **kwargs,
+    # ) -> Dict:
+    #     """
+    #     Evaluate a query according to evaluation metrics
+    #
+    #     :param eval_metrics: A list of evaluation metrics.
+    #     :param query_model: Query model.
+    #     :param query_id: Query id represented as str.
+    #     :param query: Query string.
+    #     :param id_field: The Vespa field representing the document id.
+    #     :param relevant_docs: A list with dicts where each dict contains a doc id a optionally a doc score.
+    #     :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
+    #     :param detailed_metrics: Return intermediate computations if available.
+    #     :param kwargs: Extra keyword arguments to be included in the Vespa Query.
+    #     :return: Dict containing query_id and metrics according to the selected evaluation metrics.
+    #     """
+    #
+    #     query_results = self.query(query=query, query_model=query_model, **kwargs)
+    #     evaluation = {"model": query_model.name, "query_id": query_id}
+    #     for evaluator in eval_metrics:
+    #         evaluation.update(
+    #             evaluator.evaluate_query(
+    #                 query_results,
+    #                 relevant_docs,
+    #                 id_field,
+    #                 default_score,
+    #                 detailed_metrics,
+    #             )
+    #         )
+    #     return evaluation
 
     # def evaluate(
     #     self,
