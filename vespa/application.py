@@ -8,6 +8,7 @@ import asyncio
 import concurrent.futures
 from collections import Counter
 from typing import Optional, Dict, Tuple, List, IO, Union
+import warnings
 
 import requests
 from pandas import DataFrame
@@ -1225,7 +1226,11 @@ class Vespa(object):
         :param kwargs: Extra keyword arguments to be included in the Vespa Query.
         :return: Dict containing query_id and metrics according to the selected evaluation metrics.
         """
-
+        warnings.warn(
+            "vespa.application.Vespa.evaluate_query is deprecated, "
+            "use learntorank.evaluation.evaluate_query from the learntorank library instead.",
+            DeprecationWarning,
+        )
         query_results = self.query(query=query, query_model=query_model, **kwargs)
         evaluation = {"model": query_model.name, "query_id": query_id}
         for evaluator in eval_metrics:
@@ -1291,6 +1296,12 @@ class Vespa(object):
         :param kwargs: Extra keyword arguments to be included in the Vespa Query.
         :return: DataFrame containing query_id and metrics according to the selected evaluation metrics.
         """
+        warnings.warn(
+            "vespa.application.Vespa.evaluate is deprecated, "
+            "use learntorank.evaluation.evaluate from the learntorank library instead.",
+            DeprecationWarning,
+        )
+
         if isinstance(labeled_data, DataFrame):
             labeled_data = parse_labeled_data(df=labeled_data)
 

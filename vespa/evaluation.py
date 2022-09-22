@@ -1,8 +1,15 @@
 # Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import math
+import warnings
 from typing import Dict, List
 from vespa.io import VespaQueryResponse
+
+warnings.warn(
+    "the vespa.evaluation module is deprecated, use learntorank.evaluation module "
+    "from the learntorank library instead.",
+    DeprecationWarning,
+)
 
 
 class EvalMetric(object):
@@ -98,7 +105,11 @@ class Recall(EvalMetric):
         :return: Dict containing the recall value.
         """
 
-        relevant_ids = {str(doc["id"]) for doc in relevant_docs if doc.get("score", default_score) > 0}
+        relevant_ids = {
+            str(doc["id"])
+            for doc in relevant_docs
+            if doc.get("score", default_score) > 0
+        }
         try:
             retrieved_ids = {
                 str(hit["fields"][id_field]) for hit in query_results.hits[: self.at]
@@ -106,7 +117,11 @@ class Recall(EvalMetric):
         except KeyError:
             retrieved_ids = set()
 
-        return {str(self.name): len(relevant_ids & retrieved_ids) / len(relevant_ids) if len(relevant_ids) > 0 else 0}
+        return {
+            str(self.name): len(relevant_ids & retrieved_ids) / len(relevant_ids)
+            if len(relevant_ids) > 0
+            else 0
+        }
 
 
 class ReciprocalRank(EvalMetric):
@@ -141,7 +156,11 @@ class ReciprocalRank(EvalMetric):
         :return: Dict containing the reciprocal rank value.
         """
 
-        relevant_ids = {str(doc["id"]) for doc in relevant_docs if doc.get("score", default_score) > 0}
+        relevant_ids = {
+            str(doc["id"])
+            for doc in relevant_docs
+            if doc.get("score", default_score) > 0
+        }
         rr = 0
         hits = query_results.hits[: self.at]
         for index, hit in enumerate(hits):

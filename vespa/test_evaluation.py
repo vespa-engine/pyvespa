@@ -4,7 +4,7 @@ import unittest
 import math
 
 from vespa.io import VespaQueryResponse
-from vespa.evaluation import (
+from learntorank.evaluation import (
     MatchRatio,
     Recall,
     ReciprocalRank,

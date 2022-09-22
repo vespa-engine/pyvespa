@@ -13,7 +13,7 @@ from vespa.query import (
     OR,
     RankProfile as Ranking,
 )
-from vespa.evaluation import MatchRatio, Recall, ReciprocalRank
+from learntorank.evaluation import MatchRatio, Recall, ReciprocalRank, evaluate
 
 
 class TestRunningInstance(unittest.TestCase):
@@ -108,26 +108,30 @@ class TestRunningInstance(unittest.TestCase):
         # Evaluate a query model
         #
         eval_metrics = [MatchRatio(), Recall(at=10), ReciprocalRank(at=10)]
-        evaluation = app.evaluate(
+        evaluation = evaluate(
+            app=app,
             labeled_data=labeled_data,
             eval_metrics=eval_metrics,
             query_model=query_model,
             id_field="id",
         )
+
         self.assertEqual(evaluation.shape, (9, 1))
 
         #
         # AssertionError - two models with the same name
         #
         with self.assertRaises(AssertionError):
-            _ = app.evaluate(
+            _ = evaluate(
+                app=app,
                 labeled_data=labeled_data,
                 eval_metrics=eval_metrics,
                 query_model=[QueryModel(), QueryModel(), query_model],
                 id_field="id",
             )
 
-        evaluation = app.evaluate(
+        evaluation = evaluate(
+            app=app,
             labeled_data=labeled_data,
             eval_metrics=eval_metrics,
             query_model=[QueryModel(), query_model],
@@ -135,7 +139,8 @@ class TestRunningInstance(unittest.TestCase):
         )
         self.assertEqual(evaluation.shape, (9, 2))
 
-        evaluation = app.evaluate(
+        evaluation = evaluate(
+            app=app,
             labeled_data=labeled_data_df,
             eval_metrics=eval_metrics,
             query_model=query_model,
@@ -144,7 +149,8 @@ class TestRunningInstance(unittest.TestCase):
         )
         self.assertEqual(evaluation.shape, (15, 1))
 
-        evaluation = app.evaluate(
+        evaluation = evaluate(
+            app=app,
             labeled_data=labeled_data_df,
             eval_metrics=eval_metrics,
             query_model=query_model,
@@ -187,7 +193,7 @@ class TestRunningInstance(unittest.TestCase):
             query_model=query_model,
             number_additional_docs=2,
             fields=["rankfeatures"],
-            keep_features=["textSimilarity(title).score"]
+            keep_features=["textSimilarity(title).score"],
         )
         self.assertTrue(rank_features.shape[0] > 4)
         # It should have at least one rank feature in addition to document_id, query_id and	label
