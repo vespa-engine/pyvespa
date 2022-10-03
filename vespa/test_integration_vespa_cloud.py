@@ -6,7 +6,6 @@ import unittest
 from pandas import DataFrame
 from cryptography.hazmat.primitives import serialization
 from vespa.application import Vespa
-from vespa.query import QueryModel, OR
 from vespa.gallery import TextSearch
 from vespa.deployment import VespaCloud
 from vespa.test_integration_docker import (
@@ -16,6 +15,7 @@ from vespa.test_integration_docker import (
     create_qa_application_package,
     create_sequence_classification_task,
 )
+from learntorank.query import QueryModel, OR
 
 CFG_SERVER_START_TIMEOUT = 300
 APP_INIT_TIMEOUT = 300

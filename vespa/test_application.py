@@ -8,7 +8,7 @@ from pandas.testing import assert_frame_equal
 from vespa.package import ApplicationPackage, ModelServer, Schema, Document
 from vespa.application import Vespa, parse_labeled_data, parse_feed_df
 from vespa.io import VespaQueryResponse
-from vespa.query import QueryModel, OR, RankProfile
+from learntorank.query import QueryModel, OR, Ranking
 
 
 class TestVespa(unittest.TestCase):
@@ -85,7 +85,7 @@ class TestVespaQuery(unittest.TestCase):
         self.assertDictEqual(
             app.query(
                 query="this is a test",
-                query_model=QueryModel(match_phase=OR(), rank_profile=RankProfile()),
+                query_model=QueryModel(match_phase=OR(), ranking=Ranking()),
                 debug_request=True,
                 hits=10,
             ).request_body,
@@ -99,7 +99,7 @@ class TestVespaQuery(unittest.TestCase):
         self.assertDictEqual(
             app.query(
                 query="this is a test",
-                query_model=QueryModel(match_phase=OR(), rank_profile=RankProfile()),
+                query_model=QueryModel(match_phase=OR(), ranking=Ranking()),
                 debug_request=True,
                 hits=10,
                 recall=("id", [1, 5]),
@@ -330,7 +330,7 @@ class TestVespaCollectData(unittest.TestCase):
                 ),
             ]
         )
-        query_model = QueryModel(rank_profile=RankProfile(list_features=True))
+        query_model = QueryModel(ranking=Ranking(list_features=True))
         data = self.app.collect_training_data_point(
             query="this is a query",
             query_id="123",
@@ -399,7 +399,7 @@ class TestVespaCollectData(unittest.TestCase):
                 ),
             ]
         )
-        query_model = QueryModel(rank_profile=RankProfile(list_features=True))
+        query_model = QueryModel(ranking=Ranking(list_features=True))
         data = self.app.collect_training_data_point(
             query="this is a query",
             query_id="123",
@@ -480,7 +480,7 @@ class TestVespaCollectData(unittest.TestCase):
                 ),
             ]
         )
-        query_model = QueryModel(rank_profile=RankProfile(list_features=True))
+        query_model = QueryModel(ranking=Ranking(list_features=True))
         data = self.app.collect_training_data_point(
             query="this is a query",
             query_id="123",
@@ -539,7 +539,7 @@ class TestVespaCollectData(unittest.TestCase):
                 "relevant_docs": [{"id": "abc", "score": 1}],
             }
         ]
-        query_model = QueryModel(rank_profile=RankProfile(list_features=True))
+        query_model = QueryModel(ranking=Ranking(list_features=True))
         data = self.app.collect_training_data(
             labeled_data=labeled_data,
             id_field="vespa_id_field",
