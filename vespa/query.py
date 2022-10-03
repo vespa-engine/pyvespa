@@ -1,7 +1,13 @@
 # Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
+import warnings
 from typing import Callable, List, Optional, Dict
 
+warnings.warn(
+    "the vespa.query module is deprecated, use learntorank.query module "
+    "from the learntorank library instead.",
+    DeprecationWarning,
+)
 
 #
 # Query property

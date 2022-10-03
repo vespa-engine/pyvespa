@@ -18,9 +18,9 @@ from vespa.package import (
 )
 from vespa.deployment import VespaDocker
 from vespa.ml import BertModelConfig, SequenceClassification
-from vespa.query import QueryModel, RankProfile as Ranking, OR, QueryRankingFeature
 from vespa.gallery import QuestionAnswering, TextSearch
 from vespa.application import VespaSync
+from learntorank.query import QueryModel, Ranking, OR, QueryRankingFeature
 
 CONTAINER_STOP_TIMEOUT = 600
 
@@ -940,7 +940,7 @@ class TestApplicationCommon(unittest.TestCase):
                     )
                 ],
                 match_phase=OR(),
-                rank_profile=Ranking(name="pretrained_bert_tiny"),
+                ranking=Ranking(name="pretrained_bert_tiny"),
             ),
         )
         vespa_input_ids = self._parse_vespa_tensor(result.hits[0], "input_ids")
@@ -1056,7 +1056,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
         ]
         self.query_batch = ["Give me title 1", "Give me title 2"]
         self.query_model = QueryModel(
-            match_phase=OR(), rank_profile=Ranking(name="default", list_features=False)
+            match_phase=OR(), ranking=Ranking(name="default", list_features=False)
         )
         self.queries_first_hit = ["this is title 1", "this is title 2"]
 
@@ -1190,7 +1190,7 @@ class TestCord19Application(TestApplicationCommon):
             relevant_id="1",
             id_field="id",
             query_model=QueryModel(
-                match_phase=OR(), rank_profile=Ranking(name="bm25", list_features=True)
+                match_phase=OR(), ranking=Ranking(name="bm25", list_features=True)
             ),
             number_additional_docs=10,
             fields=["rankfeatures", "summaryfeatures"],
@@ -1230,7 +1230,7 @@ class TestCord19Application(TestApplicationCommon):
             labeled_data=labeled_data,
             id_field="id",
             query_model=QueryModel(
-                match_phase=OR(), rank_profile=Ranking(name="bm25", list_features=True)
+                match_phase=OR(), ranking=Ranking(name="bm25", list_features=True)
             ),
             number_additional_docs=2,
             fields=["rankfeatures", "summaryfeatures"],

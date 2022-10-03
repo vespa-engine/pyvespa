@@ -4,7 +4,7 @@ import unittest
 from pandas import DataFrame
 from pandas.testing import assert_frame_equal
 
-from vespa.query import (
+from learntorank.query import (
     QueryModel,
     QueryRankingFeature,
     OR,
@@ -12,7 +12,7 @@ from vespa.query import (
     WeakAnd,
     ANN,
     Union,
-    RankProfile,
+    Ranking,
 )
 from vespa.io import VespaQueryResponse
 
@@ -117,7 +117,7 @@ class TestMatchFilter(unittest.TestCase):
 
 class TestRankProfile(unittest.TestCase):
     def test_rank_profile(self):
-        rank_profile = RankProfile(name="rank_profile", list_features=True)
+        rank_profile = Ranking(name="rank_profile", list_features=True)
         self.assertEqual(rank_profile.name, "rank_profile")
         self.assertEqual(rank_profile.list_features, "true")
 
@@ -164,7 +164,7 @@ class TestQuery(unittest.TestCase):
                 QueryRankingFeature(name="query_vector", mapping=lambda x: [1, 2, 3])
             ],
             match_phase=OR(),
-            rank_profile=RankProfile(name="bm25", list_features=True),
+            ranking=Ranking(name="bm25", list_features=True),
         )
         self.assertDictEqual(
             query_model.create_body(query=self.query),
@@ -185,7 +185,7 @@ class TestQuery(unittest.TestCase):
                 hits=10,
                 label="label",
             ),
-            rank_profile=RankProfile(name="bm25", list_features=True),
+            ranking=Ranking(name="bm25", list_features=True),
         )
         self.assertDictEqual(
             query_model.create_body(query=self.query),
