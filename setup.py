@@ -30,6 +30,7 @@ setuptools.setup(
         "cryptography",
         "aiohttp",
         "tenacity",
+        "learntorank"
     ],
     extras_require={
         "ml": ["transformers", "torch", "tensorflow", "tensorflow_ranking", "keras_tuner"],
