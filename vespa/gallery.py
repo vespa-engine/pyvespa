@@ -12,7 +12,7 @@ from vespa.package import (
     QueryProfileType,
     QueryTypeField,
 )
-from vespa.query import QueryModel, AND, RankProfile as Ranking
+from learntorank.query import QueryModel, AND, Ranking
 
 
 class TextSearch(ApplicationPackage):
@@ -58,7 +58,7 @@ class TextSearch(ApplicationPackage):
             name=name,
             schema=[schema],
             default_query_model=QueryModel(
-                name="and_bm25", match_phase=AND(), rank_profile=Ranking(name="bm25")
+                name="and_bm25", match_phase=AND(), ranking=Ranking(name="bm25")
             ),
         )
 

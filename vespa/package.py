@@ -9,7 +9,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 from io import BytesIO
 
 from vespa.json_serialization import ToJson, FromJson
-from vespa.query import QueryModel
+from learntorank.query import QueryModel
 
 
 class HNSW(ToJson, FromJson["HNSW"]):

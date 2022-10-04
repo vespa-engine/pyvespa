@@ -20,7 +20,7 @@ from tenacity import retry, wait_exponential, stop_after_attempt
 from time import sleep
 
 from vespa.io import VespaQueryResponse, VespaResponse
-from vespa.query import QueryModel
+from learntorank.query import QueryModel
 from vespa.package import ApplicationPackage
 
 retry_strategy = Retry(
