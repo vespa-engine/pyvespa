@@ -8,7 +8,7 @@ from pandas.testing import assert_frame_equal
 from vespa.package import ApplicationPackage, ModelServer, Schema, Document
 from vespa.application import Vespa, parse_labeled_data, parse_feed_df
 from vespa.io import VespaQueryResponse
-from learntorank.query import QueryModel, OR, Ranking
+from learntorank.query import QueryModel, Ranking
 
 
 class TestVespa(unittest.TestCase):
@@ -71,78 +71,6 @@ class TestVespa(unittest.TestCase):
         app = Vespa(url="http://localhost", port=8080, application_package=app_package)
         schema_name = app._infer_schema_name()
         self.assertEqual("x", schema_name)
-
-
-class TestVespaQuery(unittest.TestCase):
-    def test_query(self):
-        app = Vespa(url="http://localhost", port=8080)
-
-        body = {"yql": "select * from sources * where test"}
-        self.assertDictEqual(
-            app.query(body=body, debug_request=True).request_body, body
-        )
-
-        self.assertDictEqual(
-            app.query(
-                query="this is a test",
-                query_model=QueryModel(match_phase=OR(), ranking=Ranking()),
-                debug_request=True,
-                hits=10,
-            ).request_body,
-            {
-                "yql": 'select * from sources * where ({grammar: "any"}userInput("this is a test"));',
-                "ranking": {"profile": "default", "listFeatures": "false"},
-                "hits": 10,
-            },
-        )
-
-        self.assertDictEqual(
-            app.query(
-                query="this is a test",
-                query_model=QueryModel(match_phase=OR(), ranking=Ranking()),
-                debug_request=True,
-                hits=10,
-                recall=("id", [1, 5]),
-            ).request_body,
-            {
-                "yql": 'select * from sources * where ({grammar: "any"}userInput("this is a test"));',
-                "ranking": {"profile": "default", "listFeatures": "false"},
-                "hits": 10,
-                "recall": "+(id:1 id:5)",
-            },
-        )
-
-    def test_query_with_body_function(self):
-        app = Vespa(url="http://localhost", port=8080)
-
-        def body_function(query):
-            body = {
-                "yql": "select * from sources * where userQuery();",
-                "query": query,
-                "type": "any",
-                "ranking": {"profile": "bm25", "listFeatures": "true"},
-            }
-            return body
-
-        query_model = QueryModel(body_function=body_function)
-
-        self.assertDictEqual(
-            app.query(
-                query="this is a test",
-                query_model=query_model,
-                debug_request=True,
-                hits=10,
-                recall=("id", [1, 5]),
-            ).request_body,
-            {
-                "yql": "select * from sources * where userQuery();",
-                "query": "this is a test",
-                "type": "any",
-                "ranking": {"profile": "bm25", "listFeatures": "true"},
-                "hits": 10,
-                "recall": "+(id:1 id:5)",
-            },
-        )
 
 
 class TestLabeledData(unittest.TestCase):
@@ -343,22 +271,6 @@ class TestVespaCollectData(unittest.TestCase):
         )
 
         self.assertEqual(self.app.query.call_count, 2)
-        self.app.query.assert_has_calls(
-            [
-                call(
-                    query="this is a query",
-                    query_model=query_model,
-                    recall=("vespa_id_field", ["abc"]),
-                    timeout="15s",
-                ),
-                call(
-                    query="this is a query",
-                    query_model=query_model,
-                    hits=2,
-                    timeout="15s",
-                ),
-            ]
-        )
         expected_data = [
             {
                 "document_id": "abc",
@@ -412,22 +324,6 @@ class TestVespaCollectData(unittest.TestCase):
         )
 
         self.assertEqual(self.app.query.call_count, 2)
-        self.app.query.assert_has_calls(
-            [
-                call(
-                    query="this is a query",
-                    query_model=query_model,
-                    recall=("vespa_id_field", ["abc"]),
-                    timeout="15s",
-                ),
-                call(
-                    query="this is a query",
-                    query_model=query_model,
-                    hits=2,
-                    timeout="15s",
-                ),
-            ]
-        )
         expected_data = [
             {
                 "document_id": "abc",
@@ -493,16 +389,6 @@ class TestVespaCollectData(unittest.TestCase):
         )
 
         self.assertEqual(self.app.query.call_count, 1)
-        self.app.query.assert_has_calls(
-            [
-                call(
-                    query="this is a query",
-                    query_model=query_model,
-                    recall=("vespa_id_field", ["abc"]),
-                    timeout="15s",
-                ),
-            ]
-        )
         expected_data = []
         self.assertEqual(data, expected_data)
 

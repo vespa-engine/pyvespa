@@ -15,10 +15,10 @@ from vespa.test_integration_docker import (
     create_qa_application_package,
     create_sequence_classification_task,
 )
-from learntorank.query import QueryModel, OR
 
 CFG_SERVER_START_TIMEOUT = 300
 APP_INIT_TIMEOUT = 300
+
 
 class TestVespaKeyAndCertificate(unittest.TestCase):
     def setUp(self) -> None:
@@ -453,7 +453,10 @@ class TestGalleryTextSearch(unittest.TestCase):
 
     def test_query(self):
         result = self.app.query(
-            query="what is finance?", query_model=QueryModel(match_phase=OR())
+            body={
+                "yql": 'select * from sources * where ({grammar: "any"}userInput("what is finance?"));',
+                "ranking": {"profile": "default", "listFeatures": "false"},
+            }
         )
         for hit in result.hits:
             self.assertIn("fields", hit)

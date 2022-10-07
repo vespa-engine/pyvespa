@@ -9,6 +9,7 @@ from vespa.experimental.ranking import (
     SparseBeirApplicationPackage,
     ListwiseRankingFramework,
 )
+from test_integration_docker import CONTAINER_STOP_TIMEOUT
 
 
 class TestBeirData(unittest.TestCase):
@@ -71,6 +72,7 @@ class TestSparseBeirApp(unittest.TestCase):
             os.path.join(os.environ["RESOURCES_DIR"], "beir_data_sample.json"), "r"
         ) as f:
             self.data_sample = json.load(f)
+        self.vespa_docker = VespaDocker(port=8089)
 
     def test_end_to_end_workflow(self):
 
@@ -88,8 +90,11 @@ class TestSparseBeirApp(unittest.TestCase):
         )
 
         # deploy application package
-        vespa_docker = VespaDocker(port=8089)
-        _ = vespa_docker.deploy(app_package)
+        _ = self.vespa_docker.deploy(app_package)
+
+    def tearDown(self) -> None:
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
+        self.vespa_docker.container.remove()
 
 
 class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
@@ -97,14 +102,12 @@ class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
         #
         # Load train and dev sample data
         #
-        self.train_csv_file = os.path.join(os.environ["RESOURCES_DIR"], "beir_train_df.csv")
-        self.train_df = pd.read_csv(
-            self.train_csv_file
+        self.train_csv_file = os.path.join(
+            os.environ["RESOURCES_DIR"], "beir_train_df.csv"
         )
+        self.train_df = pd.read_csv(self.train_csv_file)
         self.dev_csv_file = os.path.join(os.environ["RESOURCES_DIR"], "beir_dev_df.csv")
-        self.dev_df = pd.read_csv(
-            self.dev_csv_file
-        )
+        self.dev_df = pd.read_csv(self.dev_csv_file)
 
         self.ranking_framework = ListwiseRankingFramework(
             number_documents_per_query=3,
@@ -181,7 +184,7 @@ class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
                 "fieldMatch(body).queryCompleteness",
                 "nativeRank",
             ],
-            hyperparameters={"learning_rate": 0.05}
+            hyperparameters={"learning_rate": 0.05},
         )
         #
         # Check weights format
@@ -293,7 +296,7 @@ class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
                 "fieldMatch(body).queryCompleteness",
                 "nativeRank",
             ],
-            hyperparameters={'lambda': 0.0001, 'learning_rate': 9}
+            hyperparameters={"lambda": 0.0001, "learning_rate": 9},
         )
         #
         # Check weights format
@@ -351,7 +354,7 @@ class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
             output_file=os.path.join(
                 os.environ["RESOURCES_DIR"], "lasso_model_search.json"
             ),
-            hyperparameter={"learning_rate": 2, "lambda": 0.001}
+            hyperparameter={"learning_rate": 2, "lambda": 0.001},
         )
         self.assertEqual(3, len(results))
         self.assertEqual(3, len(results[0]["weights"]["feature_names"]))

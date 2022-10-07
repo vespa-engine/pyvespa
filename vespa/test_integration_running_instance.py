@@ -12,6 +12,7 @@ from learntorank.query import (
     QueryModel,
     OR,
     Ranking,
+    send_query
 )
 from learntorank.evaluation import MatchRatio, Recall, ReciprocalRank, evaluate
 
@@ -49,7 +50,8 @@ class TestRunningInstance(unittest.TestCase):
         #
         # Query Vespa app
         #
-        query_result = app.query(
+        query_result = send_query(
+            app,
             query="Is remdesivir an effective treatment for COVID-19?",
             query_model=query_model,
         )
