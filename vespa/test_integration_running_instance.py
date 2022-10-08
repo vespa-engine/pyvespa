@@ -12,7 +12,8 @@ from learntorank.query import (
     QueryModel,
     OR,
     Ranking,
-    send_query
+    send_query,
+    collect_vespa_features,
 )
 from learntorank.evaluation import MatchRatio, Recall, ReciprocalRank, evaluate
 
@@ -88,25 +89,6 @@ class TestRunningInstance(unittest.TestCase):
         )
 
         #
-        # Collect training data
-        #
-        training_data_batch = app.collect_training_data(
-            labeled_data=labeled_data,
-            id_field="id",
-            query_model=query_model,
-            number_additional_docs=2,
-            fields=["rankfeatures"],
-        )
-        self.assertTrue(training_data_batch.shape[0] > 0)
-        self.assertEqual(
-            len(
-                {"document_id", "query_id", "label"}.intersection(
-                    set(training_data_batch.columns)
-                )
-            ),
-            3,
-        )
-        #
         # Evaluate a query model
         #
         eval_metrics = [MatchRatio(), Recall(at=10), ReciprocalRank(at=10)]
@@ -179,7 +161,8 @@ class TestRunningInstance(unittest.TestCase):
                 "relevant_docs": [{"id": 1, "score": 1}, {"id": 5, "score": 1}],
             },
         ]
-        rank_features = app.collect_vespa_features(
+        rank_features = collect_vespa_features(
+            app=app,
             labeled_data=labeled_data,
             id_field="id",
             query_model=query_model,
@@ -189,7 +172,8 @@ class TestRunningInstance(unittest.TestCase):
         self.assertTrue(rank_features.shape[0] > 4)
         # It should have at least one rank feature in addition to document_id, query_id and	label
         self.assertTrue(rank_features.shape[1] > 3)
-        rank_features = app.collect_vespa_features(
+        rank_features = collect_vespa_features(
+            app=app,
             labeled_data=labeled_data,
             id_field="id",
             query_model=query_model,
@@ -200,32 +184,3 @@ class TestRunningInstance(unittest.TestCase):
         self.assertTrue(rank_features.shape[0] > 4)
         # It should have at least one rank feature in addition to document_id, query_id and	label
         self.assertTrue(rank_features.shape[1] == 4)
-        training_data_batch = app.collect_training_data(
-            labeled_data=labeled_data,
-            id_field="id",
-            query_model=query_model,
-            number_additional_docs=2,
-            fields=["rankfeatures"],
-        )
-        self.assertEqual(training_data_batch.shape[0], 12)
-        # It should have at least one rank feature in addition to document_id, query_id and	label
-        self.assertTrue(training_data_batch.shape[1] > 3)
-
-        training_data = []
-        for query_data in labeled_data:
-            for doc_data in query_data["relevant_docs"]:
-                training_data_point = app.collect_training_data_point(
-                    query=query_data["query"],
-                    query_id=query_data["query_id"],
-                    relevant_id=doc_data["id"],
-                    id_field="id",
-                    query_model=query_model,
-                    number_additional_docs=2,
-                    fields=["rankfeatures"],
-                )
-                training_data.extend(training_data_point)
-        training_data = DataFrame.from_records(training_data)
-
-        self.assertEqual(training_data.shape[0], 12)
-        # It should have at least one rank feature in addition to document_id, query_id and	label
-        self.assertTrue(training_data.shape[1] > 3)
