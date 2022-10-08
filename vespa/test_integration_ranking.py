@@ -9,7 +9,8 @@ from vespa.experimental.ranking import (
     SparseBeirApplicationPackage,
     ListwiseRankingFramework,
 )
-from test_integration_docker import CONTAINER_STOP_TIMEOUT
+
+CONTAINER_STOP_TIMEOUT = 600
 
 
 class TestBeirData(unittest.TestCase):
