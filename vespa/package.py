@@ -9,7 +9,6 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 from io import BytesIO
 
 from vespa.json_serialization import ToJson, FromJson
-from learntorank.query import QueryModel
 
 
 class HNSW(ToJson, FromJson["HNSW"]):
@@ -1160,7 +1159,6 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         create_schema_by_default: bool = True,
         create_query_profile_by_default: bool = True,
         tasks: Optional[List[Task]] = None,
-        default_query_model: Optional[QueryModel] = None
     ) -> None:
         """
         Create an `Application Package <https://docs.vespa.ai/en/cloudconfig/application-packages.html>`__.
@@ -1181,7 +1179,6 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         :param create_query_profile_by_default: Include a default :class:`QueryProfile` and :class:`QueryProfileType`
             in case it is not explicitly defined by the user in the `query_profile` and `query_profile_type` parameters.
         :param tasks: List of tasks to be served.
-        :param default_query_model: Optional QueryModel to be used as default for the application.
 
         The easiest way to get started is to create a default application package:
 
@@ -1192,7 +1189,11 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         populate with specifics of your application.
         """
         if not name.isalnum():
-            raise ValueError("Application package name can only contain [a-zA-Z0-9], was '{}'".format(name))
+            raise ValueError(
+                "Application package name can only contain [a-zA-Z0-9], was '{}'".format(
+                    name
+                )
+            )
         self.name = name
         if not schema:
             schema = (
@@ -1211,7 +1212,6 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         self.model_configs = {}
         self.stateless_model_evaluation = stateless_model_evaluation
         self.models = {} if not tasks else {model.model_id: model for model in tasks}
-        self.default_query_model = default_query_model
 
     @property
     def schemas(self) -> List[Schema]:
@@ -1396,9 +1396,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         """
         buffer = BytesIO()
         with zipfile.ZipFile(buffer, "a") as zip_archive:
-            zip_archive.writestr(
-                "services.xml", self.services_to_text
-            )
+            zip_archive.writestr("services.xml", self.services_to_text)
 
             for schema in self.schemas:
                 zip_archive.writestr(
@@ -1435,10 +1433,10 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         return buffer
 
         # ToDo: use this for the Vespa Cloud app package
-        #zip_archive.writestr(
+        # zip_archive.writestr(
         #    "application/security/clients.pem",
         #    app.public_bytes(serialization.Encoding.PEM),
-        #)
+        # )
 
     def to_zipfile(self, zfile: Path) -> None:
         """
@@ -1465,21 +1463,29 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         Path(os.path.join(root, "schemas")).mkdir(parents=True, exist_ok=True)
         Path(os.path.join(root, "files")).mkdir(parents=True, exist_ok=True)
         Path(os.path.join(root, "models")).mkdir(parents=True, exist_ok=True)
-        Path(os.path.join(root, "search/query-profiles/types")).mkdir(parents=True, exist_ok=True)
+        Path(os.path.join(root, "search/query-profiles/types")).mkdir(
+            parents=True, exist_ok=True
+        )
 
         for schema in self.schemas:
-            with open(os.path.join(root, "schemas/{}.sd".format(schema.name)), "w") as f:
+            with open(
+                os.path.join(root, "schemas/{}.sd".format(schema.name)), "w"
+            ) as f:
                 f.write(schema.schema_to_text)
             for model in schema.models:
                 copyfile(
                     model.model_file_path,
-                    os.path.join(root, "files", model.model_file_name)
+                    os.path.join(root, "files", model.model_file_name),
                 )
 
         if self.query_profile:
-            with open(os.path.join(root, "search/query-profiles/default.xml"), "w") as f:
+            with open(
+                os.path.join(root, "search/query-profiles/default.xml"), "w"
+            ) as f:
                 f.write(self.query_profile_to_text)
-            with open(os.path.join(root, "search/query-profiles/types/root.xml"), "w") as f:
+            with open(
+                os.path.join(root, "search/query-profiles/types/root.xml"), "w"
+            ) as f:
                 f.write(self.query_profile_type_to_text)
 
         with open(os.path.join(root, "services.xml"), "w") as f:
@@ -1487,7 +1493,9 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
 
         if self.models:
             for model_id, model in self.models.items():
-                model.export_to_onnx(output_path=os.path.join(root, "models/{}.onnx".format(model_id)))
+                model.export_to_onnx(
+                    output_path=os.path.join(root, "models/{}.onnx".format(model_id))
+                )
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):

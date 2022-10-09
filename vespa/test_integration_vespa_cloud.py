@@ -3,10 +3,8 @@ import asyncio
 import shutil
 import json
 import unittest
-from pandas import DataFrame
 from cryptography.hazmat.primitives import serialization
 from vespa.application import Vespa
-from vespa.gallery import TextSearch
 from vespa.deployment import VespaCloud
 from vespa.test_integration_docker import (
     TestApplicationCommon,
@@ -15,10 +13,10 @@ from vespa.test_integration_docker import (
     create_qa_application_package,
     create_sequence_classification_task,
 )
-from learntorank.query import QueryModel, OR
 
 CFG_SERVER_START_TIMEOUT = 300
 APP_INIT_TIMEOUT = 300
+
 
 class TestVespaKeyAndCertificate(unittest.TestCase):
     def setUp(self) -> None:
@@ -409,59 +407,6 @@ class TestQaApplication(TestApplicationCommon):
     def tearDown(self) -> None:
         self.app.delete_all_docs(content_cluster_name="qa_content", schema="sentence")
         self.app.delete_all_docs(content_cluster_name="qa_content", schema="context")
-        shutil.rmtree(self.disk_folder, ignore_errors=True)
-
-
-class TestGalleryTextSearch(unittest.TestCase):
-    def setUp(self) -> None:
-        #
-        # Create application
-        #
-        self.app_package = TextSearch(id_field="id", text_fields=["title", "body"])
-        #
-        # Deploy application
-        #
-        self.vespa_cloud = VespaCloud(
-            tenant="vespa-team",
-            application="pyvespa-integration",
-            key_content=os.getenv("VESPA_CLOUD_USER_KEY").replace(r"\n", "\n"),
-            application_package=self.app_package,
-        )
-        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-        self.instance_name = "text-search"
-        self.app = self.vespa_cloud.deploy(
-            instance=self.instance_name, disk_folder=self.disk_folder
-        )
-        #
-        # Create a sample data frame
-        #
-        records = [
-            {
-                "id": idx,
-                "title": "This doc is about {}".format(x),
-                "body": "There is so much to learn about {}".format(x),
-            }
-            for idx, x in enumerate(
-                ["finance", "sports", "celebrity", "weather", "politics"]
-            )
-        ]
-        df = DataFrame.from_records(records)
-        #
-        # Feed application
-        #
-        self.app.feed_df(df)
-
-    def test_query(self):
-        result = self.app.query(
-            query="what is finance?", query_model=QueryModel(match_phase=OR())
-        )
-        for hit in result.hits:
-            self.assertIn("fields", hit)
-
-    def tearDown(self) -> None:
-        self.app.delete_all_docs(
-            content_cluster_name="text_search_content", schema="text_search"
-        )
         shutil.rmtree(self.disk_folder, ignore_errors=True)
 
 

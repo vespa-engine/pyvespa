@@ -1,13 +1,12 @@
 # Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
-import os
 import sys
 import ssl
 import aiohttp
 import asyncio
 import concurrent.futures
 from collections import Counter
-from typing import Optional, Dict, Tuple, List, IO, Union
+from typing import Optional, Dict, List, IO, Union
 
 import requests
 from pandas import DataFrame
@@ -20,7 +19,6 @@ from tenacity import retry, wait_exponential, stop_after_attempt
 from time import sleep
 
 from vespa.io import VespaQueryResponse, VespaResponse
-from learntorank.query import QueryModel
 from vespa.package import ApplicationPackage
 
 retry_strategy = Retry(
@@ -240,92 +238,32 @@ class Vespa(object):
         with VespaSync(self) as sync_app:
             return sync_app.get_model_endpoint(model_id=model_id)
 
-    def build_query_body(
-        self,
-        query: Optional[str] = None,
-        query_model: Optional[QueryModel] = None,
-        recall: Optional[Tuple] = None,
-        **kwargs,
-    ) -> Dict:
-        assert query is not None, "No 'query' specified."
-        if not query_model:
-            query_model = self.get_default_query_model()
-        assert query_model is not None, "No 'query_model' specified."
-        body = query_model.create_body(query=query)
-        if recall is not None:
-            body.update(
-                {
-                    "recall": "+("
-                    + " ".join(
-                        ["{}:{}".format(recall[0], str(doc)) for doc in recall[1]]
-                    )
-                    + ")"
-                }
-            )
-        body.update(kwargs)
-        return body
-
     def query(
         self,
         body: Optional[Dict] = None,
-        query: Optional[str] = None,
-        query_model: Optional[QueryModel] = None,
-        debug_request: bool = False,
-        recall: Optional[Tuple] = None,
-        **kwargs,
     ) -> VespaQueryResponse:
         """
         Send a query request to the Vespa application.
 
-        Either send 'body' containing all the request parameters or specify 'query' and 'query_model'.
+        Send 'body' containing all the request parameters.
 
         :param body: Dict containing all the request parameters.
-        :param query: Query string
-        :param query_model: Query model
-        :param debug_request: return request body for debugging instead of sending the request.
-        :param recall: Tuple of size 2 where the first element is the name of the field to use to recall and the
-            second element is a list of the values to be recalled.
-        :param kwargs: Additional parameters to be sent along the request.
-        :return: Either the request body if debug_request is True or the result from the Vespa application
+        :return: The response from the Vespa application.
         """
         with VespaSync(self) as sync_app:
             return sync_app.query(
                 body=body,
-                query=query,
-                query_model=query_model,
-                debug_request=debug_request,
-                recall=recall,
-                **kwargs,
             )
 
     def _query_batch_sync(
         self,
         body_batch: Optional[List[Dict]],
-        query_batch: Optional[List[str]],
-        query_model: Optional[QueryModel],
-        recall: Optional[List[Tuple]],
-        **kwargs,
     ):
-        if body_batch:
-            return [self.query(body=body, **kwargs) for body in body_batch]
-        else:
-            if recall:
-                return [
-                    self.query(query=q, query_model=query_model, recall=r, **kwargs)
-                    for (q, r) in zip(query_batch, recall)
-                ]
-            else:
-                return [
-                    self.query(query=query, query_model=query_model, **kwargs)
-                    for query in query_batch
-                ]
+        return [self.query(body=body) for body in body_batch]
 
     async def _query_batch_async(
         self,
         body_batch: Optional[List[Dict]],
-        query_batch: Optional[List[str]],
-        query_model: Optional[QueryModel],
-        recall: Optional[List[Tuple]],
         connections,
         total_timeout,
         **kwargs,
@@ -335,9 +273,6 @@ class Vespa(object):
         ) as async_app:
             return await async_app.query_batch(
                 body_batch=body_batch,
-                query_batch=query_batch,
-                query_model=query_model,
-                recall=recall,
                 **kwargs,
             )
 
@@ -345,9 +280,6 @@ class Vespa(object):
     def query_batch(
         self,
         body_batch: Optional[List[Dict]] = None,
-        query_batch: Optional[List[str]] = None,
-        query_model: Optional[QueryModel] = None,
-        recall: Optional[List[Tuple]] = None,
         asynchronous=True,
         connections: Optional[int] = 100,
         total_timeout: int = 100,
@@ -357,9 +289,6 @@ class Vespa(object):
         Send queries in batch to a Vespa app.
 
         :param body_batch: A list of dict containing all the request parameters. Set to None if using 'query_batch'.
-        :param query_batch: A list of query strings. Set to None if using 'body_batch'.
-        :param query_model: Query model to use when sending query strings. Set to None if using 'body_batch'.
-        :param recall: List of tuples, one for each query. Tuple of size 2 where the first element is the name
             of the field to use to recall and the second element is a list of the values to be recalled.
         :param asynchronous: Set True to send data in async mode. Default to True.
         :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
@@ -367,33 +296,9 @@ class Vespa(object):
         :param kwargs: Additional parameters to be sent along the request.
         :return: List of HTTP POST responses
         """
-
-        if body_batch:
-            assert (
-                query_batch is None
-            ), "'query_batch' has no effect if 'body_batch' is not None."
-        elif query_batch:
-            assert (
-                body_batch is None
-            ), "'body_batch' has no effect if 'query_batch' is not None."
-            assert (
-                query_model is not None
-            ), "Specify a 'query_model' when using 'query_batch' argument."
-            number_of_queries = len(query_batch)
-
-            if recall:
-                assert (
-                    len(recall) == number_of_queries
-                ), "Specify one recall tuple for each query in the batch."
-        else:
-            ValueError("Specify either 'query_batch' or 'body_batch'.")
-
         if asynchronous:
             coro = self._query_batch_async(
                 body_batch=body_batch,
-                query_batch=query_batch,
-                query_model=query_model,
-                recall=recall,
                 connections=connections,
                 total_timeout=total_timeout,
                 **kwargs,
@@ -402,10 +307,6 @@ class Vespa(object):
         else:
             return self._query_batch_sync(
                 body_batch=body_batch,
-                query_batch=query_batch,
-                query_model=query_model,
-                recall=recall,
-                **kwargs,
             )
 
     def feed_data_point(
@@ -834,370 +735,6 @@ class Vespa(object):
                 schema=schema, batch=batch, namespace=namespace
             )
 
-    @staticmethod
-    def annotate_data(
-        hits, query_id, id_field, relevant_id, fields, relevant_score, default_score
-    ):
-        data = []
-        for h in hits:
-            record = {}
-            record.update({"document_id": h["fields"][id_field]})
-            record.update({"query_id": query_id})
-            record.update(
-                {
-                    "label": relevant_score
-                    if h["fields"][id_field] == relevant_id
-                    else default_score
-                }
-            )
-            for field in fields:
-                field_value = h["fields"].get(field, None)
-                if field_value:
-                    if isinstance(field_value, dict):
-                        record.update(field_value)
-                    else:
-                        record.update({field: field_value})
-            data.append(record)
-        return data
-
-    def collect_training_data_point(
-        self,
-        query: str,
-        query_id: str,
-        relevant_id: str,
-        id_field: str,
-        query_model: QueryModel,
-        number_additional_docs: int,
-        fields: List[str],
-        relevant_score: int = 1,
-        default_score: int = 0,
-        **kwargs,
-    ) -> List[Dict]:
-        """
-        Collect training data based on a single query
-
-        :param query: Query string.
-        :param query_id: Query id represented as str.
-        :param relevant_id: Relevant id represented as a str.
-        :param id_field: The Vespa field representing the document id.
-        :param query_model: Query model.
-        :param number_additional_docs: Number of additional documents to retrieve for each relevant document.
-        :param fields: Which fields should be retrieved.
-        :param relevant_score: Score to assign to relevant documents. Default to 1.
-        :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
-        :param kwargs: Extra keyword arguments to be included in the Vespa Query.
-        :return: List of dicts containing the document id (document_id), query id (query_id), scores (relevant)
-            and vespa rank features returned by the Query model RankProfile used.
-        """
-
-        relevant_id_result = self.query(
-            query=query,
-            query_model=query_model,
-            recall=(id_field, [relevant_id]),
-            **kwargs,
-        )
-        hits = relevant_id_result.hits
-        features = []
-        if len(hits) == 1 and hits[0]["fields"][id_field] == relevant_id:
-            if number_additional_docs > 0:
-                random_hits_result = self.query(
-                    query=query,
-                    query_model=query_model,
-                    hits=number_additional_docs,
-                    **kwargs,
-                )
-                new_hits = [
-                    hit
-                    for hit in random_hits_result.hits
-                    if hit["fields"][id_field] != relevant_id
-                ]
-                hits.extend(new_hits)
-
-            features = self.annotate_data(
-                hits=hits,
-                query_id=query_id,
-                id_field=id_field,
-                relevant_id=relevant_id,
-                fields=fields,
-                relevant_score=relevant_score,
-                default_score=default_score,
-            )
-        return features
-
-    def collect_training_data(
-        self,
-        labeled_data: Union[List[Dict], DataFrame],
-        id_field: str,
-        query_model: QueryModel,
-        number_additional_docs: int,
-        relevant_score: int = 1,
-        default_score: int = 0,
-        show_progress: Optional[int] = None,
-        **kwargs,
-    ) -> DataFrame:
-        """
-        Collect training data based on a set of labelled data.
-
-        labeled_data can be a DataFrame or a List of Dict:
-
-        >>> labeled_data_df = DataFrame(
-        ...     data={
-        ...         "qid": [0, 0, 1, 1],
-        ...         "query": ["Intrauterine virus infections and congenital heart disease", "Intrauterine virus infections and congenital heart disease", "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus", "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus"],
-        ...         "doc_id": [0, 3, 1, 5],
-        ...         "relevance": [1,1,1,1]
-        ...     }
-        ... )
-
-        >>> labeled_data = [
-        ...     {
-        ...         "query_id": 0,
-        ...         "query": "Intrauterine virus infections and congenital heart disease",
-        ...         "relevant_docs": [{"id": 0, "score": 1}, {"id": 3, "score": 1}]
-        ...     },
-        ...     {
-        ...         "query_id": 1,
-        ...         "query": "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus",
-        ...         "relevant_docs": [{"id": 1, "score": 1}, {"id": 5, "score": 1}]
-        ...     }
-        ... ]
-
-        :param labeled_data: Labelled data containing query, query_id and relevant ids. See details about data format.
-        :param id_field: The Vespa field representing the document id.
-        :param query_model: Query model.
-        :param number_additional_docs: Number of additional documents to retrieve for each relevant document.
-        :param relevant_score: Score to assign to relevant documents. Default to 1.
-        :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
-        :param show_progress: Prints the the current point being collected every `show_progress` step. Default to None,
-            in which case progress is not printed.
-        :param kwargs: Extra keyword arguments to be included in the Vespa Query.
-        :return: DataFrame containing document id (document_id), query id (query_id), scores (relevant)
-            and vespa rank features returned by the Query model RankProfile used.
-        """
-
-        if isinstance(labeled_data, DataFrame):
-            labeled_data = parse_labeled_data(df=labeled_data)
-
-        training_data = []
-        number_queries = len(labeled_data)
-        idx_total = 0
-        for query_idx, query_data in enumerate(labeled_data):
-            number_relevant_docs = len(query_data["relevant_docs"])
-            for doc_idx, doc_data in enumerate(query_data["relevant_docs"]):
-                idx_total += 1
-                if (show_progress is not None) and (idx_total % show_progress == 0):
-                    print(
-                        "Query {}/{}, Doc {}/{}. Query id: {}. Doc id: {}".format(
-                            query_idx,
-                            number_queries,
-                            doc_idx,
-                            number_relevant_docs,
-                            query_data["query_id"],
-                            doc_data["id"],
-                        ),
-                        file=self.output_file,
-                    )
-                training_data_point = self.collect_training_data_point(
-                    query=query_data["query"],
-                    query_id=query_data["query_id"],
-                    relevant_id=doc_data["id"],
-                    id_field=id_field,
-                    query_model=query_model,
-                    number_additional_docs=number_additional_docs,
-                    relevant_score=doc_data.get("score", relevant_score),
-                    default_score=default_score,
-                    **kwargs,
-                )
-                training_data.extend(training_data_point)
-        training_data = DataFrame.from_records(training_data)
-        return training_data
-
-    def collect_vespa_features(
-        self,
-        labeled_data: Union[List[Dict], DataFrame],
-        id_field: str,
-        query_model: QueryModel,
-        number_additional_docs: int,
-        fields: List[str],
-        keep_features: Optional[List[str]] = None,
-        relevant_score: int = 1,
-        default_score: int = 0,
-        **kwargs,
-    ) -> DataFrame:
-        """
-        Collect Vespa features based on a set of labelled data.
-
-        labeled_data can be a DataFrame or a List of Dict:
-
-        >>> labeled_data_df = DataFrame(
-        ...     data={
-        ...         "qid": [0, 0, 1, 1],
-        ...         "query": ["Intrauterine virus infections and congenital heart disease", "Intrauterine virus infections and congenital heart disease", "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus", "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus"],
-        ...         "doc_id": [0, 3, 1, 5],
-        ...         "relevance": [1,1,1,1]
-        ...     }
-        ... )
-
-        >>> labeled_data = [
-        ...     {
-        ...         "query_id": 0,
-        ...         "query": "Intrauterine virus infections and congenital heart disease",
-        ...         "relevant_docs": [{"id": 0, "score": 1}, {"id": 3, "score": 1}]
-        ...     },
-        ...     {
-        ...         "query_id": 1,
-        ...         "query": "Clinical and immunologic studies in identical twins discordant for systemic lupus erythematosus",
-        ...         "relevant_docs": [{"id": 1, "score": 1}, {"id": 5, "score": 1}]
-        ...     }
-        ... ]
-
-        :param labeled_data: Labelled data containing query, query_id and relevant ids. See details about data format.
-        :param id_field: The Vespa field representing the document id.
-        :param query_model: Query model.
-        :param number_additional_docs: Number of additional documents to retrieve for each relevant document.
-        :param fields: List of Vespa fields to collect, e.g. ["rankfeatures", "summaryfeatures"]
-        :param keep_features: List containing the names of the features that should be returned. Default to None,
-            which return all the features contained in the 'fields' argument.
-        :param relevant_score: Score to assign to relevant documents. Default to 1.
-        :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
-        :param kwargs: Extra keyword arguments to be included in the Vespa Query.
-        :return: DataFrame containing document id (document_id), query id (query_id), scores (relevant)
-            and vespa rank features returned by the Query model RankProfile used.
-        """
-
-        if isinstance(labeled_data, DataFrame):
-            labeled_data = parse_labeled_data(df=labeled_data)
-
-        flat_data = [
-            (
-                data["query_id"],
-                data["query"],
-                relevant_doc["id"],
-                relevant_doc.get("score", relevant_score),
-            )
-            for data in labeled_data
-            for relevant_doc in data["relevant_docs"]
-        ]
-
-        queries = [x[1] for x in flat_data]
-        relevant_search = self.query_batch(
-            query_batch=queries,
-            query_model=query_model,
-            recall=[(id_field, [x[2]]) for x in flat_data],
-            **kwargs,
-        )
-        result = []
-        for ((query_id, query, relevant_id, relevant_score), query_result) in zip(
-            flat_data, relevant_search
-        ):
-            result.extend(
-                self.annotate_data(
-                    hits=query_result.hits,
-                    query_id=query_id,
-                    id_field=id_field,
-                    relevant_id=relevant_id,
-                    fields=fields,
-                    relevant_score=relevant_score,
-                    default_score=default_score,
-                )
-            )
-        if number_additional_docs > 0:
-            additional_hits_result = self.query_batch(
-                query_batch=queries,
-                query_model=query_model,
-                hits=number_additional_docs,
-                **kwargs,
-            )
-            for ((query_id, query, relevant_id, relevant_score), query_result) in zip(
-                flat_data, additional_hits_result
-            ):
-                result.extend(
-                    self.annotate_data(
-                        hits=query_result.hits,
-                        query_id=query_id,
-                        id_field=id_field,
-                        relevant_id=relevant_id,
-                        fields=fields,
-                        relevant_score=relevant_score,
-                        default_score=default_score,
-                    )
-                )
-        df = DataFrame.from_records(result)
-        df = df.drop_duplicates(["document_id", "query_id", "label"])
-        df = df.sort_values("query_id")
-        if keep_features:
-            df = df[["document_id", "query_id", "label"] + keep_features]
-        return df
-
-    def store_vespa_features(
-        self,
-        output_file_path: str,
-        labeled_data: Union[List[Dict], DataFrame],
-        id_field: str,
-        query_model: QueryModel,
-        number_additional_docs: int,
-        fields: List[str],
-        keep_features: Optional[List[str]] = None,
-        relevant_score: int = 1,
-        default_score: int = 0,
-        batch_size=1000,
-        **kwargs,
-    ):
-        """
-        Retrieve Vespa rank features and store them in a .csv file.
-
-        :param output_file_path: Path of the .csv output file. It will create the file of it does not exist and
-            append the vespa features to an pre-existing file.
-        :param labeled_data: Labelled data containing query, query_id and relevant ids. See details about data format.
-        :param id_field: The Vespa field representing the document id.
-        :param query_model: Query model.
-        :param number_additional_docs: Number of additional documents to retrieve for each relevant document.
-        :param fields: List of Vespa fields to collect, e.g. ["rankfeatures", "summaryfeatures"]
-        :param keep_features: List containing the names of the features that should be returned. Default to None,
-            which return all the features contained in the 'fields' argument.
-        :param relevant_score: Score to assign to relevant documents. Default to 1.
-        :param default_score: Score to assign to the additional documents that are not relevant. Default to 0.
-        :param batch_size: The size of the batch of labeled data points to be processed.
-        :param kwargs: Extra keyword arguments to be included in the Vespa Query.
-        :return: returns 0 upon success.
-        """
-
-        if isinstance(labeled_data, DataFrame):
-            labeled_data = parse_labeled_data(df=labeled_data)
-
-        mini_batches = [
-            labeled_data[i : i + batch_size]
-            for i in range(0, len(labeled_data), batch_size)
-        ]
-        for idx, mini_batch in enumerate(mini_batches):
-            vespa_features = self.collect_vespa_features(
-                labeled_data=mini_batch,
-                id_field=id_field,
-                query_model=query_model,
-                number_additional_docs=number_additional_docs,
-                fields=fields,
-                keep_features=keep_features,
-                relevant_score=relevant_score,
-                default_score=default_score,
-                **kwargs,
-            )
-            if os.path.isfile(output_file_path):
-                vespa_features.to_csv(
-                    path_or_buf=output_file_path, header=False, index=False, mode="a"
-                )
-            else:
-                vespa_features.to_csv(
-                    path_or_buf=output_file_path, header=True, index=False, mode="w"
-                )
-            print(
-                "Rows collected: {}.\nBatch progress: {}/{}.".format(
-                    vespa_features.shape[0],
-                    idx + 1,
-                    len(mini_batches),
-                )
-            )
-        return 0
-
     @property
     def application_package(self):
         """Get application package definition, if available."""
@@ -1205,13 +742,6 @@ class Vespa(object):
             raise ValueError("Application package not available.")
         else:
             return self._application_package
-
-    def get_default_query_model(self):
-        try:
-            app_package = self.application_package
-        except ValueError:
-            return None
-        return app_package.default_query_model
 
     def get_model_from_application_package(self, model_name: str):
         """Get model definition from application package, if available."""
@@ -1341,39 +871,16 @@ class VespaSync(object):
     def query(
         self,
         body: Optional[Dict] = None,
-        query: Optional[str] = None,
-        query_model: Optional[QueryModel] = None,
-        debug_request: bool = False,
-        recall: Optional[Tuple] = None,
-        **kwargs,
     ) -> VespaQueryResponse:
         """
         Send a query request to the Vespa application.
 
-        Either send 'body' containing all the request parameters or specify 'query' and 'query_model'.
+        Send 'body' containing all the request parameters.
 
         :param body: Dict containing all the request parameters.
-        :param query: Query string
-        :param query_model: Query model
-        :param debug_request: return request body for debugging instead of sending the request.
-        :param recall: Tuple of size 2 where the first element is the name of the field to use to recall and the
-            second element is a list of the values to be recalled.
-        :param kwargs: Additional parameters to be sent along the request.
         :return: Either the request body if debug_request is True or the result from the Vespa application
         """
-        body = (
-            self.app.build_query_body(query, query_model, recall, **kwargs)
-            if body is None
-            else body
-        )
-        if debug_request:
-            return VespaQueryResponse(
-                json={}, status_code=None, url=None, request_body=body
-            )
-        else:
-            r = self.http_session.post(
-                self.app.search_end_point, json=body, cert=self.cert
-            )
+        r = self.http_session.post(self.app.search_end_point, json=body, cert=self.cert)
         return VespaQueryResponse(
             json=r.json(), status_code=r.status_code, url=str(r.url)
         )
@@ -1526,21 +1033,7 @@ class VespaAsync(object):
     async def query(
         self,
         body: Optional[Dict] = None,
-        query: Optional[str] = None,
-        query_model: Optional[QueryModel] = None,
-        debug_request: bool = False,
-        recall: Optional[Tuple] = None,
-        **kwargs,
     ):
-        if debug_request:
-            return self.app.query(
-                body, query, query_model, debug_request, recall, **kwargs
-            )
-        body = (
-            self.app.build_query_body(query, query_model, recall, **kwargs)
-            if body is None
-            else body
-        )
         r = await self.aiohttp_session.post(self.app.search_end_point, json=body)
         return VespaQueryResponse(
             json=await r.json(), status_code=r.status, url=str(r.url)
@@ -1549,48 +1042,22 @@ class VespaAsync(object):
     async def _query_semaphore(
         self,
         body: Optional[Dict],
-        query: Optional[str],
-        query_model: Optional[QueryModel],
-        recall: Optional[Tuple],
         semaphore: asyncio.Semaphore,
-        **kwargs,
     ):
         async with semaphore:
-            return await self.query(
-                body=body, query=query, query_model=query_model, recall=recall, **kwargs
-            )
+            return await self.query(body=body)
 
     async def query_batch(
         self,
         body_batch: Optional[List[Dict]],
-        query_batch: Optional[List[str]],
-        query_model: Optional[QueryModel],
-        recall: Optional[List[Tuple]],
         **kwargs,
     ):
         sem = asyncio.Semaphore(self.connections)
-        if body_batch:
-            return await VespaAsync._wait(
-                self._query_semaphore,
-                [(body, None, None, None, sem) for body in body_batch],
-                **kwargs,
-            )
-        else:
-            if recall:
-                return await VespaAsync._wait(
-                    self._query_semaphore,
-                    [
-                        (None, q, query_model, r, sem)
-                        for (q, r) in zip(query_batch, recall)
-                    ],
-                    **kwargs,
-                )
-            else:
-                return await VespaAsync._wait(
-                    self._query_semaphore,
-                    [(None, q, query_model, None, sem) for q in query_batch],
-                    **kwargs,
-                )
+        return await VespaAsync._wait(
+            self._query_semaphore,
+            [(body, sem) for body in body_batch],
+            **kwargs,
+        )
 
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def feed_data_point(

@@ -4,7 +4,7 @@ import os
 import re
 import asyncio
 import json
-from pandas import DataFrame, read_csv
+from pandas import read_csv
 from vespa.package import (
     HNSW,
     Document,
@@ -15,12 +15,21 @@ from vespa.package import (
     RankProfile,
     ApplicationPackage,
     ModelServer,
+    QueryProfile,
+    QueryProfileType,
+    QueryTypeField
 )
 from vespa.deployment import VespaDocker
 from vespa.ml import BertModelConfig, SequenceClassification
-from vespa.gallery import QuestionAnswering, TextSearch
 from vespa.application import VespaSync
-from learntorank.query import QueryModel, Ranking, OR, QueryRankingFeature
+from learntorank.query import (
+    QueryModel,
+    Ranking,
+    OR,
+    QueryRankingFeature,
+    send_query,
+    store_vespa_features,
+)
 
 CONTAINER_STOP_TIMEOUT = 600
 
@@ -104,6 +113,86 @@ def create_cord19_application_package():
         second_phase=SecondPhaseRanking(rerank_count=10, expression="logit1"),
     )
     return app_package
+
+
+class QuestionAnswering(ApplicationPackage):
+    def __init__(self, name: str = "qa"):
+        context_document = Document(
+            fields=[
+                Field(
+                    name="questions",
+                    type="array<int>",
+                    indexing=["summary", "attribute"],
+                ),
+                Field(name="dataset", type="string", indexing=["summary", "attribute"]),
+                Field(name="context_id", type="int", indexing=["summary", "attribute"]),
+                Field(
+                    name="text",
+                    type="string",
+                    indexing=["summary", "index"],
+                    index="enable-bm25",
+                ),
+            ]
+        )
+        context_schema = Schema(
+            name="context",
+            document=context_document,
+            fieldsets=[FieldSet(name="default", fields=["text"])],
+            rank_profiles=[
+                RankProfile(name="bm25", inherits="default", first_phase="bm25(text)"),
+                RankProfile(
+                    name="nativeRank",
+                    inherits="default",
+                    first_phase="nativeRank(text)",
+                ),
+            ],
+        )
+        sentence_document = Document(
+            inherits="context",
+            fields=[
+                Field(
+                    name="sentence_embedding",
+                    type="tensor<float>(x[512])",
+                    indexing=["attribute", "index"],
+                    ann=HNSW(
+                        distance_metric="euclidean",
+                        max_links_per_node=16,
+                        neighbors_to_explore_at_insert=500,
+                    ),
+                )
+            ],
+        )
+        sentence_schema = Schema(
+            name="sentence",
+            document=sentence_document,
+            fieldsets=[FieldSet(name="default", fields=["text"])],
+            rank_profiles=[
+                RankProfile(
+                    name="semantic-similarity",
+                    inherits="default",
+                    first_phase="closeness(sentence_embedding)",
+                ),
+                RankProfile(name="bm25", inherits="default", first_phase="bm25(text)"),
+                RankProfile(
+                    name="bm25-semantic-similarity",
+                    inherits="default",
+                    first_phase="bm25(text) + closeness(sentence_embedding)",
+                ),
+            ],
+        )
+        super().__init__(
+            name=name,
+            schema=[context_schema, sentence_schema],
+            query_profile=QueryProfile(),
+            query_profile_type=QueryProfileType(
+                fields=[
+                    QueryTypeField(
+                        name="ranking.features.query(query_embedding)",
+                        type="tensor<float>(x[512])",
+                    )
+                ]
+            ),
+        )
 
 
 def create_qa_application_package():
@@ -281,11 +370,6 @@ class TestApplicationCommon(unittest.TestCase):
                 ),
             },
         )
-        #
-        # Query with 'query' without QueryModel
-        #
-        with self.assertRaisesRegex(AssertionError, "No 'query_model' specified."):
-            _ = app.query(query="this should not work")
 
         #
         # Update data
@@ -548,9 +632,16 @@ class TestApplicationCommon(unittest.TestCase):
                 queries.append(
                     asyncio.create_task(
                         async_app.query(
-                            query="sddocname:{}".format(schema_name),
-                            query_model=QueryModel(),
-                            timeout=5000,
+                            body={
+                                "yql": 'select * from sources * where (userInput("sddocname:{}"));'.format(
+                                    schema_name
+                                ),
+                                "ranking": {
+                                    "profile": "default",
+                                    "listFeatures": "false",
+                                },
+                                "timeout": 5000,
+                            }
                         )
                     )
                 )
@@ -566,8 +657,7 @@ class TestApplicationCommon(unittest.TestCase):
         fields_to_send,
         expected_fields_from_get_operation,
         fields_to_update,
-        query_batch=None,
-        query_model=None,
+        body_batch=None,
         hit_field_to_check=None,
         queries_first_hit=None,
     ):
@@ -581,8 +671,7 @@ class TestApplicationCommon(unittest.TestCase):
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
             There are cases where fields returned from Vespa are different from inputs, e.g. when dealing with Tensors.
         :param fields_to_update: Dict where keys are field names and values are field values.
-        :param query_batch: Optional list of query strings.
-        :param query_model: Optional QueryModel to use with query_batch.
+        :param body_batch: Optional list of query body requests.
         :param hit_field_to_check: Which field of the query response should be checked.
         :param queries_first_hit: The expected field of the first hit of each query sent
         :return:
@@ -604,17 +693,20 @@ class TestApplicationCommon(unittest.TestCase):
         # Verify that all documents are fed
         #
         result = app.query(
-            query="sddocname:{}".format(schema_name), query_model=QueryModel()
+            body={
+                "yql": 'select * from sources * where (userInput("sddocname:{}"));'.format(
+                    schema_name
+                ),
+                "ranking": {"profile": "default", "listFeatures": "false"},
+            }
         )
         self.assertEqual(result.number_documents_indexed, num_docs)
 
         #
         # Query data
         #
-        if query_batch:
-            result = app.query_batch(
-                query_batch=query_batch, query_model=query_model, asynchronous=False
-            )
+        if body_batch:
+            result = app.query_batch(body_batch=body_batch, asynchronous=False)
             for idx, first_hit in enumerate(queries_first_hit):
                 self.assertEqual(
                     first_hit, result[idx].hits[0]["fields"][hit_field_to_check]
@@ -674,8 +766,7 @@ class TestApplicationCommon(unittest.TestCase):
         fields_to_send,
         expected_fields_from_get_operation,
         fields_to_update,
-        query_batch=None,
-        query_model=None,
+        body_batch=None,
         hit_field_to_check=None,
         queries_first_hit=None,
     ):
@@ -689,8 +780,7 @@ class TestApplicationCommon(unittest.TestCase):
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
             There are cases where fields returned from Vespa are different from inputs, e.g. when dealing with Tensors.
         :param fields_to_update: Dict where keys are field names and values are field values.
-        :param query_batch: Optional list of query strings.
-        :param query_model: Optional QueryModel to use with query_batch.
+        :param body_batch: Optional list of query body.
         :param hit_field_to_check: Which field of the query response should be checked.
         :param queries_first_hit: The expected field of the first hit of each query sent
         :return:
@@ -717,15 +807,20 @@ class TestApplicationCommon(unittest.TestCase):
         # Verify that all documents are fed
         #
         result = app.query(
-            query="sddocname:{}".format(schema_name), query_model=QueryModel()
+            body={
+                "yql": 'select * from sources * where (userInput("sddocname:{}"));'.format(
+                    schema_name
+                ),
+                "ranking": {"profile": "default", "listFeatures": "false"},
+            }
         )
         self.assertEqual(result.number_documents_indexed, num_docs)
 
         #
         # Query data
         #
-        if query_batch:
-            result = app.query_batch(query_batch=query_batch, query_model=query_model)
+        if body_batch:
+            result = app.query_batch(body_batch=body_batch)
             for idx, first_hit in enumerate(queries_first_hit):
                 self.assertEqual(
                     first_hit, result[idx].hits[0]["fields"][hit_field_to_check]
@@ -814,7 +909,12 @@ class TestApplicationCommon(unittest.TestCase):
         # Verify that all documents are fed
         #
         result = app.query(
-            query="sddocname:{}".format(schema_name), query_model=QueryModel()
+            body={
+                "yql": 'select * from sources * where (userInput("sddocname:{}"));'.format(
+                    schema_name
+                ),
+                "ranking": {"profile": "default", "listFeatures": "false"},
+            }
         )
         self.assertEqual(result.number_documents_indexed, num_docs)
 
@@ -930,7 +1030,8 @@ class TestApplicationCommon(unittest.TestCase):
         #
         # Run a test query
         #
-        result = app.query(
+        result = send_query(
+            app=app,
             query="this is a test",
             query_model=QueryModel(
                 query_properties=[
@@ -1054,10 +1155,16 @@ class TestMsmarcoApplication(TestApplicationCommon):
             }
             for i in range(10)
         ]
-        self.query_batch = ["Give me title 1", "Give me title 2"]
-        self.query_model = QueryModel(
-            match_phase=OR(), ranking=Ranking(name="default", list_features=False)
-        )
+        self.body_batch = [
+            {
+                "yql": 'select * from sources * where ({grammar: "any"}userInput("Give me title 1"));',
+                "ranking": {"profile": "default", "listFeatures": "false"},
+            },
+            {
+                "yql": 'select * from sources * where ({grammar: "any"}userInput("Give me title 2"));',
+                "ranking": {"profile": "default", "listFeatures": "false"},
+            },
+        ]
         self.queries_first_hit = ["this is title 1", "this is title 2"]
 
     def test_model_endpoints_when_no_model_is_available(self):
@@ -1098,8 +1205,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
             fields_to_send=self.fields_to_send,
             expected_fields_from_get_operation=self.fields_to_send,
             fields_to_update=self.fields_to_update,
-            query_batch=self.query_batch,
-            query_model=self.query_model,
+            body_batch=self.body_batch,
             hit_field_to_check="title",
             queries_first_hit=self.queries_first_hit,
         )
@@ -1111,8 +1217,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
             fields_to_send=self.fields_to_send,
             expected_fields_from_get_operation=self.fields_to_send,
             fields_to_update=self.fields_to_update,
-            query_batch=self.query_batch,
-            query_model=self.query_model,
+            body_batch=self.body_batch,
             hit_field_to_check="title",
             queries_first_hit=self.queries_first_hit,
         )
@@ -1172,32 +1277,6 @@ class TestCord19Application(TestApplicationCommon):
             for i in range(10)
         ]
 
-    def test_check_duplicated_features(self):
-        schema = "cord19"
-        docs = [
-            {"id": fields["id"], "fields": fields} for fields in self.fields_to_send
-        ]
-        self.app.feed_batch(
-            schema=schema,
-            batch=docs,
-            asynchronous=True,
-            connections=120,
-            total_timeout=50,
-        )
-        data = self.app.collect_training_data_point(
-            query="give me title 1",
-            query_id="0",
-            relevant_id="1",
-            id_field="id",
-            query_model=QueryModel(
-                match_phase=OR(), ranking=Ranking(name="bm25", list_features=True)
-            ),
-            number_additional_docs=10,
-            fields=["rankfeatures", "summaryfeatures"],
-        )
-        document_ids = [x["document_id"] for x in data]
-        self.assertEqual(len(document_ids), len(set(document_ids)))
-
     def test_store_vespa_features(self):
         schema = "cord19"
         docs = [
@@ -1223,7 +1302,8 @@ class TestCord19Application(TestApplicationCommon):
             },
         ]
 
-        self.app.store_vespa_features(
+        store_vespa_features(
+            app=self.app,
             output_file_path=os.path.join(
                 os.environ["RESOURCES_DIR"], "vespa_features.csv"
             ),
@@ -1422,54 +1502,6 @@ class TestQaApplication(TestApplicationCommon):
             expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
             fields_to_update=self.fields_to_update,
         )
-
-    def tearDown(self) -> None:
-        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
-        self.vespa_docker.container.remove()
-
-
-class TestGalleryTextSearch(unittest.TestCase):
-    def setUp(self) -> None:
-        #
-        # Create application
-        #
-        self.app_package = TextSearch(id_field="id", text_fields=["title", "body"])
-        #
-        # Deploy application
-        #
-        self.vespa_docker = VespaDocker(port=8089)
-        self.app = self.vespa_docker.deploy(application_package=self.app_package)
-        #
-        # Create a sample data frame
-        #
-        records = [
-            {
-                "id": idx,
-                "title": "This doc is about {}".format(x),
-                "body": "There is so much to learn about {}".format(x),
-            }
-            for idx, x in enumerate(
-                ["finance", "sports", "celebrity", "weather", "politics"]
-            )
-        ]
-        df = DataFrame.from_records(records)
-        #
-        # Feed application
-        #
-        self.app.feed_df(df)
-
-    def test_default_query_model(self):
-        result = self.app.query(query="what is finance?", debug_request=True)
-        expected_request_body = {
-            "yql": 'select * from sources * where (userInput("what is finance?"));',
-            "ranking": {"profile": "bm25", "listFeatures": "false"},
-        }
-        self.assertDictEqual(expected_request_body, result.request_body)
-
-    def test_query(self):
-        result = self.app.query(query="what is finance?")
-        for hit in result.hits:
-            self.assertIn("fields", hit)
 
     def tearDown(self) -> None:
         self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
