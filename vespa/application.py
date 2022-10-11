@@ -29,37 +29,6 @@ retry_strategy = Retry(
 )
 
 
-def parse_labeled_data(df):
-    """
-    Convert a DataFrame with labeled data to format used internally
-
-    :param df: DataFrame with the following required columns ["qid", "query", "doc_id", "relevance"].
-    :return: List of Dict containing a concise representation of the labeled data, grouped by query_id and query.
-    """
-    required_columns = ["qid", "query", "doc_id", "relevance"]
-    assert all(
-        [x in list(df.columns) for x in required_columns]
-    ), "DataFrame needs at least the following columns: {}".format(required_columns)
-    qid_query = (
-        df[["qid", "query"]].drop_duplicates(["qid", "query"]).to_dict(orient="records")
-    )
-    labeled_data = []
-    for q in qid_query:
-        docid_relevance = df[(df["qid"] == q["qid"]) & (df["query"] == q["query"])][
-            ["doc_id", "relevance"]
-        ]
-        relevant_docs = []
-        for idx, row in docid_relevance.iterrows():
-            relevant_docs.append({"id": row["doc_id"], "score": row["relevance"]})
-        data_point = {
-            "query_id": q["qid"],
-            "query": q["query"],
-            "relevant_docs": relevant_docs,
-        }
-        labeled_data.append(data_point)
-    return labeled_data
-
-
 def parse_feed_df(df: DataFrame, include_id, id_field="id"):
     """
     Convert a df into batch format for feeding
