@@ -7,8 +7,8 @@ from vespa.deployment import VespaDocker
 from vespa.experimental.ranking import (
     BeirData,
     SparseBeirApplicationPackage,
-    ListwiseRankingFramework,
 )
+from learntorank.ranking import ListwiseRankingFramework
 
 CONTAINER_STOP_TIMEOUT = 600
 
