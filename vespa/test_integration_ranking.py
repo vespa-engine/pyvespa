@@ -2,66 +2,9 @@ import unittest
 import os
 import shutil
 import pandas as pd
-from vespa.experimental.ranking import (
-    BeirData,
-)
 from learntorank.ranking import ListwiseRankingFramework
 
 CONTAINER_STOP_TIMEOUT = 600
-
-
-class TestBeirData(unittest.TestCase):
-    def setUp(self) -> None:
-        self.data_source = BeirData(data_dir=os.environ["RESOURCES_DIR"])
-
-    def test_sample_data(self):
-        #
-        # Load the full dataset
-        #
-        full_data = self.data_source.load_data(file_name="beir_data.json")
-        #
-        # Sample from dataset
-        #
-        sample_data = self.data_source.sample_data(
-            data=full_data,
-            number_positive_samples=2,
-            number_negative_samples=5,
-            split_types=["train", "dev"],
-        )
-        self.assertEqual(len(sample_data["corpus"]), 9)
-        self.assertLessEqual(sample_data["corpus"].items(), full_data["corpus"].items())
-        self.assertEqual(len(sample_data["split"]["train"]["qrels"]), 2)
-        self.assertLessEqual(
-            sample_data["split"]["train"]["qrels"].items(),
-            full_data["split"]["train"]["qrels"].items(),
-        )
-        self.assertEqual(len(sample_data["split"]["train"]["queries"]), 2)
-        self.assertLessEqual(
-            sample_data["split"]["train"]["queries"].items(),
-            full_data["split"]["train"]["queries"].items(),
-        )
-        self.assertEqual(len(sample_data["split"]["dev"]["qrels"]), 2)
-        self.assertLessEqual(
-            sample_data["split"]["dev"]["qrels"].items(),
-            full_data["split"]["dev"]["qrels"].items(),
-        )
-        self.assertEqual(len(sample_data["split"]["dev"]["queries"]), 2)
-        self.assertLessEqual(
-            sample_data["split"]["dev"]["queries"].items(),
-            full_data["split"]["dev"]["queries"].items(),
-        )
-        #
-        # Save sample data
-        #
-        self.data_source.save_data(sample_data, file_name="sample.json")
-        #
-        # Load sample data
-        #
-        loaded_sample = self.data_source.load_data(file_name="sample.json")
-        self.assertDictEqual(sample_data, loaded_sample)
-
-    def tearDown(self) -> None:
-        os.remove(os.path.join(os.environ["RESOURCES_DIR"], "sample.json"))
 
 
 class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
