@@ -1,4 +1,3 @@
-import re
 import json
 import random
 import os
@@ -15,6 +14,7 @@ from vespa.package import (
     QueryProfile,
     QueryField,
 )
+
 
 class BeirData:
     def __init__(self, data_dir: str):
@@ -128,66 +128,3 @@ class BeirData:
         corpus_sample = {k: corpus[k] for k in doc_id_samples}
 
         return {"corpus": corpus_sample, "split": split}
-
-
-class SparseBeirApplicationPackage(ApplicationPackage):
-    def __init__(self, name: str = "SparseBeir"):
-        """
-        Create an application package suited to perform sparse ranking on beir data.
-
-        :param name: Name of the application package
-        """
-        document = Document(
-            fields=[
-                Field(name="id", type="string", indexing=["attribute", "summary"]),
-                Field(
-                    name="title",
-                    type="string",
-                    indexing=["index"],
-                    index="enable-bm25",
-                ),
-                Field(
-                    name="body",
-                    type="string",
-                    indexing=["index"],
-                    index="enable-bm25",
-                ),
-            ]
-        )
-        schema = Schema(
-            name=name,
-            document=document,
-            fieldsets=[FieldSet(name="default", fields=["title", "body"])],
-            rank_profiles=[
-                Ranking(
-                    name="bm25",
-                    first_phase="bm25(body)",
-                    summary_features=["bm25(body)"],
-                ),
-                Ranking(name="native_rank", first_phase="nativeRank(body)"),
-                Ranking(name="random", first_phase="random"),
-            ],
-        )
-        super().__init__(
-            name=name,
-            schema=[schema],
-            query_profile=QueryProfile(
-                fields=[QueryField(name="maxHits", value=10000)]
-            ),
-        )
-
-    def add_first_phase_linear_model(self, name, weights):
-        """
-        Add a linear model as a first phase ranking
-
-        :param name: Name of the ranking profile.
-        :param weights: Dict containing feature name as key and weight value as value.
-        """
-        self.schema.add_rank_profile(
-            Ranking(
-                name=name,
-                first_phase=" + ".join(
-                    ["{} * {}".format(k, v) for k, v in weights.items()]
-                ),
-            )
-        )
