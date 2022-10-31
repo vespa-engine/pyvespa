@@ -1,101 +1,10 @@
 import unittest
 import os
 import shutil
-import json
 import pandas as pd
-from vespa.deployment import VespaDocker
-from vespa.experimental.ranking import (
-    BeirData,
-    SparseBeirApplicationPackage,
-    ListwiseRankingFramework,
-)
+from learntorank.ranking import ListwiseRankingFramework
 
 CONTAINER_STOP_TIMEOUT = 600
-
-
-class TestBeirData(unittest.TestCase):
-    def setUp(self) -> None:
-        self.data_source = BeirData(data_dir=os.environ["RESOURCES_DIR"])
-
-    def test_sample_data(self):
-        #
-        # Load the full dataset
-        #
-        full_data = self.data_source.load_data(file_name="beir_data.json")
-        #
-        # Sample from dataset
-        #
-        sample_data = self.data_source.sample_data(
-            data=full_data,
-            number_positive_samples=2,
-            number_negative_samples=5,
-            split_types=["train", "dev"],
-        )
-        self.assertEqual(len(sample_data["corpus"]), 9)
-        self.assertLessEqual(sample_data["corpus"].items(), full_data["corpus"].items())
-        self.assertEqual(len(sample_data["split"]["train"]["qrels"]), 2)
-        self.assertLessEqual(
-            sample_data["split"]["train"]["qrels"].items(),
-            full_data["split"]["train"]["qrels"].items(),
-        )
-        self.assertEqual(len(sample_data["split"]["train"]["queries"]), 2)
-        self.assertLessEqual(
-            sample_data["split"]["train"]["queries"].items(),
-            full_data["split"]["train"]["queries"].items(),
-        )
-        self.assertEqual(len(sample_data["split"]["dev"]["qrels"]), 2)
-        self.assertLessEqual(
-            sample_data["split"]["dev"]["qrels"].items(),
-            full_data["split"]["dev"]["qrels"].items(),
-        )
-        self.assertEqual(len(sample_data["split"]["dev"]["queries"]), 2)
-        self.assertLessEqual(
-            sample_data["split"]["dev"]["queries"].items(),
-            full_data["split"]["dev"]["queries"].items(),
-        )
-        #
-        # Save sample data
-        #
-        self.data_source.save_data(sample_data, file_name="sample.json")
-        #
-        # Load sample data
-        #
-        loaded_sample = self.data_source.load_data(file_name="sample.json")
-        self.assertDictEqual(sample_data, loaded_sample)
-
-    def tearDown(self) -> None:
-        os.remove(os.path.join(os.environ["RESOURCES_DIR"], "sample.json"))
-
-
-class TestSparseBeirApp(unittest.TestCase):
-    def setUp(self) -> None:
-        with open(
-            os.path.join(os.environ["RESOURCES_DIR"], "beir_data_sample.json"), "r"
-        ) as f:
-            self.data_sample = json.load(f)
-        self.vespa_docker = VespaDocker(port=8089)
-
-    def test_end_to_end_workflow(self):
-
-        # create application package
-        app_package = SparseBeirApplicationPackage()
-
-        # # Add linear model ranking function
-        app_package.add_first_phase_linear_model(
-            name="first_phase_test",
-            weights={"bm25(body)": 0.2456, "nativeRank(body)": -0.743},
-        )
-        self.assertEqual(
-            "bm25(body) * 0.2456 + nativeRank(body) * -0.743",
-            app_package.schema.rank_profiles["first_phase_test"].first_phase,
-        )
-
-        # deploy application package
-        _ = self.vespa_docker.deploy(app_package)
-
-    def tearDown(self) -> None:
-        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
-        self.vespa_docker.container.remove()
 
 
 class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
