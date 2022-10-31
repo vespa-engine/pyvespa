@@ -1,12 +1,9 @@
 import unittest
 import os
 import shutil
-import json
 import pandas as pd
-from vespa.deployment import VespaDocker
 from vespa.experimental.ranking import (
     BeirData,
-    SparseBeirApplicationPackage,
 )
 from learntorank.ranking import ListwiseRankingFramework
 
