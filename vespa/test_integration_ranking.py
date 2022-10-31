@@ -67,37 +67,6 @@ class TestBeirData(unittest.TestCase):
         os.remove(os.path.join(os.environ["RESOURCES_DIR"], "sample.json"))
 
 
-class TestSparseBeirApp(unittest.TestCase):
-    def setUp(self) -> None:
-        with open(
-            os.path.join(os.environ["RESOURCES_DIR"], "beir_data_sample.json"), "r"
-        ) as f:
-            self.data_sample = json.load(f)
-        self.vespa_docker = VespaDocker(port=8089)
-
-    def test_end_to_end_workflow(self):
-
-        # create application package
-        app_package = SparseBeirApplicationPackage()
-
-        # # Add linear model ranking function
-        app_package.add_first_phase_linear_model(
-            name="first_phase_test",
-            weights={"bm25(body)": 0.2456, "nativeRank(body)": -0.743},
-        )
-        self.assertEqual(
-            "bm25(body) * 0.2456 + nativeRank(body) * -0.743",
-            app_package.schema.rank_profiles["first_phase_test"].first_phase,
-        )
-
-        # deploy application package
-        _ = self.vespa_docker.deploy(app_package)
-
-    def tearDown(self) -> None:
-        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
-        self.vespa_docker.container.remove()
-
-
 class TestListwiseRankingFrameworkDefaultValues(unittest.TestCase):
     def setUp(self) -> None:
         #
