@@ -20,7 +20,6 @@ from vespa.package import (
     QueryTypeField
 )
 from vespa.deployment import VespaDocker
-from vespa.ml import BertModelConfig, SequenceClassification
 from vespa.application import VespaSync
 from learntorank.query import (
     QueryModel,
@@ -30,6 +29,7 @@ from learntorank.query import (
     send_query,
     store_vespa_features,
 )
+from learntorank.text import SequenceClassification, BertModelConfig
 
 CONTAINER_STOP_TIMEOUT = 600
 

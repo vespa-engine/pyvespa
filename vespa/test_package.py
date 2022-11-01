@@ -20,9 +20,9 @@ from vespa.package import (
     QueryField,
     QueryProfile,
     ApplicationPackage,
-    ModelServer
+    ModelServer,
 )
-from vespa.ml import BertModelConfig
+from learntorank.text import BertModelConfig
 
 
 class TestField(unittest.TestCase):
@@ -1547,7 +1547,6 @@ class TestSimplifiedApplicationPackageAddBertRanking(unittest.TestCase):
 
 
 class TestValidAppName(unittest.TestCase):
-
     def test_invalid_name(self):
         with pytest.raises(ValueError):
             app_package = ApplicationPackage(name="test_app")

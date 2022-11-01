@@ -5,7 +5,7 @@ from torch import Tensor
 from transformers import BertForSequenceClassification
 from numpy.testing import assert_almost_equal
 
-from vespa.ml import BertModelConfig
+from learntorank.text import BertModelConfig
 
 
 class TestBertModelConfigTokenizerOnly(unittest.TestCase):
@@ -15,11 +15,6 @@ class TestBertModelConfigTokenizerOnly(unittest.TestCase):
             query_input_size=4,
             doc_input_size=8,
             tokenizer=os.path.join(os.environ["RESOURCES_DIR"], "bert_tiny_tokenizer"),
-        )
-
-    def test_serialization(self):
-        self.assertEqual(
-            self.model_config, BertModelConfig.from_dict(self.model_config.to_dict)
         )
 
     def test_add_model(self):
@@ -97,11 +92,6 @@ class TestBertModelConfig(unittest.TestCase):
             doc_input_size=8,
             tokenizer=os.path.join(os.environ["RESOURCES_DIR"], "bert_tiny_tokenizer"),
             model=os.path.join(os.environ["RESOURCES_DIR"], "bert_tiny_model"),
-        )
-
-    def test_serialization(self):
-        self.assertEqual(
-            self.model_config, BertModelConfig.from_dict(self.model_config.to_dict)
         )
 
     def test_predict(self):
