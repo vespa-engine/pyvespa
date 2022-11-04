@@ -3,7 +3,7 @@ import zipfile
 
 from pathlib import Path
 from shutil import copyfile
-from typing import List, Mapping, Optional, Union, Dict
+from typing import List, Optional, Union, Dict
 from collections import OrderedDict
 from jinja2 import Environment, PackageLoader, select_autoescape
 from io import BytesIO
@@ -1021,18 +1021,6 @@ class ApplicationPackage(object):
     @staticmethod
     def _application_package_file_name(disk_folder):
         return os.path.join(disk_folder, "application_package.json")
-
-    def save(self, disk_folder: str) -> None:
-        Path(disk_folder).mkdir(parents=True, exist_ok=True)
-        file_path = ApplicationPackage._application_package_file_name(disk_folder)
-        with open(file_path, "w") as f:
-            f.write(self.to_json)
-
-    @staticmethod
-    def load(disk_folder: str) -> "ApplicationPackage":
-        file_path = ApplicationPackage._application_package_file_name(disk_folder)
-        with open(file_path, "r") as f:
-            return ApplicationPackage.from_json(f.read())
 
     def to_zip(self) -> BytesIO:
         """

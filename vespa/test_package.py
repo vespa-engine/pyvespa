@@ -994,12 +994,6 @@ class TestApplicationPackageAddBertRankingWithMultipleSchemas(unittest.TestCase)
         )
         self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)
 
-    def test_save_load(self):
-        self.app_package.save(disk_folder=self.disk_folder)
-        self.assertEqual(
-            self.app_package, ApplicationPackage.load(disk_folder=self.disk_folder)
-        )
-
     def tearDown(self) -> None:
         rmtree(self.disk_folder, ignore_errors=True)
 
@@ -1415,12 +1409,6 @@ class TestSimplifiedApplicationPackageAddBertRanking(unittest.TestCase):
             "</query-profile-type>"
         )
         self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)
-
-    def test_save_load(self):
-        self.app_package.save(disk_folder=self.disk_folder)
-        self.assertEqual(
-            self.app_package, ApplicationPackage.load(disk_folder=self.disk_folder)
-        )
 
     def tearDown(self) -> None:
         rmtree(self.disk_folder, ignore_errors=True)
