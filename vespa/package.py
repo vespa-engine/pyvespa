@@ -1118,36 +1118,6 @@ class QueryProfile(ToJson, FromJson["QueryProfile"]):
         )
 
 
-class ModelConfig(object):
-    def __init__(self, model_id) -> None:
-        self.model_id = model_id
-
-    def onnx_model(self):
-        raise NotImplementedError
-
-    def query_profile_type_fields(self):
-        raise NotImplementedError
-
-    def document_fields(self, document_field_indexing):
-        raise NotImplementedError
-
-    def rank_profile(self, include_model_summary_features, **kwargs):
-        raise NotImplementedError
-
-
-class Task(object):
-    def __init__(
-        self,
-        model_id: str,
-    ):
-        """
-        Base class for ML Tasks.
-
-        :param model_id: Id used to identify the model on Vespa applications.
-        """
-        self.model_id = model_id
-
-
 class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
     def __init__(
         self,
@@ -1158,7 +1128,6 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         stateless_model_evaluation: bool = False,
         create_schema_by_default: bool = True,
         create_query_profile_by_default: bool = True,
-        tasks: Optional[List[Task]] = None,
     ) -> None:
         """
         Create an `Application Package <https://docs.vespa.ai/en/cloudconfig/application-packages.html>`__.
@@ -1178,7 +1147,6 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
             is provided in the `schema` argument.
         :param create_query_profile_by_default: Include a default :class:`QueryProfile` and :class:`QueryProfileType`
             in case it is not explicitly defined by the user in the `query_profile` and `query_profile_type` parameters.
-        :param tasks: List of tasks to be served.
 
         The easiest way to get started is to create a default application package:
 
@@ -1211,7 +1179,7 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         self.model_ids = []
         self.model_configs = {}
         self.stateless_model_evaluation = stateless_model_evaluation
-        self.models = {} if not tasks else {model.model_id: model for model in tasks}
+        self.models = {}
 
     @property
     def schemas(self) -> List[Schema]:
@@ -1251,61 +1219,6 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
                     model_id
                 )
             )
-
-    def add_model_ranking(
-        self,
-        model_config: ModelConfig,
-        schema=None,
-        include_model_summary_features=False,
-        document_field_indexing=None,
-        **kwargs
-    ) -> None:
-        """
-        Add ranking profile based on a specific model config.
-
-        :param model_config: Model config instance specifying the model to be used on the RankProfile.
-        :param schema: Name of the schema to add model ranking to.
-        :param include_model_summary_features: True to include model specific summary features, such as
-            inputs and outputs that are useful for debugging. Default to False as this requires an extra model
-            evaluation when fetching summary features.
-        :param document_field_indexing: List of indexing attributes for the document fields required by the ranking
-            model.
-        :param kwargs: Further arguments to be passed to RankProfile.
-        :return: None
-        """
-
-        model_id = model_config.model_id
-        #
-        # Validate and persist config
-        #
-        if model_id in self.model_ids:
-            raise ValueError("model_id must be unique: {}".format(model_id))
-        self.model_ids.append(model_id)
-        self.model_configs[model_id] = model_config
-        #
-        # Export ONNX model
-        #
-        self.get_schema(schema).add_model(model_config.onnx_model())
-        #
-        # Add query profile type fields
-        #
-        self.query_profile_type.add_fields(*model_config.query_profile_type_fields())
-        #
-        # Add field for doc token ids
-        #
-        self.get_schema(schema).add_fields(
-            *model_config.document_fields(
-                document_field_indexing=document_field_indexing
-            )
-        )
-        #
-        # Add rank profiles
-        #
-        self.get_schema(schema).add_rank_profile(
-            model_config.rank_profile(
-                include_model_summary_features=include_model_summary_features, **kwargs
-            )
-        )
 
     @property
     def query_profile_to_text(self):
@@ -1510,37 +1423,3 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
             repr(self.query_profile),
             repr(self.query_profile_type),
         )
-
-
-class ModelServer(ApplicationPackage):
-    def __init__(
-        self,
-        name: str,
-        tasks: Optional[List[Task]] = None,
-    ):
-        """
-        Create a Vespa stateless model evaluation server.
-
-        A Vespa stateless model evaluation server is a simplified Vespa application without content clusters.
-
-        :param name: Application name.
-        :param tasks: List of tasks to be served.
-        """
-        super().__init__(
-            name=name,
-            schema=None,
-            query_profile=None,
-            query_profile_type=None,
-            stateless_model_evaluation=True,
-            create_schema_by_default=False,
-            create_query_profile_by_default=False,
-            tasks=tasks,
-        )
-
-    @staticmethod
-    def from_dict(mapping: Mapping) -> "ModelServer":
-        return ModelServer(name=mapping["name"])
-
-    @property
-    def to_dict(self) -> Mapping:
-        return {"name": self.name}

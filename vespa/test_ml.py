@@ -5,7 +5,7 @@ from torch import Tensor
 from transformers import BertForSequenceClassification
 from numpy.testing import assert_almost_equal
 
-from learntorank.text import BertModelConfig
+from learntorank.ml import BertModelConfig
 
 
 class TestBertModelConfigTokenizerOnly(unittest.TestCase):

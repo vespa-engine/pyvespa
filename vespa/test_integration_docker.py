@@ -14,10 +14,9 @@ from vespa.package import (
     SecondPhaseRanking,
     RankProfile,
     ApplicationPackage,
-    ModelServer,
     QueryProfile,
     QueryProfileType,
-    QueryTypeField
+    QueryTypeField,
 )
 from vespa.deployment import VespaDocker
 from vespa.application import VespaSync
@@ -29,7 +28,12 @@ from learntorank.query import (
     send_query,
     store_vespa_features,
 )
-from learntorank.text import SequenceClassification, BertModelConfig
+from learntorank.ml import (
+    SequenceClassification,
+    BertModelConfig,
+    ModelServer,
+    add_ranking_model,
+)
 
 CONTAINER_STOP_TIMEOUT = 600
 
@@ -105,7 +109,8 @@ def create_cord19_application_package():
         query_input_size=5,
         doc_input_size=10,
     )
-    app_package.add_model_ranking(
+    add_ranking_model(
+        app_package=app_package,
         model_config=bert_config,
         include_model_summary_features=True,
         inherits="default",

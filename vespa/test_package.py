@@ -20,9 +20,8 @@ from vespa.package import (
     QueryField,
     QueryProfile,
     ApplicationPackage,
-    ModelServer,
 )
-from learntorank.text import BertModelConfig
+from learntorank.ml import BertModelConfig, ModelServer, add_ranking_model
 
 
 class TestField(unittest.TestCase):
@@ -952,7 +951,8 @@ class TestApplicationPackageAddBertRankingWithMultipleSchemas(unittest.TestCase)
             tokenizer=os.path.join(os.environ["RESOURCES_DIR"], "bert_tiny_tokenizer"),
             model=os.path.join(os.environ["RESOURCES_DIR"], "bert_tiny_model"),
         )
-        self.app_package.add_model_ranking(
+        add_ranking_model(
+            self.app_package,
             model_config=bert_config,
             schema="news",
             include_model_summary_features=True,
@@ -1382,7 +1382,8 @@ class TestSimplifiedApplicationPackageAddBertRanking(unittest.TestCase):
             model=os.path.join(os.environ["RESOURCES_DIR"], "bert_tiny_model"),
         )
 
-        self.app_package.add_model_ranking(
+        add_ranking_model(
+            self.app_package,
             model_config=bert_config,
             include_model_summary_features=True,
             inherits="default",

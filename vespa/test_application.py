@@ -3,8 +3,9 @@
 import unittest
 from pandas import DataFrame
 
-from vespa.package import ApplicationPackage, ModelServer, Schema, Document
+from vespa.package import ApplicationPackage, Schema, Document
 from vespa.application import Vespa, parse_feed_df
+from learntorank.ml import ModelServer
 
 
 class TestVespa(unittest.TestCase):
