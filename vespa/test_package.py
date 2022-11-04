@@ -29,9 +29,7 @@ class TestField(unittest.TestCase):
         field = Field(name="test_name", type="string")
         self.assertEqual(field.name, "test_name")
         self.assertEqual(field.type, "string")
-        self.assertEqual(field.to_dict, {"name": "test_name", "type": "string"})
         self.assertEqual(field, Field(name="test_name", type="string"))
-        self.assertEqual(field, Field.from_dict(field.to_dict))
         self.assertIsNone(field.indexing_to_text)
 
     def test_field_name_type_indexing_index(self):
@@ -46,15 +44,6 @@ class TestField(unittest.TestCase):
         self.assertEqual(field.indexing, ["index", "summary"])
         self.assertEqual(field.index, "enable-bm25")
         self.assertEqual(
-            field.to_dict,
-            {
-                "name": "body",
-                "type": "string",
-                "indexing": ["index", "summary"],
-                "index": "enable-bm25",
-            },
-        )
-        self.assertEqual(
             field,
             Field(
                 name="body",
@@ -63,22 +52,7 @@ class TestField(unittest.TestCase):
                 index="enable-bm25",
             ),
         )
-        self.assertEqual(field, Field.from_dict(field.to_dict))
         self.assertEqual(field.indexing_to_text, "index | summary")
-
-    def test_tensor_with_hnsw(self):
-        field = Field(
-            name="tensor_field",
-            type="tensor<float>(x[128])",
-            indexing=["attribute"],
-            attribute=["fast-search", "fast-access"],
-            ann=HNSW(
-                distance_metric="euclidean",
-                max_links_per_node=16,
-                neighbors_to_explore_at_insert=200,
-            ),
-        )
-        self.assertEqual(field, Field.from_dict(field.to_dict))
 
 
 class TestImportField(unittest.TestCase):
@@ -91,24 +65,18 @@ class TestImportField(unittest.TestCase):
         self.assertEqual(imported_field.name, "global_category_ctrs")
         self.assertEqual(imported_field.reference_field, "category_ctr_ref")
         self.assertEqual(imported_field.field_to_import, "ctrs")
-        self.assertEqual(
-            imported_field, ImportedField.from_dict(imported_field.to_dict)
-        )
 
 
 class TestDocument(unittest.TestCase):
     def test_empty_document(self):
         document = Document()
         self.assertEqual(document.fields, [])
-        self.assertEqual(document.to_dict, {"fields": [], "inherits": None})
-        self.assertEqual(document, Document.from_dict(document.to_dict))
 
     def test_document_one_field(self):
         document = Document(inherits="context")
         field = Field(name="test_name", type="string")
         document.add_fields(field)
         self.assertEqual(document.fields, [field])
-        self.assertEqual(document, Document.from_dict(document.to_dict))
         self.assertEqual(document, Document([field], "context"))
 
     def test_document_two_fields(self):
@@ -122,7 +90,6 @@ class TestDocument(unittest.TestCase):
         )
         document.add_fields(field_1, field_2)
         self.assertEqual(document.fields, [field_1, field_2])
-        self.assertEqual(document, Document.from_dict(document.to_dict))
         self.assertEqual(document, Document([field_1, field_2]))
 
     def test_update_field(self):
@@ -142,19 +109,7 @@ class TestFieldSet(unittest.TestCase):
         field_set = FieldSet(name="default", fields=["title", "body"])
         self.assertEqual(field_set.name, "default")
         self.assertEqual(field_set.fields, ["title", "body"])
-        self.assertEqual(field_set, FieldSet.from_dict(field_set.to_dict))
         self.assertEqual(field_set.fields_to_text, "title, body")
-
-
-class TestSecondPhaseRanking(unittest.TestCase):
-    def test_second_phase_ranking(self):
-        second_phase_ranking = SecondPhaseRanking(
-            expression="sum(eval)", rerank_count=10
-        )
-        self.assertEqual(
-            second_phase_ranking,
-            SecondPhaseRanking.from_dict(second_phase_ranking.to_dict),
-        )
 
 
 class TestFunction(unittest.TestCase):
@@ -166,7 +121,6 @@ class TestFunction(unittest.TestCase):
         self.assertEqual(
             function.expression, "fieldMatch(title) + freshness(timestamp)"
         )
-        self.assertEqual(function, Function.from_dict(function.to_dict))
         self.assertEqual(function.args_to_text, "")
 
     def test_function_one_argument(self):
@@ -178,7 +132,6 @@ class TestFunction(unittest.TestCase):
         self.assertEqual(function.name, "myfeature")
         self.assertEqual(function.expression, "fieldMatch(title) + freshness(foo)")
         self.assertEqual(function.args, ["foo"])
-        self.assertEqual(function, Function.from_dict(function.to_dict))
         self.assertEqual(function.args_to_text, "foo")
 
     def test_function_multiple_argument(self):
@@ -190,7 +143,6 @@ class TestFunction(unittest.TestCase):
         self.assertEqual(function.name, "myfeature")
         self.assertEqual(function.expression, "fieldMatch(bar) + freshness(foo)")
         self.assertEqual(function.args, ["foo", "bar"])
-        self.assertEqual(function, Function.from_dict(function.to_dict))
         self.assertEqual(function.args_to_text, "foo, bar")
 
     def test_function_multiple_lines(self):
@@ -220,7 +172,6 @@ class TestFunction(unittest.TestCase):
             """,
         )
         self.assertEqual(function.args, None)
-        self.assertEqual(function, Function.from_dict(function.to_dict))
         self.assertEqual(function.args_to_text, "")
 
 
@@ -229,7 +180,6 @@ class TestRankProfile(unittest.TestCase):
         rank_profile = RankProfile(name="bm25", first_phase="bm25(title) + bm25(body)")
         self.assertEqual(rank_profile.name, "bm25")
         self.assertEqual(rank_profile.first_phase, "bm25(title) + bm25(body)")
-        self.assertEqual(rank_profile, RankProfile.from_dict(rank_profile.to_dict))
 
     def test_rank_profile_inherits(self):
         rank_profile = RankProfile(
@@ -237,7 +187,6 @@ class TestRankProfile(unittest.TestCase):
         )
         self.assertEqual(rank_profile.name, "bm25")
         self.assertEqual(rank_profile.first_phase, "bm25(title) + bm25(body)")
-        self.assertEqual(rank_profile, RankProfile.from_dict(rank_profile.to_dict))
 
     def test_rank_profile_bert_second_phase(self):
         rank_profile = RankProfile(
@@ -305,25 +254,6 @@ class TestRankProfile(unittest.TestCase):
             rank_profile.summary_features,
             ["onnx(bert).logits", "input_ids", "attention_mask", "token_type_ids"],
         )
-        self.assertEqual(rank_profile, RankProfile.from_dict(rank_profile.to_dict))
-
-
-class TestOnnxModel(unittest.TestCase):
-    def test_onnx_model(self):
-        onnx_model = OnnxModel(
-            model_name="bert",
-            model_file_path="bert.onnx",
-            inputs={
-                "input_ids": "input_ids",
-                "token_type_ids": "token_type_ids",
-                "attention_mask": "attention_mask",
-            },
-            outputs={"logits": "logits"},
-        )
-        self.assertEqual(
-            onnx_model,
-            OnnxModel.from_dict(onnx_model.to_dict),
-        )
 
 
 class TestSchema(unittest.TestCase):
@@ -356,9 +286,6 @@ class TestSchema(unittest.TestCase):
                 )
             ],
         )
-
-    def test_serialization(self):
-        self.assertEqual(self.schema, Schema.from_dict(self.schema.to_dict))
 
     def test_rank_profile(self):
         self.assertDictEqual(
@@ -418,28 +345,19 @@ class TestQueryTypeField(unittest.TestCase):
         field = QueryTypeField(name="test_name", type="string")
         self.assertEqual(field.name, "test_name")
         self.assertEqual(field.type, "string")
-        self.assertEqual(field.to_dict, {"name": "test_name", "type": "string"})
         self.assertEqual(field, QueryTypeField(name="test_name", type="string"))
-        self.assertEqual(field, QueryTypeField.from_dict(field.to_dict))
 
 
 class TestQueryProfileType(unittest.TestCase):
     def test_empty(self):
         query_profile_type = QueryProfileType()
         self.assertEqual(query_profile_type.fields, [])
-        self.assertEqual(query_profile_type.to_dict, {"fields": []})
-        self.assertEqual(
-            query_profile_type, QueryProfileType.from_dict(query_profile_type.to_dict)
-        )
 
     def test_one_field(self):
         query_profile_type = QueryProfileType()
         field = QueryTypeField(name="test_name", type="string")
         query_profile_type.add_fields(field)
         self.assertEqual(query_profile_type.fields, [field])
-        self.assertEqual(
-            query_profile_type, QueryProfileType.from_dict(query_profile_type.to_dict)
-        )
         self.assertEqual(query_profile_type, QueryProfileType([field]))
 
     def test_two_fields(self):
@@ -451,9 +369,6 @@ class TestQueryProfileType(unittest.TestCase):
         )
         query_profile_type.add_fields(field_1, field_2)
         self.assertEqual(query_profile_type.fields, [field_1, field_2])
-        self.assertEqual(
-            query_profile_type, QueryProfileType.from_dict(query_profile_type.to_dict)
-        )
         self.assertEqual(query_profile_type, QueryProfileType([field_1, field_2]))
 
 
@@ -462,24 +377,19 @@ class TestQueryField(unittest.TestCase):
         field = QueryField(name="test_name", value=1)
         self.assertEqual(field.name, "test_name")
         self.assertEqual(field.value, 1)
-        self.assertEqual(field.to_dict, {"name": "test_name", "value": 1})
         self.assertEqual(field, QueryField(name="test_name", value=1))
-        self.assertEqual(field, QueryField.from_dict(field.to_dict))
 
 
 class TestQueryProfile(unittest.TestCase):
     def test_empty(self):
         query_profile = QueryProfile()
         self.assertEqual(query_profile.fields, [])
-        self.assertEqual(query_profile.to_dict, {"fields": []})
-        self.assertEqual(query_profile, QueryProfile.from_dict(query_profile.to_dict))
 
     def test_one_field(self):
         query_profile = QueryProfile()
         field = QueryField(name="test_name", value=2.0)
         query_profile.add_fields(field)
         self.assertEqual(query_profile.fields, [field])
-        self.assertEqual(query_profile, QueryProfile.from_dict(query_profile.to_dict))
         self.assertEqual(query_profile, QueryProfile([field]))
 
     def test_two_fields(self):
@@ -491,7 +401,6 @@ class TestQueryProfile(unittest.TestCase):
         )
         query_profile.add_fields(field_1, field_2)
         self.assertEqual(query_profile.fields, [field_1, field_2])
-        self.assertEqual(query_profile, QueryProfile.from_dict(query_profile.to_dict))
         self.assertEqual(query_profile, QueryProfile([field_1, field_2]))
 
 
@@ -619,11 +528,6 @@ class TestApplicationPackage(unittest.TestCase):
             schema=[self.test_schema],
             query_profile=test_query_profile,
             query_profile_type=test_query_profile_type,
-        )
-
-    def test_application_package(self):
-        self.assertEqual(
-            self.app_package, ApplicationPackage.from_dict(self.app_package.to_dict)
         )
 
     def test_get_schema(self):
@@ -834,11 +738,6 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
             schema=[self.news_schema, self.user_schema, self.category_ctr_schema],
         )
 
-    def test_application_package(self):
-        self.assertEqual(
-            self.app_package, ApplicationPackage.from_dict(self.app_package.to_dict)
-        )
-
     def test_get_schema(self):
         self.assertEqual(self.app_package.get_schema(name="news"), self.news_schema)
         self.assertEqual(self.app_package.get_schema(name="user"), self.user_schema)
@@ -962,11 +861,6 @@ class TestApplicationPackageAddBertRankingWithMultipleSchemas(unittest.TestCase)
         )
 
         self.disk_folder = "saved_app"
-
-    def test_application_package(self):
-        self.assertEqual(
-            self.app_package, ApplicationPackage.from_dict(self.app_package.to_dict)
-        )
 
     def test_news_schema_to_text(self):
         expected_result = (
@@ -1100,12 +994,6 @@ class TestApplicationPackageAddBertRankingWithMultipleSchemas(unittest.TestCase)
         )
         self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)
 
-    def test_save_load(self):
-        self.app_package.save(disk_folder=self.disk_folder)
-        self.assertEqual(
-            self.app_package, ApplicationPackage.load(disk_folder=self.disk_folder)
-        )
-
     def tearDown(self) -> None:
         rmtree(self.disk_folder, ignore_errors=True)
 
@@ -1162,11 +1050,6 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
         self.app_package.query_profile.add_fields(
             QueryField(name="maxHits", value=100),
             QueryField(name="anotherField", value="string_value"),
-        )
-
-    def test_application_package(self):
-        self.assertEqual(
-            self.app_package, ApplicationPackage.from_dict(self.app_package.to_dict)
         )
 
     def test_schema_to_text(self):
@@ -1279,11 +1162,6 @@ class TestSimplifiedApplicationPackageWithMultipleSchemas(unittest.TestCase):
             )
         )
 
-    def test_application_package(self):
-        self.assertEqual(
-            self.app_package, ApplicationPackage.from_dict(self.app_package.to_dict)
-        )
-
     def test_schema_to_text(self):
         expected_news_result = (
             "schema news {\n"
@@ -1391,11 +1269,6 @@ class TestSimplifiedApplicationPackageAddBertRanking(unittest.TestCase):
             second_phase=SecondPhaseRanking(rerank_count=10, expression="logit1"),
         )
         self.disk_folder = "saved_app"
-
-    def test_application_package(self):
-        self.assertEqual(
-            self.app_package, ApplicationPackage.from_dict(self.app_package.to_dict)
-        )
 
     def test_schema_to_text(self):
         expected_result = (
@@ -1536,12 +1409,6 @@ class TestSimplifiedApplicationPackageAddBertRanking(unittest.TestCase):
             "</query-profile-type>"
         )
         self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)
-
-    def test_save_load(self):
-        self.app_package.save(disk_folder=self.disk_folder)
-        self.assertEqual(
-            self.app_package, ApplicationPackage.load(disk_folder=self.disk_folder)
-        )
 
     def tearDown(self) -> None:
         rmtree(self.disk_folder, ignore_errors=True)

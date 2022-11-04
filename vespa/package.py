@@ -3,15 +3,13 @@ import zipfile
 
 from pathlib import Path
 from shutil import copyfile
-from typing import List, Mapping, Optional, Union, Dict
+from typing import List, Optional, Union, Dict
 from collections import OrderedDict
 from jinja2 import Environment, PackageLoader, select_autoescape
 from io import BytesIO
 
-from vespa.json_serialization import ToJson, FromJson
 
-
-class HNSW(ToJson, FromJson["HNSW"]):
+class HNSW(object):
     def __init__(
         self,
         distance_metric="euclidean",
@@ -30,22 +28,6 @@ class HNSW(ToJson, FromJson["HNSW"]):
         self.distance_metric = distance_metric
         self.max_links_per_node = max_links_per_node
         self.neighbors_to_explore_at_insert = neighbors_to_explore_at_insert
-
-    @staticmethod
-    def from_dict(mapping: Mapping) -> "HNSW":
-        return HNSW(
-            distance_metric=mapping["distance_metric"],
-            max_links_per_node=mapping["max_links_per_node"],
-            neighbors_to_explore_at_insert=mapping["neighbors_to_explore_at_insert"],
-        )
-
-    @property
-    def to_dict(self) -> Mapping:
-        return {
-            "distance_metric": self.distance_metric,
-            "max_links_per_node": self.max_links_per_node,
-            "neighbors_to_explore_at_insert": self.neighbors_to_explore_at_insert,
-        }
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -66,7 +48,7 @@ class HNSW(ToJson, FromJson["HNSW"]):
         )
 
 
-class Field(ToJson, FromJson["Field"]):
+class Field(object):
     def __init__(
         self,
         name: str,
@@ -129,31 +111,6 @@ class Field(ToJson, FromJson["Field"]):
         if self.indexing is not None:
             return " | ".join(self.indexing)
 
-    @staticmethod
-    def from_dict(mapping: Mapping) -> "Field":
-        ann = mapping.get("ann", None)
-        return Field(
-            name=mapping["name"],
-            type=mapping["type"],
-            indexing=mapping.get("indexing", None),
-            index=mapping.get("index", None),
-            attribute=mapping.get("attribute", None),
-            ann=FromJson.map(ann) if ann is not None else None,
-        )
-
-    @property
-    def to_dict(self) -> Mapping:
-        m = {"name": self.name, "type": self.type}
-        if self.indexing is not None:
-            m.update(indexing=self.indexing)
-        if self.index is not None:
-            m.update(index=self.index)
-        if self.attribute is not None:
-            m.update(attribute=self.attribute)
-        if self.ann is not None:
-            m.update(ann=self.ann.to_envelope)
-        return m
-
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
@@ -178,7 +135,7 @@ class Field(ToJson, FromJson["Field"]):
         )
 
 
-class ImportedField(ToJson, FromJson["ImportedField"]):
+class ImportedField(object):
     def __init__(
         self,
         name: str,
@@ -207,22 +164,6 @@ class ImportedField(ToJson, FromJson["ImportedField"]):
         self.reference_field = reference_field
         self.field_to_import = field_to_import
 
-    @staticmethod
-    def from_dict(mapping: Mapping) -> "ImportedField":
-        return ImportedField(
-            name=mapping["name"],
-            reference_field=mapping["reference_field"],
-            field_to_import=mapping["field_to_import"],
-        )
-
-    @property
-    def to_dict(self) -> Mapping:
-        return {
-            "name": self.name,
-            "reference_field": self.reference_field,
-            "field_to_import": self.field_to_import,
-        }
-
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
@@ -241,7 +182,7 @@ class ImportedField(ToJson, FromJson["ImportedField"]):
         )
 
 
-class Document(ToJson, FromJson["Document"]):
+class Document(object):
     def __init__(
         self, fields: Optional[List[Field]] = None, inherits: Optional[str] = None
     ) -> None:
@@ -285,20 +226,6 @@ class Document(ToJson, FromJson["Document"]):
         for field in fields:
             self._fields.update({field.name: field})
 
-    @staticmethod
-    def from_dict(mapping: Mapping) -> "Document":
-        return Document(
-            fields=[FromJson.map(field) for field in mapping.get("fields")],
-            inherits=mapping.get("inherits", None),
-        )
-
-    @property
-    def to_dict(self) -> Mapping:
-        return {
-            "fields": [field.to_envelope for field in self.fields],
-            "inherits": self.inherits,
-        }
-
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
@@ -312,7 +239,7 @@ class Document(ToJson, FromJson["Document"]):
         )
 
 
-class FieldSet(ToJson, FromJson["FieldSet"]):
+class FieldSet(object):
     def __init__(self, name: str, fields: List[str]) -> None:
         """
         Create a Vespa field set.
@@ -335,14 +262,6 @@ class FieldSet(ToJson, FromJson["FieldSet"]):
         if self.fields is not None:
             return ", ".join(self.fields)
 
-    @staticmethod
-    def from_dict(mapping: Mapping) -> "FieldSet":
-        return FieldSet(name=mapping["name"], fields=mapping["fields"])
-
-    @property
-    def to_dict(self) -> Mapping:
-        return {"name": self.name, "fields": self.fields}
-
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
@@ -354,7 +273,7 @@ class FieldSet(ToJson, FromJson["FieldSet"]):
         )
 
 
-class Function(ToJson, FromJson["Function"]):
+class Function(object):
     def __init__(
         self, name: str, expression: str, args: Optional[List[str]] = None
     ) -> None:
@@ -402,16 +321,6 @@ class Function(ToJson, FromJson["Function"]):
         else:
             return ""
 
-    @staticmethod
-    def from_dict(mapping: Mapping) -> "Function":
-        return Function(
-            name=mapping["name"], expression=mapping["expression"], args=mapping["args"]
-        )
-
-    @property
-    def to_dict(self) -> Mapping:
-        return {"name": self.name, "expression": self.expression, "args": self.args}
-
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
@@ -430,7 +339,7 @@ class Function(ToJson, FromJson["Function"]):
         )
 
 
-class SecondPhaseRanking(ToJson, FromJson["SecondPhaseRanking"]):
+class SecondPhaseRanking(object):
     def __init__(self, expression: str, rerank_count: int = 100) -> None:
         r"""
         Create a Vespa second phase ranking configuration.
@@ -450,16 +359,6 @@ class SecondPhaseRanking(ToJson, FromJson["SecondPhaseRanking"]):
         self.expression = expression
         self.rerank_count = rerank_count
 
-    @staticmethod
-    def from_dict(mapping: Mapping) -> "SecondPhaseRanking":
-        return SecondPhaseRanking(
-            expression=mapping["expression"], rerank_count=mapping["rerank_count"]
-        )
-
-    @property
-    def to_dict(self) -> Mapping:
-        return {"expression": self.expression, "rerank_count": self.rerank_count}
-
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
@@ -476,7 +375,7 @@ class SecondPhaseRanking(ToJson, FromJson["SecondPhaseRanking"]):
         )
 
 
-class RankProfile(ToJson, FromJson["RankProfile"]):
+class RankProfile(object):
     def __init__(
         self,
         name: str,
@@ -556,44 +455,6 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
         self.summary_features = summary_features
         self.second_phase = second_phase
 
-    @staticmethod
-    def from_dict(mapping: Mapping) -> "RankProfile":
-        functions = mapping.get("functions", None)
-        if functions is not None:
-            functions = [FromJson.map(f) for f in functions]
-        second_phase = mapping.get("second_phase", None)
-        if second_phase is not None:
-            second_phase = FromJson.map(second_phase)
-
-        return RankProfile(
-            name=mapping["name"],
-            first_phase=mapping["first_phase"],
-            inherits=mapping.get("inherits", None),
-            constants=mapping.get("constants", None),
-            functions=functions,
-            summary_features=mapping.get("summary_features", None),
-            second_phase=second_phase,
-        )
-
-    @property
-    def to_dict(self) -> Mapping:
-        m = {
-            "name": self.name,
-            "first_phase": self.first_phase,
-        }
-        if self.inherits is not None:
-            m.update({"inherits": self.inherits})
-        if self.constants is not None:
-            m.update({"constants": self.constants})
-        if self.functions is not None:
-            m.update({"functions": [f.to_envelope for f in self.functions]})
-        if self.summary_features is not None:
-            m.update({"summary_features": self.summary_features})
-        if self.second_phase is not None:
-            m.update({"second_phase": self.second_phase.to_envelope})
-
-        return m
-
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
@@ -620,7 +481,7 @@ class RankProfile(ToJson, FromJson["RankProfile"]):
         )
 
 
-class OnnxModel(ToJson, FromJson["OnnxModel"]):
+class OnnxModel(object):
     def __init__(
         self,
         model_name: str,
@@ -664,24 +525,6 @@ class OnnxModel(ToJson, FromJson["OnnxModel"]):
         self.model_file_name = self.model_name + ".onnx"
         self.file_path = os.path.join("files", self.model_file_name)
 
-    @staticmethod
-    def from_dict(mapping: Mapping) -> "OnnxModel":
-        return OnnxModel(
-            model_name=mapping["model_name"],
-            model_file_path=mapping["model_file_path"],
-            inputs=mapping["inputs"],
-            outputs=mapping["outputs"],
-        )
-
-    @property
-    def to_dict(self) -> Mapping:
-        return {
-            "model_name": self.model_name,
-            "model_file_path": self.model_file_path,
-            "inputs": self.inputs,
-            "outputs": self.outputs,
-        }
-
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
@@ -702,7 +545,7 @@ class OnnxModel(ToJson, FromJson["OnnxModel"]):
         )
 
 
-class Schema(ToJson, FromJson["Schema"]):
+class Schema(object):
     def __init__(
         self,
         name: str,
@@ -819,60 +662,6 @@ class Schema(ToJson, FromJson["Schema"]):
             imported_fields=self.imported_fields,
         )
 
-    @staticmethod
-    def from_dict(mapping: Mapping) -> "Schema":
-        fieldsets = mapping.get("fieldsets", None)
-        if fieldsets:
-            fieldsets = [FromJson.map(fieldset) for fieldset in mapping["fieldsets"]]
-        rank_profiles = mapping.get("rank_profiles", None)
-        if rank_profiles:
-            rank_profiles = [
-                FromJson.map(rank_profile) for rank_profile in mapping["rank_profiles"]
-            ]
-        models = mapping.get("models", None)
-        if models:
-            models = [FromJson.map(model) for model in mapping["models"]]
-        imported_fields = mapping.get("imported_fields", None)
-        if imported_fields:
-            imported_fields = [
-                FromJson.map(imported_field) for imported_field in imported_fields
-            ]
-
-        return Schema(
-            name=mapping["name"],
-            document=FromJson.map(mapping["document"]),
-            fieldsets=fieldsets,
-            rank_profiles=rank_profiles,
-            models=models,
-            global_document=mapping["global_document"],
-            imported_fields=imported_fields,
-        )
-
-    @property
-    def to_dict(self) -> Mapping:
-        m = {
-            "name": self.name,
-            "document": self.document.to_envelope,
-            "global_document": self.global_document,
-        }
-        if self.fieldsets:
-            m["fieldsets"] = [
-                self.fieldsets[name].to_envelope for name in self.fieldsets.keys()
-            ]
-        if self.rank_profiles:
-            m["rank_profiles"] = [
-                self.rank_profiles[name].to_envelope
-                for name in self.rank_profiles.keys()
-            ]
-        if self.models:
-            m["models"] = [model.to_envelope for model in self.models]
-        if self.imported_fields:
-            m["imported_fields"] = [
-                self.imported_fields[name].to_envelope
-                for name in self.imported_fields.keys()
-            ]
-        return m
-
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
@@ -909,7 +698,7 @@ class Schema(ToJson, FromJson["Schema"]):
         )
 
 
-class QueryTypeField(ToJson, FromJson["QueryTypeField"]):
+class QueryTypeField(object):
     def __init__(
         self,
         name: str,
@@ -930,17 +719,6 @@ class QueryTypeField(ToJson, FromJson["QueryTypeField"]):
         self.name = name
         self.type = type
 
-    @staticmethod
-    def from_dict(mapping: Mapping) -> "QueryTypeField":
-        return QueryTypeField(
-            name=mapping["name"],
-            type=mapping["type"],
-        )
-
-    @property
-    def to_dict(self) -> Mapping:
-        return {"name": self.name, "type": self.type}
-
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
@@ -954,7 +732,7 @@ class QueryTypeField(ToJson, FromJson["QueryTypeField"]):
         )
 
 
-class QueryProfileType(ToJson, FromJson["QueryProfileType"]):
+class QueryProfileType(object):
     def __init__(self, fields: Optional[List[QueryTypeField]] = None) -> None:
         """
         Create a Vespa Query Profile Type.
@@ -1001,16 +779,6 @@ class QueryProfileType(ToJson, FromJson["QueryProfileType"]):
         """
         self.fields.extend(fields)
 
-    @staticmethod
-    def from_dict(mapping: Mapping) -> "QueryProfileType":
-        return QueryProfileType(
-            fields=[FromJson.map(field) for field in mapping.get("fields")]
-        )
-
-    @property
-    def to_dict(self) -> Mapping:
-        return {"fields": [field.to_envelope for field in self.fields]}
-
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
@@ -1022,7 +790,7 @@ class QueryProfileType(ToJson, FromJson["QueryProfileType"]):
         )
 
 
-class QueryField(ToJson, FromJson["QueryField"]):
+class QueryField(object):
     def __init__(
         self,
         name: str,
@@ -1040,17 +808,6 @@ class QueryField(ToJson, FromJson["QueryField"]):
         self.name = name
         self.value = value
 
-    @staticmethod
-    def from_dict(mapping: Mapping) -> "QueryField":
-        return QueryField(
-            name=mapping["name"],
-            value=mapping["value"],
-        )
-
-    @property
-    def to_dict(self) -> Mapping:
-        return {"name": self.name, "value": self.value}
-
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
@@ -1064,7 +821,7 @@ class QueryField(ToJson, FromJson["QueryField"]):
         )
 
 
-class QueryProfile(ToJson, FromJson["QueryProfile"]):
+class QueryProfile(object):
     def __init__(self, fields: Optional[List[QueryField]] = None) -> None:
         """
         Create a Vespa Query Profile.
@@ -1097,16 +854,6 @@ class QueryProfile(ToJson, FromJson["QueryProfile"]):
         """
         self.fields.extend(fields)
 
-    @staticmethod
-    def from_dict(mapping: Mapping) -> "QueryProfile":
-        return QueryProfile(
-            fields=[FromJson.map(field) for field in mapping.get("fields")]
-        )
-
-    @property
-    def to_dict(self) -> Mapping:
-        return {"fields": [field.to_envelope for field in self.fields]}
-
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
@@ -1118,7 +865,7 @@ class QueryProfile(ToJson, FromJson["QueryProfile"]):
         )
 
 
-class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
+class ApplicationPackage(object):
     def __init__(
         self,
         name: str,
@@ -1272,34 +1019,8 @@ class ApplicationPackage(ToJson, FromJson["ApplicationPackage"]):
         )
 
     @staticmethod
-    def from_dict(mapping: Mapping) -> "ApplicationPackage":
-        schema = mapping.get("schema", None)
-        if schema is not None:
-            schema = [FromJson.map(x) for x in schema]
-        return ApplicationPackage(name=mapping["name"], schema=schema)
-
-    @property
-    def to_dict(self) -> Mapping:
-        m = {"name": self.name}
-        if self._schema is not None:
-            m.update({"schema": [x.to_envelope for x in self.schemas]})
-        return m
-
-    @staticmethod
     def _application_package_file_name(disk_folder):
         return os.path.join(disk_folder, "application_package.json")
-
-    def save(self, disk_folder: str) -> None:
-        Path(disk_folder).mkdir(parents=True, exist_ok=True)
-        file_path = ApplicationPackage._application_package_file_name(disk_folder)
-        with open(file_path, "w") as f:
-            f.write(self.to_json)
-
-    @staticmethod
-    def load(disk_folder: str) -> "ApplicationPackage":
-        file_path = ApplicationPackage._application_package_file_name(disk_folder)
-        with open(file_path, "r") as f:
-            return ApplicationPackage.from_json(f.read())
 
     def to_zip(self) -> BytesIO:
         """

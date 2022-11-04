@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from time import sleep, strftime, gmtime
-from typing import Union, IO, Optional, Mapping
+from typing import Union, IO, Optional
 
 import docker
 import requests
@@ -19,7 +19,6 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 
 from vespa.application import Vespa
-from vespa.json_serialization import ToJson, FromJson
 from vespa.package import ApplicationPackage
 
 CFG_SERVER_START_TIMEOUT = 300
@@ -27,7 +26,7 @@ APP_INIT_TIMEOUT = 300
 DOCKER_TIMEOUT = 600
 
 
-class VespaDocker(ToJson, FromJson["VespaDocker"]):
+class VespaDocker(object):
     def __init__(
         self,
         port: int = 8080,
@@ -309,45 +308,6 @@ class VespaDocker(ToJson, FromJson["VespaDocker"]):
         """
         self.stop_services()
         self.start_services()
-
-    @staticmethod
-    def from_dict(mapping: Mapping) -> "VespaDocker":
-        try:
-            if mapping["container_id"] is not None:
-                vespa_docker = VespaDocker.from_container_name_or_id(
-                    name_or_id=mapping["container_id"]
-                )
-                return vespa_docker
-            elif mapping["container_name"] is not None:
-                vespa_docker = VespaDocker.from_container_name_or_id(
-                    name_or_id=mapping["container_name"]
-                )
-                return vespa_docker
-            else:
-                print(
-                    "Unable to instantiate VespaDocker from a running container. Starting new container."
-                )
-        except ValueError:
-            print(
-                "Unable to instantiate VespaDocker from a running container. Starting new container."
-            )
-        vespa_docker = VespaDocker(
-            port=mapping["port"],
-            container_memory=mapping["container_memory"],
-            container_image=mapping["container_image"],
-        )
-        return vespa_docker
-
-    @property
-    def to_dict(self) -> Mapping:
-        return {
-            "container_id": self.container_id,
-            "container_name": self.container_name,
-            "url": self.url,
-            "port": self.local_port,
-            "container_memory": self.container_memory,
-            "container_image": self.container_image,
-        }
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
