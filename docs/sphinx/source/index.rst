@@ -10,6 +10,7 @@ Vespa python API
    :hidden:
 
    getting-started-pyvespa
+   troubleshooting
    query
    query-model
    deploy-docker
