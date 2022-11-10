@@ -13,7 +13,6 @@ This space will highlight use cases built with Vespa_.
    use_cases/qa/semantic-retrieval-for-question-answering-applications
    use_cases/image_search/image-search-scratch
    use_cases/cord19/cord19
-   use_cases/sequence-classification-task
    use_cases/lightgbm-with-categorical
    use_cases/lightgbm-with-categorical-mapping
    use_cases/tensorflow-via-onnx
