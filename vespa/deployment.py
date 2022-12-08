@@ -35,12 +35,14 @@ class VespaDocker(object):
         container: Optional[docker.models.containers.Container] = None,
         container_image: str = "vespaengine/vespa",
         cfgsrv_port: int = 19071,
+        debug_port: int = 5005,
     ) -> None:
         """
         Manage Docker deployments.
 
         :param port: Container port.
         :param cfgsrv_port: Config Server port.
+        :param debug_port: Port to connect to, to debug the vespa container.
         :param output_file: Output file to write output messages.
         :param container_memory: Docker container memory available to the application.
         :param container: Used when instantiating VespaDocker from a running container.
@@ -57,6 +59,7 @@ class VespaDocker(object):
         self.url = "http://localhost"
         self.local_port = port
         self.cfgsrv_port = cfgsrv_port
+        self.debug_port = debug_port
         self.container_memory = container_memory
         self.output = output_file
         self.container_image = container_image
@@ -99,6 +102,7 @@ class VespaDocker(object):
         self,
         application_name: str,
         container_memory: str,
+        debug: bool,
     ):
         client = docker.from_env(timeout=DOCKER_TIMEOUT)
         if self.container is None:
@@ -107,6 +111,9 @@ class VespaDocker(object):
                 self.container = client.containers.get(application_name)
                 self.container.restart()
             except docker.errors.NotFound:
+                mapped_ports = {8080: self.local_port, 19071: self.cfgsrv_port}
+                if debug:
+                    mapped_ports[self.debug_port] = self.debug_port
                 logging.debug(
                     "Start a Docker container: "
                     "image: {image}, "
@@ -118,7 +125,7 @@ class VespaDocker(object):
                         mem_limit=container_memory,
                         name=application_name,
                         hostname=application_name,
-                        ports={8080: self.local_port, 19071: self.cfgsrv_port},
+                        ports=mapped_ports,
                     )
                 )
                 self.container = client.containers.run(
@@ -128,7 +135,7 @@ class VespaDocker(object):
                     name=application_name,
                     hostname=application_name,
                     privileged=True,
-                    ports={8080: self.local_port, 19071: self.cfgsrv_port},
+                    ports=mapped_ports,
                 )
             self.container_name = self.container.name
             self.container_id = self.container.id
@@ -185,15 +192,17 @@ class VespaDocker(object):
     def deploy(
         self,
         application_package: ApplicationPackage,
+        debug: bool = False,
     ) -> Vespa:
         """
         Deploy the application package into a Vespa container.
         :param application_package: ApplicationPackage to be deployed.
+        :param debug: Add the configured debug_port to the docker port mapping.
         :return: a Vespa connection instance.
         """
-        return self._deploy_data(application_package, application_package.to_zip())
+        return self._deploy_data(application_package, application_package.to_zip(), debug)
 
-    def deploy_from_disk(self, application_name: str, application_root: Path) -> Vespa:
+    def deploy_from_disk(self, application_name: str, application_root: Path, debug: bool = False) -> Vespa:
         """
         Deploy from a directory tree.
         Used when making changes to application package files not supported by pyvespa -
@@ -201,6 +210,7 @@ class VespaDocker(object):
 
         :param application_name: Application package name.
         :param application_root: Application package directory root
+        :param debug: Add the configured debug_port to the docker port mapping.
         :return: a Vespa connection instance.
         """
         tmp_zip = "tmp_app_package.zip"
@@ -215,9 +225,9 @@ class VespaDocker(object):
         with open(tmp_zip, "rb") as f:
             data = f.read()
         os.remove(tmp_zip)
-        return self._deploy_data(ApplicationPackage(name=application_name), data)
+        return self._deploy_data(ApplicationPackage(name=application_name), data, debug)
 
-    def _deploy_data(self, application: ApplicationPackage, data) -> Vespa:
+    def _deploy_data(self, application: ApplicationPackage, data, debug: bool) -> Vespa:
         """
         Deploys an Application Package as zipped data
 
@@ -226,7 +236,7 @@ class VespaDocker(object):
         :return: A Vespa connection instance
         """
         self._run_vespa_engine_container(
-            application_name=application.name, container_memory=self.container_memory
+            application_name=application.name, container_memory=self.container_memory, debug=debug
         )
         self.wait_for_config_server_start(max_wait=CFG_SERVER_START_TIMEOUT)
 
