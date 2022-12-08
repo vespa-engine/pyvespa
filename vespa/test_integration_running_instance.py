@@ -30,8 +30,8 @@ class TestRunningInstance(unittest.TestCase):
         match_phase = Union(
             WeakAnd(hits=10),
             ANN(
-                doc_vector="title_embedding",
-                query_vector="title_vector",
+                doc_vector="specter_embedding",
+                query_vector="specter_vector",
                 hits=10,
                 label="title",
             ),
@@ -41,7 +41,7 @@ class TestRunningInstance(unittest.TestCase):
             name="ANN_bm25",
             query_properties=[
                 QueryRankingFeature(
-                    name="title_vector",
+                    name="specter_vector",
                     mapping=lambda x: [random() for x in range(768)],
                 )
             ],
