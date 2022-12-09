@@ -264,7 +264,7 @@ class VespaDocker(object):
 
     def stop_services(self):
         """
-        Stop Vespa services.
+        Stop Vespa services inside the docker image.
 
         :raises RuntimeError: if a container has not been set
         :return: None
@@ -314,7 +314,7 @@ class VespaDocker(object):
 
     def restart_services(self):
         """
-        Restart Vespa services.
+        Restart Vespa services inside the docker image.
 
         :raises RuntimeError: if a container has not been set
         :return: None
