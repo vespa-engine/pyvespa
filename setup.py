@@ -37,6 +37,7 @@ setuptools.setup(
     },
     python_requires=">=3.6",
     zip_safe=False,
+    package_data={"vespa": ["py.typed"]},
     data_files=[
         (
             "templates",
