@@ -285,7 +285,7 @@ class VespaDocker(object):
 
     def start_services(self):
         """
-        Start Vespa services.
+        Start Vespa services inside the docker image, first waiting for the Config Server, then for other services.
 
         :raises RuntimeError: if a container has not been set
         :return: None
