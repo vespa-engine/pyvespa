@@ -6,7 +6,7 @@ import aiohttp
 import asyncio
 import concurrent.futures
 from collections import Counter
-from typing import Optional, Dict, List, IO
+from typing import Any, Optional, Dict, List, IO
 
 import requests
 from pandas import DataFrame
@@ -29,7 +29,7 @@ retry_strategy = Retry(
 )
 
 
-def parse_feed_df(df: DataFrame, include_id, id_field="id"):
+def parse_feed_df(df: DataFrame, include_id: bool, id_field="id") -> List[Dict[str, Any]]:
     """
     Convert a df into batch format for feeding
 
