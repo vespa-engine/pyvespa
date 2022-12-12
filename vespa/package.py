@@ -3,7 +3,7 @@ import zipfile
 
 from pathlib import Path
 from shutil import copyfile
-from typing import List, Optional, Union, Dict
+from typing import List, Optional, Tuple, Union, Dict
 from collections import OrderedDict
 from jinja2 import Environment, PackageLoader, select_autoescape
 from io import BytesIO
@@ -57,6 +57,7 @@ class Field(object):
         index: Optional[str] = None,
         attribute: Optional[List[str]] = None,
         ann: Optional[HNSW] = None,
+        match: Optional[List[str | Tuple[str, str]]] = None,
     ) -> None:
         """
         Create a Vespa field.
@@ -75,9 +76,10 @@ class Field(object):
         :param index: Sets index parameters. Content in fields with index are normalized and tokenized by default.
         :param attribute:  Specifies a property of an index structure attribute.
         :param ann: Add configuration for approximate nearest neighbor.
+        :param match: Set properties that decide how the matching method for this field operate.
 
         >>> Field(name = "title", type = "string", indexing = ["index", "summary"], index = "enable-bm25")
-        Field('title', 'string', ['index', 'summary'], 'enable-bm25', None, None)
+        Field('title', 'string', ['index', 'summary'], 'enable-bm25', None, None, None)
 
         >>> Field(
         ...     name = "abstract",
@@ -85,7 +87,7 @@ class Field(object):
         ...     indexing = ["attribute"],
         ...     attribute=["fast-search", "fast-access"]
         ... )
-        Field('abstract', 'string', ['attribute'], None, ['fast-search', 'fast-access'], None)
+        Field('abstract', 'string', ['attribute'], None, ['fast-search', 'fast-access'], None, None)
 
         >>> Field(name="tensor_field",
         ...     type="tensor<float>(x[128])",
@@ -96,7 +98,14 @@ class Field(object):
         ...         neighbors_to_explore_at_insert=200,
         ...     ),
         ... )
-        Field('tensor_field', 'tensor<float>(x[128])', ['attribute'], None, None, HNSW('euclidean', 16, 200))
+        Field('tensor_field', 'tensor<float>(x[128])', ['attribute'], None, None, HNSW('euclidean', 16, 200), None)
+
+        >>> Field(
+        ...     name = "abstract",
+        ...     type = "string,
+        ...     match = ["exact", ("exact-terminator", '"@%"',)],
+        ... )
+        Field('abstract', 'string', ['attribute'], None, None, None, ['exact', ('exact-terminator', '"@%"')])
 
         """
         self.name = name
@@ -105,6 +114,7 @@ class Field(object):
         self.attribute = attribute
         self.index = index
         self.ann = ann
+        self.match = match
 
     @property
     def indexing_to_text(self) -> Optional[str]:
@@ -121,10 +131,11 @@ class Field(object):
             and self.index == other.index
             and self.attribute == other.attribute
             and self.ann == other.ann
+            and self.match == other.match
         )
 
     def __repr__(self):
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.type),
@@ -132,6 +143,7 @@ class Field(object):
             repr(self.index),
             repr(self.attribute),
             repr(self.ann),
+            repr(self.match)
         )
 
 

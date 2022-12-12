@@ -28,6 +28,17 @@ schema {{ schema_name }} {
                 }
             }
             {% endif %}
+            {% if field.match %}
+            match {
+                {% for match in field.match %}
+                {% if match is string %}
+                {{ match }}
+                {% else %}
+                {{ match.0 }}: {{ match.1 }}
+                {% endif %}
+                {% endfor %}
+            }
+            {% endif %}
         }
         {% endfor %}
     }
