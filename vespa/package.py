@@ -57,7 +57,7 @@ class Field(object):
         index: Optional[str] = None,
         attribute: Optional[List[str]] = None,
         ann: Optional[HNSW] = None,
-        match: Optional[List[str | Tuple[str, str]]] = None,
+        match: Optional[List[Union[str, Tuple[str, str]]]] = None,
     ) -> None:
         """
         Create a Vespa field.
