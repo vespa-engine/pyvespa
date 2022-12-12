@@ -162,7 +162,7 @@ class Vespa(object):
 
         return schema.name
 
-    def wait_for_application_up(self, max_wait):
+    def wait_for_application_up(self, max_wait: int) -> None:
         """
         Wait for application ready.
 
