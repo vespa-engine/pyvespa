@@ -6,7 +6,7 @@ import aiohttp
 import asyncio
 import concurrent.futures
 from collections import Counter
-from typing import Optional, Dict, List, IO, Union
+from typing import Optional, Dict, List, IO
 
 import requests
 from pandas import DataFrame
