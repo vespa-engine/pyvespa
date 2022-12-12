@@ -319,9 +319,9 @@ class VespaDocker(object):
         self.stop_services()
         self.start_services()
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return (
             self.container_id == other.container_id
             and self.container_name == other.container_name
