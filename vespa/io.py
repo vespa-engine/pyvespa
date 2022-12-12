@@ -63,7 +63,7 @@ class VespaQueryResponse(VespaResponse):
     def hits(self) -> List:
         return self.json.get("root", {}).get("children", [])
 
-    def get_hits(self, format_function=trec_format, **kwargs):
+    def get_hits(self, format_function=trec_format, **kwargs) -> DataFrame:
         """
         Get Vespa hits according to `format_function` format.
 
