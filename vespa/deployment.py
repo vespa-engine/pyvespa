@@ -332,7 +332,7 @@ class VespaDocker(object):
             == other.container_image.split(":")[0]
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}({1}, {2}, {3}, {4}, {5}, {6})".format(
             self.__class__.__name__,
             repr(self.url),
