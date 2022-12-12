@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from time import sleep, strftime, gmtime
-from typing import Union, IO, Optional
+from typing import Tuple, Union, IO, Optional
 
 import docker
 import requests
@@ -415,7 +415,7 @@ class VespaCloud(object):
             file.write(cert.public_bytes(serialization.Encoding.PEM).decode("UTF-8"))
 
     @staticmethod
-    def _create_certificate_pair() -> (ec.EllipticCurvePrivateKey, x509.Certificate):
+    def _create_certificate_pair() -> Tuple[ec.EllipticCurvePrivateKey, x509.Certificate]:
         key = ec.generate_private_key(ec.SECP384R1, default_backend())
         name = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, u"localhost")])
         certificate = (
@@ -566,7 +566,7 @@ class VespaCloud(object):
 
     def _get_deployment_status(
         self, instance: str, job: str, run: int, last: int
-    ) -> (str, int):
+    ) -> Tuple[str, int]:
 
         update = self._request(
             "GET",
