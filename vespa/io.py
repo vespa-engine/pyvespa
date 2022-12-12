@@ -4,15 +4,15 @@ from pandas import DataFrame
 
 
 class VespaResponse(object):
-    def __init__(self, json, status_code, url, operation_type):
+    def __init__(self, json, status_code, url, operation_type) -> None:
         self.json = json
         self.status_code = status_code
         self.url = url
         self.operation_type = operation_type
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return (
             self.json == other.json
             and self.status_code == other.status_code
@@ -51,7 +51,7 @@ def trec_format(
 
 
 class VespaQueryResponse(VespaResponse):
-    def __init__(self, json, status_code, url, request_body=None):
+    def __init__(self, json, status_code, url, request_body=None) -> None:
         super().__init__(json=json, status_code=status_code, url=url, operation_type="query")
         self._request_body = request_body
 
@@ -63,7 +63,7 @@ class VespaQueryResponse(VespaResponse):
     def hits(self) -> List:
         return self.json.get("root", {}).get("children", [])
 
-    def get_hits(self, format_function=trec_format, **kwargs):
+    def get_hits(self, format_function=trec_format, **kwargs) -> DataFrame:
         """
         Get Vespa hits according to `format_function` format.
 

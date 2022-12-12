@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from time import sleep, strftime, gmtime
-from typing import Union, IO, Optional
+from typing import Tuple, Union, IO, Optional
 
 import docker
 import requests
@@ -103,7 +103,7 @@ class VespaDocker(object):
         application_name: str,
         container_memory: str,
         debug: bool,
-    ):
+    ) -> None:
         client = docker.from_env(timeout=DOCKER_TIMEOUT)
         if self.container is None:
             try:
@@ -157,7 +157,7 @@ class VespaDocker(object):
         logging.debug("Config Server ApplicationStatus head response: " + output)
         return output.split("\r\n")[0] == "HTTP/1.1 200 OK"
 
-    def wait_for_config_server_start(self, max_wait):
+    def wait_for_config_server_start(self, max_wait: int) -> None:
         """
         Waits for Config Server to start inside the Docker image
 
@@ -182,7 +182,7 @@ class VespaDocker(object):
                 "Config server did not start, waited for {0} seconds.".format(max_wait)
             )
 
-    def dump_vespa_log(self):
+    def dump_vespa_log(self) -> None:
         log_dump = self.container.exec_run(
             "bash -c 'cat /opt/vespa/logs/vespa/vespa.log'"
         )
@@ -262,7 +262,7 @@ class VespaDocker(object):
         print("Finished deployment.", file=self.output)
         return app
 
-    def stop_services(self):
+    def stop_services(self) -> None:
         """
         Stop Vespa services.
 
@@ -282,7 +282,7 @@ class VespaDocker(object):
         else:
             raise RuntimeError("No container found")
 
-    def start_services(self):
+    def start_services(self) -> None:
         """
         Start Vespa services.
 
@@ -310,7 +310,7 @@ class VespaDocker(object):
         else:
             raise RuntimeError("No container found")
 
-    def restart_services(self):
+    def restart_services(self) -> None:
         """
         Restart Vespa  services.
 
@@ -319,9 +319,9 @@ class VespaDocker(object):
         self.stop_services()
         self.start_services()
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return (
             self.container_id == other.container_id
             and self.container_name == other.container_name
@@ -332,7 +332,7 @@ class VespaDocker(object):
             == other.container_image.split(":")[0]
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}({1}, {2}, {3}, {4}, {5}, {6})".format(
             self.__class__.__name__,
             repr(self.url),
@@ -415,7 +415,7 @@ class VespaCloud(object):
             file.write(cert.public_bytes(serialization.Encoding.PEM).decode("UTF-8"))
 
     @staticmethod
-    def _create_certificate_pair() -> (ec.EllipticCurvePrivateKey, x509.Certificate):
+    def _create_certificate_pair() -> Tuple[ec.EllipticCurvePrivateKey, x509.Certificate]:
         key = ec.generate_private_key(ec.SECP384R1, default_backend())
         name = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, u"localhost")])
         certificate = (
@@ -493,7 +493,7 @@ class VespaCloud(object):
             raise RuntimeError("No endpoints found for container 'test_app_container'")
         return container_url[0]
 
-    def _to_application_zip(self, disk_folder) -> BytesIO:
+    def _to_application_zip(self, disk_folder: str) -> BytesIO:
         buffer = BytesIO()
         with zipfile.ZipFile(buffer, "a") as zip_archive:
 
@@ -566,7 +566,7 @@ class VespaCloud(object):
 
     def _get_deployment_status(
         self, instance: str, job: str, run: int, last: int
-    ) -> (str, int):
+    ) -> Tuple[str, int]:
 
         update = self._request(
             "GET",
@@ -654,7 +654,7 @@ class VespaCloud(object):
         print("Finished deployment.", file=self.output)
         return app
 
-    def delete(self, instance: str):
+    def delete(self, instance: str) -> None:
         """
         Delete the specified instance from the dev environment in the Vespa Cloud.
         :param instance: Name of the instance to delete.
@@ -679,11 +679,11 @@ class VespaCloud(object):
             file=self.output,
         )
 
-    def close(self):
+    def close(self) -> None:
         self.connection.close()
 
-    def __enter__(self):
+    def __enter__(self) -> "VespaCloud":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.close()

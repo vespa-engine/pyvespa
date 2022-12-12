@@ -6,7 +6,7 @@ import aiohttp
 import asyncio
 import concurrent.futures
 from collections import Counter
-from typing import Optional, Dict, List, IO, Union
+from typing import Any, Optional, Dict, List, IO
 
 import requests
 from pandas import DataFrame
@@ -29,7 +29,7 @@ retry_strategy = Retry(
 )
 
 
-def parse_feed_df(df: DataFrame, include_id, id_field="id"):
+def parse_feed_df(df: DataFrame, include_id: bool, id_field="id") -> List[Dict[str, Any]]:
     """
     Convert a df into batch format for feeding
 
@@ -162,11 +162,12 @@ class Vespa(object):
 
         return schema.name
 
-    def wait_for_application_up(self, max_wait):
+    def wait_for_application_up(self, max_wait: int) -> None:
         """
         Wait for application ready.
 
         :param max_wait: Seconds to wait for the application endpoint
+        :raises RuntimeError: If the application did not start in the time given by the :max_wait: param.
         :return:
         """
         try_interval = 5
