@@ -264,7 +264,7 @@ class VespaDocker(object):
 
     def stop_services(self):
         """
-        Stop Vespa services inside the docker image.
+        Stop Vespa services inside the docker image, first stopping the services, then stopping the Config Server.
 
         :raises RuntimeError: if a container has not been set
         :return: None
