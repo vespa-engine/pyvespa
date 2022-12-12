@@ -493,7 +493,7 @@ class VespaCloud(object):
             raise RuntimeError("No endpoints found for container 'test_app_container'")
         return container_url[0]
 
-    def _to_application_zip(self, disk_folder) -> BytesIO:
+    def _to_application_zip(self, disk_folder: str) -> BytesIO:
         buffer = BytesIO()
         with zipfile.ZipFile(buffer, "a") as zip_archive:
 
