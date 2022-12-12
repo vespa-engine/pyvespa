@@ -157,7 +157,7 @@ class VespaDocker(object):
         logging.debug("Config Server ApplicationStatus head response: " + output)
         return output.split("\r\n")[0] == "HTTP/1.1 200 OK"
 
-    def wait_for_config_server_start(self, max_wait) -> None:
+    def wait_for_config_server_start(self, max_wait: int) -> None:
         """
         Waits for Config Server to start inside the Docker image
 
