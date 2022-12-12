@@ -314,7 +314,7 @@ class VespaDocker(object):
 
     def restart_services(self):
         """
-        Restart Vespa services inside the docker image.
+        Restart Vespa services inside the docker image, it is equivalent to calling self.stop_services() followed by self.start_services().
 
         :raises RuntimeError: if a container has not been set
         :return: None
