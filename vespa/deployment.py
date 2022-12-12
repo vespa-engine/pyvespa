@@ -103,7 +103,7 @@ class VespaDocker(object):
         application_name: str,
         container_memory: str,
         debug: bool,
-    ):
+    ) -> None:
         client = docker.from_env(timeout=DOCKER_TIMEOUT)
         if self.container is None:
             try:
@@ -157,7 +157,7 @@ class VespaDocker(object):
         logging.debug("Config Server ApplicationStatus head response: " + output)
         return output.split("\r\n")[0] == "HTTP/1.1 200 OK"
 
-    def wait_for_config_server_start(self, max_wait):
+    def wait_for_config_server_start(self, max_wait) -> None:
         """
         Waits for Config Server to start inside the Docker image
 
@@ -182,7 +182,7 @@ class VespaDocker(object):
                 "Config server did not start, waited for {0} seconds.".format(max_wait)
             )
 
-    def dump_vespa_log(self):
+    def dump_vespa_log(self) -> None:
         log_dump = self.container.exec_run(
             "bash -c 'cat /opt/vespa/logs/vespa/vespa.log'"
         )
@@ -262,7 +262,7 @@ class VespaDocker(object):
         print("Finished deployment.", file=self.output)
         return app
 
-    def stop_services(self):
+    def stop_services(self) -> None:
         """
         Stop Vespa services.
 
@@ -282,7 +282,7 @@ class VespaDocker(object):
         else:
             raise RuntimeError("No container found")
 
-    def start_services(self):
+    def start_services(self) -> None:
         """
         Start Vespa services.
 
@@ -310,7 +310,7 @@ class VespaDocker(object):
         else:
             raise RuntimeError("No container found")
 
-    def restart_services(self):
+    def restart_services(self) -> None:
         """
         Restart Vespa  services.
 
@@ -654,7 +654,7 @@ class VespaCloud(object):
         print("Finished deployment.", file=self.output)
         return app
 
-    def delete(self, instance: str):
+    def delete(self, instance: str) -> None:
         """
         Delete the specified instance from the dev environment in the Vespa Cloud.
         :param instance: Name of the instance to delete.
@@ -679,11 +679,11 @@ class VespaCloud(object):
             file=self.output,
         )
 
-    def close(self):
+    def close(self) -> None:
         self.connection.close()
 
     def __enter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.close()
