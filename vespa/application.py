@@ -167,6 +167,7 @@ class Vespa(object):
         Wait for application ready.
 
         :param max_wait: Seconds to wait for the application endpoint
+        :raises RuntimeError: If the application did not start in the time given by the :max_wait: param.
         :return:
         """
         try_interval = 5
