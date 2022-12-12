@@ -682,7 +682,7 @@ class VespaCloud(object):
     def close(self) -> None:
         self.connection.close()
 
-    def __enter__(self):
+    def __enter__(self) -> "VespaCloud":
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
