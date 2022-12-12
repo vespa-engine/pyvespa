@@ -102,10 +102,10 @@ class Field(object):
 
         >>> Field(
         ...     name = "abstract",
-        ...     type = "string,
+        ...     type = "string",
         ...     match = ["exact", ("exact-terminator", '"@%"',)],
         ... )
-        Field('abstract', 'string', ['attribute'], None, None, None, ['exact', ('exact-terminator', '"@%"')])
+        Field('abstract', 'string', None, None, None, None, ['exact', ('exact-terminator', '"@%"')])
 
         """
         self.name = name
@@ -212,10 +212,10 @@ class Document(object):
         Document(None, None)
 
         >>> Document(fields=[Field(name="title", type="string")])
-        Document([Field('title', 'string', None, None, None, None)], None)
+        Document([Field('title', 'string', None, None, None, None, None)], None)
 
         >>> Document(fields=[Field(name="title", type="string")], inherits="context")
-        Document([Field('title', 'string', None, None, None, None)], context)
+        Document([Field('title', 'string', None, None, None, None, None)], context)
         """
         self.inherits = inherits
         self._fields = (
