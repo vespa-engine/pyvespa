@@ -4,7 +4,7 @@ from pandas import DataFrame
 
 
 class VespaResponse(object):
-    def __init__(self, json, status_code, url, operation_type):
+    def __init__(self, json, status_code, url, operation_type) -> None:
         self.json = json
         self.status_code = status_code
         self.url = url
@@ -51,7 +51,7 @@ def trec_format(
 
 
 class VespaQueryResponse(VespaResponse):
-    def __init__(self, json, status_code, url, request_body=None):
+    def __init__(self, json, status_code, url, request_body=None) -> None:
         super().__init__(json=json, status_code=status_code, url=url, operation_type="query")
         self._request_body = request_body
 
