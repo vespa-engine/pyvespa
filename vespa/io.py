@@ -10,9 +10,9 @@ class VespaResponse(object):
         self.url = url
         self.operation_type = operation_type
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return (
             self.json == other.json
             and self.status_code == other.status_code
