@@ -39,6 +39,9 @@ schema {{ schema_name }} {
                 {% endfor %}
             }
             {% endif %}
+            {% if field.weight %}
+            weight: {{ field.weight }}
+            {% endif %}
         }
         {% endfor %}
     }
