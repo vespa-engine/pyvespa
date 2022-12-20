@@ -9,6 +9,75 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 from io import BytesIO
 
 
+class Summary(object):
+    def __init__(
+        self,
+        name: Optional[str],
+        type: Optional[str],
+        fields: List[Union[str, Tuple[str, Union[List[str], str]]]],
+    ) -> None:
+        """
+        Configures a summary Field.
+
+        :param name: Name of the summary field, can be None if used inside a Field, which then uses the name of the Field.
+        :param type: Type of the summary field, can be None if used inside a Field, which then uses the type of the Field.
+        :param fields: List of properties used to configure the summary, can be single properties (like "summary: dynamic", common in Field), or composite values (like "source: another_field")
+
+        >>> Summary(None, None, ["dynamic"])
+        Summary(None, None, ['dynamic'])
+
+        >>> Summary(
+        ...     "title",
+        ...     "string",
+        ...     [("source", "title")]
+        ... )
+        Summary('title', 'string', [('source', 'title')])
+
+        >>> Summary(
+        ...     "title",
+        ...     "string",
+        ...     [("source", ["title", "abstract"])]
+        ... )
+        Summary('title', 'string', [('source', ['title', 'abstract'])])
+        """
+        self.name = name
+        self.type = type
+        self.fields = fields
+
+    @property
+    def attributes_as_string_list(self) -> List[str]:
+        final_list = []
+        for field in self.fields:
+            if isinstance(field, str):
+                final_list.append(field)
+            else:
+                final_string = f"{field[0]}: "
+                if isinstance(field[1], str):
+                    final_string += f'{field[1]}'
+                else:
+                    final_string += f'{", ".join(field[1])}'
+                final_list.append(final_string)
+
+        return final_list
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Summary):
+            return NotImplemented
+        return (
+            self.name == other.name
+            and self.type == other.type
+            and self.fields == other.fields
+        )
+
+    def __repr__(self) -> str:
+        return "{0}({1}, {2}, {3})".format(
+            self.__class__.__name__,
+            repr(self.name),
+            repr(self.type),
+            repr(self.fields)
+        )
+
+
 class HNSW(object):
     def __init__(
         self,
