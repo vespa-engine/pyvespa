@@ -42,6 +42,9 @@ schema {{ schema_name }} {
             {% if field.weight %}
             weight: {{ field.weight }}
             {% endif %}
+            {% if field.bolding %}
+            bolding: on
+            {% endif %}
         }
         {% endfor %}
     }
