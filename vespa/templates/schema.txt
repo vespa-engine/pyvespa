@@ -45,6 +45,13 @@ schema {{ schema_name }} {
             {% if field.bolding %}
             bolding: on
             {% endif %}
+            {% if field.summary %}
+            summary {% if field.summary.name %}{{field.summary.name}}{% endif %}{% if field.summary.type %} type {{ field.summary.type }} {% endif %}{
+                {% for field in field.summary.attributes_as_string_list %}
+                {{ field }}
+                {% endfor %}
+            }
+            {% endif %}
         }
         {% endfor %}
     }
