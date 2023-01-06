@@ -918,6 +918,7 @@ class Schema(object):
         models: Optional[List[OnnxModel]] = None,
         global_document: bool = False,
         imported_fields: Optional[List[ImportedField]] = None,
+        document_summaries: Optional[List[DocumentSummary]] = None,
     ) -> None:
         """
         Create a Vespa Schema.
@@ -932,11 +933,12 @@ class Schema(object):
         :param models: A list of :class:`OnnxModel` associated with the Schema.
         :param global_document: Set to True to copy the documents to all content nodes. Default to False.
         :param imported_fields: A list of :class:`ImportedField` defining fields from global documents to be imported.
+        :param document_summaries: A list of :class:`DocumentSummary` associated with the schema.
 
         To create a Schema:
 
         >>> Schema(name="schema_name", document=Document())
-        Schema('schema_name', Document(None, None, None), None, None, [], False, None)
+        Schema('schema_name', Document(None, None, None), None, None, [], False, None, [])
         """
         self.name = name
         self.document = document
@@ -960,6 +962,10 @@ class Schema(object):
             }
 
         self.models = [] if models is None else list(models)
+
+        self.document_summaries = (
+            [] if document_summaries is None else list(document_summaries)
+        )
 
     def add_fields(self, *fields: Field) -> None:
         """
@@ -1002,6 +1008,14 @@ class Schema(object):
         """
         self.imported_fields[imported_field.name] = imported_field
 
+    def add_document_summary(self, document_summary: DocumentSummary) -> None:
+        """
+        Add a :class:`DocumentSummary` to the Schema.
+
+        :param document_summary: document summary to be added.
+        """
+        self.document_summaries.append(document_summary)
+
     @property
     def schema_to_text(self):
         env = Environment(
@@ -1023,6 +1037,7 @@ class Schema(object):
             rank_profiles=self.rank_profiles,
             models=self.models,
             imported_fields=self.imported_fields,
+            document_summaries=self.document_summaries,
         )
 
     def __eq__(self, other):
@@ -1036,10 +1051,11 @@ class Schema(object):
             and self.models == other.models
             and self.global_document == other.global_document
             and self.imported_fields == other.imported_fields
+            and self.document_summaries == other.document_summaries
         )
 
     def __repr__(self):
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.document),
@@ -1058,6 +1074,7 @@ class Schema(object):
                 if self.imported_fields
                 else None
             ),
+            repr(self.document_summaries),
         )
 
 
@@ -1261,7 +1278,7 @@ class ApplicationPackage(object):
         The easiest way to get started is to create a default application package:
 
         >>> ApplicationPackage(name="testapp")
-        ApplicationPackage('testapp', [Schema('testapp', Document(None, None, None), None, None, [], False, None)], QueryProfile(None), QueryProfileType(None))
+        ApplicationPackage('testapp', [Schema('testapp', Document(None, None, None), None, None, [], False, None, [])], QueryProfile(None), QueryProfileType(None))
 
         It will create a default :class:`Schema`, :class:`QueryProfile` and :class:`QueryProfileType` that you can then
         populate with specifics of your application.
