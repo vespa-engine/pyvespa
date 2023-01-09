@@ -298,6 +298,46 @@ class ImportedField(object):
         )
 
 
+class Struct(object):
+    def __init__(self, name: str, fields: Optional[List[Field]] = None):
+        """
+        Create a Vespa struct.
+
+        A struct defines a composite type. Check the `Vespa documentation
+        <https://docs.vespa.ai/en/reference/schema-reference.html#struct>`__
+        for more detailed information about structs.
+
+        :param name: Name of the struct
+        :param fields: Field names to be included in the fieldset
+
+        >>> Struct("person")class Struct
+        Struct('person', None)
+
+        >>> Struct(
+        ...     "person",
+        ...     [
+        ...         Field("first_name", "string"),
+        ...         Field("last_name", "string"),
+        ...     ],
+        ... )
+        Struct('person', [Field('first_name', 'string', None, None, None, None, None, None, None, None), Field('last_name', 'string', None, None, None, None, None, None, None, None)])
+        """
+        self.name = name
+        self.fields = fields
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (self.name, self.fields) == (other.name, other.fields)
+
+    def __repr__(self) -> str:
+        return "{0}({1}, {2})".format(
+            self.__class__.__name__,
+            repr(self.name),
+            repr(self.fields),
+        )
+
+
 class Document(object):
     def __init__(
         self, fields: Optional[List[Field]] = None, inherits: Optional[str] = None
