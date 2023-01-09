@@ -337,7 +337,10 @@ class Struct(object):
 
 class Document(object):
     def __init__(
-        self, fields: Optional[List[Field]] = None, inherits: Optional[str] = None
+        self,
+        fields: Optional[List[Field]] = None,
+        inherits: Optional[str] = None,
+        structs: Optional[List[Struct]] = None,
     ) -> None:
         """
         Create a Vespa Document.
@@ -346,17 +349,18 @@ class Document(object):
         for more detailed information about documents.
 
         :param fields: A list of :class:`Field` to include in the document's schema.
+        :param structs: A list of :class:`Struct` to include in the document's schema.
 
         To create a Document:
 
         >>> Document()
-        Document(None, None)
+        Document(None, None, None)
 
         >>> Document(fields=[Field(name="title", type="string")])
-        Document([Field('title', 'string', None, None, None, None, None, None, None, None)], None)
+        Document([Field('title', 'string', None, None, None, None, None, None, None, None)], None, None)
 
         >>> Document(fields=[Field(name="title", type="string")], inherits="context")
-        Document([Field('title', 'string', None, None, None, None, None, None, None, None)], context)
+        Document([Field('title', 'string', None, None, None, None, None, None, None, None)], context, None)
         """
         self.inherits = inherits
         self._fields = (
@@ -364,10 +368,19 @@ class Document(object):
             if not fields
             else OrderedDict([(field.name, field) for field in fields])
         )
+        self._structs = (
+            OrderedDict()
+            if not structs
+            else OrderedDict([(struct.name, struct) for struct in structs])
+        )
 
     @property
     def fields(self):
         return [x for x in self._fields.values()]
+
+    @property
+    def structs(self):
+        return [x for x in self._structs.values()]
 
     def add_fields(self, *fields: Field) -> None:
         """
@@ -379,16 +392,30 @@ class Document(object):
         for field in fields:
             self._fields.update({field.name: field})
 
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return False
-        return self.fields == other.fields and self.inherits == other.inherits
+    def add_structs(self, *structs: Struct) -> None:
+        """
+        Add :class:`Struct`'s to the document.
 
-    def __repr__(self):
-        return "{0}({1}, {2})".format(
+        :param structs: structs to be added
+        """
+        for struct in structs:
+            self._structs.update({struct.name: struct})
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (self.fields, self.inherits, self.structs) == (
+            other.fields,
+            other.inherits,
+            other.structs,
+        )
+
+    def __repr__(self) -> str:
+        return "{0}({1}, {2}, {3})".format(
             self.__class__.__name__,
             repr(self.fields) if self.fields else None,
             self.inherits,
+            repr(self.structs) if self.structs else None,
         )
 
 
