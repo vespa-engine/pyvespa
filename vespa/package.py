@@ -53,7 +53,7 @@ class Summary(object):
             else:
                 final_string = f"{field[0]}: "
                 if isinstance(field[1], str):
-                    final_string += f'{field[1]}'
+                    final_string += f"{field[1]}"
                 else:
                     final_string += f'{", ".join(field[1])}'
                 final_list.append(final_string)
@@ -71,10 +71,7 @@ class Summary(object):
 
     def __repr__(self) -> str:
         return "{0}({1}, {2}, {3})".format(
-            self.__class__.__name__,
-            repr(self.name),
-            repr(self.type),
-            repr(self.fields)
+            self.__class__.__name__, repr(self.name), repr(self.type), repr(self.fields)
         )
 
 
@@ -247,7 +244,7 @@ class Field(object):
             repr(self.match),
             repr(self.weight),
             repr(self.bolding),
-            repr(self.summary)
+            repr(self.summary),
         )
 
 
