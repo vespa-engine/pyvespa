@@ -130,6 +130,7 @@ class Field(object):
         weight: Optional[int] = None,
         bolding: Optional[Literal[True]] = None,
         summary: Optional[Summary] = None,
+        stemming: Optional[str] = None,
     ) -> None:
         """
         Create a Vespa field.
@@ -152,9 +153,10 @@ class Field(object):
         :param weight: Sets the weight of the field, using when calculating Rank Scores.
         :param bolding: Whether to highlight matching query terms in the summary.
         :param summary: Add configuration for summary of the field.
+        :param stemming: Add configuration for stemming of the field.
 
         >>> Field(name = "title", type = "string", indexing = ["index", "summary"], index = "enable-bm25")
-        Field('title', 'string', ['index', 'summary'], 'enable-bm25', None, None, None, None, None, None)
+        Field('title', 'string', ['index', 'summary'], 'enable-bm25', None, None, None, None, None, None, None)
 
         >>> Field(
         ...     name = "abstract",
@@ -162,7 +164,7 @@ class Field(object):
         ...     indexing = ["attribute"],
         ...     attribute=["fast-search", "fast-access"]
         ... )
-        Field('abstract', 'string', ['attribute'], None, ['fast-search', 'fast-access'], None, None, None, None, None)
+        Field('abstract', 'string', ['attribute'], None, ['fast-search', 'fast-access'], None, None, None, None, None, None)
 
         >>> Field(name="tensor_field",
         ...     type="tensor<float>(x[128])",
@@ -173,35 +175,42 @@ class Field(object):
         ...         neighbors_to_explore_at_insert=200,
         ...     ),
         ... )
-        Field('tensor_field', 'tensor<float>(x[128])', ['attribute'], None, None, HNSW('euclidean', 16, 200), None, None, None, None)
+        Field('tensor_field', 'tensor<float>(x[128])', ['attribute'], None, None, HNSW('euclidean', 16, 200), None, None, None, None, None)
 
         >>> Field(
         ...     name = "abstract",
         ...     type = "string",
         ...     match = ["exact", ("exact-terminator", '"@%"',)],
         ... )
-        Field('abstract', 'string', None, None, None, None, ['exact', ('exact-terminator', '"@%"')], None, None, None)
+        Field('abstract', 'string', None, None, None, None, ['exact', ('exact-terminator', '"@%"')], None, None, None, None)
 
         >>> Field(
         ...     name = "abstract",
         ...     type = "string",
         ...     weight = 200,
         ... )
-        Field('abstract', 'string', None, None, None, None, None, 200, None, None)
+        Field('abstract', 'string', None, None, None, None, None, 200, None, None, None)
 
         >>> Field(
         ...     name = "abstract",
         ...     type = "string",
         ...     bolding = True,
         ... )
-        Field('abstract', 'string', None, None, None, None, None, None, True, None)
+        Field('abstract', 'string', None, None, None, None, None, None, True, None, None)
 
         >>> Field(
         ...     name = "abstract",
         ...     type = "string",
         ...     summary = Summary(None, None, ["dynamic", ["bolding", "on"]]),
         ... )
-        Field('abstract', 'string', None, None, None, None, None, None, None, Summary(None, None, ['dynamic', ['bolding', 'on']]))
+        Field('abstract', 'string', None, None, None, None, None, None, None, Summary(None, None, ['dynamic', ['bolding', 'on']]), None)
+
+        >>> Field(
+        ...     name = "abstract",
+        ...     type = "string",
+        ...     stemming = "multiple",
+        ... )
+        Field('abstract', 'string', None, None, None, None, None, None, None, None, 'multiple')
         """
         self.name = name
         self.type = type
@@ -213,6 +222,7 @@ class Field(object):
         self.weight = weight
         self.bolding = bolding
         self.summary = summary
+        self.stemming = stemming
 
     @property
     def indexing_to_text(self) -> Optional[str]:
@@ -233,10 +243,11 @@ class Field(object):
             and self.weight == other.weight
             and self.bolding == other.bolding
             and self.summary == other.summary
+            and self.stemming == other.stemming
         )
 
     def __repr__(self):
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.type),
@@ -247,7 +258,8 @@ class Field(object):
             repr(self.match),
             repr(self.weight),
             repr(self.bolding),
-            repr(self.summary)
+            repr(self.summary),
+            repr(self.stemming),
         )
 
 
@@ -316,10 +328,10 @@ class Document(object):
         Document(None, None)
 
         >>> Document(fields=[Field(name="title", type="string")])
-        Document([Field('title', 'string', None, None, None, None, None, None, None, None)], None)
+        Document([Field('title', 'string', None, None, None, None, None, None, None, None, None)], None)
 
         >>> Document(fields=[Field(name="title", type="string")], inherits="context")
-        Document([Field('title', 'string', None, None, None, None, None, None, None, None)], context)
+        Document([Field('title', 'string', None, None, None, None, None, None, None, None, None)], context)
         """
         self.inherits = inherits
         self._fields = (
