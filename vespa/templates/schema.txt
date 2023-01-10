@@ -52,6 +52,11 @@ schema {{ schema_name }} {
                 {% endfor %}
             }
             {% endif %}
+            {% if field.query_command %}
+            {% for query_command in field.query_command %}
+            query-command: {{ query_command }}
+            {% endfor %}
+            {% endif %}
         }
         {% endfor %}
     }
