@@ -328,10 +328,10 @@ class Document(object):
         Document(None, None)
 
         >>> Document(fields=[Field(name="title", type="string")])
-        Document([Field('title', 'string', None, None, None, None, None, None, None, None)], None)
+        Document([Field('title', 'string', None, None, None, None, None, None, None, None, None)], None)
 
         >>> Document(fields=[Field(name="title", type="string")], inherits="context")
-        Document([Field('title', 'string', None, None, None, None, None, None, None, None)], context)
+        Document([Field('title', 'string', None, None, None, None, None, None, None, None, None)], context)
         """
         self.inherits = inherits
         self._fields = (
