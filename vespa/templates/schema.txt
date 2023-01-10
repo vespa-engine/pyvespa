@@ -52,6 +52,9 @@ schema {{ schema_name }} {
                 {% endfor %}
             }
             {% endif %}
+            {% if field.rank %}
+            rank: {{ field.rank }}
+            {% endif %}
         }
         {% endfor %}
     }
