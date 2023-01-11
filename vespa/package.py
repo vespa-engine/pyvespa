@@ -1,13 +1,19 @@
 import os
+import sys
 import zipfile
 
 from pathlib import Path
 from shutil import copyfile
-from typing import List, Literal, Optional, Tuple, Union, Dict
+from typing import List, Literal, Optional, Tuple, TypedDict, Union, Dict
 from collections import OrderedDict
 from jinja2 import Environment, PackageLoader, select_autoescape
 from io import BytesIO
 
+if sys.version_info >= (3, 10):
+    from typing import Unpack
+else:
+    # Older versions of Python have Unpack in typing_extensions
+    from typing_extensions import Unpack
 
 class Summary(object):
     def __init__(
@@ -117,6 +123,16 @@ class HNSW(object):
         )
 
 
+class FieldConfiguration(TypedDict, total=False):
+    indexing: List[str]
+    attribute: List[str]
+    ann: HNSW
+    match: List[Union[str, Tuple[str, str]]]
+    weight: int
+    bolding: Literal[True]
+    summary: Summary
+
+
 class Field(object):
     def __init__(
         self,
@@ -130,6 +146,7 @@ class Field(object):
         weight: Optional[int] = None,
         bolding: Optional[Literal[True]] = None,
         summary: Optional[Summary] = None,
+        **kwargs: Unpack[FieldConfiguration],
     ) -> None:
         """
         Create a Vespa field.
@@ -205,14 +222,14 @@ class Field(object):
         """
         self.name = name
         self.type = type
-        self.indexing = indexing
-        self.attribute = attribute
-        self.index = index
-        self.ann = ann
-        self.match = match
-        self.weight = weight
-        self.bolding = bolding
-        self.summary = summary
+        self.indexing = kwargs.get("indexing", indexing)
+        self.attribute = kwargs.get("attribute", attribute)
+        self.index = kwargs.get("index", index)
+        self.ann = kwargs.get("ann", ann)
+        self.match = kwargs.get("match", match)
+        self.weight = kwargs.get("weight", weight)
+        self.bolding = kwargs.get("bolding", bolding)
+        self.summary = kwargs.get("summary", summary)
 
     @property
     def indexing_to_text(self) -> Optional[str]:
