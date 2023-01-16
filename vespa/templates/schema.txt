@@ -55,6 +55,9 @@ schema {{ schema_name }} {
             {% if field.stemming %}
             stemming: {{ field.stemming }}
             {% endif %}
+            {% if field.rank %}
+            rank: {{ field.rank }}
+            {% endif %}
         }
         {% endfor %}
     }
