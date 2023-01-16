@@ -58,6 +58,9 @@ schema {{ schema_name }} {
             {% if field.rank %}
             rank: {{ field.rank }}
             {% endif %}
+            {% if field.query_command %}
+            query-command: {{ field.query_command }}
+            {% endif %}
         }
         {% endfor %}
     }
