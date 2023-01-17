@@ -19,9 +19,9 @@ else:
 class Summary(object):
     def __init__(
         self,
-        name: Optional[str],
-        type: Optional[str],
-        fields: List[Union[str, Tuple[str, Union[List[str], str]]]],
+        name: Optional[str] = None,
+        type: Optional[str] = None,
+        fields: Optional[List[Union[str, Tuple[str, Union[List[str], str]]]]] = None,
     ) -> None:
         """
         Configures a summary Field.
@@ -46,25 +46,85 @@ class Summary(object):
         ...     [("source", ["title", "abstract"])]
         ... )
         Summary('title', 'string', [('source', ['title', 'abstract'])])
+
+        >>> Summary(
+        ...     name = "artist",
+        ...     type = "string",
+        ... )
+        Summary('artist', 'string', None)
         """
         self.name = name
         self.type = type
         self.fields = fields
 
     @property
-    def attributes_as_string_list(self) -> List[str]:
+    def as_lines(self) -> List[str]:
+        """
+        Returns the object as a List of str, each str representing a line
+        of configuration that can be used during schema generation as such:
+
+        ```
+        {% for line in field.summary.as_lines %}
+        {{ line }}
+        {% endfor %}
+        ```
+
+        >>> Summary(None, None, ["dynamic"]).as_lines
+        ['summary: dynamic']
+
+        >>> Summary(
+        ...     "artist",
+        ...     "string",
+        ... ).as_lines
+        ['summary artist type string {}']
+
+        >>> Summary(
+        ...     "artist",
+        ...     "string",
+        ...     [("bolding", "on"), ("sources", "artist")],
+        ... ).as_lines
+        ['summary artist type string {', '    bolding: on', '    sources: artist', '}']
+        """
         final_list = []
+
+        # Special case of `summary: dynamic` and others.
+        if (
+            not self.name
+            and not self.type
+            and self.fields
+            and len(self.fields) == 1
+            and isinstance(self.fields[0], str)
+        ):
+            return [f"summary: {self.fields[0]}"]
+
+        starting_string = "summary"
+        if self.name:
+            starting_string += f" {self.name}"
+        if self.type:
+            starting_string += f" type {self.type}"
+
+        # Add newline as each field resides in a separate line
+        if self.fields is None:
+            starting_string += " {}"
+            return [starting_string]
+
+        starting_string += " {"
+        final_list.append(starting_string)
+
         for field in self.fields:
             if isinstance(field, str):
-                final_list.append(field)
+                final_list.append(f"    {field}")
+            # We could use else, but that does not narrow down
+            # the type
             else:
-                final_string = f"{field[0]}: "
+                tmp_string = f"    {field[0]}: "
                 if isinstance(field[1], str):
-                    final_string += f"{field[1]}"
+                    tmp_string += f"{field[1]}"
                 else:
-                    final_string += f'{", ".join(field[1])}'
-                final_list.append(final_string)
+                    tmp_string += f'{", ".join(field[1])}'
+                final_list.append(tmp_string)
 
+        final_list.append("}")
         return final_list
 
     def __eq__(self, other: object) -> bool:
