@@ -9,7 +9,7 @@ from collections import OrderedDict
 from jinja2 import Environment, PackageLoader, select_autoescape
 from io import BytesIO
 
-if sys.version_info >= (3, 10):
+if sys.version_info >= (3, 11):
     from typing import Unpack
 else:
     # Older versions of Python have Unpack in typing_extensions
