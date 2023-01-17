@@ -387,6 +387,77 @@ class Struct(object):
         )
 
 
+class DocumentSummary(object):
+    def __init__(
+        self,
+        name: str,
+        inherits: Optional[str] = None,
+        summary_fields: Optional[List[Summary]] = None,
+        from_disk: Optional[Literal[True]] = None,
+        omit_summary_features: Optional[Literal[True]] = None,
+    ) -> None:
+        """
+        Create a Document Summary.
+        Check the `Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#document-summary>`__
+        for more detailed information about documment-summary.
+        :param name: Name of the document-summary.
+        :param inherits: Name of another document-summary from which this inherits from.
+        :param summary_fields: List of summaries used in this document-summary.
+        :param from_disk: Marks this document-summary as accessing fields on disk.
+        :param omit_summary_features: Specifies that summary-features should be omitted from this document summary.
+
+        >>> DocumentSummary(
+        ...     name="document-summary",
+        ... )
+        DocumentSummary('document-summary', None, None, None, None)
+
+        >>> DocumentSummary(
+        ...     name="which-inherits",
+        ...     inherits="base-document-summary",
+        ... )
+        DocumentSummary('which-inherits', 'base-document-summary', None, None, None)
+
+        >>> DocumentSummary(
+        ...     name="with-field",
+        ...     summary_fields=[Summary("title", "string", [("source", "title")])]
+        ... )
+        DocumentSummary('with-field', None, [Summary('title', 'string', [('source', 'title')])], None, None)
+
+        >>> DocumentSummary(
+        ...     name="with-bools",
+        ...     from_disk=True,
+        ...     omit_summary_features=True,
+        ... )
+        DocumentSummary('with-bools', None, None, True, True)
+        """
+        self.name = name
+        self.inherits = inherits
+        self.summary_fields = summary_fields
+        self.from_disk = from_disk
+        self.omit_summary_features = omit_summary_features
+
+    def __eq__(self, other: object):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (
+            self.name == other.name
+            and self.inherits == other.inherits
+            and self.summary_fields == other.summary_fields
+            and self.from_disk == other.from_disk
+            and self.omit_summary_features == other.omit_summary_features
+        )
+
+    def __repr__(self) -> str:
+        return "{0}({1}, {2}, {3}, {4}, {5})".format(
+            self.__class__.__name__,
+            repr(self.name),
+            repr(self.inherits),
+            repr(self.summary_fields),
+            repr(self.from_disk),
+            repr(self.omit_summary_features),
+        )
+
+
 class Document(object):
     def __init__(
         self,
