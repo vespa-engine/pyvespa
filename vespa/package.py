@@ -15,6 +15,7 @@ else:
     # Older versions of Python have Unpack in typing_extensions
     from typing_extensions import Unpack
 
+
 class Summary(object):
     def __init__(
         self,
@@ -59,7 +60,7 @@ class Summary(object):
             else:
                 final_string = f"{field[0]}: "
                 if isinstance(field[1], str):
-                    final_string += f'{field[1]}'
+                    final_string += f"{field[1]}"
                 else:
                     final_string += f'{", ".join(field[1])}'
                 final_list.append(final_string)
@@ -77,10 +78,7 @@ class Summary(object):
 
     def __repr__(self) -> str:
         return "{0}({1}, {2}, {3})".format(
-            self.__class__.__name__,
-            repr(self.name),
-            repr(self.type),
-            repr(self.fields)
+            self.__class__.__name__, repr(self.name), repr(self.type), repr(self.fields)
         )
 
 
@@ -131,6 +129,9 @@ class FieldConfiguration(TypedDict, total=False):
     weight: int
     bolding: Literal[True]
     summary: Summary
+    stemming: str
+    rank: str
+    query_command: str
 
 
 class Field(object):
@@ -169,9 +170,12 @@ class Field(object):
         :param weight: Sets the weight of the field, using when calculating Rank Scores.
         :param bolding: Whether to highlight matching query terms in the summary.
         :param summary: Add configuration for summary of the field.
+        :key stemming: Add configuration for stemming of the field.
+        :key rank: Add configuration for ranking calculations of the field.
+        :key query_command: Add configuration for query-command of the field.
 
         >>> Field(name = "title", type = "string", indexing = ["index", "summary"], index = "enable-bm25")
-        Field('title', 'string', ['index', 'summary'], 'enable-bm25', None, None, None, None, None, None)
+        Field('title', 'string', ['index', 'summary'], 'enable-bm25', None, None, None, None, None, None, None, None, None)
 
         >>> Field(
         ...     name = "abstract",
@@ -179,7 +183,7 @@ class Field(object):
         ...     indexing = ["attribute"],
         ...     attribute=["fast-search", "fast-access"]
         ... )
-        Field('abstract', 'string', ['attribute'], None, ['fast-search', 'fast-access'], None, None, None, None, None)
+        Field('abstract', 'string', ['attribute'], None, ['fast-search', 'fast-access'], None, None, None, None, None, None, None, None)
 
         >>> Field(name="tensor_field",
         ...     type="tensor<float>(x[128])",
@@ -190,35 +194,56 @@ class Field(object):
         ...         neighbors_to_explore_at_insert=200,
         ...     ),
         ... )
-        Field('tensor_field', 'tensor<float>(x[128])', ['attribute'], None, None, HNSW('euclidean', 16, 200), None, None, None, None)
+        Field('tensor_field', 'tensor<float>(x[128])', ['attribute'], None, None, HNSW('euclidean', 16, 200), None, None, None, None, None, None, None)
 
         >>> Field(
         ...     name = "abstract",
         ...     type = "string",
         ...     match = ["exact", ("exact-terminator", '"@%"',)],
         ... )
-        Field('abstract', 'string', None, None, None, None, ['exact', ('exact-terminator', '"@%"')], None, None, None)
+        Field('abstract', 'string', None, None, None, None, ['exact', ('exact-terminator', '"@%"')], None, None, None, None, None, None)
 
         >>> Field(
         ...     name = "abstract",
         ...     type = "string",
         ...     weight = 200,
         ... )
-        Field('abstract', 'string', None, None, None, None, None, 200, None, None)
+        Field('abstract', 'string', None, None, None, None, None, 200, None, None, None, None, None)
 
         >>> Field(
         ...     name = "abstract",
         ...     type = "string",
         ...     bolding = True,
         ... )
-        Field('abstract', 'string', None, None, None, None, None, None, True, None)
+        Field('abstract', 'string', None, None, None, None, None, None, True, None, None, None, None)
 
         >>> Field(
         ...     name = "abstract",
         ...     type = "string",
         ...     summary = Summary(None, None, ["dynamic", ["bolding", "on"]]),
         ... )
-        Field('abstract', 'string', None, None, None, None, None, None, None, Summary(None, None, ['dynamic', ['bolding', 'on']]))
+        Field('abstract', 'string', None, None, None, None, None, None, None, Summary(None, None, ['dynamic', ['bolding', 'on']]), None, None, None)
+
+        >>> Field(
+        ...     name = "abstract",
+        ...     type = "string",
+        ...     stemming = "shortest",
+        ... )
+        Field('abstract', 'string', None, None, None, None, None, None, None, None, 'shortest', None, None)
+
+        >>> Field(
+        ...     name = "abstract",
+        ...     type = "string",
+        ...     rank = "filter",
+        ... )
+        Field('abstract', 'string', None, None, None, None, None, None, None, None, None, 'filter', None)
+
+        >>> Field(
+        ...     name = "abstract",
+        ...     type = "string",
+        ...     query_command = '"exact %%"',
+        ... )
+        Field('abstract', 'string', None, None, None, None, None, None, None, None, None, None, '"exact %%"')
         """
         self.name = name
         self.type = type
@@ -230,6 +255,9 @@ class Field(object):
         self.weight = kwargs.get("weight", weight)
         self.bolding = kwargs.get("bolding", bolding)
         self.summary = kwargs.get("summary", summary)
+        self.stemming = kwargs.get("stemming", None)
+        self.rank = kwargs.get("rank", None)
+        self.query_command = kwargs.get("query_command", None)
 
     @property
     def indexing_to_text(self) -> Optional[str]:
@@ -250,10 +278,13 @@ class Field(object):
             and self.weight == other.weight
             and self.bolding == other.bolding
             and self.summary == other.summary
+            and self.stemming == other.stemming
+            and self.rank == other.rank
+            and self.query_command == other.query_command
         )
 
     def __repr__(self):
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.type),
@@ -264,7 +295,10 @@ class Field(object):
             repr(self.match),
             repr(self.weight),
             repr(self.bolding),
-            repr(self.summary)
+            repr(self.summary),
+            repr(self.stemming),
+            repr(self.rank),
+            repr(self.query_command),
         )
 
 
@@ -315,9 +349,50 @@ class ImportedField(object):
         )
 
 
+class Struct(object):
+    def __init__(self, name: str, fields: Optional[List[Field]] = None):
+        """
+        Create a Vespa struct.
+        A struct defines a composite type. Check the `Vespa documentation
+        <https://docs.vespa.ai/en/reference/schema-reference.html#struct>`__
+        for more detailed information about structs.
+        :param name: Name of the struct
+        :param fields: Field names to be included in the fieldset
+
+        >>> Struct("person")
+        Struct('person', None)
+
+        >>> Struct(
+        ...     "person",
+        ...     [
+        ...         Field("first_name", "string"),
+        ...         Field("last_name", "string"),
+        ...     ],
+        ... )
+        Struct('person', [Field('first_name', 'string', None, None, None, None, None, None, None, None, None, None, None), Field('last_name', 'string', None, None, None, None, None, None, None, None, None, None, None)])
+        """
+        self.name = name
+        self.fields = fields
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (self.name, self.fields) == (other.name, other.fields)
+
+    def __repr__(self) -> str:
+        return "{0}({1}, {2})".format(
+            self.__class__.__name__,
+            repr(self.name),
+            repr(self.fields),
+        )
+
+
 class Document(object):
     def __init__(
-        self, fields: Optional[List[Field]] = None, inherits: Optional[str] = None
+        self,
+        fields: Optional[List[Field]] = None,
+        inherits: Optional[str] = None,
+        structs: Optional[List[Struct]] = None,
     ) -> None:
         """
         Create a Vespa Document.
@@ -330,13 +405,13 @@ class Document(object):
         To create a Document:
 
         >>> Document()
-        Document(None, None)
+        Document(None, None, None)
 
         >>> Document(fields=[Field(name="title", type="string")])
-        Document([Field('title', 'string', None, None, None, None, None, None, None, None)], None)
+        Document([Field('title', 'string', None, None, None, None, None, None, None, None, None, None, None)], None, None)
 
         >>> Document(fields=[Field(name="title", type="string")], inherits="context")
-        Document([Field('title', 'string', None, None, None, None, None, None, None, None)], context)
+        Document([Field('title', 'string', None, None, None, None, None, None, None, None, None, None, None)], context, None)
         """
         self.inherits = inherits
         self._fields = (
@@ -344,10 +419,19 @@ class Document(object):
             if not fields
             else OrderedDict([(field.name, field) for field in fields])
         )
+        self._structs = (
+            OrderedDict()
+            if not structs
+            else OrderedDict([(struct.name, struct) for struct in structs])
+        )
 
     @property
     def fields(self):
         return [x for x in self._fields.values()]
+
+    @property
+    def structs(self):
+        return [x for x in self._structs.values()]
 
     def add_fields(self, *fields: Field) -> None:
         """
@@ -359,16 +443,31 @@ class Document(object):
         for field in fields:
             self._fields.update({field.name: field})
 
+    def add_structs(self, *structs: Struct) -> None:
+        """
+        Add :class:`Struct`'s to the document.
+
+        :param structs: structs to be added
+        :return:
+        """
+        for struct in structs:
+            self._structs.update({struct.name: struct})
+
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
-        return self.fields == other.fields and self.inherits == other.inherits
+        return (self.fields, self.inherits, self.structs) == (
+            other.fields,
+            other.inherits,
+            other.structs,
+        )
 
     def __repr__(self):
-        return "{0}({1}, {2})".format(
+        return "{0}({1}, {2}, {3})".format(
             self.__class__.__name__,
             repr(self.fields) if self.fields else None,
             self.inherits,
+            repr(self.structs) if self.structs else None,
         )
 
 
@@ -706,7 +805,7 @@ class Schema(object):
         To create a Schema:
 
         >>> Schema(name="schema_name", document=Document())
-        Schema('schema_name', Document(None, None), None, None, [], False, None)
+        Schema('schema_name', Document(None, None, None), None, None, [], False, None)
         """
         self.name = name
         self.document = document
@@ -1031,7 +1130,7 @@ class ApplicationPackage(object):
         The easiest way to get started is to create a default application package:
 
         >>> ApplicationPackage(name="testapp")
-        ApplicationPackage('testapp', [Schema('testapp', Document(None, None), None, None, [], False, None)], QueryProfile(None), QueryProfileType(None))
+        ApplicationPackage('testapp', [Schema('testapp', Document(None, None, None), None, None, [], False, None)], QueryProfile(None), QueryProfileType(None))
 
         It will create a default :class:`Schema`, :class:`QueryProfile` and :class:`QueryProfileType` that you can then
         populate with specifics of your application.
