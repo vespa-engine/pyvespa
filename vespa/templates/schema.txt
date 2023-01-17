@@ -46,11 +46,9 @@ schema {{ schema_name }} {
             bolding: on
             {% endif %}
             {% if field.summary %}
-            summary {% if field.summary.name %}{{field.summary.name}}{% endif %}{% if field.summary.type %} type {{ field.summary.type }} {% endif %}{
-                {% for field in field.summary.attributes_as_string_list %}
-                {{ field }}
-                {% endfor %}
-            }
+            {% for line in field.summary.as_lines %}
+            {{ line }}
+            {% endfor %}
             {% endif %}
             {% if field.stemming %}
             stemming: {{ field.stemming }}
@@ -111,11 +109,9 @@ schema {{ schema_name }} {
                 bolding: on
                 {% endif %}
                 {% if field.summary %}
-                summary {% if field.summary.name %}{{field.summary.name}}{% endif %}{% if field.summary.type %} type {{ field.summary.type }} {% endif %}{
-                    {% for field in field.summary.attributes_as_string_list %}
-                    {{ field }}
-                    {% endfor %}
-                }
+                {% for line in field.summary.as_lines %}
+                {{ line }}
+                {% endfor %}
                 {% endif %}
                 {% if field.stemming %}
                 stemming: {{ field.stemming }}
@@ -187,6 +183,21 @@ schema {{ schema_name }} {
             {{ feature }}
         {% endfor %}
         }
+        {% endif %}
+    }
+{% endfor %}
+{% for document_summary in document_summaries %}
+    document-summary {{ document_summary.name }}{% if document_summary.inherits %} inherits {{ document_summary.inherits }}{% endif %} {
+        {% for summary in document_summary.summary_fields %}
+        {% for field in summary.as_lines %}
+        {{ field }}
+        {% endfor %}
+        {% endfor %}
+        {% if document_summary.from_disk %}
+        {{ document_summary.from_disk }}
+        {% endif %}
+        {% if document_summary.omit_summary_features %}
+        {{ document_summary.omit_summary_features }}
         {% endif %}
     }
 {% endfor %}

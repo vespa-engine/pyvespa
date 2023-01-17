@@ -19,9 +19,9 @@ else:
 class Summary(object):
     def __init__(
         self,
-        name: Optional[str],
-        type: Optional[str],
-        fields: List[Union[str, Tuple[str, Union[List[str], str]]]],
+        name: Optional[str] = None,
+        type: Optional[str] = None,
+        fields: Optional[List[Union[str, Tuple[str, Union[List[str], str]]]]] = None,
     ) -> None:
         """
         Configures a summary Field.
@@ -46,25 +46,85 @@ class Summary(object):
         ...     [("source", ["title", "abstract"])]
         ... )
         Summary('title', 'string', [('source', ['title', 'abstract'])])
+
+        >>> Summary(
+        ...     name = "artist",
+        ...     type = "string",
+        ... )
+        Summary('artist', 'string', None)
         """
         self.name = name
         self.type = type
         self.fields = fields
 
     @property
-    def attributes_as_string_list(self) -> List[str]:
+    def as_lines(self) -> List[str]:
+        """
+        Returns the object as a List of str, each str representing a line
+        of configuration that can be used during schema generation as such:
+
+        ```
+        {% for line in field.summary.as_lines %}
+        {{ line }}
+        {% endfor %}
+        ```
+
+        >>> Summary(None, None, ["dynamic"]).as_lines
+        ['summary: dynamic']
+
+        >>> Summary(
+        ...     "artist",
+        ...     "string",
+        ... ).as_lines
+        ['summary artist type string {}']
+
+        >>> Summary(
+        ...     "artist",
+        ...     "string",
+        ...     [("bolding", "on"), ("sources", "artist")],
+        ... ).as_lines
+        ['summary artist type string {', '    bolding: on', '    sources: artist', '}']
+        """
         final_list = []
+
+        # Special case of `summary: dynamic` and others.
+        if (
+            not self.name
+            and not self.type
+            and self.fields
+            and len(self.fields) == 1
+            and isinstance(self.fields[0], str)
+        ):
+            return [f"summary: {self.fields[0]}"]
+
+        starting_string = "summary"
+        if self.name:
+            starting_string += f" {self.name}"
+        if self.type:
+            starting_string += f" type {self.type}"
+
+        # Add newline as each field resides in a separate line
+        if self.fields is None:
+            starting_string += " {}"
+            return [starting_string]
+
+        starting_string += " {"
+        final_list.append(starting_string)
+
         for field in self.fields:
             if isinstance(field, str):
-                final_list.append(field)
+                final_list.append(f"    {field}")
+            # We could use else, but that does not narrow down
+            # the type
             else:
-                final_string = f"{field[0]}: "
+                tmp_string = f"    {field[0]}: "
                 if isinstance(field[1], str):
-                    final_string += f"{field[1]}"
+                    tmp_string += f"{field[1]}"
                 else:
-                    final_string += f'{", ".join(field[1])}'
-                final_list.append(final_string)
+                    tmp_string += f'{", ".join(field[1])}'
+                final_list.append(tmp_string)
 
+        final_list.append("}")
         return final_list
 
     def __eq__(self, other: object) -> bool:
@@ -384,6 +444,77 @@ class Struct(object):
             self.__class__.__name__,
             repr(self.name),
             repr(self.fields),
+        )
+
+
+class DocumentSummary(object):
+    def __init__(
+        self,
+        name: str,
+        inherits: Optional[str] = None,
+        summary_fields: Optional[List[Summary]] = None,
+        from_disk: Optional[Literal[True]] = None,
+        omit_summary_features: Optional[Literal[True]] = None,
+    ) -> None:
+        """
+        Create a Document Summary.
+        Check the `Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#document-summary>`__
+        for more detailed information about documment-summary.
+        :param name: Name of the document-summary.
+        :param inherits: Name of another document-summary from which this inherits from.
+        :param summary_fields: List of summaries used in this document-summary.
+        :param from_disk: Marks this document-summary as accessing fields on disk.
+        :param omit_summary_features: Specifies that summary-features should be omitted from this document summary.
+
+        >>> DocumentSummary(
+        ...     name="document-summary",
+        ... )
+        DocumentSummary('document-summary', None, None, None, None)
+
+        >>> DocumentSummary(
+        ...     name="which-inherits",
+        ...     inherits="base-document-summary",
+        ... )
+        DocumentSummary('which-inherits', 'base-document-summary', None, None, None)
+
+        >>> DocumentSummary(
+        ...     name="with-field",
+        ...     summary_fields=[Summary("title", "string", [("source", "title")])]
+        ... )
+        DocumentSummary('with-field', None, [Summary('title', 'string', [('source', 'title')])], None, None)
+
+        >>> DocumentSummary(
+        ...     name="with-bools",
+        ...     from_disk=True,
+        ...     omit_summary_features=True,
+        ... )
+        DocumentSummary('with-bools', None, None, True, True)
+        """
+        self.name = name
+        self.inherits = inherits
+        self.summary_fields = summary_fields
+        self.from_disk = from_disk
+        self.omit_summary_features = omit_summary_features
+
+    def __eq__(self, other: object):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (
+            self.name == other.name
+            and self.inherits == other.inherits
+            and self.summary_fields == other.summary_fields
+            and self.from_disk == other.from_disk
+            and self.omit_summary_features == other.omit_summary_features
+        )
+
+    def __repr__(self) -> str:
+        return "{0}({1}, {2}, {3}, {4}, {5})".format(
+            self.__class__.__name__,
+            repr(self.name),
+            repr(self.inherits),
+            repr(self.summary_fields),
+            repr(self.from_disk),
+            repr(self.omit_summary_features),
         )
 
 
@@ -787,6 +918,7 @@ class Schema(object):
         models: Optional[List[OnnxModel]] = None,
         global_document: bool = False,
         imported_fields: Optional[List[ImportedField]] = None,
+        document_summaries: Optional[List[DocumentSummary]] = None,
     ) -> None:
         """
         Create a Vespa Schema.
@@ -801,11 +933,12 @@ class Schema(object):
         :param models: A list of :class:`OnnxModel` associated with the Schema.
         :param global_document: Set to True to copy the documents to all content nodes. Default to False.
         :param imported_fields: A list of :class:`ImportedField` defining fields from global documents to be imported.
+        :param document_summaries: A list of :class:`DocumentSummary` associated with the schema.
 
         To create a Schema:
 
         >>> Schema(name="schema_name", document=Document())
-        Schema('schema_name', Document(None, None, None), None, None, [], False, None)
+        Schema('schema_name', Document(None, None, None), None, None, [], False, None, [])
         """
         self.name = name
         self.document = document
@@ -829,6 +962,10 @@ class Schema(object):
             }
 
         self.models = [] if models is None else list(models)
+
+        self.document_summaries = (
+            [] if document_summaries is None else list(document_summaries)
+        )
 
     def add_fields(self, *fields: Field) -> None:
         """
@@ -871,6 +1008,14 @@ class Schema(object):
         """
         self.imported_fields[imported_field.name] = imported_field
 
+    def add_document_summary(self, document_summary: DocumentSummary) -> None:
+        """
+        Add a :class:`DocumentSummary` to the Schema.
+
+        :param document_summary: document summary to be added.
+        """
+        self.document_summaries.append(document_summary)
+
     @property
     def schema_to_text(self):
         env = Environment(
@@ -892,6 +1037,7 @@ class Schema(object):
             rank_profiles=self.rank_profiles,
             models=self.models,
             imported_fields=self.imported_fields,
+            document_summaries=self.document_summaries,
         )
 
     def __eq__(self, other):
@@ -905,10 +1051,11 @@ class Schema(object):
             and self.models == other.models
             and self.global_document == other.global_document
             and self.imported_fields == other.imported_fields
+            and self.document_summaries == other.document_summaries
         )
 
     def __repr__(self):
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.document),
@@ -927,6 +1074,7 @@ class Schema(object):
                 if self.imported_fields
                 else None
             ),
+            repr(self.document_summaries),
         )
 
 
@@ -1130,7 +1278,7 @@ class ApplicationPackage(object):
         The easiest way to get started is to create a default application package:
 
         >>> ApplicationPackage(name="testapp")
-        ApplicationPackage('testapp', [Schema('testapp', Document(None, None, None), None, None, [], False, None)], QueryProfile(None), QueryProfileType(None))
+        ApplicationPackage('testapp', [Schema('testapp', Document(None, None, None), None, None, [], False, None, [])], QueryProfile(None), QueryProfileType(None))
 
         It will create a default :class:`Schema`, :class:`QueryProfile` and :class:`QueryProfileType` that you can then
         populate with specifics of your application.
