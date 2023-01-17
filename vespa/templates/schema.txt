@@ -61,6 +61,43 @@ schema {{ schema_name }} {
             {% if field.query_command %}
             query-command: {{ field.query_command }}
             {% endif %}
+            {% if field.struct_fields %}
+            {% for struct_field in field.struct_fields %}
+            struct-field {{ struct_field.name }} {
+                {% if struct_field.indexing %}
+                indexing: {{ struct_field.indexing_to_text }}
+                {% endif %}
+                {% if struct_field.attribute %}
+                attribute {
+                    {% for attribute in struct_field.attribute %}
+                    {{ attribute }}
+                    {% endfor %}
+                }
+                {% endif %}
+                {% if struct_field.match %}
+                match {
+                    {% for match in struct_field.match %}
+                    {% if match is string %}
+                    {{ match }}
+                    {% else %}
+                    {{ match.0 }}: {{ match.1 }}
+                    {% endif %}
+                    {% endfor %}
+                }
+                {% endif %}
+                {% if struct_field.query_command %}
+                query-command: {{ struct_field.query_command }}
+                {% endif %}
+                {% if struct_field.summary %}
+                summary {% if struct_field.summary.name %}{{struct_field.summary.name}}{% endif %}{% if struct_field.summary.type %} type {{ struct_field.summary.type }} {% endif %}{
+                    {% for field in struct_field.summary.attributes_as_string_list %}
+                    {{ field }}
+                    {% endfor %}
+                }
+                {% endif %}
+            }
+            {% endfor %}
+            {% endif %}
         }
         {% endfor %}
         {% for struct in document.structs %}
