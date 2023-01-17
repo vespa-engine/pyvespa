@@ -121,6 +121,91 @@ class HNSW(object):
         )
 
 
+class StructFieldConfiguration(TypedDict, total=False):
+    indexing: List[str]
+    attribute: List[str]
+    match: List[Union[str, Tuple[str, str]]]
+    query_command: str
+    summary: Summary
+
+
+class StructField:
+    def __init__(self, name: str, **kwargs: Unpack[StructFieldConfiguration]) -> None:
+        """
+        Create a Vespa struct-field.
+        Check the `Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#struct-field>`__
+        for more detailed information about struct-fields.
+
+        :param name: Struct-field name.
+        :key indexing: Configures how to process data of a struct-field during indexing.
+        :key attribute: Specifies a property of an index structure attribute.
+        :key match: Set properties that decide how the matching method for this field operate.
+        :key query_command: Add configuration for query-command of the field.
+        :key summary: Add configuration for summary of the field.
+
+        >>> StructField(
+        ...     name = "first_name",
+        ... )
+        StructField('first_name', None, None, None, None, None)
+
+        >>> StructField(
+        ...     name = "first_name",
+        ...     indexing = ["attribute"],
+        ...     attribute = ["fast-search"],
+        ... )
+        StructField('first_name', ['attribute'], ['fast-search'], None, None, None)
+
+        >>> StructField(
+        ...     name = "last_name",
+        ...     match = ["exact", ("exact-terminator", '"@%"')],
+        ...     query_command = '"exact %%"',
+        ...     summary = Summary(None, None, fields=["dynamic", ("bolding", "on")])
+        ... )
+        StructField('last_name', None, None, ['exact', ('exact-terminator', '"@%"')], '"exact %%"', Summary(None, None, ['dynamic', ('bolding', 'on')]))
+        """
+        self.name = name
+        self.indexing = kwargs.get("indexing", None)
+        self.attribute = kwargs.get("attribute", None)
+        self.match = kwargs.get("match", None)
+        self.query_command = kwargs.get("query_command", None)
+        self.summary = kwargs.get("summary", None)
+
+    @property
+    def indexing_to_text(self) -> Optional[str]:
+        if self.indexing is not None:
+            return " | ".join(self.indexing)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (
+            self.name,
+            self.indexing,
+            self.attribute,
+            self.match,
+            self.query_command,
+            self.summary,
+        ) == (
+            other.name,
+            other.indexing,
+            other.attribute,
+            other.match,
+            other.query_command,
+            other.summary,
+        )
+
+    def __repr__(self) -> str:
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6})".format(
+            self.__class__.__name__,
+            repr(self.name),
+            repr(self.indexing),
+            repr(self.attribute),
+            repr(self.match),
+            repr(self.query_command),
+            repr(self.summary),
+        )
+
+
 class FieldConfiguration(TypedDict, total=False):
     indexing: List[str]
     attribute: List[str]
