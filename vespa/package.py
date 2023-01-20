@@ -185,7 +185,7 @@ class StructFieldConfiguration(TypedDict, total=False):
     indexing: List[str]
     attribute: List[str]
     match: List[Union[str, Tuple[str, str]]]
-    query_command: str
+    query_command: List[str]
     summary: Summary
 
 
@@ -218,10 +218,10 @@ class StructField:
         >>> StructField(
         ...     name = "last_name",
         ...     match = ["exact", ("exact-terminator", '"@%"')],
-        ...     query_command = '"exact %%"',
+        ...     query_command = ['"exact %%"'],
         ...     summary = Summary(None, None, fields=["dynamic", ("bolding", "on")])
         ... )
-        StructField('last_name', None, None, ['exact', ('exact-terminator', '"@%"')], '"exact %%"', Summary(None, None, ['dynamic', ('bolding', 'on')]))
+        StructField('last_name', None, None, ['exact', ('exact-terminator', '"@%"')], ['"exact %%"'], Summary(None, None, ['dynamic', ('bolding', 'on')]))
         """
         self.name = name
         self.indexing = kwargs.get("indexing", None)
@@ -276,7 +276,7 @@ class FieldConfiguration(TypedDict, total=False):
     summary: Summary
     stemming: str
     rank: str
-    query_command: str
+    query_command: List[str]
     struct_fields: List[StructField]
 
 
@@ -388,9 +388,9 @@ class Field(object):
         >>> Field(
         ...     name = "abstract",
         ...     type = "string",
-        ...     query_command = '"exact %%"',
+        ...     query_command = ['"exact %%"'],
         ... )
-        Field('abstract', 'string', None, None, None, None, None, None, None, None, None, None, '"exact %%"', [])
+        Field('abstract', 'string', None, None, None, None, None, None, None, None, None, None, ['"exact %%"'], [])
 
         >>> Field(
         ...     name = "abstract",
