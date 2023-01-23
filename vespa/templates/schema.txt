@@ -57,7 +57,9 @@ schema {{ schema_name }} {
             rank: {{ field.rank }}
             {% endif %}
             {% if field.query_command %}
-            query-command: {{ field.query_command }}
+            {% for qc in field.query_command %}
+            query-command: {{ qc }}
+            {% endfor %}
             {% endif %}
             {% if field.struct_fields %}
             {% for struct_field in field.struct_fields %}
@@ -83,8 +85,10 @@ schema {{ schema_name }} {
                     {% endfor %}
                 }
                 {% endif %}
-                {% if struct_field.query_command %}
-                query-command: {{ struct_field.query_command }}
+                {% if field.query_command %}
+                {% for qc in field.query_command %}
+                query-command: {{ qc }}
+                {% endfor %}
                 {% endif %}
                 {% if struct_field.summary %}
                 summary {% if struct_field.summary.name %}{{struct_field.summary.name}}{% endif %}{% if struct_field.summary.type %} type {{ struct_field.summary.type }} {% endif %}{
