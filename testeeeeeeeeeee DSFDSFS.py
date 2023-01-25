@@ -1,1 +1,0 @@
-from vespa.package import *
