@@ -1380,6 +1380,7 @@ class ApplicationPackage(object):
         stateless_model_evaluation: bool = False,
         create_schema_by_default: bool = True,
         create_query_profile_by_default: bool = True,
+        user_version: str = None,
     ) -> None:
         """
         Create an `Application Package <https://docs.vespa.ai/en/cloudconfig/application-packages.html>`__.
@@ -1399,6 +1400,7 @@ class ApplicationPackage(object):
             is provided in the `schema` argument.
         :param create_query_profile_by_default: Include a default :class:`QueryProfile` and :class:`QueryProfileType`
             in case it is not explicitly defined by the user in the `query_profile` and `query_profile_type` parameters.
+        :param user_version: An user-defined version to the Application, available at /ApplicationStatus.
 
         The easiest way to get started is to create a default application package:
 
@@ -1432,6 +1434,7 @@ class ApplicationPackage(object):
         self.model_configs = {}
         self.stateless_model_evaluation = stateless_model_evaluation
         self.models = {}
+        self.user_version=user_version
 
     @property
     def schemas(self) -> List[Schema]:
@@ -1520,6 +1523,7 @@ class ApplicationPackage(object):
         return schema_template.render(
             application_name=self.name,
             schemas=self.schemas,
+            user_version=self.user_version,
             stateless_model_evaluation=self.stateless_model_evaluation,
         )
 
