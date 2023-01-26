@@ -34,7 +34,7 @@ jobs:
   integration-except-cloud:
     requires: [~commit]
     annotations:
-      screwdriver.cd/timeout: 120
+      screwdriver.cd/timeout: 180
       screwdriver.cd/cpu: HIGH
       screwdriver.cd/ram: HIGH
       screwdriver.cd/dockerEnabled: true
