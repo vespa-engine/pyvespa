@@ -191,6 +191,14 @@ schema {{ schema_name }} {
 {% endif %}
 {% for key, value in rank_profiles.items() %}
     rank-profile {{ key }}{% if value.inherits %} inherits {{ value.inherits }}{% endif %} {
+        {% if value.rank_properties %}
+        rank-properties {
+            {% for rank_property in value.rank_properties %}
+            {{  rank_property.to_text }}
+            {% endfor %}
+        }
+        {% endif %}
+
         {% if value.constants %}
         constants {
         {% for constant_name, constant_value in value.constants.items() %}

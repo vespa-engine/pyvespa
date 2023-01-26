@@ -863,6 +863,42 @@ class SecondPhaseRanking(object):
         )
 
 
+class RankProperty(object):
+    def __init__(
+            self,
+            feature_name: str,
+            configuration_property: Optional[str] = None,
+            value: Optional[Union[str, int, float]] = None
+    ) -> None:
+        r"""
+        Create a Vespa rank property.
+
+        Check the `Vespa documentation <https://docs.vespa.ai/en/reference/rank-feature-configuration.html>`__`
+        for more detailed information about rank properties.
+
+        :param feature_name: Name of a feature class (feature name up to the first dot).
+        :param configuration_property: Property appropriate for the feature.
+        :param value: Either a number or a string.
+        """
+        self.feature_name = feature_name
+        self.configuration_property = configuration_property
+        self.value = value
+
+    @property
+    def to_text(self):
+        text = self.feature_name
+
+        if self.configuration_property is not None:
+            text += f".{self.configuration_property}"
+
+        if self.value is not None:
+            if isinstance(self.value, str):
+                text += f': "{self.value}"'
+            else:
+                text += f": {self.value}"
+        return text
+
+
 class RankProfile(object):
     def __init__(
         self,
@@ -873,6 +909,7 @@ class RankProfile(object):
         functions: Optional[List[Function]] = None,
         summary_features: Optional[List] = None,
         second_phase: Optional[SecondPhaseRanking] = None,
+        rank_properties: Optional[List[RankProperty]] = None
     ) -> None:
         """
         Create a Vespa rank profile.
@@ -899,6 +936,9 @@ class RankProfile(object):
             about summary features.
         :param second_phase: Optional config specifying the second phase of ranking.
             See :class:`SecondPhaseRanking`.
+        :param rank_properties: Optional list of :class:`RankProperty`.
+            `More info <https://docs.vespa.ai/en/reference/rank-feature-configuration.html>`__`
+            about rank properties.
 
         >>> RankProfile(name = "default", first_phase = "nativeRank(title, body)")
         RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None)
@@ -942,6 +982,7 @@ class RankProfile(object):
         self.functions = functions
         self.summary_features = summary_features
         self.second_phase = second_phase
+        self.rank_properties = rank_properties
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
