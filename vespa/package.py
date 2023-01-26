@@ -1523,7 +1523,7 @@ class ApplicationPackage(object):
         return schema_template.render(
             application_name=self.name,
             schemas=self.schemas,
-            user_version = self.user_version,
+            user_version=self.user_version,
             stateless_model_evaluation=self.stateless_model_evaluation,
         )
 
