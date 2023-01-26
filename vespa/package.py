@@ -879,9 +879,6 @@ class RankProperty(object):
         :param feature_name: Name of a feature class (feature name up to the first dot).
         :param configuration_property: Property appropriate for the feature.
         :param value: Either a number or a string.
-
-        >>> SecondPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10)
-        SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10)
         """
         self.feature_name = feature_name
         self.configuration_property = configuration_property
