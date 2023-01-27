@@ -962,9 +962,9 @@ class RankProfile(object):
         self.second_phase = kwargs.get("second_phase", second_phase)
         self.weight = kwargs.get("weight", None)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return (
             self.name == other.name
             and self.first_phase == other.first_phase
@@ -976,7 +976,7 @@ class RankProfile(object):
             and self.weight == other.weight
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8})".format(
             self.__class__.__name__,
             repr(self.name),
