@@ -222,8 +222,13 @@ schema {{ schema_name }} {
         summary-features {
         {% for feature in value.summary_features %}
             {{ feature }}
-        {% endfor %}
+        {% endfor %}}
         }
+        {% endif %}
+        {% if value.weight %}
+        {% for weight in value.weight %}
+        weight {{ weight.0 }}: {{ weight.1 }}
+        {% endfor %}
         {% endif %}
     }
 {% endfor %}
