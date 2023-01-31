@@ -225,6 +225,23 @@ schema {{ schema_name }} {
         {% endfor %}
         }
         {% endif %}
+        {% if value.weight %}
+        {% for weight in value.weight %}
+        weight {{ weight.0 }}: {{ weight.1 }}
+        {% endfor %}
+        {% endif %}
+        {% if value.rank_type %}
+        {% for rank_type in value.rank_type %}
+        rank-type {{ rank_type.0 }}: {{ rank_type.1 }}
+        {% endfor %}
+        {% endif %}
+        {% if value.rank_properties %}
+        rank-properties {
+            {% for rank_property in value.rank_properties %}
+            {{ rank_property.0 }}: "{{ rank_property.1 }}"
+            {% endfor %}
+        }
+        {% endif %}
     }
 {% endfor %}
 {% for document_summary in document_summaries %}

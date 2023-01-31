@@ -863,6 +863,17 @@ class SecondPhaseRanking(object):
         )
 
 
+class RankProfileFields(TypedDict, total=False):
+    inherits: str
+    constants: Dict
+    functions: List[Function]
+    summary_features: List
+    second_phase: SecondPhaseRanking
+    weight: List[Tuple[str, int]]
+    rank_type: List[Tuple[str, str]]
+    rank_properties: List[Tuple[str, str]]
+
+
 class RankProfile(object):
     def __init__(
         self,
@@ -873,6 +884,7 @@ class RankProfile(object):
         functions: Optional[List[Function]] = None,
         summary_features: Optional[List] = None,
         second_phase: Optional[SecondPhaseRanking] = None,
+        **kwargs: Unpack[RankProfileFields],
     ) -> None:
         """
         Create a Vespa rank profile.
@@ -899,12 +911,17 @@ class RankProfile(object):
             about summary features.
         :param second_phase: Optional config specifying the second phase of ranking.
             See :class:`SecondPhaseRanking`.
+        :key weight: A list of tuples containing the field and their weight
+        :key rank_type: A list of tuples containing a field and the rank-type-name.
+            `More info <https://docs.vespa.ai/en/reference/schema-reference.html#rank-type>`__` about rank-type.
+        :key rank_properties: A list of tuples containing a field and its configuration.
+            `More info <https://docs.vespa.ai/en/reference/schema-reference.html#rank-properties>`__` about rank-properties.
 
         >>> RankProfile(name = "default", first_phase = "nativeRank(title, body)")
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None)
 
         >>> RankProfile(name = "new", first_phase = "BM25(title)", inherits = "default")
-        RankProfile('new', 'BM25(title)', 'default', None, None, None, None)
+        RankProfile('new', 'BM25(title)', 'default', None, None, None, None, None, None, None)
 
         >>> RankProfile(
         ...     name = "new",
@@ -913,7 +930,7 @@ class RankProfile(object):
         ...     constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
         ...     summary_features=["BM25(title)"]
         ... )
-        RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None, ['BM25(title)'], None)
+        RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None, ['BM25(title)'], None, None, None, None)
 
         >>> RankProfile(
         ...     name="bert",
@@ -933,19 +950,43 @@ class RankProfile(object):
         ...     ],
         ...     summary_features=["question_length", "doc_length"]
         ... )
-        RankProfile('bert', 'bm25(title) + bm25(body)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, [Function('question_length', 'sum(map(query(query_token_ids), f(a)(a > 0)))', None), Function('doc_length', 'sum(map(attribute(doc_token_ids), f(a)(a > 0)))', None)], ['question_length', 'doc_length'], SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10))
+        RankProfile('bert', 'bm25(title) + bm25(body)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, [Function('question_length', 'sum(map(query(query_token_ids), f(a)(a > 0)))', None), Function('doc_length', 'sum(map(attribute(doc_token_ids), f(a)(a > 0)))', None)], ['question_length', 'doc_length'], SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10), None, None, None)
+
+        >>> RankProfile(
+        ...     name = "default",
+        ...     first_phase = "nativeRank(title, body)",
+        ...     weight = [("title", 200), ("body", 100)]
+        ... )
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, [('title', 200), ('body', 100)], None, None)
+
+        >>> RankProfile(
+        ...     name = "default",
+        ...     first_phase = "nativeRank(title, body)",
+        ...     rank_type = [("body", "about")]
+        ... )
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, [('body', 'about')], None)
+
+        >>> RankProfile(
+        ...     name = "default",
+        ...     first_phase = "nativeRank(title, body)",
+        ...     rank_properties = [("fieldMatch(title).maxAlternativeSegmentations", "10")]
+        ... )
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, [('fieldMatch(title).maxAlternativeSegmentations', '10')])
         """
         self.name = name
         self.first_phase = first_phase
-        self.inherits = inherits
-        self.constants = constants
-        self.functions = functions
-        self.summary_features = summary_features
-        self.second_phase = second_phase
+        self.inherits = kwargs.get("inherits", inherits)
+        self.constants = kwargs.get("constants", constants)
+        self.functions = kwargs.get("functions", functions)
+        self.summary_features = kwargs.get("summary_features", summary_features)
+        self.second_phase = kwargs.get("second_phase", second_phase)
+        self.weight = kwargs.get("weight", None)
+        self.rank_type = kwargs.get("rank_type", None)
+        self.rank_properties = kwargs.get("rank_properties", None)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return (
             self.name == other.name
             and self.first_phase == other.first_phase
@@ -954,10 +995,13 @@ class RankProfile(object):
             and self.functions == other.functions
             and self.summary_features == other.summary_features
             and self.second_phase == other.second_phase
+            and self.weight == other.weight
+            and self.rank_type == other.rank_type
+            and self.rank_properties == other.rank_properties
         )
 
-    def __repr__(self):
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7})".format(
+    def __repr__(self) -> str:
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.first_phase),
@@ -966,6 +1010,9 @@ class RankProfile(object):
             repr(self.functions),
             repr(self.summary_features),
             repr(self.second_phase),
+            repr(self.weight),
+            repr(self.rank_type),
+            repr(self.rank_properties),
         )
 
 
