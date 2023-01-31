@@ -198,7 +198,6 @@ schema {{ schema_name }} {
             {% endfor %}
         }
         {% endif %}
-
         {% if value.constants %}
         constants {
         {% for constant_name, constant_value in value.constants.items() %}
