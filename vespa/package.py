@@ -1473,7 +1473,6 @@ class ApplicationPackage(object):
         self.model_configs = {}
         self.stateless_model_evaluation = stateless_model_evaluation
         self.models = {}
-        self.user_version=user_version
 
     @property
     def schemas(self) -> List[Schema]:
