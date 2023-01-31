@@ -1383,12 +1383,16 @@ class ApplicationConfiguration(object):
 
         Example:
         >>> ApplicationConfiguration(
-        >>>     name="container.handler.observability.application-userdata",
-        >>>     value={"version": "my-version"}
-        >>> )
+        ...     name="container.handler.observability.application-userdata",
+        ...     value={"version": "my-version"}
+        ... )
+        ApplicationConfiguration(name="container.handler.observability.application-userdata")
         """
         self.name = name
         self.value = value
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(name=\"{self.name}\")"
 
     def __get_tab(self, n: int = 1) -> str:
         return " " * 4 * n
