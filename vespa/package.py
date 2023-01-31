@@ -1416,6 +1416,25 @@ class ApplicationConfiguration(object):
         return f"<config name=\"{self.name}\">{value}</config>"
 
 
+class Validation(object):
+    def __init__(self, validation_id: str, until: str, comment: Optional[str] = None):
+        r"""
+        Represents a validation to be be overridden on application.
+
+        Check the `Vespa documentation <https://docs.vespa.ai/en/reference/validation-overrides.html>`__`
+        for more detailed information about validations.
+
+        :param validation_id: ID of the validation.
+        :param until: The last day this change is allowed, as a ISO-8601-format date in UTC, e.g. 2016-01-30.
+        Dates may at most be 30 days in the future, but should be as close to now as possible for safety,
+        while allowing time for review and propagation to all deployed zones. allow-tags with dates in the past are ignored.
+        :param comment: Optional text explaining the reason for the change to humans.
+        """
+        self.id = validation_id
+        self.until = until
+        self.comment = comment if comment is not None else str()
+
+
 class ApplicationPackage(object):
     def __init__(
         self,
@@ -1427,6 +1446,7 @@ class ApplicationPackage(object):
         create_schema_by_default: bool = True,
         create_query_profile_by_default: bool = True,
         configurations: Optional[List[ApplicationConfiguration]] = None,
+        validations: Optional[List[Validation]] = None
     ) -> None:
         """
         Create an `Application Package <https://docs.vespa.ai/en/cloudconfig/application-packages.html>`__.
@@ -1447,6 +1467,7 @@ class ApplicationPackage(object):
         :param create_query_profile_by_default: Include a default :class:`QueryProfile` and :class:`QueryProfileType`
             in case it is not explicitly defined by the user in the `query_profile` and `query_profile_type` parameters.
         :param configurations: List of :class:`ApplicationConfiguration` that contains configurations for the application.
+        :param validations: Optional list of :class:`Validation` to be overridden.
 
         The easiest way to get started is to create a default application package:
 
@@ -1481,6 +1502,7 @@ class ApplicationPackage(object):
         self.stateless_model_evaluation = stateless_model_evaluation
         self.models = {}
         self.configurations = configurations
+        self.validations = validations
 
     @property
     def schemas(self) -> List[Schema]:
@@ -1573,6 +1595,21 @@ class ApplicationPackage(object):
             stateless_model_evaluation=self.stateless_model_evaluation,
         )
 
+    @property
+    def validations_to_text(self):
+        env = Environment(
+            loader=PackageLoader("vespa", "templates"),
+            autoescape=select_autoescape(
+                disabled_extensions=("txt",),
+                default_for_string=True,
+                default=True,
+            ),
+        )
+        env.trim_blocks = True
+        env.lstrip_blocks = True
+        validations_template = env.get_template("validation-overrides.xml")
+        return validations_template.render(validations=self.validations)
+
     @staticmethod
     def _application_package_file_name(disk_folder):
         return os.path.join(disk_folder, "application_package.json")
@@ -1586,6 +1623,7 @@ class ApplicationPackage(object):
         buffer = BytesIO()
         with zipfile.ZipFile(buffer, "a") as zip_archive:
             zip_archive.writestr("services.xml", self.services_to_text)
+            zip_archive.writestr("validation-overrides.xml", self.validations_to_text)
 
             for schema in self.schemas:
                 zip_archive.writestr(
