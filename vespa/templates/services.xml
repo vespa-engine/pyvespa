@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <services version="1.0">
+    {% if configurations %}
+    {% for config in configurations %}
+    {% autoescape off %}
+    {{ config.to_text }}
+    {% endautoescape %}
+    {% endfor %}
+    {% endif %}
     <container id="{{ application_name }}_container" version="1.0">
         {% if schemas %}
         <search></search>

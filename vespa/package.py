@@ -1370,6 +1370,52 @@ class QueryProfile(object):
         )
 
 
+class ApplicationConfiguration(object):
+    def __init__(self, name: str, value: Union[str, Dict[str, Union[Dict, str]]]) -> str:
+        """
+        Create a Vespa Schema.
+
+        Check the `Config documentation <https://docs.vespa.ai/en/reference/services.html#generic-config>`__
+        for more detailed information about generic configuration.
+
+        :param name: Configuration name.
+        :param value: Either a string or a Dict (it may be a nested dict) of values.
+
+        Example:
+        >>> ApplicationConfiguration(
+        ...     name="container.handler.observability.application-userdata",
+        ...     value={"version": "my-version"}
+        ... )
+        ApplicationConfiguration(name="container.handler.observability.application-userdata")
+        """
+        self.name = name
+        self.value = value
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(name=\"{self.name}\")"
+
+    def __get_tab(self, n: int = 1) -> str:
+        return " " * 4 * n
+
+    def __to_xml_string(self, xml_elements: Dict[str, Union[Dict, str]], level=0) -> str:
+        string = "\n"
+
+        for tag, value in xml_elements.items():
+            tabs = self.__get_tab(level)
+
+            if isinstance(value, dict):
+                value = self.__to_xml_string(value, level + 1)
+                string += f"{tabs}<{tag}>{value}{tabs}</{tag}>\n"
+            else:
+                string += f"{tabs}<{tag}>{value}</{tag}>\n"
+        return string
+
+    @property
+    def to_text(self) -> str:
+        value = self.__get_tab() + self.__to_xml_string(self.value, level=1) if isinstance(self.value, dict) else self.value
+        return f"<config name=\"{self.name}\">{value}</config>"
+
+
 class Validation(object):
     def __init__(self, validation_id: str, until: str, comment: Optional[str] = None):
         r"""
@@ -1399,7 +1445,8 @@ class ApplicationPackage(object):
         stateless_model_evaluation: bool = False,
         create_schema_by_default: bool = True,
         create_query_profile_by_default: bool = True,
-        validations: Optional[List[Validation]] = None,
+        configurations: Optional[List[ApplicationConfiguration]] = None,
+        validations: Optional[List[Validation]] = None
     ) -> None:
         """
         Create an `Application Package <https://docs.vespa.ai/en/cloudconfig/application-packages.html>`__.
@@ -1419,7 +1466,9 @@ class ApplicationPackage(object):
             is provided in the `schema` argument.
         :param create_query_profile_by_default: Include a default :class:`QueryProfile` and :class:`QueryProfileType`
             in case it is not explicitly defined by the user in the `query_profile` and `query_profile_type` parameters.
+        :param configurations: List of :class:`ApplicationConfiguration` that contains configurations for the application.
         :param validations: Optional list of :class:`Validation` to be overridden.
+
         The easiest way to get started is to create a default application package:
 
         >>> ApplicationPackage(name="testapp")
@@ -1452,6 +1501,7 @@ class ApplicationPackage(object):
         self.model_configs = {}
         self.stateless_model_evaluation = stateless_model_evaluation
         self.models = {}
+        self.configurations = configurations
         self.validations = validations
 
     @property
@@ -1541,6 +1591,7 @@ class ApplicationPackage(object):
         return schema_template.render(
             application_name=self.name,
             schemas=self.schemas,
+            configurations=self.configurations,
             stateless_model_evaluation=self.stateless_model_evaluation,
         )
 
