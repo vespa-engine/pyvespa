@@ -35,7 +35,7 @@ from learntorank.ml import (
     add_ranking_model,
 )
 
-CONTAINER_STOP_TIMEOUT = 600
+CONTAINER_STOP_TIMEOUT = 10
 
 
 def create_msmarco_application_package():
