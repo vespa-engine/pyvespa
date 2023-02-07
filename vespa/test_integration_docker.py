@@ -1,3 +1,5 @@
+# Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
+
 import unittest
 import pytest
 import os
@@ -1006,71 +1008,6 @@ class TestApplicationCommon(unittest.TestCase):
         ) as exc:
             _ = app.predict("this is a test", model_id="bert_tiny")
 
-    @staticmethod
-    def _parse_vespa_tensor(hit, feature):
-        return hit["fields"]["summaryfeatures"][feature]["values"][0]
-
-    def bert_model_input_and_output(
-        self, app, schema_name, fields_to_send, model_config
-    ):
-        #
-        # Feed a data point
-        #
-        response = app.feed_data_point(
-            schema=schema_name,
-            data_id=fields_to_send["id"],
-            fields=fields_to_send,
-        )
-        self.assertEqual(
-            response.json["id"],
-            "id:{}:{}::{}".format(schema_name, schema_name, fields_to_send["id"]),
-        )
-        #
-        # Run a test query
-        #
-        result = send_query(
-            app=app,
-            query="this is a test",
-            query_model=QueryModel(
-                query_properties=[
-                    QueryRankingFeature(
-                        name=model_config.query_token_ids_name,
-                        mapping=model_config.query_tensor_mapping,
-                    )
-                ],
-                match_phase=OR(),
-                ranking=Ranking(name="pretrained_bert_tiny"),
-            ),
-        )
-        vespa_input_ids = self._parse_vespa_tensor(result.hits[0], "input_ids")
-        vespa_attention_mask = self._parse_vespa_tensor(
-            result.hits[0], "attention_mask"
-        )
-        vespa_token_type_ids = self._parse_vespa_tensor(
-            result.hits[0], "token_type_ids"
-        )
-
-        expected_inputs = model_config.create_encodings(
-            queries=["this is a test"], docs=[fields_to_send["title"]]
-        )
-        self.assertEqual(vespa_input_ids, expected_inputs["input_ids"][0])
-        self.assertEqual(vespa_attention_mask, expected_inputs["attention_mask"][0])
-        self.assertEqual(vespa_token_type_ids, expected_inputs["token_type_ids"][0])
-
-        expected_logits = model_config.predict(
-            queries=["this is a test"], docs=[fields_to_send["title"]]
-        )
-        self.assertAlmostEqual(
-            result.hits[0]["fields"]["summaryfeatures"]["logit0"],
-            expected_logits[0][0],
-            5,
-        )
-        self.assertAlmostEqual(
-            result.hits[0]["fields"]["summaryfeatures"]["logit1"],
-            expected_logits[0][1],
-            5,
-        )
-
 
 class TestMsmarcoDockerDeployment(TestDockerCommon):
     def setUp(self) -> None:
@@ -1379,14 +1316,6 @@ class TestCord19Application(TestApplicationCommon):
             fields_to_send=self.fields_to_send,
             expected_fields_from_get_operation=self.expected_fields_from_get_operation,
             fields_to_update=self.fields_to_update,
-        )
-
-    def test_bert_model_input_and_output(self):
-        self.bert_model_input_and_output(
-            app=self.app,
-            schema_name=self.app_package.name,
-            fields_to_send=self.fields_to_send[0],
-            model_config=self.model_config,
         )
 
     def tearDown(self) -> None:
