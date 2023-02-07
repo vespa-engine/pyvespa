@@ -24,7 +24,7 @@ class TestVespaKeyAndCertificate(unittest.TestCase):
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
             application="pyvespa-integration",
-            key_content=os.getenv("VESPA_CLOUD_USER_KEY").replace(r"\n", "\n"),
+            key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
         )
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
@@ -80,7 +80,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
             application="pyvespa-integration",
-            key_content=os.getenv("VESPA_CLOUD_USER_KEY").replace(r"\n", "\n"),
+            key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
         )
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
@@ -177,7 +177,7 @@ class TestCord19Application(TestApplicationCommon):
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
             application="pyvespa-integration",
-            key_content=os.getenv("VESPA_CLOUD_USER_KEY").replace(r"\n", "\n"),
+            key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
         )
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
@@ -302,7 +302,7 @@ class TestQaApplication(TestApplicationCommon):
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
             application="pyvespa-integration",
-            key_content=os.getenv("VESPA_CLOUD_USER_KEY").replace(r"\n", "\n"),
+            key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
         )
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
@@ -416,7 +416,7 @@ class TestSequenceClassification(TestApplicationCommon):
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
             application="pyvespa-integration",
-            key_content=os.getenv("VESPA_CLOUD_USER_KEY").replace(r"\n", "\n"),
+            key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
         )
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")

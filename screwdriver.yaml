@@ -118,7 +118,7 @@ jobs:
       screwdriver.cd/ram: HIGH
       screwdriver.cd/buildPeriodically: H 11 * * *
     secrets:
-      - VESPA_CLOUD_USER_KEY
+      - VESPA_TEAM_API_KEY
     environment:
       SD_ZIP_ARTIFACTS: true
     steps:
@@ -140,7 +140,7 @@ jobs:
       screwdriver.cd/cpu: HIGH
       screwdriver.cd/ram: HIGH
     secrets:
-      - VESPA_CLOUD_USER_KEY
+      - VESPA_TEAM_API_KEY
     environment:
       SD_ZIP_ARTIFACTS: true
     steps:
