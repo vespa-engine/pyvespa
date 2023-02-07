@@ -111,14 +111,13 @@ jobs:
           done
 
   integration-cloud:
-    requires: [~commit,~pr]
+    requires: [~commit]
     annotations:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
       screwdriver.cd/ram: HIGH
       screwdriver.cd/buildPeriodically: H 11 * * *
     secrets:
-      - VESPA_CLOUD_USER_KEY
       - VESPA_TEAM_API_KEY
     environment:
       SD_ZIP_ARTIFACTS: true
@@ -132,7 +131,7 @@ jobs:
           python3 -m pip install pytest learntorank
           python3 -m pip install -e .[full]
       - run-integration-cloud: |
-          pytest vespa/test_integration_vespa_cloud.py::TestVespaKeyAndCertificate::test_key_cert_arguments -s -v
+          pytest vespa/test_integration_vespa_cloud.py -s -v
 
   notebooks-cloud:
     requires: [integration-cloud]
@@ -141,7 +140,7 @@ jobs:
       screwdriver.cd/cpu: HIGH
       screwdriver.cd/ram: HIGH
     secrets:
-      - VESPA_CLOUD_USER_KEY
+      - VESPA_TEAM_API_KEY
     environment:
       SD_ZIP_ARTIFACTS: true
     steps:
