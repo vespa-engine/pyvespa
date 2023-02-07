@@ -21,10 +21,7 @@ from vespa.package import (
 )
 from vespa.deployment import VespaDocker
 from vespa.application import VespaSync
-from learntorank.ml import (
-    BertModelConfig,
-    add_ranking_model,
-)
+
 
 CONTAINER_STOP_TIMEOUT = 10
 
@@ -75,39 +72,6 @@ def create_msmarco_application_package():
         ],
     )
     app_package = ApplicationPackage(name="msmarco", schema=[msmarco_schema])
-    return app_package
-
-
-def create_cord19_application_package():
-    app_package = ApplicationPackage(name="cord19")
-    app_package.schema.add_fields(
-        Field(name="id", type="string", indexing=["attribute", "summary"]),
-        Field(
-            name="title",
-            type="string",
-            indexing=["index", "summary"],
-            index="enable-bm25",
-        ),
-    )
-    app_package.schema.add_field_set(FieldSet(name="default", fields=["title"]))
-    app_package.schema.add_rank_profile(
-        RankProfile(name="bm25", first_phase="bm25(title)")
-    )
-    bert_config = BertModelConfig(
-        model_id="pretrained_bert_tiny",
-        tokenizer="google/bert_uncased_L-2_H-128_A-2",
-        model="google/bert_uncased_L-2_H-128_A-2",
-        query_input_size=5,
-        doc_input_size=10,
-    )
-    add_ranking_model(
-        app_package=app_package,
-        model_config=bert_config,
-        include_model_summary_features=True,
-        inherits="default",
-        first_phase="bm25(title)",
-        second_phase=SecondPhaseRanking(rerank_count=10, expression="logit1"),
-    )
     return app_package
 
 
