@@ -119,6 +119,7 @@ jobs:
       screwdriver.cd/buildPeriodically: H 11 * * *
     secrets:
       - VESPA_CLOUD_USER_KEY
+      - VESPA_TEAM_API_KEY
     environment:
       SD_ZIP_ARTIFACTS: true
     steps:
