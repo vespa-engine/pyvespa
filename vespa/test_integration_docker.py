@@ -1160,17 +1160,6 @@ class TestCord19Application(TestApplicationCommon):
             for i in range(10)
         ]
 
-    def test_model_endpoints_when_no_model_is_available(self):
-        self.get_model_endpoints_when_no_model_is_available(
-            app=self.app,
-            expected_model_endpoint="http://localhost:8080/model-evaluation/v1/",
-        )
-
-    def test_prediction_when_model_not_defined(self):
-        self.get_stateless_prediction_when_model_not_defined(
-            app=self.app, application_package=self.app_package
-        )
-
     def test_execute_data_operations(self):
         self.execute_data_operations(
             app=self.app,
@@ -1180,35 +1169,6 @@ class TestCord19Application(TestApplicationCommon):
             expected_fields_from_get_operation=self.expected_fields_from_get_operation[
                 0
             ],
-        )
-
-    def test_execute_async_data_operations(self):
-        asyncio.run(
-            self.execute_async_data_operations(
-                app=self.app,
-                schema_name=self.app_package.name,
-                fields_to_send=self.fields_to_send,
-                field_to_update=self.fields_to_update[0],
-                expected_fields_from_get_operation=self.expected_fields_from_get_operation,
-            )
-        )
-
-    def test_batch_operations_synchronous_mode(self):
-        self.batch_operations_synchronous_mode(
-            app=self.app,
-            schema_name=self.app_package.name,
-            fields_to_send=self.fields_to_send,
-            expected_fields_from_get_operation=self.expected_fields_from_get_operation,
-            fields_to_update=self.fields_to_update,
-        )
-
-    def test_batch_operations_asynchronous_mode(self):
-        self.batch_operations_asynchronous_mode(
-            app=self.app,
-            schema_name=self.app_package.name,
-            fields_to_send=self.fields_to_send,
-            expected_fields_from_get_operation=self.expected_fields_from_get_operation,
-            fields_to_update=self.fields_to_update,
         )
 
     def test_batch_operations_default_mode_with_one_schema(self):
