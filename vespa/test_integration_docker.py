@@ -1119,56 +1119,6 @@ class TestMsmarcoApplication(TestApplicationCommon):
         self.vespa_docker.container.remove()
 
 
-class TestCord19Application(TestApplicationCommon):
-    def setUp(self) -> None:
-        self.app_package = create_cord19_application_package()
-        self.vespa_docker = VespaDocker(port=8089)
-        self.app = self.vespa_docker.deploy(application_package=self.app_package)
-        self.model_config = self.app_package.model_configs["pretrained_bert_tiny"]
-        self.fields_to_send = []
-        self.expected_fields_from_get_operation = []
-        for i in range(10):
-            fields = {
-                "id": f"{i}",
-                "title": f"this is title {i}",
-            }
-            tensor_field_dict = self.model_config.doc_fields(text=str(fields["title"]))
-            fields.update(tensor_field_dict)
-            self.fields_to_send.append(fields)
-
-            expected_fields = {
-                "id": f"{i}",
-                "title": f"this is title {i}",
-            }
-            tensor_field_values = tensor_field_dict[
-                "pretrained_bert_tiny_doc_token_ids"
-            ]["values"]
-            expected_fields.update(
-                {
-                    "pretrained_bert_tiny_doc_token_ids": {
-                        "type": f"tensor<float>(d0[{len(tensor_field_values)}])",
-                        "values": tensor_field_values,
-                    }
-                }
-            )
-            self.expected_fields_from_get_operation.append(expected_fields)
-        self.fields_to_update = [
-            {
-                "id": f"{i}",
-                "title": "this is my updated title number {}".format(i),
-            }
-            for i in range(10)
-        ]
-
-    def tearDown(self) -> None:
-        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
-        self.vespa_docker.container.remove()
-        try:
-            os.remove(os.path.join(os.environ["RESOURCES_DIR"], "vespa_features.csv"))
-        except OSError:
-            pass
-
-
 class TestQaApplication(TestApplicationCommon):
     def setUp(self) -> None:
         self.app_package = create_qa_application_package()
