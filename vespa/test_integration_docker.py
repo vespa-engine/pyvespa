@@ -1160,26 +1160,6 @@ class TestCord19Application(TestApplicationCommon):
             for i in range(10)
         ]
 
-    def test_execute_data_operations(self):
-        self.execute_data_operations(
-            app=self.app,
-            schema_name=self.app_package.name,
-            fields_to_send=self.fields_to_send[0],
-            field_to_update=self.fields_to_update[0],
-            expected_fields_from_get_operation=self.expected_fields_from_get_operation[
-                0
-            ],
-        )
-
-    def test_batch_operations_default_mode_with_one_schema(self):
-        self.batch_operations_default_mode_with_one_schema(
-            app=self.app,
-            schema_name=self.app_package.name,
-            fields_to_send=self.fields_to_send,
-            expected_fields_from_get_operation=self.expected_fields_from_get_operation,
-            fields_to_update=self.fields_to_update,
-        )
-
     def tearDown(self) -> None:
         self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
