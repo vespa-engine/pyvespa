@@ -111,7 +111,7 @@ jobs:
           done
 
   integration-cloud:
-    requires: [~commit]
+    requires: [~commit,~pr]
     annotations:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
