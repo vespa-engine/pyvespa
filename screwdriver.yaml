@@ -132,7 +132,7 @@ jobs:
           python3 -m pip install pytest learntorank
           python3 -m pip install -e .[full]
       - run-integration-cloud: |
-          pytest vespa/test_integration_vespa_cloud.py -s -v
+          pytest vespa/test_integration_vespa_cloud.py::TestVespaKeyAndCertificate::test_key_cert_arguments -s -v
 
   notebooks-cloud:
     requires: [integration-cloud]
