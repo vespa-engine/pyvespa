@@ -1127,7 +1127,7 @@ class TestQaDockerDeployment(TestDockerCommon):
     def test_deploy_image(self):
         self.deploy(
             application_package=self.app_package,
-            container_image="vespaengine/vespa:7.566.21",
+            container_image="vespaengine/vespa",
         )
         self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
