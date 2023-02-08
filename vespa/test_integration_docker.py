@@ -21,10 +21,7 @@ from vespa.package import (
 )
 from vespa.deployment import VespaDocker
 from vespa.application import VespaSync
-from learntorank.ml import (
-    BertModelConfig,
-    add_ranking_model,
-)
+
 
 CONTAINER_STOP_TIMEOUT = 10
 
@@ -75,39 +72,6 @@ def create_msmarco_application_package():
         ],
     )
     app_package = ApplicationPackage(name="msmarco", schema=[msmarco_schema])
-    return app_package
-
-
-def create_cord19_application_package():
-    app_package = ApplicationPackage(name="cord19")
-    app_package.schema.add_fields(
-        Field(name="id", type="string", indexing=["attribute", "summary"]),
-        Field(
-            name="title",
-            type="string",
-            indexing=["index", "summary"],
-            index="enable-bm25",
-        ),
-    )
-    app_package.schema.add_field_set(FieldSet(name="default", fields=["title"]))
-    app_package.schema.add_rank_profile(
-        RankProfile(name="bm25", first_phase="bm25(title)")
-    )
-    bert_config = BertModelConfig(
-        model_id="pretrained_bert_tiny",
-        tokenizer="google/bert_uncased_L-2_H-128_A-2",
-        model="google/bert_uncased_L-2_H-128_A-2",
-        query_input_size=5,
-        doc_input_size=10,
-    )
-    add_ranking_model(
-        app_package=app_package,
-        model_config=bert_config,
-        include_model_summary_features=True,
-        inherits="default",
-        first_phase="bm25(title)",
-        second_phase=SecondPhaseRanking(rerank_count=10, expression="logit1"),
-    )
     return app_package
 
 
@@ -1117,116 +1081,6 @@ class TestMsmarcoApplication(TestApplicationCommon):
     def tearDown(self) -> None:
         self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
-
-
-class TestCord19Application(TestApplicationCommon):
-    def setUp(self) -> None:
-        self.app_package = create_cord19_application_package()
-        self.vespa_docker = VespaDocker(port=8089)
-        self.app = self.vespa_docker.deploy(application_package=self.app_package)
-        self.model_config = self.app_package.model_configs["pretrained_bert_tiny"]
-        self.fields_to_send = []
-        self.expected_fields_from_get_operation = []
-        for i in range(10):
-            fields = {
-                "id": f"{i}",
-                "title": f"this is title {i}",
-            }
-            tensor_field_dict = self.model_config.doc_fields(text=str(fields["title"]))
-            fields.update(tensor_field_dict)
-            self.fields_to_send.append(fields)
-
-            expected_fields = {
-                "id": f"{i}",
-                "title": f"this is title {i}",
-            }
-            tensor_field_values = tensor_field_dict[
-                "pretrained_bert_tiny_doc_token_ids"
-            ]["values"]
-            expected_fields.update(
-                {
-                    "pretrained_bert_tiny_doc_token_ids": {
-                        "type": f"tensor<float>(d0[{len(tensor_field_values)}])",
-                        "values": tensor_field_values,
-                    }
-                }
-            )
-            self.expected_fields_from_get_operation.append(expected_fields)
-        self.fields_to_update = [
-            {
-                "id": f"{i}",
-                "title": "this is my updated title number {}".format(i),
-            }
-            for i in range(10)
-        ]
-
-    def test_model_endpoints_when_no_model_is_available(self):
-        self.get_model_endpoints_when_no_model_is_available(
-            app=self.app,
-            expected_model_endpoint="http://localhost:8080/model-evaluation/v1/",
-        )
-
-    def test_prediction_when_model_not_defined(self):
-        self.get_stateless_prediction_when_model_not_defined(
-            app=self.app, application_package=self.app_package
-        )
-
-    def test_execute_data_operations(self):
-        self.execute_data_operations(
-            app=self.app,
-            schema_name=self.app_package.name,
-            fields_to_send=self.fields_to_send[0],
-            field_to_update=self.fields_to_update[0],
-            expected_fields_from_get_operation=self.expected_fields_from_get_operation[
-                0
-            ],
-        )
-
-    def test_execute_async_data_operations(self):
-        asyncio.run(
-            self.execute_async_data_operations(
-                app=self.app,
-                schema_name=self.app_package.name,
-                fields_to_send=self.fields_to_send,
-                field_to_update=self.fields_to_update[0],
-                expected_fields_from_get_operation=self.expected_fields_from_get_operation,
-            )
-        )
-
-    def test_batch_operations_synchronous_mode(self):
-        self.batch_operations_synchronous_mode(
-            app=self.app,
-            schema_name=self.app_package.name,
-            fields_to_send=self.fields_to_send,
-            expected_fields_from_get_operation=self.expected_fields_from_get_operation,
-            fields_to_update=self.fields_to_update,
-        )
-
-    def test_batch_operations_asynchronous_mode(self):
-        self.batch_operations_asynchronous_mode(
-            app=self.app,
-            schema_name=self.app_package.name,
-            fields_to_send=self.fields_to_send,
-            expected_fields_from_get_operation=self.expected_fields_from_get_operation,
-            fields_to_update=self.fields_to_update,
-        )
-
-    def test_batch_operations_default_mode_with_one_schema(self):
-        self.batch_operations_default_mode_with_one_schema(
-            app=self.app,
-            schema_name=self.app_package.name,
-            fields_to_send=self.fields_to_send,
-            expected_fields_from_get_operation=self.expected_fields_from_get_operation,
-            fields_to_update=self.fields_to_update,
-        )
-
-    def tearDown(self) -> None:
-        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
-        self.vespa_docker.container.remove()
-        try:
-            os.remove(os.path.join(os.environ["RESOURCES_DIR"], "vespa_features.csv"))
-        except OSError:
-            pass
 
 
 class TestQaApplication(TestApplicationCommon):
