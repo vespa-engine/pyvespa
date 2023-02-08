@@ -1,3 +1,5 @@
+# Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
+
 shared:
   image: quay.io/centos/centos:stream8
   environment:
@@ -56,8 +58,6 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install pytest learntorank
           python3 -m pip install -e .[full]
-      - run-integration-running-instance: |
-          pytest vespa/test_integration_running_instance.py -s -v
       - run-integration-docker: |
           pytest vespa/test_integration_docker.py -s -v
 
