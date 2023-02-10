@@ -188,7 +188,7 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
-          python3 -m pip install pytest learntorank
+          python3 -m pip install pytest
       - install-package: |
           python3 -m pip cache purge
           python3 -m pip install --no-cache-dir --no-cache --quiet \
