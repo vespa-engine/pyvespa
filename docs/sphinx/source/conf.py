@@ -64,7 +64,3 @@ html_sidebars = {
 
 # anchoring with github sites will always fail
 linkcheck_ignore = [r'https://github.com/.*#.*']
-
-# not all runbooks are directly runnable - ignore errors for now
-nbsphinx_allow_errors = True
-
