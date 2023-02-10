@@ -10,14 +10,13 @@ Vespa python API
    :hidden:
 
    getting-started-pyvespa
-   troubleshooting
    query
    deploy-docker
    deploy-vespa-cloud
    exchange-data-with-app
-   learning-to-rank-ignore
-   usecases
    reference-api
+   troubleshooting
+   examples
 
 
 .. image:: https://vespa.ai/assets/vespa-logo-color.png
