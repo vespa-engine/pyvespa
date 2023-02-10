@@ -1498,7 +1498,7 @@ class ApplicationPackage(object):
         validations: Optional[List[Validation]] = None
     ) -> None:
         """
-        Create an `Application Package <https://docs.vespa.ai/en/cloudconfig/application-packages.html>`__.
+        Create an `Application Package <https://docs.vespa.ai/en/application-packages.html>`__.
         An :class:`ApplicationPackage` instance comes with a default :class:`Schema`
         that contains a default :class:`Document`
 
@@ -1717,7 +1717,7 @@ class ApplicationPackage(object):
     def to_zipfile(self, zfile: Path) -> None:
         """
         Export the application package as a deployable zipfile.
-        See `application packages <https://docs.vespa.ai/en/cloudconfig/application-packages.html>`__
+        See `application packages <https://docs.vespa.ai/en/application-packages.html>`__
         for deployment options.
 
         :param zfile: Filename to export to
