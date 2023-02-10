@@ -72,20 +72,6 @@ QueryTypeField
    :special-members: __init__
 
 
-SequenceClassification
-**********************
-.. autoclass:: vespa.ml.SequenceClassification
-   :members:
-   :special-members: __init__
-
-
-ModelServer
-***********
-.. autoclass:: vespa.package.ModelServer
-   :members:
-   :special-members: __init__
-
-
 VespaDocker
 ***********
 .. autoclass:: vespa.deployment.VespaDocker
@@ -103,89 +89,5 @@ VespaCloud
 Vespa
 *****
 .. autoclass:: vespa.application.Vespa
-   :members:
-   :special-members: __init__
-
-
-QueryModel
-***********
-.. autoclass:: vespa.query.QueryModel
-   :members:
-   :special-members: __init__
-
-
-Union
-*****
-.. autoclass:: vespa.query.Union
-   :members:
-   :special-members: __init__
-
-
-AND
-***
-.. autoclass:: vespa.query.AND
-   :members:
-   :special-members: __init__
-
-
-OR
-**
-.. autoclass:: vespa.query.OR
-   :members:
-   :special-members: __init__
-
-
-WeakAnd
-*******
-.. autoclass:: vespa.query.WeakAnd
-   :members:
-   :special-members: __init__
-
-
-ANN
-***
-.. autoclass:: vespa.query.ANN
-   :members:
-   :special-members: __init__
-
-
-RankProfile
-***********
-.. autoclass:: vespa.query.RankProfile
-   :members:
-   :special-members: __init__
-
-
-QueryRankingFeature
-*******************
-.. autoclass:: vespa.query.QueryRankingFeature
-   :members:
-   :special-members: __init__
-
-
-MatchRatio
-**********
-.. autoclass:: vespa.evaluation.MatchRatio
-   :members:
-   :special-members: __init__
-
-
-Recall
-******
-.. autoclass:: vespa.evaluation.Recall
-   :members:
-   :special-members: __init__
-
-
-ReciprocalRank
-**************
-.. autoclass:: vespa.evaluation.ReciprocalRank
-   :members:
-   :special-members: __init__
-
-
-NormalizedDiscountedCumulativeGain
-**********************************
-.. autoclass:: vespa.evaluation.NormalizedDiscountedCumulativeGain
    :members:
    :special-members: __init__
