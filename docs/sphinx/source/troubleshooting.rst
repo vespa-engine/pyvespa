@@ -9,8 +9,7 @@ Vespa.ai and pyvespa
 --------------------
 Both `Vespa <https://vespa.ai/>`__ and pyvespa APIs change regularly -
 make sure to use the latest version of `vespaengine/vespa <https://hub.docker.com/r/vespaengine/vespa>`__
-by running ``docker pull vespaengine/vespa``
-and `pyvespa <getting-started-pyvespa.html>`__.
+by running ``docker pull vespaengine/vespa`` and :doc:`getting-started-pyvespa`.
 
 
 
