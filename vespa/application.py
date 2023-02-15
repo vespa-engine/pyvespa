@@ -375,6 +375,7 @@ class Vespa(object):
         total_timeout: int = 100,
         namespace: Optional[str] = None,
         batch_size=1000,
+        output: bool = True,
     ):
         """
         Feed a batch of data to a Vespa app.
@@ -387,6 +388,7 @@ class Vespa(object):
         :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
         :param namespace: The namespace that we are sending data to. If no namespace is provided the schema is used.
         :param batch_size: The number of documents to feed per batch.
+        :param output: Prints a final message about the feed result.
         :return: List of HTTP POST responses
         """
         mini_batches = [
@@ -404,14 +406,16 @@ class Vespa(object):
             )
             batch_http_responses.extend(feed_results)
             status_code_summary = Counter([x.status_code for x in feed_results])
-            print(
-                "Successful documents fed: {}/{}.\nBatch progress: {}/{}.".format(
-                    status_code_summary[200],
-                    len(mini_batch),
-                    idx + 1,
-                    len(mini_batches),
+
+            if output:
+                print(
+                    "Successful documents fed: {}/{}.\nBatch progress: {}/{}.".format(
+                        status_code_summary[200],
+                        len(mini_batch),
+                        idx + 1,
+                        len(mini_batches),
+                    )
                 )
-            )
         return batch_http_responses
 
     def feed_df(self, df: DataFrame, include_id: bool = True, id_field="id", **kwargs):
