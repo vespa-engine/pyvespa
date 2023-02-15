@@ -574,7 +574,7 @@ class TestApplicationCommon(unittest.TestCase):
                     asyncio.create_task(
                         async_app.query(
                             body={
-                                "yql": 'select * from sources * where (userInput("sddocname:{}"));'.format(
+                                "yql": 'select * from sources * where (userInput("sddocname:{}"))'.format(
                                     schema_name
                                 ),
                                 "ranking": {
@@ -635,7 +635,7 @@ class TestApplicationCommon(unittest.TestCase):
         #
         result = app.query(
             body={
-                "yql": 'select * from sources * where (userInput("sddocname:{}"));'.format(
+                "yql": 'select * from sources * where (userInput("sddocname:{}"))'.format(
                     schema_name
                 ),
                 "ranking": {"profile": "default", "listFeatures": "false"},
@@ -749,7 +749,7 @@ class TestApplicationCommon(unittest.TestCase):
         #
         result = app.query(
             body={
-                "yql": 'select * from sources * where (userInput("sddocname:{}"));'.format(
+                "yql": 'select * from sources * where (userInput("sddocname:{}"))'.format(
                     schema_name
                 ),
                 "ranking": {"profile": "default", "listFeatures": "false"},
@@ -851,7 +851,7 @@ class TestApplicationCommon(unittest.TestCase):
         #
         result = app.query(
             body={
-                "yql": 'select * from sources * where (userInput("sddocname:{}"));'.format(
+                "yql": 'select * from sources * where (userInput("sddocname:{}"))'.format(
                     schema_name
                 ),
                 "ranking": {"profile": "default", "listFeatures": "false"},
@@ -1004,11 +1004,11 @@ class TestMsmarcoApplication(TestApplicationCommon):
         ]
         self.body_batch = [
             {
-                "yql": 'select * from sources * where ({grammar: "any"}userInput("Give me title 1"));',
+                "yql": 'select * from sources * where ({grammar: "any"}userInput("Give me title 1"))',
                 "ranking": {"profile": "default", "listFeatures": "false"},
             },
             {
-                "yql": 'select * from sources * where ({grammar: "any"}userInput("Give me title 2"));',
+                "yql": 'select * from sources * where ({grammar: "any"}userInput("Give me title 2"))',
                 "ranking": {"profile": "default", "listFeatures": "false"},
             },
         ]

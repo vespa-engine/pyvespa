@@ -3,6 +3,10 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
+
+.. image:: https://vespa.ai/assets/vespa-logo-color.png
+
+
 Vespa python API
 ================
 
@@ -18,57 +22,43 @@ Vespa python API
    troubleshooting
    examples
 
-
-.. image:: https://vespa.ai/assets/vespa-logo-color.png
-
 `Vespa <https://vespa.ai/>`__ is the scalable open-sourced serving engine to store,
 compute and rank big data at user serving time.
 ``pyvespa`` provides a python API to Vespa -
 use it to create, modify, deploy and interact with running Vespa instances.
 The main goal of the library is to allow for faster prototyping
-and to facilitate Machine Learning experiments for Vespa applications.
+and to facilitate `Machine Learning experiments <https://vespa-engine.github.io/learntorank/>`__
+for Vespa applications.
 
 .. warning::
-    The library is under active development and backward incompatible changes may occur.
+    pyvespa is under active development and backward incompatible changes may occur.
 
-pyvespa provides a python API to Vespa.
-The library’s primary goal is to allow for faster prototyping
-and facilitate Machine Learning experiments for Vespa applications:
+:doc:`getting-started-pyvespa` is a good primer on how to create an application, feed data and run queries.
+See :doc:`examples` for use cases.
+The following blog post series will get you started:
 
-#. Build and deploy a Vespa application using pyvespa API.
-#. Connect to an existing Vespa application and run queries from python.
-#. Import a Vespa application package from files and use pyvespa to access it.
+* `Run search engine experiments in Vespa from python <https://blog.vespa.ai/run-search-engine-experiments-in-Vespa-from-python/>`__
 
+* `Build sentence/paragraph level QA application from python with Vespa <https://blog.vespa.ai/build-qa-app-from-python-with-vespa/>`__
 
-Build and deploy
-****************
-The `getting-started-pyvespa <getting-started-pyvespa.rst>`__ notebook
-is a good primer on how to create an application, feed data and run queries.
+* `Build a basic text search application from python with Vespa: Part 1 <https://blog.vespa.ai/build-basic-text-search-app-from-python-with-vespa/>`__
 
+* `Build a News recommendation app from python with Vespa: Part 1 <https://blog.vespa.ai/build-news-search-app-from-python-with-vespa/>`__
 
-Query a running Vespa application
-*********************************
-When a Vespa application is already running,
-one can instantiate the `Vespa <reference-api.rst#vespa.application.Vespa>`__ class with the endpoint.
-Refer to `query application <query.rst>`__ to connect to an application and run queries.
-
-
-Deploy from Vespa config files
-******************************
-Use pyvespa to `deploy a Vespa application package <deploy-docker.rst>`__
-to a local Docker container.
+The `Vespa FAQ <https://docs.vespa.ai/en/faq.html>`__ is a great resource,
+also see :doc:`pyvespa troubleshooting <troubleshooting>`.
 
 
 Requirements
 ************
-This documentation assumes ``pyvespa`` is installed:
+Install ``pyvespa``:
 
 .. code:: bash
 
 	$ python3 -m pip install pyvespa
 
 Install `jupyter notebook <https://jupyter.org/install#jupyter-notebook>`__
-to run the notebooks in the browser:
+to run the notebooks in a browser:
 
 .. code:: bash
 
@@ -83,5 +73,3 @@ minimum memory requirement is 4 Gb unless other documented:
     $ docker info | grep "Total Memory"
 
 One can also use `Vespa Cloud <deploy-vespa-cloud.rst>`__ to run the notebooks.
-
-The `Vespa FAQ <https://docs.vespa.ai/en/faq.html>`__ is a great resource for troubleshooting.
