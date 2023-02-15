@@ -24,6 +24,19 @@ make sure Docker settings have at least this.
 
 
 
+Deployment
+----------
+Vespa has safeguards for incompatible deployments,
+and will warn with *validation-override* or *INVALID_APPLICATION_PACKAGE* in the deploy output.
+See `validation-overrides <https://docs.vespa.ai/en/reference/validation-overrides.html>`__.
+Most often is this due to pyvespa reusing a Docker container instance,
+and the fix is to list - ``docker ps`` - and remove  - ``docker rm -f <container id>`` -
+the existing Docker containers.
+Alternatively, using the Docker Dashboard application.
+Then deploy again.
+
+
+
 Too many open files during batch feeding
 ----------------------------------------
 This is an OS-related issue. There are two options to solve the problem:
