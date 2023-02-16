@@ -42,20 +42,11 @@ Full disk
 Make sure to allocate enough disk space for Docker in Docker settings -
 if writes/queries fail/no results, look in the vespa.log (output in the Docker dashboard):
 
-.. code-block::
-
-    WARNING searchnode proton.proton.server.disk_mem_usage_filter
-    Write operations are now blocked:
-    'diskLimitReached: {
-        action: "add more content nodes",
-        reason: "disk used (0.939172) > disk limit (0.9)",
-        stats: {
-            capacity: 50406772736,
-            used: 47340617728,
-            diskUsed: 0.939172,
-            diskLimit: 0.9
-        }
-    }'
+``WARNING searchnode
+proton.proton.server.disk_mem_usage_filter   Write operations are now blocked:
+'diskLimitReached: { action: "add more content nodes",
+reason: "disk used (0.939172) > disk limit (0.9)",
+stats: { capacity: 50406772736, used: 47340617728, diskUsed: 0.939172, diskLimit: 0.9}}'``
 
 Future pyvespa versions might throw an exception in these cases.
 Also see `Feed block <https://docs.vespa.ai/en/operations/feed-block.html>`__ -
