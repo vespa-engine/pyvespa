@@ -831,6 +831,7 @@ class VespaSync(object):
         )
         vespa_format = {"fields": fields}
         response = self.http_session.post(end_point, json=vespa_format, cert=self.cert)
+        response.raise_for_status()
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
