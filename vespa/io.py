@@ -92,3 +92,12 @@ class VespaQueryResponse(VespaResponse):
         :return: JSON object with full response
         """
         return self.json
+
+    def get_status_code(self):
+        """
+        For debugging when the response does not have hits.
+
+        :return: HTTP status code
+        """
+        return self.status_code
+
