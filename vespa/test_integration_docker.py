@@ -467,22 +467,14 @@ class TestApplicationCommon(unittest.TestCase):
 
             self.assertEqual(
                 await async_app.feed_data_point(
-                    schema="msmarco",
+                    schema=schema_name,
                     data_id="1",
-                    fields={
-                        "id": "1",
-                        "title": "this is title 1",
-                        "body": "this is body 1",
-                    },
+                    fields=fields,
                 ),
                 app.feed_data_point(
-                    schema="msmarco",
+                    schema=schema_name,
                     data_id="1",
-                    fields={
-                        "id": "1",
-                        "title": "this is title 1",
-                        "body": "this is body 1",
-                    },
+                    fields=fields,
                 ),
             )
 
