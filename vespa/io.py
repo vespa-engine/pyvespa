@@ -84,3 +84,19 @@ class VespaQueryResponse(VespaResponse):
         return (
             self.json.get("root", {}).get("coverage", {}).get("documents", 0)
         )
+
+    def get_json(self):
+        """
+        For debugging when the response does not have hits.
+
+        :return: JSON object with full response
+        """
+        return self.json
+
+    def get_status_code(self):
+        """
+        For debugging when the response does not have hits.
+
+        :return: HTTP status code
+        """
+        return self.status_code
