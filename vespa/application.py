@@ -851,9 +851,10 @@ class VespaSync(object):
         :param body: Dict containing all the request parameters.
         :return: Either the request body if debug_request is True or the result from the Vespa application
         """
-        r = self.http_session.post(self.app.search_end_point, json=body, cert=self.cert)
+        response = self.http_session.post(self.app.search_end_point, json=body, cert=self.cert)
+        response.raise_for_status()
         return VespaQueryResponse(
-            json=r.json(), status_code=r.status_code, url=str(r.url)
+            json=response.json(), status_code=response.status_code, url=str(response.url)
         )
 
     def delete_data(
@@ -874,6 +875,7 @@ class VespaSync(object):
             self.app.end_point, namespace, schema, str(data_id)
         )
         response = self.http_session.delete(end_point, cert=self.cert)
+        response.raise_for_status()
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -899,6 +901,7 @@ class VespaSync(object):
             self.app.end_point, namespace, schema, content_cluster_name
         )
         response = self.http_session.delete(end_point, cert=self.cert)
+        response.raise_for_status()
         return response
 
     def get_data(
@@ -919,6 +922,7 @@ class VespaSync(object):
             self.app.end_point, namespace, schema, str(data_id)
         )
         response = self.http_session.get(end_point, cert=self.cert)
+        response.raise_for_status()
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -952,6 +956,7 @@ class VespaSync(object):
         )
         vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
         response = self.http_session.put(end_point, json=vespa_format, cert=self.cert)
+        response.raise_for_status()
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
