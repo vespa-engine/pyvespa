@@ -100,4 +100,3 @@ class VespaQueryResponse(VespaResponse):
         :return: HTTP status code
         """
         return self.status_code
-
