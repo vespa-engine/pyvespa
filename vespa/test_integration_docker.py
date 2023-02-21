@@ -6,6 +6,9 @@ import os
 import re
 import asyncio
 import json
+
+from requests import HTTPError
+
 from vespa.package import (
     HNSW,
     Document,
@@ -207,18 +210,13 @@ class TestDockerCommon(unittest.TestCase):
     def redeploy_with_application_package_changes(self, application_package):
         self.vespa_docker = VespaDocker(port=8089)
         app = self.vespa_docker.deploy(application_package=application_package)
-        res = app.query(
-            body={
-                "yql": "select * from sources * where default contains 'music'",
-                "ranking": "new-rank-profile",
-            }
-        ).json
-        self.assertIsNotNone(
-            re.search(
-                r"schema[\s\S]+ does not contain requested rank profile",
-                res["root"]["errors"][0]["message"],
-            )
-        )
+        with pytest.raises(HTTPError):
+            app.query(
+                body={
+                    "yql": "select * from sources * where default contains 'music'",
+                    "ranking": "new-rank-profile",
+                })
+
         application_package.schema.add_rank_profile(
             RankProfile(
                 name="new-rank-profile", inherits="default", first_phase="bm25(title)"
@@ -278,10 +276,9 @@ class TestApplicationCommon(unittest.TestCase):
         #
         # Get data that does not exist
         #
-        self.assertEqual(
-            app.get_data(schema=schema_name, data_id=fields_to_send["id"]).status_code,
-            404,
-        )
+        with pytest.raises(HTTPError):
+            app.get_data(schema=schema_name, data_id=fields_to_send["id"])
+
         #
         # Feed a data point
         #
@@ -354,10 +351,9 @@ class TestApplicationCommon(unittest.TestCase):
         #
         # Deleted data should be gone
         #
-        self.assertEqual(
-            app.get_data(schema=schema_name, data_id=fields_to_send["id"]).status_code,
-            404,
-        )
+        with pytest.raises(HTTPError):
+            app.get_data(schema=schema_name, data_id=fields_to_send["id"])
+
         #
         # Update a non-existent data point
         #
@@ -467,22 +463,14 @@ class TestApplicationCommon(unittest.TestCase):
 
             self.assertEqual(
                 await async_app.feed_data_point(
-                    schema="msmarco",
+                    schema=schema_name,
                     data_id="1",
-                    fields={
-                        "id": "1",
-                        "title": "this is title 1",
-                        "body": "this is body 1",
-                    },
+                    fields=fields,
                 ),
                 app.feed_data_point(
-                    schema="msmarco",
+                    schema=schema_name,
                     data_id="1",
-                    fields={
-                        "id": "1",
-                        "title": "this is title 1",
-                        "body": "this is body 1",
-                    },
+                    fields=fields,
                 ),
             )
 
@@ -696,9 +684,8 @@ class TestApplicationCommon(unittest.TestCase):
         #
         # get batch deleted data
         #
-        result = app.get_batch(schema=schema, batch=docs, asynchronous=False)
-        for idx, response in enumerate(result):
-            self.assertEqual(response.status_code, 404)
+        with pytest.raises(HTTPError):
+            app.get_batch(schema=schema, batch=docs, asynchronous=False)
 
     def batch_operations_asynchronous_mode(
         self,

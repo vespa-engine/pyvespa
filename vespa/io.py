@@ -20,6 +20,12 @@ class VespaResponse(object):
             and self.operation_type == other.operation_type
         )
 
+    def get_status_code(self):
+        return self.status_code
+
+    def get_json(self):
+        return self.json
+
 
 def trec_format(
     vespa_result, id_field: Optional[str] = None, qid: int = 0
