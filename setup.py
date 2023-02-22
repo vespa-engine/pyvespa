@@ -16,7 +16,8 @@ setuptools.setup(
     description="Python API for vespa.ai",
     keywords="vespa, search engine, data science",
     author="Thiago G. Martins",
-    author_email="tmartins@verizonmedia.com",
+    maintainer="Kristian Aune",
+    maintainer_email="kraune@yahooinc.com",
     classifiers=[
         "License :: OSI Approved :: Apache Software License",
     ],
