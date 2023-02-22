@@ -13,7 +13,7 @@ Vespa python API
 .. toctree::
    :hidden:
 
-   text-search-quick-start
+   getting-started-pyvespa
    query
    deploy-docker
    deploy-vespa-cloud
@@ -33,7 +33,7 @@ for Vespa applications.
 .. warning::
     pyvespa is under active development and backward incompatible changes may occur.
 
-:doc:`text-search-quick-start` is a good primer on how to create an application, feed data and run queries.
+:doc:`getting-started-pyvespa` is a good primer on how to create an application, feed data and run queries.
 See :doc:`examples` for use cases.
 The following blog post series will get you started:
 
