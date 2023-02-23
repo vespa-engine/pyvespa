@@ -271,6 +271,7 @@ class StructField:
 class FieldConfiguration(TypedDict, total=False):
     indexing: List[str]
     attribute: List[str]
+    index: str
     ann: HNSW
     match: List[Union[str, Tuple[str, str]]]
     weight: int
