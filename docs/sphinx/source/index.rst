@@ -14,6 +14,7 @@ Vespa python API
    :hidden:
 
    getting-started-pyvespa
+   application-packages
    query
    deploy-docker
    deploy-vespa-cloud
