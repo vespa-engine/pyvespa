@@ -14,6 +14,15 @@ setuptools.setup(
     name="pyvespa",
     version=get_target_version(),
     description="Python API for vespa.ai",
+    long_description="""[Vespa](https://vespa.ai/) is the scalable open-sourced serving engine
+that enables users to store, compute and rank big data at user serving time.
+[pyvespa](https://pyvespa.readthedocs.io/) provides a python API to Vespa.
+It allows users to create, modify, deploy and interact with running Vespa instances.
+The main goal of the library is to allow for faster prototyping
+and to facilitate Machine Learning experiments for Vespa applications -
+also see [learntorank](https://github.com/vespa-engine/learntorank).""",
+    long_description_content_type='text/markdown',
+    url="https://pyvespa.readthedocs.io/",
     keywords="vespa, search engine, data science",
     author="Thiago G. Martins",
     maintainer="Kristian Aune",
