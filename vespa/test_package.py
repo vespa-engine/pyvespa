@@ -1,9 +1,6 @@
 # Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import unittest
-import os
-from shutil import rmtree
-
 import pytest
 
 from vespa.package import (
@@ -255,6 +252,24 @@ class TestRankProfile(unittest.TestCase):
             rank_profile.summary_features,
             ["onnx(bert).logits", "input_ids", "attention_mask", "token_type_ids"],
         )
+
+    def test_rank_profile_inputs(self):
+        rank_profile = RankProfile(name="bm25", first_phase="bm25(title) + bm25(body)",
+                                   inputs=[("query(image_query_embedding)", "tensor<float>(d0[512])")])
+        self.assertEqual(rank_profile.inputs[0][0], "query(image_query_embedding)")
+        self.assertEqual(rank_profile.inputs[0][1], "tensor<float>(d0[512])")
+
+        rank_profile = RankProfile(name="bm25", first_phase="bm25(title) + bm25(body)",
+                                   inputs=[("query(image_query_embedding)", "tensor<float>(d0[512])", "0")])
+        self.assertEqual(rank_profile.inputs[0][0], "query(image_query_embedding)")
+        self.assertEqual(rank_profile.inputs[0][1], "tensor<float>(d0[512])")
+        self.assertEqual(rank_profile.inputs[0][2], "0")
+
+        rank_profile = RankProfile(name="bm25", first_phase="bm25(title) + bm25(body)",
+                                   inputs=[("query(image_query_embedding)", "tensor<float>(d0[512])"),
+                                           ("query(image_query_embedding2)", "tensor<float>(d1[512])")])
+        self.assertEqual(rank_profile.inputs[0][0], "query(image_query_embedding)")
+        self.assertEqual(rank_profile.inputs[1][0], "query(image_query_embedding2)")
 
 
 class TestSchema(unittest.TestCase):
@@ -1044,6 +1059,6 @@ class TestSimplifiedApplicationPackageWithMultipleSchemas(unittest.TestCase):
 class TestValidAppName(unittest.TestCase):
     def test_invalid_name(self):
         with pytest.raises(ValueError):
-            app_package = ApplicationPackage(name="test_app")
+            ApplicationPackage(name="test_app")
         with pytest.raises(ValueError):
-            app_package = ApplicationPackage(name="test-app")
+            ApplicationPackage(name="test-app")
