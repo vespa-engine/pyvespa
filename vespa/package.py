@@ -875,6 +875,7 @@ class RankProfileFields(TypedDict, total=False):
     weight: List[Tuple[str, int]]
     rank_type: List[Tuple[str, str]]
     rank_properties: List[Tuple[str, str]]
+    inputs: List[Tuple[str, str, str]]
 
 
 class RankProfile(object):
@@ -986,6 +987,7 @@ class RankProfile(object):
         self.weight = kwargs.get("weight", None)
         self.rank_type = kwargs.get("rank_type", None)
         self.rank_properties = kwargs.get("rank_properties", None)
+        self.inputs = kwargs.get("inputs", None)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
@@ -1001,10 +1003,11 @@ class RankProfile(object):
             and self.weight == other.weight
             and self.rank_type == other.rank_type
             and self.rank_properties == other.rank_properties
+            and self.inputs == other.inputs
         )
 
     def __repr__(self) -> str:
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.first_phase),
@@ -1016,6 +1019,7 @@ class RankProfile(object):
             repr(self.weight),
             repr(self.rank_type),
             repr(self.rank_properties),
+            repr(self.inputs),
         )
 
 

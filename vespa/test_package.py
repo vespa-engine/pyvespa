@@ -256,6 +256,24 @@ class TestRankProfile(unittest.TestCase):
             ["onnx(bert).logits", "input_ids", "attention_mask", "token_type_ids"],
         )
 
+    def test_rank_profile_inputs(self):
+        rank_profile = RankProfile(name="bm25", first_phase="bm25(title) + bm25(body)",
+                                   inputs=[("query(image_query_embedding)", "tensor<float>(d0[512])")])
+        self.assertEqual(rank_profile.inputs[0][0], "query(image_query_embedding)")
+        self.assertEqual(rank_profile.inputs[0][1], "tensor<float>(d0[512])")
+
+        rank_profile = RankProfile(name="bm25", first_phase="bm25(title) + bm25(body)",
+                                   inputs=[("query(image_query_embedding)", "tensor<float>(d0[512])", "0")])
+        self.assertEqual(rank_profile.inputs[0][0], "query(image_query_embedding)")
+        self.assertEqual(rank_profile.inputs[0][1], "tensor<float>(d0[512])")
+        self.assertEqual(rank_profile.inputs[0][2], "0")
+
+        rank_profile = RankProfile(name="bm25", first_phase="bm25(title) + bm25(body)",
+                                   inputs=[("query(image_query_embedding)", "tensor<float>(d0[512])"),
+                                           ("query(image_query_embedding2)", "tensor<float>(d1[512])")])
+        self.assertEqual(rank_profile.inputs[0][0], "query(image_query_embedding)")
+        self.assertEqual(rank_profile.inputs[1][0], "query(image_query_embedding2)")
+
 
 class TestSchema(unittest.TestCase):
     def setUp(self) -> None:
