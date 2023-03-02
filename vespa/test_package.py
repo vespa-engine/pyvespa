@@ -1,9 +1,6 @@
 # Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import unittest
-import os
-from shutil import rmtree
-
 import pytest
 
 from vespa.package import (
@@ -1062,6 +1059,6 @@ class TestSimplifiedApplicationPackageWithMultipleSchemas(unittest.TestCase):
 class TestValidAppName(unittest.TestCase):
     def test_invalid_name(self):
         with pytest.raises(ValueError):
-            app_package = ApplicationPackage(name="test_app")
+            ApplicationPackage(name="test_app")
         with pytest.raises(ValueError):
-            app_package = ApplicationPackage(name="test-app")
+            ApplicationPackage(name="test-app")
