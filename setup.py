@@ -35,10 +35,6 @@ setuptools.setup(
         "aiohttp",
         "tenacity",
     ],
-    extras_require={
-        "ml": ["transformers", "torch<1.13", "tensorflow", "tensorflow_ranking", "keras_tuner"],
-        "full": ["onnxruntime", "transformers", "torch<1.13", "tensorflow", "tensorflow_ranking", "keras_tuner"],
-    },
     python_requires=">=3.6",
     zip_safe=False,
     package_data={"vespa": ["py.typed"]},
