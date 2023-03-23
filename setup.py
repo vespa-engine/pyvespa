@@ -34,6 +34,7 @@ setuptools.setup(
         "cryptography",
         "aiohttp",
         "tenacity",
+        "typing_extensions",
     ],
     python_requires=">=3.6",
     zip_safe=False,
