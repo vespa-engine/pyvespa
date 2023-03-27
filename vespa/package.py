@@ -189,6 +189,7 @@ class StructFieldConfiguration(TypedDict, total=False):
     match: List[Union[str, Tuple[str, str]]]
     query_command: List[str]
     summary: Summary
+    stemming: str
 
 
 class StructField:
@@ -204,18 +205,20 @@ class StructField:
         :key match: Set properties that decide how the matching method for this field operate.
         :key query_command: Add configuration for query-command of the field.
         :key summary: Add configuration for summary of the field.
+        :key stemming: Add configuration for stemming of the field.
+
 
         >>> StructField(
         ...     name = "first_name",
         ... )
-        StructField('first_name', None, None, None, None, None)
+        StructField('first_name', None, None, None, None, None, None)
 
         >>> StructField(
         ...     name = "first_name",
         ...     indexing = ["attribute"],
         ...     attribute = ["fast-search"],
         ... )
-        StructField('first_name', ['attribute'], ['fast-search'], None, None, None)
+        StructField('first_name', ['attribute'], ['fast-search'], None, None, None, None)
 
         >>> StructField(
         ...     name = "last_name",
@@ -223,7 +226,7 @@ class StructField:
         ...     query_command = ['"exact %%"'],
         ...     summary = Summary(None, None, fields=["dynamic", ("bolding", "on")])
         ... )
-        StructField('last_name', None, None, ['exact', ('exact-terminator', '"@%"')], ['"exact %%"'], Summary(None, None, ['dynamic', ('bolding', 'on')]))
+        StructField('last_name', None, None, ['exact', ('exact-terminator', '"@%"')], ['"exact %%"'], Summary(None, None, ['dynamic', ('bolding', 'on')]), None)
         """
         self.name = name
         self.indexing = kwargs.get("indexing", None)
@@ -247,6 +250,7 @@ class StructField:
             self.match,
             self.query_command,
             self.summary,
+            self.stemming
         ) == (
             other.name,
             other.indexing,
@@ -254,10 +258,11 @@ class StructField:
             other.match,
             other.query_command,
             other.summary,
+            other.stemming
         )
 
     def __repr__(self) -> str:
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7)".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.indexing),
@@ -265,6 +270,7 @@ class StructField:
             repr(self.match),
             repr(self.query_command),
             repr(self.summary),
+            repr(self.stemming),
         )
 
 
@@ -406,7 +412,7 @@ class Field(object):
         ...         ),
         ...     ],
         ... )
-        Field('abstract', 'string', None, None, None, None, None, None, None, None, None, None, None, [StructField('first_name', ['attribute'], ['fast-search'], None, None, None)])
+        Field('abstract', 'string', None, None, None, None, None, None, None, None, None, None, None, [StructField('first_name', ['attribute'], ['fast-search'], None, None, None, None)])
         """
         self.name = name
         self.type = type
