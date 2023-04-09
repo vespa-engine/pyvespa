@@ -825,7 +825,6 @@ class VespaSync(object):
         :param fields: Dict containing all the fields required by the `schema`.
         :param namespace: The namespace that we are sending data to. If no namespace is provided the schema is used.
         :return: Response of the HTTP POST request.
-        :raises HTTPError: if one occurred
         """
 
         if not namespace:
@@ -836,7 +835,6 @@ class VespaSync(object):
         )
         vespa_format = {"fields": fields}
         response = self.http_session.post(end_point, json=vespa_format, cert=self.cert)
-        response.raise_for_status()
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -855,10 +853,8 @@ class VespaSync(object):
 
         :param body: Dict containing all the request parameters.
         :return: Either the request body if debug_request is True or the result from the Vespa application
-        :raises HTTPError: if one occurred
         """
         response = self.http_session.post(self.app.search_end_point, json=body, cert=self.cert)
-        response.raise_for_status()
         return VespaQueryResponse(
             json=response.json(), status_code=response.status_code, url=str(response.url)
         )
@@ -873,7 +869,6 @@ class VespaSync(object):
         :param data_id: Unique id associated with this data point.
         :param namespace: The namespace that we are deleting data from.
         :return: Response of the HTTP DELETE request.
-        :raises HTTPError: if one occurred
         """
         if not namespace:
             namespace = schema
@@ -882,7 +877,6 @@ class VespaSync(object):
             self.app.end_point, namespace, schema, str(data_id)
         )
         response = self.http_session.delete(end_point, cert=self.cert)
-        response.raise_for_status()
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -900,7 +894,6 @@ class VespaSync(object):
         :param schema: The schema that we are deleting data from.
         :param namespace: The namespace that we are deleting data from.
         :return: Response of the HTTP DELETE request.
-        :raises HTTPError: if one occurred
         """
         if not namespace:
             namespace = schema
@@ -909,7 +902,6 @@ class VespaSync(object):
             self.app.end_point, namespace, schema, content_cluster_name
         )
         response = self.http_session.delete(end_point, cert=self.cert)
-        response.raise_for_status()
         return response
 
     def get_data(
@@ -922,7 +914,6 @@ class VespaSync(object):
         :param data_id: Unique id associated with this data point.
         :param namespace: The namespace that we are getting data from.
         :return: Response of the HTTP GET request.
-        :raises HTTPError: if one occurred
         """
         if not namespace:
             namespace = schema
@@ -931,7 +922,6 @@ class VespaSync(object):
             self.app.end_point, namespace, schema, str(data_id)
         )
         response = self.http_session.get(end_point, cert=self.cert)
-        response.raise_for_status()
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -956,7 +946,6 @@ class VespaSync(object):
         :param create: If true, updates to non-existent documents will create an empty document to update
         :param namespace: The namespace that we are updating data.
         :return: Response of the HTTP PUT request.
-        :raises HTTPError: if one occurred
         """
         if not namespace:
             namespace = schema
@@ -966,7 +955,6 @@ class VespaSync(object):
         )
         vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
         response = self.http_session.put(end_point, json=vespa_format, cert=self.cert)
-        response.raise_for_status()
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
