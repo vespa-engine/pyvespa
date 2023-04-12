@@ -1,2 +1,2 @@
 class VespaError(Exception):
-    pass
+    """Vespa returned an error response"""

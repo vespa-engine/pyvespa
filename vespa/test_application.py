@@ -1,10 +1,15 @@
 # Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
+import json
 import unittest
+import pytest
+from unittest.mock import PropertyMock, patch
 from pandas import DataFrame
+from requests.models import HTTPError, Response
 
 from vespa.package import ApplicationPackage, Schema, Document
-from vespa.application import Vespa, parse_feed_df
+from vespa.application import Vespa, parse_feed_df, raise_for_status
+from vespa.exceptions import VespaError
 
 
 class TestVespa(unittest.TestCase):
@@ -124,6 +129,84 @@ class TestParseFeedDataFrame(unittest.TestCase):
             "DataFrame needs at least the following columns: \['id'\]",
         ):
             _ = parse_feed_df(df=missing_id_df, include_id=True)
+
+
+
+class TestRaiseForStatus(unittest.TestCase):
+    def test_successful_response(self):
+        response = Response()
+        response.status_code = 200
+        try:
+            raise_for_status(response)
+        except Exception as e:
+            self.fail(f"No exceptions were expected to be raised but {type(e).__name__} occurred")
+
+    def test_successful_response_with_error_content(self):
+        with patch("requests.models.Response.content", new_callable=PropertyMock) as mock_content:
+            response_json = {
+                "root": {
+                    "errors": [
+                        {"code": 1, "summary": "summary", "message": "message"},
+                    ],
+                },
+            }
+            mock_content.return_value = json.dumps(response_json).encode("utf-8")
+            response = Response()
+            response.status_code = 200
+            try:
+                raise_for_status(response)
+            except Exception as e:
+                self.fail(f"No exceptions were expected to be raised but {type(e).__name__} occurred")
+
+    def test_failure_response_for_400(self):
+        response = Response()
+        response.status_code = 400
+        response.reason = "reason"
+        response.url = "http://localhost:8080"
+        with pytest.raises(HTTPError) as e:
+            raise_for_status(response)
+        self.assertEqual(str(e.value), "400 Client Error: reason for url: http://localhost:8080")
+
+    def test_failure_response_for_500(self):
+        response = Response()
+        response.status_code = 500
+        response.reason = "reason"
+        response.url = "http://localhost:8080"
+        with pytest.raises(HTTPError) as e:
+            raise_for_status(response)
+        self.assertEqual(str(e.value), "500 Server Error: reason for url: http://localhost:8080")
+
+    def test_failure_response_without_error_content(self):
+        with patch("requests.models.Response.content", new_callable=PropertyMock) as mock_content:
+            response_json = {
+                "root": {
+                    "errors": [],
+                },
+            }
+            mock_content.return_value = json.dumps(response_json).encode("utf-8")
+            response = Response()
+            response.status_code = 400
+            response.reason = "reason"
+            response.url = "http://localhost:8080"
+            with pytest.raises(HTTPError):
+                raise_for_status(response)
+
+    def test_failure_response_with_error_content(self):
+        with patch("requests.models.Response.content", new_callable=PropertyMock) as mock_content:
+            response_json = {
+                "root": {
+                    "errors": [
+                        {"code": 1, "summary": "summary", "message": "message"},
+                    ],
+                },
+            }
+            mock_content.return_value = json.dumps(response_json).encode("utf-8")
+            response = Response()
+            response.status_code = 400
+            response.reason = "reason"
+            response.url = "http://localhost:8080"
+            with pytest.raises(VespaError):
+                raise_for_status(response)
 
 
 class TestVespaCollectData(unittest.TestCase):

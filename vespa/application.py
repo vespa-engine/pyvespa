@@ -12,12 +12,13 @@ import requests
 from pandas import DataFrame
 from requests import Session
 from requests.models import Response
-from requests.exceptions import ConnectionError
+from requests.exceptions import ConnectionError, HTTPError, JSONDecodeError
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 from tenacity import retry, wait_exponential, stop_after_attempt
 from time import sleep
 
+from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse
 from vespa.package import ApplicationPackage
 
@@ -53,6 +54,29 @@ def parse_feed_df(df: DataFrame, include_id: bool, id_field="id") -> List[Dict[s
         for record in records
     ]
     return batch
+
+
+def raise_for_status(response: Response) -> None:
+    """
+    Raises an appropriate error if necessary.
+
+    If the response contains an error message, VespaError is raised along with HTTPError to provide more details.
+
+    :param response: Response object from Vespa API.
+    :raises HTTPError: If status_code is between 400 and 599.
+    :raises VespaError: If the response JSON contains an error message.
+    """
+    try:
+        response.raise_for_status()
+    except HTTPError as http_error:
+        try:
+            response_json = response.json()
+        except JSONDecodeError:
+            raise http_error
+        errors = response_json.get("root", {}).get("errors", [])
+        if not errors:
+            raise http_error
+        raise VespaError(errors) from http_error
 
 
 class Vespa(object):
@@ -836,7 +860,7 @@ class VespaSync(object):
         )
         vespa_format = {"fields": fields}
         response = self.http_session.post(end_point, json=vespa_format, cert=self.cert)
-        response.raise_for_status()
+        raise_for_status(response)
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -858,7 +882,7 @@ class VespaSync(object):
         :raises HTTPError: if one occurred
         """
         response = self.http_session.post(self.app.search_end_point, json=body, cert=self.cert)
-        response.raise_for_status()
+        raise_for_status(response)
         return VespaQueryResponse(
             json=response.json(), status_code=response.status_code, url=str(response.url)
         )
@@ -882,7 +906,7 @@ class VespaSync(object):
             self.app.end_point, namespace, schema, str(data_id)
         )
         response = self.http_session.delete(end_point, cert=self.cert)
-        response.raise_for_status()
+        raise_for_status(response)
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -909,7 +933,7 @@ class VespaSync(object):
             self.app.end_point, namespace, schema, content_cluster_name
         )
         response = self.http_session.delete(end_point, cert=self.cert)
-        response.raise_for_status()
+        raise_for_status(response)
         return response
 
     def get_data(
@@ -931,7 +955,7 @@ class VespaSync(object):
             self.app.end_point, namespace, schema, str(data_id)
         )
         response = self.http_session.get(end_point, cert=self.cert)
-        response.raise_for_status()
+        raise_for_status(response)
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -966,7 +990,7 @@ class VespaSync(object):
         )
         vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
         response = self.http_session.put(end_point, json=vespa_format, cert=self.cert)
-        response.raise_for_status()
+        raise_for_status(response)
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
