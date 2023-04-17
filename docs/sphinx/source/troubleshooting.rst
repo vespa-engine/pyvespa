@@ -49,8 +49,11 @@ reason: "disk used (0.939172) > disk limit (0.9)",
 stats: { capacity: 50406772736, used: 47340617728, diskUsed: 0.939172, diskLimit: 0.9}}'``
 
 Future pyvespa versions might throw an exception in these cases.
-Also see `Feed block <https://docs.vespa.ai/en/operations/feed-block.html>`__ -
+See `Feed block <https://docs.vespa.ai/en/operations/feed-block.html>`__ -
 Vespa stops writes before the disk goes full.
+Add more disk / clean up, or follow the
+`example <https://pyvespa.readthedocs.io/en/latest/application-packages.html#Example:-configure-max-disk-usage>`__
+to reconfigure for higher usage.
 
 
 
