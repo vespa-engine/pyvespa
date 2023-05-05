@@ -24,6 +24,7 @@ from vespa.package import (
 )
 from vespa.deployment import VespaDocker
 from vespa.application import VespaSync
+from vespa.exceptions import VespaError
 
 
 CONTAINER_STOP_TIMEOUT = 10
@@ -210,7 +211,7 @@ class TestDockerCommon(unittest.TestCase):
     def redeploy_with_application_package_changes(self, application_package):
         self.vespa_docker = VespaDocker(port=8089)
         app = self.vespa_docker.deploy(application_package=application_package)
-        with pytest.raises(HTTPError):
+        with pytest.raises(VespaError):
             app.query(
                 body={
                     "yql": "select * from sources * where default contains 'music'",
