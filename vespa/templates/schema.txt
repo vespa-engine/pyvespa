@@ -257,11 +257,13 @@ schema {{ schema_name }} {
 {% endfor %}
 {% for document_summary in document_summaries %}
     document-summary {{ document_summary.name }}{% if document_summary.inherits %} inherits {{ document_summary.inherits }}{% endif %} {
+        {% if document_summary.summary_fields %}
         {% for summary in document_summary.summary_fields %}
         {% for field in summary.as_lines %}
         {{ field }}
         {% endfor %}
         {% endfor %}
+        {% endif %}
         {% if document_summary.from_disk %}
         {{ document_summary.from_disk }}
         {% endif %}
