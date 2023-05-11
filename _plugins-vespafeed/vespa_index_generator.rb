@@ -25,6 +25,7 @@ module Jekyll
                             :namespace => namespace,
                             :title => title,
                             :content => text,
+                            :html => get_html(page),
                             :term_count => text.split.length(),
                             :last_updated => Time.now.to_i,
                             :outlinks => extract_links(page)
@@ -35,6 +36,21 @@ module Jekyll
 
             json = JSON.pretty_generate(operations)
             File.open(namespace + "_index.json", "w") { |f| f.write(json) }
+        end
+
+        def strip_a_from_headers(htmldoc)
+            doc = Nokogiri::HTML(htmldoc)
+            doc.css('h1 a').each { |e| e.remove }
+            doc.css('h2 a').each { |e| e.remove }
+            doc.css('h3 a').each { |e| e.remove }
+            doc.css('h4 a').each { |e| e.remove }
+            doc.css('h5 a').each { |e| e.remove }
+            return doc.to_html
+        end
+
+        def get_html(page)
+            # all pyvespa is on HTML pages (for now)
+            strip_a_from_headers(page.content)
         end
 
         def extract_text(page)

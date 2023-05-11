@@ -144,3 +144,4 @@ Pipfile
 # Text extraction for search
 _site/
 pyvespa_index.json
+paragraph_index.json

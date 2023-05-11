@@ -3,6 +3,10 @@ on:
   push:
     branches: [ master ]
 
+env:
+  DATA_PLANE_PUBLIC_KEY : ${{ secrets.VESPA_TEAM_DATA_PLANE_PUBLIC_CERT }}
+  DATA_PLANE_PRIVATE_KEY: ${{ secrets.VESPA_TEAM_DATA_PLANE_PRIVATE_KEY }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -31,10 +35,15 @@ jobs:
         find docs/sphinx/build/ -name \*.html | while read f; do (echo -e "---\n---\n"; cat ${f})>${f}.new; mv ${f}.new ${f}; done
         bundle exec jekyll build -s docs/sphinx/build/ -p _plugins-vespafeed --config _config.yml
 
-    - name: Feed site
-      env:
-        DATA_PLANE_PUBLIC_KEY : ${{ secrets.VESPA_TEAM_DATA_PLANE_PUBLIC_CERT }}
-        DATA_PLANE_PRIVATE_KEY: ${{ secrets.VESPA_TEAM_DATA_PLANE_PRIVATE_KEY }}
+    - name: Install dependencies
       run: |
-        python3 -m pip install PyYAML
+        pip3 install PyYAML spacy mmh3 requests html5lib beautifulsoup4 markdownify tiktoken
+
+    - name: Feed site
+      run: |
         ./feed_to_vespa.py
+
+    - name: Feed paragraphs site
+      run: |
+        ./feed-split.py pyvespa_index.json https://pyvespa.readthedocs.io
+        ./feed_to_vespa.py _paragraphs_config.yml
