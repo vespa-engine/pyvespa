@@ -47,7 +47,8 @@ exclude:
 
 search:
   namespace: "pyvespa"
-  do_feed  : true
+  doc_type: "doc"
+  do_feed: true
   do_index_removal_before_feed: false
   feed_endpoints:
     - url: https://vespacloud-docsearch.vespa-team.aws-us-east-1c.z.vespa-app.cloud/
