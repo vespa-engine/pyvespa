@@ -3,7 +3,7 @@
 
 import json
 import os
-import subprocess
+import sys
 import yaml
 import requests
 from requests.adapters import HTTPAdapter, Retry
@@ -116,8 +116,8 @@ def print_header(msg):
     print("*" * 80)
 
 
-def read_config():
-    with open("_config.yml", "r") as f:
+def read_config(config_file):
+    with open(config_file, "r") as f:
         return yaml.safe_load(f)
 
 
@@ -169,7 +169,8 @@ def update_endpoint(endpoint, config):
 
 
 def main():
-    config = read_config()
+    configuration_file = sys.argv[1]
+    config = read_config(configuration_file)
     global session
     session = requests.Session()
     retries = Retry(total=10, connect=10,
