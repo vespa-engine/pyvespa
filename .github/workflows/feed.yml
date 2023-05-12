@@ -41,7 +41,7 @@ jobs:
 
     - name: Feed site
       run: |
-        ./feed_to_vespa.py
+        ./feed_to_vespa.py _config.yml
 
     - name: Feed paragraphs site
       run: |
