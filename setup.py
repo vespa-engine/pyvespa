@@ -8,7 +8,7 @@ def get_target_version():
     return "{}.{}".format(pyvespa_version, build_nr)
 
 
-min_python = "3.6"
+min_python = "3.8"
 
 setuptools.setup(
     name="pyvespa",
@@ -36,7 +36,7 @@ setuptools.setup(
         "tenacity",
         "typing_extensions",
     ],
-    python_requires=">=3.6",
+    python_requires=">=3.8",
     zip_safe=False,
     package_data={"vespa": ["py.typed"]},
     data_files=[
