@@ -165,6 +165,8 @@ def main():
 
                 paragraph = re.sub(r"\n*```", "\n```", paragraph)
                 paragraph = re.sub(r"```\n*", "```\n", paragraph)
+                paragraph = re.sub(r"window.MathJax = {.*}", "", paragraph)
+                paragraph = re.sub(r"© Copyright Copyright Yahoo.*?\);", "", paragraph, flags=re.DOTALL)
 
                 paragraph = paragraph.replace("```\njson","```json")
                 paragraph = paragraph.replace("```\nxml","```xml")
@@ -172,6 +174,8 @@ def main():
                 paragraph = paragraph.replace("```\nsh","```sh")
                 paragraph = paragraph.replace("```\nraw","```\n")
                 paragraph = paragraph.replace("```\njava","```java\n")
+                paragraph = paragraph.replace("\n```\n[ ]:\n```","\n")
+                paragraph = paragraph.replace("\n```\n[1]:\n```","\n")
 
                 paragraph = remove_jekyll(paragraph)
 
