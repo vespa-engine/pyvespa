@@ -45,5 +45,9 @@ jobs:
 
     - name: Feed paragraphs site
       run: |
-        ./feed-split.py pyvespa_index.json https://pyvespa.readthedocs.io
+        ./feed-split.py pyvespa_index.json https://pyvespa.readthedocs.io questions.jsonl
         ./feed_to_vespa.py _paragraphs_config.yml
+
+    - name: Feed suggestions 
+      run: |
+        ./feed_to_vespa.py _suggestions_config.yml
