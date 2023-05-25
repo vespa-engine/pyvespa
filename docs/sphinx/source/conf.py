@@ -63,4 +63,4 @@ html_sidebars = {
 }
 
 # anchoring with github sites will always fail
-linkcheck_ignore = [r'https://github.com/.*#.*']
+linkcheck_ignore = [r'https://github.com/.*#.*', r'http://localhost:\d+/']

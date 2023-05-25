@@ -11,6 +11,16 @@ Both `Vespa <https://vespa.ai/>`__ and pyvespa APIs change regularly -
 make sure to use the latest version of `vespaengine/vespa <https://hub.docker.com/r/vespaengine/vespa>`__
 by running ``docker pull vespaengine/vespa`` and :doc:`install pyvespa <index>`.
 
+``python3 -m pip show pyvespa`` shows current version.
+
+
+
+Docker Memory
+-------------
+pyvespa will start a Docker container with 4G memory by default -
+make sure Docker settings have at least this.
+Use the Docker Desktop settings or ``docker info | grep "Total Memory"`` to validate.
+
 
 
 Port conflicts / Docker
@@ -18,9 +28,6 @@ Port conflicts / Docker
 Some of the notebooks run a Docker container.
 Make sure to stop running Docker containers before (re)running pyvespa notebooks -
 run ``docker ps`` and ``docker ps -a -q -f status=exited`` to list containers.
-
-pyvespa will start a Docker container with 4G memory by default -
-make sure Docker settings have at least this.
 
 
 
@@ -34,6 +41,13 @@ and the fix is to list - ``docker ps`` - and remove  - ``docker rm -f <container
 the existing Docker containers.
 Alternatively, using the Docker Dashboard application.
 Then deploy again.
+
+After a deployment, validate status:
+
+* Config server state: http://localhost:19071/state/v1/health
+* Container state: http://localhost:8080/state/v1/health
+
+Look for ``"status" : { "code" : "up"}`` - both URLs must work before feeding or querying.
 
 
 
@@ -54,6 +68,15 @@ Vespa stops writes before the disk goes full.
 Add more disk / clean up, or follow the
 `example <https://pyvespa.readthedocs.io/en/latest/application-packages.html#Example:-configure-max-disk-usage>`__
 to reconfigure for higher usage.
+
+
+
+Check number of indexed documents
+---------------------------------
+For query errors, check the number of documents indexed before debugging further:
+``app.query(body={'yql': 'select * from sources * where true'}).number_documents_indexed``.
+
+If this is zero, check that the deployment of the application worked, and the subsequent feeding step.
 
 
 
