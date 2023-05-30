@@ -1200,7 +1200,7 @@ class Schema(object):
         self.document_summaries.append(document_summary)
 
     @property
-    def schema_to_text(self):
+    def schema_to_text(self) -> str:
         env = Environment(
             loader=PackageLoader("vespa", "templates"),
             autoescape=select_autoescape(
@@ -1224,9 +1224,9 @@ class Schema(object):
             stemming=self.stemming,
         )
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return (
             self.name == other.name
             and self.document == other.document
@@ -1239,7 +1239,7 @@ class Schema(object):
             and self.stemming == other.stemming
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9})".format(
             self.__class__.__name__,
             repr(self.name),
