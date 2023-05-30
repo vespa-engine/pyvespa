@@ -1,4 +1,7 @@
 schema {{ schema_name }} {
+{% if stemming %}
+    stemming: {{ stemming }}
+{% endif %}
     document {{ document_name }}{% if document.inherits %} inherits {{ document.inherits }}{% endif %} {
     {% for field in document.fields %}
         field {{ field.name }} type {{ field.type }} {
