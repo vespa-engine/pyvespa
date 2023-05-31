@@ -1086,6 +1086,8 @@ class OnnxModel(object):
             repr(self.outputs),
         )
 
+class SchemaConfiguration(TypedDict, total=False):
+    stemming: Optional[str]
 
 class Schema(object):
     def __init__(
@@ -1098,7 +1100,7 @@ class Schema(object):
         global_document: bool = False,
         imported_fields: Optional[List[ImportedField]] = None,
         document_summaries: Optional[List[DocumentSummary]] = None,
-        stemming: Optional[str] = None,
+        **kwargs: Unpack[SchemaConfiguration],
     ) -> None:
         """
         Create a Vespa Schema.
@@ -1114,7 +1116,7 @@ class Schema(object):
         :param global_document: Set to True to copy the documents to all content nodes. Default to False.
         :param imported_fields: A list of :class:`ImportedField` defining fields from global documents to be imported.
         :param document_summaries: A list of :class:`DocumentSummary` associated with the schema.
-        :param stemming: The default stemming setting. Defaults to 'best'.
+        :key stemming: The default stemming setting. Defaults to 'best'.
 
         To create a Schema:
 
@@ -1148,7 +1150,7 @@ class Schema(object):
             [] if document_summaries is None else list(document_summaries)
         )
 
-        self.stemming = stemming
+        self.stemming = kwargs.get("stemming", None)
 
     def add_fields(self, *fields: Field) -> None:
         """
