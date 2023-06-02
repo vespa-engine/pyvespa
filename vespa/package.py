@@ -1086,6 +1086,8 @@ class OnnxModel(object):
             repr(self.outputs),
         )
 
+class SchemaConfiguration(TypedDict, total=False):
+    stemming: Optional[str]
 
 class Schema(object):
     def __init__(
@@ -1098,6 +1100,7 @@ class Schema(object):
         global_document: bool = False,
         imported_fields: Optional[List[ImportedField]] = None,
         document_summaries: Optional[List[DocumentSummary]] = None,
+        **kwargs: Unpack[SchemaConfiguration],
     ) -> None:
         """
         Create a Vespa Schema.
@@ -1113,11 +1116,12 @@ class Schema(object):
         :param global_document: Set to True to copy the documents to all content nodes. Default to False.
         :param imported_fields: A list of :class:`ImportedField` defining fields from global documents to be imported.
         :param document_summaries: A list of :class:`DocumentSummary` associated with the schema.
+        :key stemming: The default stemming setting. Defaults to 'best'.
 
         To create a Schema:
 
         >>> Schema(name="schema_name", document=Document())
-        Schema('schema_name', Document(None, None, None), None, None, [], False, None, [])
+        Schema('schema_name', Document(None, None, None), None, None, [], False, None, [], None)
         """
         self.name = name
         self.document = document
@@ -1145,6 +1149,8 @@ class Schema(object):
         self.document_summaries = (
             [] if document_summaries is None else list(document_summaries)
         )
+
+        self.stemming = kwargs.get("stemming", None)
 
     def add_fields(self, *fields: Field) -> None:
         """
@@ -1196,7 +1202,7 @@ class Schema(object):
         self.document_summaries.append(document_summary)
 
     @property
-    def schema_to_text(self):
+    def schema_to_text(self) -> str:
         env = Environment(
             loader=PackageLoader("vespa", "templates"),
             autoescape=select_autoescape(
@@ -1217,11 +1223,12 @@ class Schema(object):
             models=self.models,
             imported_fields=self.imported_fields,
             document_summaries=self.document_summaries,
+            stemming=self.stemming,
         )
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return (
             self.name == other.name
             and self.document == other.document
@@ -1231,10 +1238,11 @@ class Schema(object):
             and self.global_document == other.global_document
             and self.imported_fields == other.imported_fields
             and self.document_summaries == other.document_summaries
+            and self.stemming == other.stemming
         )
 
-    def __repr__(self):
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8})".format(
+    def __repr__(self) -> str:
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.document),
@@ -1254,6 +1262,7 @@ class Schema(object):
                 else None
             ),
             repr(self.document_summaries),
+            repr(self.stemming),
         )
 
 
@@ -1526,7 +1535,7 @@ class ApplicationPackage(object):
         The easiest way to get started is to create a default application package:
 
         >>> ApplicationPackage(name="testapp")
-        ApplicationPackage('testapp', [Schema('testapp', Document(None, None, None), None, None, [], False, None, [])], QueryProfile(None), QueryProfileType(None))
+        ApplicationPackage('testapp', [Schema('testapp', Document(None, None, None), None, None, [], False, None, [], None)], QueryProfile(None), QueryProfileType(None))
 
         It will create a default :class:`Schema`, :class:`QueryProfile` and :class:`QueryProfileType` that you can then
         populate with specifics of your application.
