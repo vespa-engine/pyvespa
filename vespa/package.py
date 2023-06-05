@@ -1787,6 +1787,10 @@ class ApplicationPackage(object):
                     output_path=os.path.join(root, "models/{}.onnx".format(model_id))
                 )
 
+        if self.validations:
+            with open(os.path.join(root, "validation-overrides.xml"), "w") as f:
+                f.write(self.validations_to_text)
+
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
