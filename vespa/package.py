@@ -1495,7 +1495,7 @@ class Validation(object):
         """
         self.id = validation_id
         self.until = until
-        self.comment = comment if comment is not None else str()
+        self.comment = comment
 
 
 class ApplicationPackage(object):
