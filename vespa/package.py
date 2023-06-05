@@ -1,5 +1,6 @@
 # Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
+from enum import Enum
 import os
 import sys
 import zipfile
@@ -1479,8 +1480,59 @@ class ApplicationConfiguration(object):
         return f"<config name=\"{self.name}\">{value}</config>"
 
 
+class ValidationID(Enum):
+    """Collection of IDs that can be used in validation-overrides.xml
+
+    Taken from `ValidationId.java <https://github.com/vespa-engine/vespa/blob/master/config-model-api/src/main/java/com/yahoo/config/application/api/ValidationId.java>`__
+
+    clusterSizeReduction was not added as it will be removed in Vespa 9
+    """
+
+    indexingChange = "indexing-change"
+    """Changing what tokens are expected and stored in field indexes"""
+    indexModeChange = "indexing-mode-change"
+    """Changing the index mode (streaming, indexed, store-only) of documents"""
+    fieldTypeChange = "field-type-change"
+    """Field type changes"""
+    tensorTypeChange = "tensor-type-change"
+    """Tensor type change"""
+    resourcesReduction = "resources-reduction"
+    """Large reductions in node resources (> 50% of the current max total resources)"""
+    contentTypeRemoval = "schema-removal"
+    """Removal of a schema (causes deletion of all documents)"""
+    contentClusterRemoval = "content-cluster-removal"
+    """Removal (or id change) of content clusters"""
+    deploymentRemoval = "deployment-removal"
+    """Removal of production zones from deployment.xml"""
+    globalDocumentChange = "global-document-change"
+    """Changing global attribute for document types in content clusters"""
+    configModelVersionMismatch = "config-model-version-mismatch"
+    """Internal use"""
+    skipOldConfigModels = "skip-old-config-models"
+    """Internal use"""
+    accessControl = "access-control"
+    """Internal use, used in zones where there should be no access-control"""
+    globalEndpointChange = "global-endpoint-change"
+    """Changing global endpoints"""
+    zoneEndpointChange = "zone-endpoint-change"
+    """Changing zone (possibly private) endpoint settings"""
+    redundancyIncrease = "redundancy-increase"
+    """Increasing redundancy - may easily cause feed blocked"""
+    redundancyOne = "redundancy-one"
+    """redundancy=1 requires a validation override on first deployment"""
+    pagedSettingRemoval = "paged-setting-removal"
+    """May cause content nodes to run out of memory"""
+    certificateRemoval = "certificate-removal"
+    """Remove data plane certificates"""
+
+
 class Validation(object):
-    def __init__(self, validation_id: str, until: str, comment: Optional[str] = None):
+    def __init__(
+        self,
+        validation_id: Union[ValidationID, str],
+        until: str,
+        comment: Optional[str] = None,
+    ):
         r"""
         Represents a validation to be be overridden on application.
 
@@ -1493,7 +1545,10 @@ class Validation(object):
         while allowing time for review and propagation to all deployed zones. allow-tags with dates in the past are ignored.
         :param comment: Optional text explaining the reason for the change to humans.
         """
-        self.id = validation_id
+        if isinstance(validation_id, ValidationID):
+            self.id = validation_id.value
+        else:
+            self.id = validation_id
         self.until = until
         self.comment = comment
 
