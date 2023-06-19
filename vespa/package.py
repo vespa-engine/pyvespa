@@ -929,7 +929,8 @@ class RankProfile(object):
     def __init__(
         self,
         name: str,
-        first_phase: str,
+        # Allow a str object as expression for backwards compatibility
+        first_phase: Union[str, FirstPhaseRanking], 
         inherits: Optional[str] = None,
         constants: Optional[Dict] = None,
         functions: Optional[List[Function]] = None,
@@ -1023,6 +1024,12 @@ class RankProfile(object):
         ...     rank_properties = [("fieldMatch(title).maxAlternativeSegmentations", "10")]
         ... )
         RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, [('fieldMatch(title).maxAlternativeSegmentations', '10')], None)
+
+        >>> RankProfile(
+        ...    name = "default",
+        ...    first_phase = FirstPhaseRanking(expression="nativeRank(title, body)", keep_rank_count=50)
+        ... )
+        RankProfile('default', FirstPhaseRanking('nativeRank(title, body)', 50, None), None, None, None, None, None, None, None, None, None)
         """
         self.name = name
         self.first_phase = first_phase

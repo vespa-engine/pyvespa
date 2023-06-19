@@ -218,11 +218,25 @@ schema {{ schema_name }} {
         {% endfor %}
         {% endif %}
         {% if value.first_phase %}
+        {% if value.first_phase is string %}
         first-phase {
             expression {
                 {{ value.first_phase }}
             }
         }
+        {% else %}
+        first-phase {
+            expression {
+                {{ value.first_phase.expression }}
+            }
+            {% if value.first_phase.keep_rank_count %}
+            keep-rank-count: {{ value.first_phase.keep_rank_count }}
+            {% endif %}
+            {% if value.first_phase.rank_score_drop_limit %}
+            rank-score-drop-limit: {{ value.first_phase.rank_score_drop_limit }}
+            {% endif %}
+        }
+        {% endif %}
         {% endif %}
         {% if value.second_phase %}
         second-phase {
