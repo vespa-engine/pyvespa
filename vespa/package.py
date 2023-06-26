@@ -830,6 +830,52 @@ class Function(object):
             repr(self.args),
         )
 
+class FirstPhaseRanking:
+    def __init__(
+            self,
+            expression: str,
+            keep_rank_count: Optional[int] = None,
+            rank_score_drop_limit: Optional[float] = None
+        ) -> None:
+        r"""
+        Create a Vespa first phase ranking configuration.
+
+        This is the initial ranking performed on all matching documents. Check the `Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#firstphase-rank>`__`
+        for more detailed information about first phase ranking configuration.
+        
+        :param expression: Specify the ranking expression to be used for first phase of ranking. Check also the
+            `Vespa documentation <https://docs.vespa.ai/en/reference/ranking-expressions.html>`__`
+            for ranking expression.
+
+        :param keep_rank_count: How many documents to keep the first phase top rank values for. Default value is 10000.
+        :param rank_score_drop_limit: Drop all hits with a first phase rank score less than or equal to this floating point number.
+
+        >>> FirstPhaseRanking("myFeature * 10")
+        FirstPhaseRanking('myFeature * 10', None, None)
+
+        >>> FirstPhaseRanking(expression="myFeature * 10", keep_rank_count=50, rank_score_drop_limit=10)
+        FirstPhaseRanking('myFeature * 10', 50, 10)
+        """
+        self.expression = expression
+        self.keep_rank_count = keep_rank_count
+        self.rank_score_drop_limit = rank_score_drop_limit
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (
+            self.expression == other.expression
+            and self.keep_rank_count == other.keep_rank_count
+            and self.rank_score_drop_limit == other.rank_score_drop_limit
+        )
+    
+    def __repr__(self) -> str:
+        return "{0}({1}, {2}, {3})".format(
+            self.__class__.__name__,
+            repr(self.expression),
+            repr(self.keep_rank_count),
+            repr(self.rank_score_drop_limit)
+        )
 
 class SecondPhaseRanking(object):
     def __init__(self, expression: str, rerank_count: int = 100) -> None:
@@ -883,7 +929,8 @@ class RankProfile(object):
     def __init__(
         self,
         name: str,
-        first_phase: str,
+        # Allow a str object as expression for backwards compatibility
+        first_phase: Union[str, FirstPhaseRanking], 
         inherits: Optional[str] = None,
         constants: Optional[Dict] = None,
         functions: Optional[List[Function]] = None,
@@ -977,6 +1024,12 @@ class RankProfile(object):
         ...     rank_properties = [("fieldMatch(title).maxAlternativeSegmentations", "10")]
         ... )
         RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, [('fieldMatch(title).maxAlternativeSegmentations', '10')], None)
+
+        >>> RankProfile(
+        ...    name = "default",
+        ...    first_phase = FirstPhaseRanking(expression="nativeRank(title, body)", keep_rank_count=50)
+        ... )
+        RankProfile('default', FirstPhaseRanking('nativeRank(title, body)', 50, None), None, None, None, None, None, None, None, None, None)
         """
         self.name = name
         self.first_phase = first_phase
