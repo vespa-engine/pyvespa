@@ -378,8 +378,9 @@ class VespaCloud(object):
                 serialization.PublicFormat.SubjectPublicKeyInfo,
             )
         )
-        self.data_key, self.data_certificate = self._create_certificate_pair()
-        self.private_cert_file_name = "private_cert.txt"
+        self.cert_path = None
+        self.key_path = None
+        self.data_key, self.data_certificate = self._load_certificate_pair()
         self.connection = http.client.HTTPSConnection(
             "api.vespa-external.aws.oath.cloud", 4443
         )
@@ -432,6 +433,47 @@ class VespaCloud(object):
             .sign(key, hashes.SHA256(), default_backend())
         )
         return key, certificate
+    
+    def _load_certificate_pair(self) -> Tuple[ec.EllipticCurvePrivateKey, x509.Certificate]:
+        cert_file_name = 'data-plane-public-cert.pem'
+        key_file_name = 'data-plane-private-key.pem'
+        
+        # Try to look in application root first, assuming working directory is root
+        vespa_dir = Path.cwd() / '.vespa'
+        cert_path = vespa_dir / cert_file_name
+        key_path = vespa_dir / key_file_name
+        if (cert_path.exists() and key_path.exists()):
+            cert = str(cert_path)
+            key = str(key_path)
+        else:
+            # If cert/key not found in application root: look in ~/.vespa/project_name/        
+            home_dir = Path.home()
+            vespa_dir = home_dir / '.vespa' / f"{self.tenant}.{self.application_package.name}.default" # TODO Support other instance names
+            cert_path = vespa_dir / cert_file_name
+            key_path = vespa_dir / key_file_name
+
+            if not (cert_path.exists() and key_path.exists()):
+                raise FileNotFoundError(f"Certificate and key not found. Please generate with 'vespa auth cert'")        
+                  
+        self.cert_path = str(cert_path)
+        self.key_path= str(key_path)
+
+        # Read private key from file
+        with open(key_path, "rb") as key_file: 
+         private_key = serialization.load_pem_private_key( 
+             key_file.read(), 
+             password=None, 
+             backend=default_backend() 
+         ) 
+
+        # Read public certificate from file
+        with open(cert_path, "rb") as cert_file: 
+         cert = x509.load_pem_x509_certificate( 
+             cert_file.read(), 
+             default_backend() 
+         ) 
+
+        return private_key, cert 
 
     def _request(
         self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
@@ -550,13 +592,13 @@ class VespaCloud(object):
             )
         )
 
-        Path(disk_folder).mkdir(parents=True, exist_ok=True)
+        #Path(disk_folder).mkdir(parents=True, exist_ok=True)
 
         application_zip_bytes = self._to_application_zip(disk_folder=disk_folder)
 
-        self._write_private_key_and_cert(
-            self.data_key, self.data_certificate, disk_folder
-        )
+        #self._write_private_key_and_cert(
+        #    self.data_key, self.data_certificate, disk_folder
+        #)
 
         response = self._request(
             "POST",
@@ -650,7 +692,8 @@ class VespaCloud(object):
         endpoint_url = self._get_endpoint(instance=instance, region=region)
         app = Vespa(
             url=endpoint_url,
-            cert=os.path.join(disk_folder, self.private_cert_file_name),
+            cert=self.cert_path,
+            key=self.key_path,
             application_package=self.application_package,
         )
         app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
