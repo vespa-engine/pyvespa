@@ -417,8 +417,7 @@ class VespaCloud(object):
             key = str(key_path)
         else:
             # If cert/key not found in application root: look in ~/.vespa/tenant.app.default/
-            home_dir = Path.home()
-            vespa_dir = home_dir / '.vespa' / f"{self.tenant}.{self.application_package.name}.default" # TODO Support other instance names
+            vespa_dir = Path.home() / '.vespa' / f"{self.tenant}.{self.application_package.name}.default" # TODO Support other instance names
             cert_path = vespa_dir / cert_file_name
             key_path = vespa_dir / key_file_name
 
