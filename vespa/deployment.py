@@ -1,6 +1,7 @@
 import http.client
 import json
 import os
+import pathlib
 import sys
 import zipfile
 import logging
@@ -554,14 +555,18 @@ class VespaCloud(object):
 
         return buffer
 
-    def _start_deployment(self, instance: str, job: str, disk_folder: str) -> int:
+    def _start_deployment(self, instance: str, job: str, disk_folder: str, application_zip_bytes: Optional[BytesIO] = None) -> int:
         deploy_path = (
             "/application/v4/tenant/{}/application/{}/instance/{}/deploy/{}".format(
                 self.tenant, self.application, instance, job
             )
         )
 
-        application_zip_bytes = self._to_application_zip(disk_folder=disk_folder)
+        Path(disk_folder).mkdir(parents=True, exist_ok=True)
+
+        # If the deployment does not use an existing application package on disk
+        if not application_zip_bytes:
+            application_zip_bytes = self._to_application_zip(disk_folder=disk_folder)
 
         response = self._request(
             "POST",
@@ -634,6 +639,48 @@ class VespaCloud(object):
                 file=self.output,
             )
 
+    def deploy_from_disk(self, instance: str, application_root: str) -> Vespa:
+        """
+        Deploy from a directory tree.
+        Used when making changes to application package files not supported by pyvespa.
+
+        :param instance: Name of the instance where the application is to be run
+        :param application_root: Application package directory root
+        :return: a Vespa connection instance.
+        """
+
+        # Create zip from application package folder
+        tmp_zip = "tmp_app_package.zip"
+        orig_dir = os.getcwd()
+        zipf = zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED)
+        os.chdir(application_root)  # Workaround to avoid the top-level directory
+        for root, dirs, files in os.walk("."):
+            for file in files:
+                zipf.write(os.path.join(root, file))
+        zipf.close()
+        os.chdir(orig_dir)
+        with open(tmp_zip, "rb") as f:
+            data = f.read()
+        os.remove(tmp_zip)
+
+        # Deploy the zipped application package
+        disk_folder = os.path.join(os.getcwd(), self.application_package.name)
+        region = self._get_dev_region()
+        job = "dev-" + region
+        run = self._start_deployment(instance, job, disk_folder, application_zip_bytes=BytesIO(data))
+        self._follow_deployment(instance, job, run)
+        endpoint_url = self._get_endpoint(instance=instance, region=region)
+        app = Vespa(
+            url=endpoint_url,
+            cert=self.data_cert_path,
+            key=self.data_key_path,
+            application_package=self.application_package,
+        )
+        app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
+        print("Finished deployment.", file=self.output)
+
+        return app
+
     def deploy(self, instance: str, disk_folder: Optional[str] = None) -> Vespa:
         """
         Deploy the given application package as the given instance in the Vespa Cloud dev environment.
@@ -650,7 +697,7 @@ class VespaCloud(object):
 
         region = self._get_dev_region()
         job = "dev-" + region
-        run = self._start_deployment(instance, job, disk_folder)
+        run = self._start_deployment(instance, job, disk_folder, None)
         self._follow_deployment(instance, job, run)
         endpoint_url = self._get_endpoint(instance=instance, region=region)
         app = Vespa(
