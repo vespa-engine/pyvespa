@@ -217,6 +217,7 @@ class Vespa(object):
         :return:
         """
         endpoint = "{}/ApplicationStatus".format(self.end_point)
+
         try:
             if self.key:
                 response = requests.get(endpoint, cert=(self.cert, self.key))
@@ -224,6 +225,7 @@ class Vespa(object):
                 response = requests.get(endpoint, cert=self.cert)
         except ConnectionError:
             response = None
+
         return response
 
     def get_model_endpoint(self, model_id: Optional[str] = None) -> Optional[Response]:
