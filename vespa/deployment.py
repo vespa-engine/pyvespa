@@ -26,6 +26,7 @@ CFG_SERVER_START_TIMEOUT = 300
 APP_INIT_TIMEOUT = 300
 DOCKER_TIMEOUT = 600
 
+
 class VespaDeployment():
     def read_app_package_from_disk(self, application_root: Path) -> bytes:
         """
@@ -52,14 +53,14 @@ class VespaDeployment():
 
 class VespaDocker(VespaDeployment):
     def __init__(
-        self,
-        port: int = 8080,
-        container_memory: Union[str, int] = 4 * (1024 ** 3),
-        output_file: IO = sys.stdout,
-        container: Optional[docker.models.containers.Container] = None,
-        container_image: str = "vespaengine/vespa",
-        cfgsrv_port: int = 19071,
-        debug_port: int = 5005,
+            self,
+            port: int = 8080,
+            container_memory: Union[str, int] = 4 * (1024 ** 3),
+            output_file: IO = sys.stdout,
+            container: Optional[docker.models.containers.Container] = None,
+            container_image: str = "vespaengine/vespa",
+            cfgsrv_port: int = 19071,
+            debug_port: int = 5005,
     ) -> None:
         """
         Manage Docker deployments.
@@ -91,9 +92,33 @@ class VespaDocker(VespaDeployment):
         if os.getenv("PYVESPA_DEBUG") == "true":
             logging.basicConfig(level=logging.DEBUG)
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (
+                self.container_id == other.container_id
+                and self.container_name == other.container_name
+                and self.url == other.url
+                and self.local_port == other.local_port
+                and self.container_memory == other.container_memory
+                and self.container_image.split(":")[0]
+                == other.container_image.split(":")[0]
+        )
+
+    def __repr__(self) -> str:
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6})".format(
+            self.__class__.__name__,
+            repr(self.url),
+            repr(self.local_port),
+            repr(self.container_name),
+            repr(self.container_id),
+            repr(self.container_memory),
+            repr(self.container_image.split(":")[0]),
+        )
+
     @staticmethod
     def from_container_name_or_id(
-        name_or_id: str, output_file: IO = sys.stdout
+            name_or_id: str, output_file: IO = sys.stdout
     ) -> "VespaDocker":
         """
         Instantiate VespaDocker from a running container.
@@ -122,11 +147,165 @@ class VespaDocker(VespaDeployment):
             container_image=container_image,
         )
 
+    def deploy(
+            self,
+            application_package: ApplicationPackage,
+            debug: bool = False,
+    ) -> Vespa:
+        """
+        Deploy the application package into a Vespa container.
+        :param application_package: ApplicationPackage to be deployed.
+        :param debug: Add the configured debug_port to the docker port mapping.
+        :return: a Vespa connection instance.
+        """
+        return self._deploy_data(application_package, application_package.to_zip(), debug)
+
+    def deploy_from_disk(self, application_name: str, application_root: Path, debug: bool = False) -> Vespa:
+        """
+        Deploy from a directory tree.
+        Used when making changes to application package files not supported by pyvespa -
+        this is why this method is not found in the ApplicationPackage class.
+
+        :param application_name: Application package name.
+        :param application_root: Application package directory root
+        :param debug: Add the configured debug_port to the docker port mapping.
+        :return: a Vespa connection instance.
+        """
+        data = self.read_app_package_from_disk(application_root)
+        return self._deploy_data(ApplicationPackage(name=application_name), data, debug)
+
+    def wait_for_config_server_start(self, max_wait: int) -> None:
+        """
+        Waits for Config Server to start inside the Docker image
+
+        :param max_wait: Seconds to wait for the application endpoint
+        :raises RuntimeError: Raises runtime error if the config server does not start within max_wait
+        :return:
+        """
+        try_interval = 5
+        waited = 0
+        while not self._check_configuration_server() and (waited < max_wait):
+            print(
+                "Waiting for configuration server, {0}/{1} seconds...".format(
+                    waited, max_wait
+                ),
+                file=self.output,
+            )
+            sleep(try_interval)
+            waited += try_interval
+        if waited >= max_wait:
+            self.dump_vespa_log()
+            raise RuntimeError(
+                "Config server did not start, waited for {0} seconds.".format(max_wait)
+            )
+
+    def start_services(self) -> None:
+        """
+        Start Vespa services inside the docker image, first waiting for the Config Server, then for other services.
+
+        :raises RuntimeError: if a container has not been set
+        :return: None
+        """
+        if self.container:
+            start_config = self.container.exec_run(
+                "bash -c '/opt/vespa/bin/vespa-start-configserver'"
+            )
+            while not self._check_configuration_server():
+                print("Waiting for configuration server.", file=self.output)
+                sleep(5)
+            for line in start_config.output.decode("utf-8").split("\n"):
+                print(line, file=self.output)
+            start_services = self.container.exec_run(
+                "bash -c '/opt/vespa/bin/vespa-start-services'"
+            )
+            app = Vespa(
+                url=self.url,
+                port=self.local_port,
+            )
+            app.wait_for_application_up(max_wait=1000000)  # wait indefinitely...
+            for line in start_services.output.decode("utf-8").split("\n"):
+                print(line, file=self.output)
+        else:
+            raise RuntimeError("No container found")
+
+    def stop_services(self) -> None:
+        """
+        Stop Vespa services inside the docker image, first stopping the services, then stopping the Config Server.
+
+        :raises RuntimeError: if a container has not been set
+        :return: None
+        """
+        if self.container:
+            stop_services = self.container.exec_run(
+                "bash -c '/opt/vespa/bin/vespa-stop-services'"
+            )
+            for line in stop_services.output.decode("utf-8").split("\n"):
+                print(line, file=self.output)
+            stop_config = self.container.exec_run(
+                "bash -c '/opt/vespa/bin/vespa-stop-configserver'"
+            )
+            for line in stop_config.output.decode("utf-8").split("\n"):
+                print(line, file=self.output)
+        else:
+            raise RuntimeError("No container found")
+
+    def restart_services(self) -> None:
+        """
+        Restart Vespa services inside the docker image, it is equivalent to calling self.stop_services() followed by self.start_services().
+
+        :raises RuntimeError: if a container has not been set
+        :return: None
+        """
+        self.stop_services()
+        self.start_services()
+
+    def dump_vespa_log(self) -> None:
+        log_dump = self.container.exec_run(
+            "bash -c 'cat /opt/vespa/logs/vespa/vespa.log'"
+        )
+        logging.debug("Dumping vespa.log:")
+        logging.debug(log_dump.output.decode("utf-8"))
+
+    def _deploy_data(self, application: ApplicationPackage, data, debug: bool) -> Vespa:
+        """
+        Deploys an Application Package as zipped data
+
+        :param application: Application package
+        :raises RuntimeError: Exception if deployment fails
+        :return: A Vespa connection instance
+        """
+        self._run_vespa_engine_container(
+            application_name=application.name, container_memory=self.container_memory, debug=debug
+        )
+        self.wait_for_config_server_start(max_wait=CFG_SERVER_START_TIMEOUT)
+
+        r = requests.post(
+            "http://localhost:{}/application/v2/tenant/default/prepareandactivate".format(
+                self.cfgsrv_port
+            ),
+            headers={"Content-Type": "application/zip"},
+            data=data,
+            verify=False,
+        )
+        logging.debug("Deploy status code: {}".format(r.status_code))
+        if r.status_code != 200:
+            raise RuntimeError(
+                "Deployment failed, code: {}, message: {}".format(
+                    r.status_code, json.loads(r.content.decode("utf8"))
+                )
+            )
+
+        app = Vespa(url=self.url, port=self.local_port, application_package=application)
+        app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
+
+        print("Finished deployment.", file=self.output)
+        return app
+
     def _run_vespa_engine_container(
-        self,
-        application_name: str,
-        container_memory: str,
-        debug: bool,
+            self,
+            application_name: str,
+            container_memory: str,
+            debug: bool,
     ) -> None:
         client = docker.from_env(timeout=DOCKER_TIMEOUT)
         if self.container is None:
@@ -181,194 +360,16 @@ class VespaDocker(VespaDeployment):
         logging.debug("Config Server ApplicationStatus head response: " + output)
         return output.split("\r\n")[0] == "HTTP/1.1 200 OK"
 
-    def wait_for_config_server_start(self, max_wait: int) -> None:
-        """
-        Waits for Config Server to start inside the Docker image
-
-        :param max_wait: Seconds to wait for the application endpoint
-        :raises RuntimeError: Raises runtime error if the config server does not start within max_wait
-        :return:
-        """
-        try_interval = 5
-        waited = 0
-        while not self._check_configuration_server() and (waited < max_wait):
-            print(
-                "Waiting for configuration server, {0}/{1} seconds...".format(
-                    waited, max_wait
-                ),
-                file=self.output,
-            )
-            sleep(try_interval)
-            waited += try_interval
-        if waited >= max_wait:
-            self.dump_vespa_log()
-            raise RuntimeError(
-                "Config server did not start, waited for {0} seconds.".format(max_wait)
-            )
-
-    def dump_vespa_log(self) -> None:
-        log_dump = self.container.exec_run(
-            "bash -c 'cat /opt/vespa/logs/vespa/vespa.log'"
-        )
-        logging.debug("Dumping vespa.log:")
-        logging.debug(log_dump.output.decode("utf-8"))
-
-    def deploy(
-        self,
-        application_package: ApplicationPackage,
-        debug: bool = False,
-    ) -> Vespa:
-        """
-        Deploy the application package into a Vespa container.
-        :param application_package: ApplicationPackage to be deployed.
-        :param debug: Add the configured debug_port to the docker port mapping.
-        :return: a Vespa connection instance.
-        """
-        return self._deploy_data(application_package, application_package.to_zip(), debug)
-
-    def deploy_from_disk(self, application_name: str, application_root: Path, debug: bool = False) -> Vespa:
-        """
-        Deploy from a directory tree.
-        Used when making changes to application package files not supported by pyvespa -
-        this is why this method is not found in the ApplicationPackage class.
-
-        :param application_name: Application package name.
-        :param application_root: Application package directory root
-        :param debug: Add the configured debug_port to the docker port mapping.
-        :return: a Vespa connection instance.
-        """
-        data = self.read_app_package_from_disk(application_root)
-        return self._deploy_data(ApplicationPackage(name=application_name), data, debug)
-
-    def _deploy_data(self, application: ApplicationPackage, data, debug: bool) -> Vespa:
-        """
-        Deploys an Application Package as zipped data
-
-        :param application: Application package
-        :raises RuntimeError: Exception if deployment fails
-        :return: A Vespa connection instance
-        """
-        self._run_vespa_engine_container(
-            application_name=application.name, container_memory=self.container_memory, debug=debug
-        )
-        self.wait_for_config_server_start(max_wait=CFG_SERVER_START_TIMEOUT)
-
-        r = requests.post(
-            "http://localhost:{}/application/v2/tenant/default/prepareandactivate".format(
-                self.cfgsrv_port
-            ),
-            headers={"Content-Type": "application/zip"},
-            data=data,
-            verify=False,
-        )
-        logging.debug("Deploy status code: {}".format(r.status_code))
-        if r.status_code != 200:
-            raise RuntimeError(
-                "Deployment failed, code: {}, message: {}".format(
-                    r.status_code, json.loads(r.content.decode("utf8"))
-                )
-            )
-
-        app = Vespa(url=self.url, port=self.local_port, application_package=application)
-        app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
-
-        print("Finished deployment.", file=self.output)
-        return app
-
-    def stop_services(self) -> None:
-        """
-        Stop Vespa services inside the docker image, first stopping the services, then stopping the Config Server.
-
-        :raises RuntimeError: if a container has not been set
-        :return: None
-        """
-        if self.container:
-            stop_services = self.container.exec_run(
-                "bash -c '/opt/vespa/bin/vespa-stop-services'"
-            )
-            for line in stop_services.output.decode("utf-8").split("\n"):
-                print(line, file=self.output)
-            stop_config = self.container.exec_run(
-                "bash -c '/opt/vespa/bin/vespa-stop-configserver'"
-            )
-            for line in stop_config.output.decode("utf-8").split("\n"):
-                print(line, file=self.output)
-        else:
-            raise RuntimeError("No container found")
-
-    def start_services(self) -> None:
-        """
-        Start Vespa services inside the docker image, first waiting for the Config Server, then for other services.
-
-        :raises RuntimeError: if a container has not been set
-        :return: None
-        """
-        if self.container:
-            start_config = self.container.exec_run(
-                "bash -c '/opt/vespa/bin/vespa-start-configserver'"
-            )
-            while not self._check_configuration_server():
-                print("Waiting for configuration server.", file=self.output)
-                sleep(5)
-            for line in start_config.output.decode("utf-8").split("\n"):
-                print(line, file=self.output)
-            start_services = self.container.exec_run(
-                "bash -c '/opt/vespa/bin/vespa-start-services'"
-            )
-            app = Vespa(
-                url=self.url,
-                port=self.local_port,
-            )
-            app.wait_for_application_up(max_wait=1000000)  # wait indefinitely...
-            for line in start_services.output.decode("utf-8").split("\n"):
-                print(line, file=self.output)
-        else:
-            raise RuntimeError("No container found")
-
-    def restart_services(self) -> None:
-        """
-        Restart Vespa services inside the docker image, it is equivalent to calling self.stop_services() followed by self.start_services().
-
-        :raises RuntimeError: if a container has not been set
-        :return: None
-        """
-        self.stop_services()
-        self.start_services()
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, self.__class__):
-            return NotImplemented
-        return (
-            self.container_id == other.container_id
-            and self.container_name == other.container_name
-            and self.url == other.url
-            and self.local_port == other.local_port
-            and self.container_memory == other.container_memory
-            and self.container_image.split(":")[0]
-            == other.container_image.split(":")[0]
-        )
-
-    def __repr__(self) -> str:
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6})".format(
-            self.__class__.__name__,
-            repr(self.url),
-            repr(self.local_port),
-            repr(self.container_name),
-            repr(self.container_id),
-            repr(self.container_memory),
-            repr(self.container_image.split(":")[0]),
-        )
-
 
 class VespaCloud(VespaDeployment):
     def __init__(
-        self,
-        tenant: str,
-        application: str,
-        application_package: ApplicationPackage,
-        key_location: Optional[str] = None,
-        key_content: Optional[str] = None,
-        output_file: IO = sys.stdout,
+            self,
+            tenant: str,
+            application: str,
+            application_package: ApplicationPackage,
+            key_location: Optional[str] = None,
+            key_content: Optional[str] = None,
+            output_file: IO = sys.stdout,
     ) -> None:
         """
         Deploy application to the Vespa Cloud (cloud.vespa.ai)
@@ -399,9 +400,101 @@ class VespaCloud(VespaDeployment):
         )
         self.output = output_file
 
+    def __enter__(self) -> "VespaCloud":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
+
+    def deploy(self, instance: str, disk_folder: Optional[str] = None) -> Vespa:
+        """
+        Deploy the given application package as the given instance in the Vespa Cloud dev environment.
+
+        :param instance: Name of this instance of the application, in the Vespa Cloud.
+        :param disk_folder: Disk folder to save the required Vespa config files. Default to application name
+            folder within user's current working directory.
+
+        :return: a Vespa connection instance.
+        """
+        if not disk_folder:
+            disk_folder = os.path.join(os.getcwd(), self.application_package.name)
+
+        region = self._get_dev_region()
+        job = "dev-" + region
+        run = self._start_deployment(instance, job, disk_folder, None)
+        self._follow_deployment(instance, job, run)
+        endpoint_url = self._get_endpoint(instance=instance, region=region)
+        app = Vespa(
+            url=endpoint_url,
+            cert=self.data_cert_path,
+            key=self.data_key_path,
+            application_package=self.application_package,
+        )
+        app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
+        print("Finished deployment.", file=self.output)
+        return app
+
+    def deploy_from_disk(self, instance: str, application_root: Path) -> Vespa:
+        """
+        Deploy from a directory tree.
+        Used when making changes to application package files not supported by pyvespa.
+
+        :param instance: Name of the instance where the application is to be run
+        :param application_root: Application package directory root
+        :return: a Vespa connection instance.
+        """
+
+        data = BytesIO(self.read_app_package_from_disk(application_root))
+
+        # Deploy the zipped application package
+        disk_folder = os.path.join(os.getcwd(), self.application_package.name)
+        region = self._get_dev_region()
+        job = "dev-" + region
+        run = self._start_deployment(instance, job, disk_folder, application_zip_bytes=data)
+        self._follow_deployment(instance, job, run)
+        endpoint_url = self._get_endpoint(instance=instance, region=region)
+        app = Vespa(
+            url=endpoint_url,
+            cert=self.data_cert_path,
+            key=self.data_key_path,
+            application_package=self.application_package,
+        )
+        app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
+        print("Finished deployment.", file=self.output)
+
+        return app
+
+    def close(self) -> None:
+        self.connection.close()
+
+    def delete(self, instance: str) -> None:
+        """
+        Delete the specified instance from the dev environment in the Vespa Cloud.
+        :param instance: Name of the instance to delete.
+        :return:
+        """
+        print(
+            self._request(
+                "DELETE",
+                "/application/v4/tenant/{}/application/{}/instance/{}/environment/dev/region/{}".format(
+                    self.tenant, self.application, instance, self._get_dev_region()
+                ),
+            )["message"],
+            file=self.output,
+        )
+        print(
+            self._request(
+                "DELETE",
+                "/application/v4/tenant/{}/application/{}/instance/{}".format(
+                    self.tenant, self.application, instance
+                ),
+            )["message"],
+            file=self.output,
+        )
+
     @staticmethod
     def _read_private_key(
-        key_location: Optional[str] = None, key_content: Optional[str] = None
+            key_location: Optional[str] = None, key_content: Optional[str] = None
     ) -> ec.EllipticCurvePrivateKey:
 
         if key_content:
@@ -430,7 +523,7 @@ class VespaCloud(VespaDeployment):
             key = str(key_path)
         else:
             # If cert/key not found in application root: look in ~/.vespa/tenant.app.default/
-            vespa_dir = Path.home() / '.vespa' / f"{self.tenant}.{self.application_package.name}.default" # TODO Support other instance names
+            vespa_dir = Path.home() / '.vespa' / f"{self.tenant}.{self.application_package.name}.default"  # TODO Support other instance names
             cert_path = vespa_dir / cert_file_name
             key_path = vespa_dir / key_file_name
 
@@ -438,7 +531,7 @@ class VespaCloud(VespaDeployment):
                 raise FileNotFoundError(f"Certificate and key not found. Please generate with 'vespa auth cert'")
 
         self.data_cert_path = str(cert_path)
-        self.data_key_path= str(key_path)
+        self.data_key_path = str(key_path)
 
         # Read contents of private key from file
         with open(self.data_key_path, "rb") as key_file:
@@ -457,15 +550,18 @@ class VespaCloud(VespaDeployment):
 
         return private_key, cert
 
+    def _get_dev_region(self) -> str:
+        return self._request("GET", "/zone/v1/environment/dev/default")["name"]
+
     def _request(
-        self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
+            self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
     ) -> dict:
         digest = hashes.Hash(hashes.SHA256(), default_backend())
         body.seek(0)
         digest.update(body.read())
         content_hash = standard_b64encode(digest.finalize()).decode("UTF-8")
         timestamp = (
-            datetime.utcnow().isoformat() + "Z"
+                datetime.utcnow().isoformat() + "Z"
         )  # Java's Instant.parse requires the neutral time zone appended
         url = "https://" + self.connection.host + ":" + str(self.connection.port) + path
 
@@ -500,9 +596,6 @@ class VespaCloud(VespaDeployment):
                 )
             return parsed
 
-    def _get_dev_region(self) -> str:
-        return self._request("GET", "/zone/v1/environment/dev/default")["name"]
-
     def _get_endpoint(self, instance: str, region: str) -> str:
         endpoints = self._request(
             "GET",
@@ -514,11 +607,34 @@ class VespaCloud(VespaDeployment):
             endpoint["url"]
             for endpoint in endpoints
             if endpoint["cluster"]
-            == "{}_container".format(self.application_package.name)
+               == "{}_container".format(self.application_package.name)
         ]
         if not container_url:
             raise RuntimeError("No endpoints found for container 'test_app_container'")
         return container_url[0]
+
+    def _start_deployment(self, instance: str, job: str, disk_folder: str,
+                          application_zip_bytes: Optional[BytesIO] = None) -> int:
+        deploy_path = (
+            "/application/v4/tenant/{}/application/{}/instance/{}/deploy/{}".format(
+                self.tenant, self.application, instance, job
+            )
+        )
+
+        Path(disk_folder).mkdir(parents=True, exist_ok=True)
+
+        # If the deployment does not use an existing application package on disk
+        if not application_zip_bytes:
+            application_zip_bytes = self._to_application_zip(disk_folder=disk_folder)
+
+        response = self._request(
+            "POST",
+            deploy_path,
+            application_zip_bytes,
+            {"Content-Type": "application/zip"},
+        )
+        print(response["message"], file=self.output)
+        return response["run"]
 
     def _to_application_zip(self, disk_folder: str) -> BytesIO:
         buffer = BytesIO()
@@ -567,30 +683,23 @@ class VespaCloud(VespaDeployment):
 
         return buffer
 
-    def _start_deployment(self, instance: str, job: str, disk_folder: str, application_zip_bytes: Optional[BytesIO] = None) -> int:
-        deploy_path = (
-            "/application/v4/tenant/{}/application/{}/instance/{}/deploy/{}".format(
-                self.tenant, self.application, instance, job
-            )
-        )
+    def _follow_deployment(self, instance: str, job: str, run: int) -> None:
+        last = -1
+        while True:
+            try:
+                status, last = self._get_deployment_status(instance, job, run, last)
+            except RuntimeError:
+                raise
 
-        Path(disk_folder).mkdir(parents=True, exist_ok=True)
-
-        # If the deployment does not use an existing application package on disk
-        if not application_zip_bytes:
-            application_zip_bytes = self._to_application_zip(disk_folder=disk_folder)
-
-        response = self._request(
-            "POST",
-            deploy_path,
-            application_zip_bytes,
-            {"Content-Type": "application/zip"},
-        )
-        print(response["message"], file=self.output)
-        return response["run"]
+            if status == "active":
+                sleep(1)
+            elif status == "success":
+                return
+            else:
+                raise RuntimeError("Unexpected status: {}".format(status))
 
     def _get_deployment_status(
-        self, instance: str, job: str, run: int, last: int
+            self, instance: str, job: str, run: int, last: int
     ) -> Tuple[str, int]:
 
         update = self._request(
@@ -627,21 +736,6 @@ class VespaCloud(VespaDeployment):
             else:
                 raise RuntimeError("Unexpected status: {}".format(status))
 
-    def _follow_deployment(self, instance: str, job: str, run: int) -> None:
-        last = -1
-        while True:
-            try:
-                status, last = self._get_deployment_status(instance, job, run, last)
-            except RuntimeError:
-                raise
-
-            if status == "active":
-                sleep(1)
-            elif status == "success":
-                return
-            else:
-                raise RuntimeError("Unexpected status: {}".format(status))
-
     def _print_log_entry(self, step: str, entry: dict):
         timestamp = strftime("%H:%M:%S", gmtime(entry["at"] / 1e3))
         message = entry["message"].replace("\n", "\n" + " " * 23)
@@ -650,96 +744,3 @@ class VespaCloud(VespaDeployment):
                 "{:<7} [{}]  {}".format(entry["type"].upper(), timestamp, message),
                 file=self.output,
             )
-
-    def deploy_from_disk(self, instance: str, application_root: Path) -> Vespa:
-        """
-        Deploy from a directory tree.
-        Used when making changes to application package files not supported by pyvespa.
-
-        :param instance: Name of the instance where the application is to be run
-        :param application_root: Application package directory root
-        :return: a Vespa connection instance.
-        """
-
-        data = BytesIO(self.read_app_package_from_disk(application_root))
-
-        # Deploy the zipped application package
-        disk_folder = os.path.join(os.getcwd(), self.application_package.name)
-        region = self._get_dev_region()
-        job = "dev-" + region
-        run = self._start_deployment(instance, job, disk_folder, application_zip_bytes=data)
-        self._follow_deployment(instance, job, run)
-        endpoint_url = self._get_endpoint(instance=instance, region=region)
-        app = Vespa(
-            url=endpoint_url,
-            cert=self.data_cert_path,
-            key=self.data_key_path,
-            application_package=self.application_package,
-        )
-        app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
-        print("Finished deployment.", file=self.output)
-
-        return app
-
-    def deploy(self, instance: str, disk_folder: Optional[str] = None) -> Vespa:
-        """
-        Deploy the given application package as the given instance in the Vespa Cloud dev environment.
-
-        :param instance: Name of this instance of the application, in the Vespa Cloud.
-        :param disk_folder: Disk folder to save the required Vespa config files. Default to application name
-            folder within user's current working directory.
-
-        :return: a Vespa connection instance.
-        """
-
-        if not disk_folder:
-            disk_folder = os.path.join(os.getcwd(), self.application_package.name)
-
-        region = self._get_dev_region()
-        job = "dev-" + region
-        run = self._start_deployment(instance, job, disk_folder, None)
-        self._follow_deployment(instance, job, run)
-        endpoint_url = self._get_endpoint(instance=instance, region=region)
-        app = Vespa(
-            url=endpoint_url,
-            cert=self.data_cert_path,
-            key=self.data_key_path,
-            application_package=self.application_package,
-        )
-        app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
-        print("Finished deployment.", file=self.output)
-        return app
-
-    def delete(self, instance: str) -> None:
-        """
-        Delete the specified instance from the dev environment in the Vespa Cloud.
-        :param instance: Name of the instance to delete.
-        :return:
-        """
-        print(
-            self._request(
-                "DELETE",
-                "/application/v4/tenant/{}/application/{}/instance/{}/environment/dev/region/{}".format(
-                    self.tenant, self.application, instance, self._get_dev_region()
-                ),
-            )["message"],
-            file=self.output,
-        )
-        print(
-            self._request(
-                "DELETE",
-                "/application/v4/tenant/{}/application/{}/instance/{}".format(
-                    self.tenant, self.application, instance
-                ),
-            )["message"],
-            file=self.output,
-        )
-
-    def close(self) -> None:
-        self.connection.close()
-
-    def __enter__(self) -> "VespaCloud":
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        self.close()
