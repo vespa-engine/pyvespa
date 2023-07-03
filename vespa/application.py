@@ -218,10 +218,6 @@ class Vespa(object):
         """
         endpoint = "{}/ApplicationStatus".format(self.end_point)
 
-        print(f"{endpoint = }")
-        print(f"{self.cert = }")
-        print(f"{self.key = }")
-
         try:
             if self.key:
                 response = requests.get(endpoint, cert=(self.cert, self.key))
@@ -231,7 +227,6 @@ class Vespa(object):
             print(f"ConnectionError: {e}")
             response = None
 
-        print(f"{response = }")
         return response
 
     def get_model_endpoint(self, model_id: Optional[str] = None) -> Optional[Response]:
