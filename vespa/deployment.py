@@ -26,8 +26,31 @@ CFG_SERVER_START_TIMEOUT = 300
 APP_INIT_TIMEOUT = 300
 DOCKER_TIMEOUT = 600
 
+class VespaDeployment():
+    def read_app_package_from_disk(self, application_root: Path) -> bytes:
+        """
+        Read the contents of an application package on disk into a zip file.
 
-class VespaDocker(object):
+        :param application_root: Application package directory root
+        :return: The zipped application package as bytes.
+        """
+        tmp_zip = "tmp_app_package.zip"
+        orig_dir = os.getcwd()
+        zipf = zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED)
+        os.chdir(application_root)  # Workaround to avoid the top-level directory
+        for root, dirs, files in os.walk("."):
+            for file in files:
+                zipf.write(os.path.join(root, file))
+        zipf.close()
+        os.chdir(orig_dir)
+        with open(tmp_zip, "rb") as f:
+            data = f.read()
+        os.remove(tmp_zip)
+
+        return data
+
+
+class VespaDocker(VespaDeployment):
     def __init__(
         self,
         port: int = 8080,
@@ -214,18 +237,7 @@ class VespaDocker(object):
         :param debug: Add the configured debug_port to the docker port mapping.
         :return: a Vespa connection instance.
         """
-        tmp_zip = "tmp_app_package.zip"
-        orig_dir = os.getcwd()
-        zipf = zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED)
-        os.chdir(application_root)  # Workaround to avoid the top-level directory
-        for root, dirs, files in os.walk("."):
-            for file in files:
-                zipf.write(os.path.join(root, file))
-        zipf.close()
-        os.chdir(orig_dir)
-        with open(tmp_zip, "rb") as f:
-            data = f.read()
-        os.remove(tmp_zip)
+        data = self.read_app_package_from_disk(application_root)
         return self._deploy_data(ApplicationPackage(name=application_name), data, debug)
 
     def _deploy_data(self, application: ApplicationPackage, data, debug: bool) -> Vespa:
@@ -348,7 +360,7 @@ class VespaDocker(object):
         )
 
 
-class VespaCloud(object):
+class VespaCloud(VespaDeployment):
     def __init__(
         self,
         tenant: str,
@@ -639,7 +651,7 @@ class VespaCloud(object):
                 file=self.output,
             )
 
-    def deploy_from_disk(self, instance: str, application_root: str) -> Vespa:
+    def deploy_from_disk(self, instance: str, application_root: Path) -> Vespa:
         """
         Deploy from a directory tree.
         Used when making changes to application package files not supported by pyvespa.
@@ -649,25 +661,13 @@ class VespaCloud(object):
         :return: a Vespa connection instance.
         """
 
-        # Create zip from application package folder
-        tmp_zip = "tmp_app_package.zip"
-        orig_dir = os.getcwd()
-        zipf = zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED)
-        os.chdir(application_root)  # Workaround to avoid the top-level directory
-        for root, dirs, files in os.walk("."):
-            for file in files:
-                zipf.write(os.path.join(root, file))
-        zipf.close()
-        os.chdir(orig_dir)
-        with open(tmp_zip, "rb") as f:
-            data = f.read()
-        os.remove(tmp_zip)
+        data = BytesIO(self.read_app_package_from_disk(application_root))
 
         # Deploy the zipped application package
         disk_folder = os.path.join(os.getcwd(), self.application_package.name)
         region = self._get_dev_region()
         job = "dev-" + region
-        run = self._start_deployment(instance, job, disk_folder, application_zip_bytes=BytesIO(data))
+        run = self._start_deployment(instance, job, disk_folder, application_zip_bytes=data)
         self._follow_deployment(instance, job, run)
         endpoint_url = self._get_endpoint(instance=instance, region=region)
         app = Vespa(
