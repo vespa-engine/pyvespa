@@ -223,8 +223,7 @@ class Vespa(object):
                 response = requests.get(endpoint, cert=(self.cert, self.key))
             else:
                 response = requests.get(endpoint, cert=self.cert)
-        except ConnectionError as e:
-            print(f"ConnectionError: {e}")
+        except ConnectionError:
             response = None
 
         return response
