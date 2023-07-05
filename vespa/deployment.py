@@ -562,8 +562,7 @@ class VespaCloud(VespaDeployment):
             return private_key, cert
         else:
             # Existing cert/key not found in ~/.vespa; create custom
-            print(
-                f"Certificate and key not found in {local_vespa_dir} or {home_vespa_dir}: Creating new cert/key pair.")
+            print(f"Certificate and key not found in {local_vespa_dir} or {home_vespa_dir}: Creating new cert/key pair.")
             print(f"Warning: This behavior is deprecated. Please generate a cert/key pair with 'vespa auth cert'.\n")
             self.private_cert_file_name = "private_cert.txt"
             return self._create_certificate_pair()
@@ -588,9 +587,6 @@ class VespaCloud(VespaDeployment):
             self, key: ec.EllipticCurvePrivateKey, cert: x509.Certificate, disk_folder: str
     ) -> None:
         cert_file = os.path.join(disk_folder, self.private_cert_file_name)
-        print(f"{key = }")
-        print(f"{cert = }")
-
         with open(cert_file, "w+") as file:
             file.write(
                 key.private_bytes(
