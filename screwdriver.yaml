@@ -2,6 +2,8 @@
 
 shared:
   image: quay.io/centos/centos:stream8
+  annotations:
+    screwdriver.cd/restrictPR: fork
   environment:
     PYVESPA_VERSION: 0.7
 jobs:
