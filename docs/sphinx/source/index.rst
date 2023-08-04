@@ -14,10 +14,10 @@ Vespa python API
    :hidden:
 
    getting-started-pyvespa
+   getting-started-pyvespa-cloud
    application-packages
    query
    deploy-docker
-   deploy-vespa-cloud
    exchange-data-with-app
    reference-api
    troubleshooting
@@ -73,4 +73,4 @@ minimum memory requirement is 4 Gb unless other documented:
 
     $ docker info | grep "Total Memory"
 
-One can also use :doc:`Vespa Cloud <deploy-vespa-cloud>` to run the notebooks.
+One can also use :doc:`Vespa Cloud <getting-started-pyvespa-cloud>` to run the notebooks.
