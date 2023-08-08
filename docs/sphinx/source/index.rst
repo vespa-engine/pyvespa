@@ -17,7 +17,6 @@ Vespa python API
    getting-started-pyvespa-cloud
    application-packages
    query
-   deploy-docker
    exchange-data-with-app
    reference-api
    troubleshooting
