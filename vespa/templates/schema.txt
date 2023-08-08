@@ -253,6 +253,13 @@ schema {{ schema_name }} {
         {% endfor %}
         }
         {% endif %}
+        {% if value.match_features %}
+        match-features {
+        {% for feature in value.match_features %}
+            {{ feature }}
+        {% endfor %}
+        }
+        {% endif %}
         {% if value.weight %}
         {% for weight in value.weight %}
         weight {{ weight.0 }}: {{ weight.1 }}
