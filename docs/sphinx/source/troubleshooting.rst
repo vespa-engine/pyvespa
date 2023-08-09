@@ -66,7 +66,7 @@ Future pyvespa versions might throw an exception in these cases.
 See `Feed block <https://docs.vespa.ai/en/operations/feed-block.html>`__ -
 Vespa stops writes before the disk goes full.
 Add more disk / clean up, or follow the
-`example <https://pyvespa.readthedocs.io/en/latest/application-packages.html#Example:-configure-max-disk-usage>`__
+`example <https://pyvespa.readthedocs.io/en/latest/application-packages.html#Deploy-from-modified-files>`__
 to reconfigure for higher usage.
 
 
