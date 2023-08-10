@@ -2,14 +2,30 @@
 
 import json
 import unittest
+
+import pandas
 import pytest
 from unittest.mock import PropertyMock, patch
 from pandas import DataFrame
 from requests.models import HTTPError, Response
 
 from vespa.package import ApplicationPackage, Schema, Document
-from vespa.application import Vespa, parse_feed_df, raise_for_status
+from vespa.application import Vespa, parse_feed_df, df_to_vespafeed, raise_for_status
 from vespa.exceptions import VespaError
+
+
+def test_df_to_vespafeed():
+    df = pandas.DataFrame({
+        "id": [0, 1, 2],
+        "body": ["body 1", "body 2", "body 3"]
+    })
+    feed = json.loads(df_to_vespafeed(df, "myschema", "id"))
+
+    assert feed[1]["fields"]["body"] == "body 2"
+    assert feed[0]["id"] == "id:myschema:myschema::0"
+
+    feed = json.loads(df_to_vespafeed(df, "myschema", "id", "mynamespace"))
+    assert feed[2]["id"] == "id:mynamespace:myschema::2"
 
 
 class TestVespa(unittest.TestCase):

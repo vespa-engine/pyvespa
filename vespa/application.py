@@ -5,6 +5,7 @@ import ssl
 import aiohttp
 import asyncio
 import concurrent.futures
+import json
 from collections import Counter
 from typing import Any, Optional, Dict, List, IO
 
@@ -30,13 +31,14 @@ retry_strategy = Retry(
 )
 
 
-def parse_feed_df(df: DataFrame, include_id: bool, id_field="id") -> List[Dict[str, Any]]:
+def parse_feed_df(df: DataFrame, include_id: bool, id_field="id", id_prefix="") -> List[Dict[str, Any]]:
     """
     Convert a df into batch format for feeding
 
     :param df: DataFrame with the following required columns ["id"]. Additional columns are assumed to be fields.
     :param include_id: Include id on the fields to be fed.
     :param id_field: Name of the column containing the id field.
+    :param id_prefix: Add a string prefix to ID field, e.g. "id:namespace:schema::"
     :return: List of Dict containing 'id' and 'fields'.
     """
     required_columns = [id_field]
@@ -46,7 +48,7 @@ def parse_feed_df(df: DataFrame, include_id: bool, id_field="id") -> List[Dict[s
     records = df.to_dict(orient="records")
     batch = [
         {
-            "id": record[id_field],
+            "id": record[id_field] if id_prefix == "" else id_prefix + str(record[id_field]),
             "fields": record
             if include_id
             else {k: v for k, v in record.items() if k not in [id_field]},
@@ -54,6 +56,21 @@ def parse_feed_df(df: DataFrame, include_id: bool, id_field="id") -> List[Dict[s
         for record in records
     ]
     return batch
+
+
+def df_to_vespafeed(df: DataFrame, schema_name: str, id_field="id", namespace="") -> str:
+    """
+    Convert a df into a string in Vespa JSON feed format,
+    see https://docs.vespa.ai/en/reference/document-json-format.html
+
+    :param df: DataFrame with the following required columns ["id"]. Additional columns are assumed to be fields.
+    :param schema_name: Schema name
+    :param id_field: Name of the column containing the id field.
+    :param namespace: Set if namespace != schema_name
+    :return: JSON string in Vespa feed format
+    """
+    return json.dumps(parse_feed_df(df, True, id_field,
+                                    "id:{}:{}::".format(schema_name if namespace == "" else namespace, schema_name)))
 
 
 def raise_for_status(response: Response) -> None:
@@ -418,7 +435,7 @@ class Vespa(object):
         :return: List of HTTP POST responses
         """
         mini_batches = [
-            batch[i : i + batch_size] for i in range(0, len(batch), batch_size)
+            batch[i: i + batch_size] for i in range(0, len(batch), batch_size)
         ]
         batch_http_responses = []
         for idx, mini_batch in enumerate(mini_batches):
