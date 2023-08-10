@@ -33,7 +33,7 @@ retry_strategy = Retry(
 
 def parse_feed_df(df: DataFrame, include_id: bool, id_field="id", id_prefix="") -> List[Dict[str, Any]]:
     """
-    Convert a df into batch format for feeding
+    Convert a DataFrame into batch format for feeding
 
     :param df: DataFrame with the following required columns ["id"]. Additional columns are assumed to be fields.
     :param include_id: Include id on the fields to be fed.
@@ -60,7 +60,7 @@ def parse_feed_df(df: DataFrame, include_id: bool, id_field="id", id_prefix="") 
 
 def df_to_vespafeed(df: DataFrame, schema_name: str, id_field="id", namespace="") -> str:
     """
-    Convert a df into a string in Vespa JSON feed format,
+    Convert a DataFrame into a string in Vespa JSON feed format,
     see https://docs.vespa.ai/en/reference/document-json-format.html
 
     :param df: DataFrame with the following required columns ["id"]. Additional columns are assumed to be fields.
