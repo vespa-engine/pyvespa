@@ -91,3 +91,12 @@ Vespa
 .. autoclass:: vespa.application.Vespa
    :members:
    :special-members: __init__
+
+
+Utility functions
+*****************
+.. autofunction:: vespa.application.parse_feed_df
+
+.. autofunction:: vespa.application.df_to_vespafeed
+
+.. autofunction:: vespa.application.raise_for_status
