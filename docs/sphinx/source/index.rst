@@ -17,7 +17,7 @@ Vespa python API
    getting-started-pyvespa-cloud
    application-packages
    query
-   exchange-data-with-app
+   reads-writes
    reference-api
    troubleshooting
    examples
