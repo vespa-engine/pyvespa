@@ -2,6 +2,111 @@ Reference API
 =============
 
 
+
+#################
+vespa.application
+#################
+
+Vespa
+*****
+.. autoclass:: vespa.application.Vespa
+   :members:
+   :special-members: __init__
+
+
+VespaSync
+*********
+.. autoclass:: vespa.application.VespaSync
+   :members:
+   :special-members: __init__
+
+
+VespaAsync
+**********
+.. autoclass:: vespa.application.VespaAsync
+   :members:
+   :special-members: __init__
+
+
+Utility functions
+*****************
+.. autofunction:: vespa.application.parse_feed_df
+
+.. autofunction:: vespa.application.df_to_vespafeed
+
+.. autofunction:: vespa.application.raise_for_status
+
+
+
+################
+vespa.deployment
+################
+
+
+VespaDeployment
+***************
+.. autoclass:: vespa.deployment.VespaDeployment
+   :members:
+   :special-members: __init__
+
+
+VespaDocker
+***********
+.. autoclass:: vespa.deployment.VespaDocker
+   :members:
+   :special-members: __init__
+
+
+VespaCloud
+**********
+.. autoclass:: vespa.deployment.VespaCloud
+   :members:
+   :special-members: __init__
+
+
+
+################
+vespa.exceptions
+################
+
+
+VespaError
+******************
+.. autoclass:: vespa.exceptions.VespaError
+   :members:
+   :special-members: __init__
+
+
+
+########
+vespa.io
+########
+
+
+VespaQueryResponse
+******************
+.. autoclass:: vespa.io.VespaQueryResponse
+   :members:
+   :special-members: __init__
+
+
+VespaResponse
+*************
+.. autoclass:: vespa.io.VespaResponse
+   :members:
+   :special-members: __init__
+
+
+Utility functions
+*****************
+.. autofunction:: vespa.io.trec_format
+
+
+
+#############
+vespa.package
+#############
+
 ApplicationPackage
 ******************
 .. autoclass:: vespa.package.ApplicationPackage
@@ -9,9 +114,9 @@ ApplicationPackage
    :special-members: __init__
 
 
-Schema
-******
-.. autoclass:: vespa.package.Schema
+ApplicationConfiguration
+************************
+.. autoclass:: vespa.package.ApplicationConfiguration
    :members:
    :special-members: __init__
 
@@ -19,6 +124,13 @@ Schema
 Document
 ********
 .. autoclass:: vespa.package.Document
+   :members:
+   :special-members: __init__
+
+
+DocumentSummary
+***************
+.. autoclass:: vespa.package.DocumentSummary
    :members:
    :special-members: __init__
 
@@ -37,9 +149,37 @@ FieldSet
    :special-members: __init__
 
 
-RankProfile
-***********
-.. autoclass:: vespa.package.RankProfile
+FirstPhaseRanking
+*****************
+.. autoclass:: vespa.package.FirstPhaseRanking
+   :members:
+   :special-members: __init__
+
+
+Function
+********
+.. autoclass:: vespa.package.Function
+   :members:
+   :special-members: __init__
+
+
+HNSW
+****
+.. autoclass:: vespa.package.HNSW
+   :members:
+   :special-members: __init__
+
+
+ImportedField
+*************
+.. autoclass:: vespa.package.ImportedField
+   :members:
+   :special-members: __init__
+
+
+OnnxModel
+*********
+.. autoclass:: vespa.package.OnnxModel
    :members:
    :special-members: __init__
 
@@ -72,31 +212,50 @@ QueryTypeField
    :special-members: __init__
 
 
-VespaDocker
+RankProfile
 ***********
-.. autoclass:: vespa.deployment.VespaDocker
+.. autoclass:: vespa.package.RankProfile
    :members:
    :special-members: __init__
 
 
-VespaCloud
+Schema
+******
+.. autoclass:: vespa.package.Schema
+   :members:
+   :special-members: __init__
+
+
+SecondPhaseRanking
+******************
+.. autoclass:: vespa.package.SecondPhaseRanking
+   :members:
+   :special-members: __init__
+
+
+Struct
+******
+.. autoclass:: vespa.package.Struct
+   :members:
+   :special-members: __init__
+
+
+StructField
+***********
+.. autoclass:: vespa.package.StructField
+   :members:
+   :special-members: __init__
+
+
+Summary
+*******
+.. autoclass:: vespa.package.Summary
+   :members:
+   :special-members: __init__
+
+
+Validation
 **********
-.. autoclass:: vespa.deployment.VespaCloud
+.. autoclass:: vespa.package.Validation
    :members:
    :special-members: __init__
-
-
-Vespa
-*****
-.. autoclass:: vespa.application.Vespa
-   :members:
-   :special-members: __init__
-
-
-Utility functions
-*****************
-.. autofunction:: vespa.application.parse_feed_df
-
-.. autofunction:: vespa.application.df_to_vespafeed
-
-.. autofunction:: vespa.application.raise_for_status

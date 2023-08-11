@@ -29,9 +29,13 @@ class Summary(object):
         """
         Configures a summary Field.
 
-        :param name: Name of the summary field, can be None if used inside a Field, which then uses the name of the Field.
-        :param type: Type of the summary field, can be None if used inside a Field, which then uses the type of the Field.
-        :param fields: List of properties used to configure the summary, can be single properties (like "summary: dynamic", common in Field), or composite values (like "source: another_field")
+        :param name: Name of the summary field, can be None if used inside a Field,
+            which then uses the name of the Field.
+        :param type: Type of the summary field, can be None if used inside a Field,
+            which then uses the type of the Field.
+        :param fields: List of properties used to configure the summary,
+            can be single properties (like "summary: dynamic", common in Field),
+            or composite values (like "source: another_field")
 
         >>> Summary(None, None, ["dynamic"])
         Summary(None, None, ['dynamic'])
@@ -155,7 +159,8 @@ class HNSW(object):
         """
         Configure Vespa HNSW indexes
 
-        :param distance_metric: Distance metric to use when computing distance between vectors. Default is 'euclidean'.
+        :param distance_metric: Distance metric to use when computing distance between vectors.
+            Default is 'euclidean'.
         :param max_links_per_node: Specifies how many links per HNSW node to select when building the graph.
             Default is 16.
         :param neighbors_to_explore_at_insert: Specifies how many neighbors to explore when inserting a document in
@@ -501,7 +506,7 @@ class ImportedField(object):
         """
         Imported field from a reference document.
 
-        Useful to implement `parent/child relationships <https://docs.vespa.ai/en/parent-child.html>`.
+        Useful to implement `parent/child relationships <https://docs.vespa.ai/en/parent-child.html>`__.
 
         :param name: Field name.
         :param reference_field: field of type reference that points to the document that contains the field to be
@@ -545,6 +550,7 @@ class Struct(object):
         A struct defines a composite type. Check the `Vespa documentation
         <https://docs.vespa.ai/en/reference/schema-reference.html#struct>`__
         for more detailed information about structs.
+
         :param name: Name of the struct
         :param fields: Field names to be included in the fieldset
 
@@ -589,6 +595,7 @@ class DocumentSummary(object):
         Create a Document Summary.
         Check the `Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#document-summary>`__
         for more detailed information about documment-summary.
+
         :param name: Name of the document-summary.
         :param inherits: Name of another document-summary from which this inherits from.
         :param summary_fields: List of summaries used in this document-summary.
@@ -772,9 +779,9 @@ class Function(object):
         r"""
         Create a Vespa rank function.
 
-        Define a named function that can be referenced as a part of the ranking expression, or (if having no arguments)
-        as a feature. Check the
-        `Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#function-rank>`__`
+        Define a named function that can be referenced as a part of the ranking expression,
+        or (if having no arguments) as a feature.
+        Check the `Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#function-rank>`__
         for more detailed information about rank functions.
 
         :param name: Name of the function.
@@ -840,16 +847,18 @@ class FirstPhaseRanking:
         r"""
         Create a Vespa first phase ranking configuration.
 
-        This is the initial ranking performed on all matching documents. Check the `Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#firstphase-rank>`__`
+        This is the initial ranking performed on all matching documents.
+        Check the `Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#firstphase-rank>`__
         for more detailed information about first phase ranking configuration.
 
 
         :param expression: Specify the ranking expression to be used for first phase of ranking. Check also the
-            `Vespa documentation <https://docs.vespa.ai/en/reference/ranking-expressions.html>`__`
+            `Vespa documentation <https://docs.vespa.ai/en/reference/ranking-expressions.html>`__
             for ranking expression.
 
         :param keep_rank_count: How many documents to keep the first phase top rank values for. Default value is 10000.
-        :param rank_score_drop_limit: Drop all hits with a first phase rank score less than or equal to this floating point number.
+        :param rank_score_drop_limit: Drop all hits with a first phase rank score less than or equal
+            to this floating point number.
 
         >>> FirstPhaseRanking("myFeature * 10")
         FirstPhaseRanking('myFeature * 10', None, None)
@@ -884,11 +893,11 @@ class SecondPhaseRanking(object):
         Create a Vespa second phase ranking configuration.
 
         This is the optional reranking performed on the best hits from the first phase. Check the
-        `Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#secondphase-rank>`__`
+        `Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#secondphase-rank>`__
         for more detailed information about second phase ranking configuration.
 
         :param expression: Specify the ranking expression to be used for second phase of ranking. Check also the
-            `Vespa documentation <https://docs.vespa.ai/en/reference/ranking-expressions.html>`__`
+            `Vespa documentation <https://docs.vespa.ai/en/reference/ranking-expressions.html>`__
             for ranking expression.
         :param rerank_count: Specifies the number of hits to be reranked in the second phase. Default value is 100.
 
@@ -951,29 +960,29 @@ class RankProfile(object):
 
         :param name: Rank profile name.
         :param first_phase: The config specifying the first phase of ranking.
-            `More info <https://docs.vespa.ai/en/reference/schema-reference.html#firstphase-rank>`__`
+            `More info <https://docs.vespa.ai/en/reference/schema-reference.html#firstphase-rank>`__
             about first phase ranking.
         :param inherits: The inherits attribute is optional. If defined, it contains the name of one other
             rank profile in the same schema. Values not defined in this rank profile will then be inherited.
         :param constants: Dict of constants available in ranking expressions, resolved and optimized at
             configuration time.
-            `More info <https://docs.vespa.ai/en/reference/schema-reference.html#constants>`__`
+            `More info <https://docs.vespa.ai/en/reference/schema-reference.html#constants>`__
             about constants.
         :param functions: Optional list of :class:`Function` representing rank functions to be included in the rank
             profile.
         :param summary_features: List of rank features to be included with each hit.
-            `More info <https://docs.vespa.ai/en/reference/schema-reference.html#summary-features>`__`
+            `More info <https://docs.vespa.ai/en/reference/schema-reference.html#summary-features>`__
             about summary features.
         :param match_features: List of rank features to be included with each hit.
-            `More info <https://docs.vespa.ai/en/reference/schema-reference.html#match-features>`__`
+            `More info <https://docs.vespa.ai/en/reference/schema-reference.html#match-features>`__
             about match features.
         :param second_phase: Optional config specifying the second phase of ranking.
             See :class:`SecondPhaseRanking`.
         :key weight: A list of tuples containing the field and their weight
         :key rank_type: A list of tuples containing a field and the rank-type-name.
-            `More info <https://docs.vespa.ai/en/reference/schema-reference.html#rank-type>`__` about rank-type.
+            `More info <https://docs.vespa.ai/en/reference/schema-reference.html#rank-type>`__ about rank-type.
         :key rank_properties: A list of tuples containing a field and its configuration.
-            `More info <https://docs.vespa.ai/en/reference/schema-reference.html#rank-properties>`__` about rank-properties.
+            `More info <https://docs.vespa.ai/en/reference/schema-reference.html#rank-properties>`__ about rank-properties.
 
         >>> RankProfile(name = "default", first_phase = "nativeRank(title, body)")
         RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None)
@@ -1099,7 +1108,7 @@ class OnnxModel(object):
 
         Vespa has support for advanced ranking models through it’s tensor API. If you have your model in the ONNX
         format, Vespa can import the models and use them directly. Check the
-        `Vespa documentation <https://docs.vespa.ai/en/onnx.html>`__`
+        `Vespa documentation <https://docs.vespa.ai/en/onnx.html>`__
         for more detailed information about field sets.
 
         :param model_name: Unique model name to use as id when referencing the model.
@@ -1243,6 +1252,7 @@ class Schema(object):
     def add_model(self, model: OnnxModel) -> None:
         """
         Add a :class:`OnnxModel` to the Schema.
+
         :param model: model to be added.
         :return: None.
         """
@@ -1508,6 +1518,7 @@ class ApplicationConfiguration(object):
         :param value: Either a string or a Dict (it may be a nested dict) of values.
 
         Example:
+
         >>> ApplicationConfiguration(
         ...     name="container.handler.observability.application-userdata",
         ...     value={"version": "my-version"}
@@ -1593,20 +1604,22 @@ class Validation(object):
         self,
         validation_id: Union[ValidationID, str],
         until: str,
-        comment: Optional[str] = None,
+        comment: Optional[str] = None
     ):
         r"""
-        Represents a validation to be be overridden on application.
+        Represents a validation to be overridden on application.
 
-        Check the `Vespa documentation <https://docs.vespa.ai/en/reference/validation-overrides.html>`__`
+        Check the `Vespa documentation <https://docs.vespa.ai/en/reference/validation-overrides.html>`__
         for more detailed information about validations.
 
         :param validation_id: ID of the validation.
         :param until: The last day this change is allowed, as a ISO-8601-format date in UTC, e.g. 2016-01-30.
-        Dates may at most be 30 days in the future, but should be as close to now as possible for safety,
-        while allowing time for review and propagation to all deployed zones. allow-tags with dates in the past are ignored.
+            Dates may at most be 30 days in the future, but should be as close to now as possible for safety,
+            while allowing time for review and propagation to all deployed zones. allow-tags with dates in the past are
+            ignored.
         :param comment: Optional text explaining the reason for the change to humans.
         """
+
         if isinstance(validation_id, ValidationID):
             self.id = validation_id.value
         else:
