@@ -20,22 +20,22 @@
 {"update": "id:pyvespa-p:paragraph::pyvespa/getting-started-pyvespa-cloud.html-deploy-to-vespa-cloud", "fields": {"questions": {"assign": ["What is Vespa.ai?", "What are tenants and instances?", "How do I deploy an instance?", "How can I interact with my application?", "What is Sphinx used for?", "What organization owns Vespa.ai?"]}}}
 {"update": "id:pyvespa-p:paragraph::pyvespa/examples.html-", "fields": {"questions": {"assign": ["What examples are included in pyvespa?", "How can I exchange data with pyvespa applications?"]}}}
 {"update": "id:pyvespa-p:paragraph::pyvespa/examples.html-examples", "fields": {"questions": {"assign": ["How do I create and deploy the application for question answering?"]}}}
-{"update": "id:pyvespa-p:paragraph::pyvespa/exchange-data-with-app.html-", "fields": {"questions": {"assign": ["How to feed data?", "How to get data?", "How to update data?", "How to delete data?"]}}}
-{"update": "id:pyvespa-p:paragraph::pyvespa/exchange-data-with-app.html-exchange-data-with-applications", "fields": {"questions": {"assign": ["How to get data?", "How to update data?", "How to delete data?", "How to deploy a sample test application?", "What is sentence_embedding?"]}}}
-{"update": "id:pyvespa-p:paragraph::pyvespa/exchange-data-with-app.html-feed-data", "fields": {"questions": {"assign": ["Can data be fed in batches?"]}}}
-{"update": "id:pyvespa-p:paragraph::pyvespa/exchange-data-with-app.html-synchronous", "fields": {"questions": {"assign": ["What is synchronous feeding?", "What is data_id?"]}}}
-{"update": "id:pyvespa-p:paragraph::pyvespa/exchange-data-with-app.html-asynchronous", "fields": {"questions": {"assign": ["What does app.asyncio() return?", "What does async with guarantee?", "How do you use asyncio constructs?"]}}}
-{"update": "id:pyvespa-p:paragraph::pyvespa/exchange-data-with-app.html-get-data", "fields": {"questions": {"assign": ["What is the similarity between feeding and getting data?"]}}}
-{"update": "id:pyvespa-p:paragraph::pyvespa/exchange-data-with-app.html-batch", "fields": {"questions": {"assign": ["How do we prepare data?"]}}}
-{"update": "id:pyvespa-p:paragraph::pyvespa/exchange-data-with-app.html-individual-data-points", "fields": {"questions": {"assign": ["What is synchronous data?", "What is asynchronous data?"]}}}
-{"update": "id:pyvespa-p:paragraph::pyvespa/exchange-data-with-app.html-asynchronous", "fields": {"questions": {"assign": ["What is the purpose of app.asyncio()?"]}}}
-{"update": "id:pyvespa-p:paragraph::pyvespa/exchange-data-with-app.html-update-data", "fields": {"questions": {"assign": ["What is data feeding?", "How do you update data?"]}}}
-{"update": "id:pyvespa-p:paragraph::pyvespa/exchange-data-with-app.html-individual-data-points", "fields": {"questions": {"assign": ["Can data points be updated asynchronously?", "Can data points be updated synchronously?"]}}}
-{"update": "id:pyvespa-p:paragraph::pyvespa/exchange-data-with-app.html-synchronous", "fields": {"questions": {"assign": ["What is data_id?"]}}}
-{"update": "id:pyvespa-p:paragraph::pyvespa/exchange-data-with-app.html-delete-data", "fields": {"questions": {"assign": ["What can be deleted in batches?", "What is individual data deletion?"]}}}
-{"update": "id:pyvespa-p:paragraph::pyvespa/exchange-data-with-app.html-batch", "fields": {"questions": {"assign": ["How to delete batch in Vespa?"]}}}
-{"update": "id:pyvespa-p:paragraph::pyvespa/exchange-data-with-app.html-individual-data-points", "fields": {"questions": {"assign": ["How can data points be deleted?", "What is synchronous deletion?", "What is asynchronous deletion?"]}}}
-{"update": "id:pyvespa-p:paragraph::pyvespa/exchange-data-with-app.html-synchronous", "fields": {"questions": {"assign": ["What does app.delete_data do?", "What data is being deleted?", "How to delete data with Vespa.ai?"]}}}
+{"update": "id:pyvespa-p:paragraph::pyvespa/reads-writes.html-", "fields": {"questions": {"assign": ["How to feed data?", "How to get data?", "How to update data?", "How to delete data?"]}}}
+{"update": "id:pyvespa-p:paragraph::pyvespa/reads-writes.html-exchange-data-with-applications", "fields": {"questions": {"assign": ["How to get data?", "How to update data?", "How to delete data?", "How to deploy a sample test application?", "What is sentence_embedding?"]}}}
+{"update": "id:pyvespa-p:paragraph::pyvespa/reads-writes.html-feed-data", "fields": {"questions": {"assign": ["Can data be fed in batches?"]}}}
+{"update": "id:pyvespa-p:paragraph::pyvespa/reads-writes.html-synchronous", "fields": {"questions": {"assign": ["What is synchronous feeding?", "What is data_id?"]}}}
+{"update": "id:pyvespa-p:paragraph::pyvespa/reads-writes.html-asynchronous", "fields": {"questions": {"assign": ["What does app.asyncio() return?", "What does async with guarantee?", "How do you use asyncio constructs?"]}}}
+{"update": "id:pyvespa-p:paragraph::pyvespa/reads-writes.html-get-data", "fields": {"questions": {"assign": ["What is the similarity between feeding and getting data?"]}}}
+{"update": "id:pyvespa-p:paragraph::pyvespa/reads-writes.html-batch", "fields": {"questions": {"assign": ["How do we prepare data?"]}}}
+{"update": "id:pyvespa-p:paragraph::pyvespa/reads-writes.html-individual-data-points", "fields": {"questions": {"assign": ["What is synchronous data?", "What is asynchronous data?"]}}}
+{"update": "id:pyvespa-p:paragraph::pyvespa/reads-writes.html-asynchronous", "fields": {"questions": {"assign": ["What is the purpose of app.asyncio()?"]}}}
+{"update": "id:pyvespa-p:paragraph::pyvespa/reads-writes.html-update-data", "fields": {"questions": {"assign": ["What is data feeding?", "How do you update data?"]}}}
+{"update": "id:pyvespa-p:paragraph::pyvespa/reads-writes.html-individual-data-points", "fields": {"questions": {"assign": ["Can data points be updated asynchronously?", "Can data points be updated synchronously?"]}}}
+{"update": "id:pyvespa-p:paragraph::pyvespa/reads-writes.html-synchronous", "fields": {"questions": {"assign": ["What is data_id?"]}}}
+{"update": "id:pyvespa-p:paragraph::pyvespa/reads-writes.html-delete-data", "fields": {"questions": {"assign": ["What can be deleted in batches?", "What is individual data deletion?"]}}}
+{"update": "id:pyvespa-p:paragraph::pyvespa/reads-writes.html-batch", "fields": {"questions": {"assign": ["How to delete batch in Vespa?"]}}}
+{"update": "id:pyvespa-p:paragraph::pyvespa/reads-writes.html-individual-data-points", "fields": {"questions": {"assign": ["How can data points be deleted?", "What is synchronous deletion?", "What is asynchronous deletion?"]}}}
+{"update": "id:pyvespa-p:paragraph::pyvespa/reads-writes.html-synchronous", "fields": {"questions": {"assign": ["What does app.delete_data do?", "What data is being deleted?", "How to delete data with Vespa.ai?"]}}}
 {"update": "id:pyvespa-p:paragraph::pyvespa/genindex.html-%5C_", "fields": {"questions": {"assign": ["What is VespaCloud?", "What is FieldSet?", "What is QueryField?", "What is QueryProfile?", "What is QueryTypeField?"]}}}
 {"update": "id:pyvespa-p:paragraph::pyvespa/genindex.html-d", "fields": {"questions": {"assign": ["What methods are available for deleting documents?", "What method can be used for deployment?"]}}}
 {"update": "id:pyvespa-p:paragraph::pyvespa/genindex.html-f", "fields": {"questions": {"assign": ["What is feed_batch?", "What is feed_data_point?", "What is FieldSet?", "What does from_container_name_or_id do?"]}}}
