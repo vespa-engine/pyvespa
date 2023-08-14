@@ -33,6 +33,8 @@ jobs:
       run: |
         sphinx-build -E -D nbsphinx_allow_errors=True -b html docs/sphinx/source docs/sphinx/build
         find docs/sphinx/build/ -name \*.html | while read f; do (echo -e "---\n---\n"; cat ${f})>${f}.new; mv ${f}.new ${f}; done
+        # Strip jekyll liquid macros
+        sed -i.orig  's/{%/{ %/g; s/%}/% }/g; s/{{/{ {/g; s/}}/} }/g' docs/sphinx/build/*.html ; rm docs/sphinx/build/*.orig
         bundle exec jekyll build -s docs/sphinx/build/ -p _plugins-vespafeed --config _config.yml
 
     - name: Install dependencies
