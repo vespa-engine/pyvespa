@@ -154,6 +154,7 @@ class VespaDocker(VespaDeployment):
     ) -> Vespa:
         """
         Deploy the application package into a Vespa container.
+
         :param application_package: ApplicationPackage to be deployed.
         :param debug: Add the configured debug_port to the docker port mapping.
         :return: a Vespa connection instance.
@@ -479,6 +480,7 @@ class VespaCloud(VespaDeployment):
     def delete(self, instance: str) -> None:
         """
         Delete the specified instance from the dev environment in the Vespa Cloud.
+
         :param instance: Name of the instance to delete.
         :return:
         """
