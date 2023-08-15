@@ -18,6 +18,8 @@ else:
     # Older versions of Python have Unpack in typing_extensions
     from typing_extensions import Unpack
 
+IndexType = Literal["index", "attribute", "summary"]
+
 
 class Summary(object):
     def __init__(
@@ -152,12 +154,20 @@ class Summary(object):
 class HNSW(object):
     def __init__(
         self,
-        distance_metric="euclidean",
+        distance_metric: Literal[
+            "euclidean",
+            "angular",
+            "dotproduct",
+            "prenormalized-angular",
+            "hamming",
+            "geodegrees",
+        ] = "euclidean",
         max_links_per_node=16,
         neighbors_to_explore_at_insert=200,
     ):
         """
         Configure Vespa HNSW indexes
+        Check the `Vespa documentation <https://docs.vespa.ai/en/approximate-nn-hnsw.html>`__
 
         :param distance_metric: Distance metric to use when computing distance between vectors.
             Default is 'euclidean'.
@@ -190,7 +200,7 @@ class HNSW(object):
 
 
 class StructFieldConfiguration(TypedDict, total=False):
-    indexing: List[str]
+    indexing: List[IndexType]
     attribute: List[str]
     match: List[Union[str, Tuple[str, str]]]
     query_command: List[str]
@@ -275,7 +285,7 @@ class StructField:
 
 
 class FieldConfiguration(TypedDict, total=False):
-    indexing: List[str]
+    indexing: List[IndexType]
     attribute: List[str]
     index: str
     ann: HNSW
@@ -294,7 +304,7 @@ class Field(object):
         self,
         name: str,
         type: str,
-        indexing: Optional[List[str]] = None,
+        indexing: Optional[List[IndexType]] = None,
         index: Optional[str] = None,
         attribute: Optional[List[str]] = None,
         ann: Optional[HNSW] = None,
