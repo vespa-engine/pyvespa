@@ -18,8 +18,6 @@ else:
     # Older versions of Python have Unpack in typing_extensions
     from typing_extensions import Unpack
 
-IndexType = Literal["index", "attribute", "summary"]
-
 
 class Summary(object):
     def __init__(
@@ -200,7 +198,7 @@ class HNSW(object):
 
 
 class StructFieldConfiguration(TypedDict, total=False):
-    indexing: List[IndexType]
+    indexing: List[str]
     attribute: List[str]
     match: List[Union[str, Tuple[str, str]]]
     query_command: List[str]
@@ -285,7 +283,7 @@ class StructField:
 
 
 class FieldConfiguration(TypedDict, total=False):
-    indexing: List[IndexType]
+    indexing: List[str]
     attribute: List[str]
     index: str
     ann: HNSW
@@ -304,7 +302,7 @@ class Field(object):
         self,
         name: str,
         type: str,
-        indexing: Optional[List[IndexType]] = None,
+        indexing: Optional[List[str]] = None,
         index: Optional[str] = None,
         attribute: Optional[List[str]] = None,
         ann: Optional[HNSW] = None,
