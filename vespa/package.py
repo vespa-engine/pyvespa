@@ -152,12 +152,20 @@ class Summary(object):
 class HNSW(object):
     def __init__(
         self,
-        distance_metric="euclidean",
+        distance_metric: Literal[
+            "euclidean",
+            "angular",
+            "dotproduct",
+            "prenormalized-angular",
+            "hamming",
+            "geodegrees",
+        ] = "euclidean",
         max_links_per_node=16,
         neighbors_to_explore_at_insert=200,
     ):
         """
         Configure Vespa HNSW indexes
+        Check the `Vespa documentation <https://docs.vespa.ai/en/approximate-nn-hnsw.html>`__
 
         :param distance_metric: Distance metric to use when computing distance between vectors.
             Default is 'euclidean'.
