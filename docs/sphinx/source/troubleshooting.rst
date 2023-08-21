@@ -89,3 +89,10 @@ This is an OS-related issue. There are two options to solve the problem:
 
 2. Increase the open file limit: ``ulimit -n 10000``.
    Check if the limit was increased with ``ulimit -Sn``.
+
+
+
+Data export
+-----------
+``vespa visit`` exports data from Vespa - see `Vespa CLI <https://docs.vespa.ai/en/vespa-cli.html#documents>`__.
+Use this to validate data feeding and troubleshoot query issues.
