@@ -1,4 +1,4 @@
-{% macro field_content(field, indent_level) %}
+{% macro field(field, indent_level) %}
 {% filter indent(indent_level) %}
 
 field {{ field.name }} type {{ field.type }} {

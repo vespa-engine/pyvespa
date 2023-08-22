@@ -873,7 +873,7 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
             Field(
                 name="embedding",
                 type="tensor<bfloat16>(x[384])",
-                document_field=False,
+                is_document_field=False,
                 indexing=["(input title || \"\") . \" \" . (input body || \"\")", "embed embedder", "attribute", "index"],
                 index="hnsw"
             )

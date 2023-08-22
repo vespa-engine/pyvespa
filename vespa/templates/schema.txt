@@ -1,12 +1,12 @@
-{% import 'field.txt' as field_macros %}
+{% import 'macros.txt' as macros %}
 schema {{ schema_name }} {
 {% if stemming %}
     stemming: {{ stemming }}
 {% endif %}
     document {{ document_name }}{% if document.inherits %} inherits {{ document.inherits }}{% endif %} {
     {% for field in document.fields %}
-        {% if field.document_field %}
-{{ field_macros.field_content(field, 8)[1:] }}
+        {% if field.is_document_field %}
+{{ macros.field(field, 8)[1:] }}
         {% endif %}
         {% endfor %}
         {% for struct in document.structs %}
@@ -76,8 +76,8 @@ schema {{ schema_name }} {
         {% endfor %}
     }
 {% for field in document.fields %}
-{% if not field.document_field %}
-{{ field_macros.field_content(field, 4)[1:] }}
+{% if not field.is_document_field %}
+{{ macros.field(field, 4)[1:] }}
 {% endif %}
 {% endfor %}
 {% for key, value in imported_fields.items() %}
