@@ -870,6 +870,13 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
                     neighbors_to_explore_at_insert=200,
                 ),
             ),
+            Field(
+                name="embedding",
+                type="tensor<bfloat16>(x[384])",
+                document_field=False,
+                indexing=["(input title || \"\") . \" \" . (input body || \"\")", "embed embedder", "attribute", "index"],
+                index="hnsw"
+            )
         )
         self.app_package.schema.add_field_set(
             FieldSet(name="default", fields=["title", "body"])
@@ -924,6 +931,10 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
             "                }\n"
             "            }\n"
             "        }\n"
+            "    }\n"
+            "    field embedding type tensor<bfloat16>(x[384]) {\n"
+            "        indexing: (input title || \"\") . \" \" . (input body || \"\") | embed embedder | attribute | index\n"
+            "        index: hnsw\n"
             "    }\n"
             "    fieldset default {\n"
             "        fields: title, body\n"

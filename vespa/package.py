@@ -310,6 +310,7 @@ class Field(object):
         weight: Optional[int] = None,
         bolding: Optional[Literal[True]] = None,
         summary: Optional[Summary] = None,
+        document_field: Optional[bool] = True,
         **kwargs: Unpack[FieldConfiguration],
     ) -> None:
         """
@@ -333,6 +334,7 @@ class Field(object):
         :param weight: Sets the weight of the field, using when calculating Rank Scores.
         :param bolding: Whether to highlight matching query terms in the summary.
         :param summary: Add configuration for summary of the field.
+        :param document_field: Whether the field is a document field or part of the schema. True by default.
         :key stemming: Add configuration for stemming of the field.
         :key rank: Add configuration for ranking calculations of the field.
         :key query_command: Add configuration for query-command of the field.
@@ -424,6 +426,7 @@ class Field(object):
         """
         self.name = name
         self.type = type
+        self.document_field = document_field
         self.indexing = kwargs.get("indexing", indexing)
         self.attribute = kwargs.get("attribute", attribute)
         self.index = kwargs.get("index", index)
@@ -478,6 +481,7 @@ class Field(object):
             and self.weight == other.weight
             and self.bolding == other.bolding
             and self.summary == other.summary
+            and self.document_field == other.document_field
             and self.stemming == other.stemming
             and self.rank == other.rank
             and self.query_command == other.query_command
@@ -497,6 +501,7 @@ class Field(object):
             repr(self.weight),
             repr(self.bolding),
             repr(self.summary),
+            repr(self.document_field),
             repr(self.stemming),
             repr(self.rank),
             repr(self.query_command),
