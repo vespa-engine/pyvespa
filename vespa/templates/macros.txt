@@ -1,0 +1,104 @@
+{% macro field(field, indent_level) %}
+{% filter indent(indent_level) %}
+
+field {{ field.name }} type {{ field.type }} {
+    {% if field.indexing %}
+    indexing: {{ field.indexing_to_text }}
+    {% endif %}
+    {% if field.index %}
+    index: {{ field.index }}
+    {% endif %}
+    {% if field.ann or field.attribute %}
+    attribute {
+        {% if field.ann %}
+        distance-metric: {{ field.ann.distance_metric }}
+        {% endif %}
+        {% if field.attribute %}
+        {% for attribute in field.attribute %}
+        {{ attribute }}
+        {% endfor %}
+        {% endif %}
+    }
+    {% endif %}
+    {% if field.ann %}
+    index {
+        hnsw {
+            max-links-per-node: {{ field.ann.max_links_per_node }}
+            neighbors-to-explore-at-insert: {{ field.ann.neighbors_to_explore_at_insert }}
+        }
+    }
+    {% endif %}
+    {% if field.match %}
+    match {
+        {% for match in field.match %}
+        {% if match is string %}
+        {{ match }}
+        {% else %}
+        {{ match.0 }}: {{ match.1 }}
+        {% endif %}
+        {% endfor %}
+    }
+    {% endif %}
+    {% if field.weight %}
+    weight: {{ field.weight }}
+    {% endif %}
+    {% if field.bolding %}
+    bolding: on
+    {% endif %}
+    {% if field.summary %}
+    {% for line in field.summary.as_lines %}
+    {{ line }}
+    {% endfor %}
+    {% endif %}
+    {% if field.stemming %}
+    stemming: {{ field.stemming }}
+    {% endif %}
+    {% if field.rank %}
+    rank: {{ field.rank }}
+    {% endif %}
+    {% if field.query_command %}
+    {% for qc in field.query_command %}
+    query-command: {{ qc }}
+    {% endfor %}
+    {% endif %}
+    {% if field.struct_fields %}
+    {% for struct_field in field.struct_fields %}
+    struct-field {{ struct_field.name }} {
+        {% if struct_field.indexing %}
+        indexing: {{ struct_field.indexing_to_text }}
+        {% endif %}
+        {% if struct_field.attribute %}
+        attribute {
+            {% for attribute in struct_field.attribute %}
+            {{ attribute }}
+            {% endfor %}
+        }
+        {% endif %}
+        {% if struct_field.match %}
+        match {
+            {% for match in struct_field.match %}
+            {% if match is string %}
+            {{ match }}
+            {% else %}
+            {{ match.0 }}: {{ match.1 }}
+            {% endif %}
+            {% endfor %}
+        }
+        {% endif %}
+        {% if field.query_command %}
+        {% for qc in field.query_command %}
+        query-command: {{ qc }}
+        {% endfor %}
+        {% endif %}
+        {% if struct_field.summary %}
+        summary {% if struct_field.summary.name %}{{struct_field.summary.name}}{% endif %}{% if struct_field.summary.type %} type {{ struct_field.summary.type }} {% endif %}{
+            {% for field in struct_field.summary.attributes_as_string_list %}
+            {{ field }}
+            {% endfor %}
+        }
+        {% endif %}
+    }
+    {% endfor %}
+    {% endif %}
+}{% endfilter %}
+{% endmacro %}
