@@ -5,6 +5,9 @@ import os
 import sys
 import zipfile
 
+import xml.etree.ElementTree as ET
+import xml.dom.minidom as minidom
+
 from pathlib import Path
 from shutil import copyfile
 from typing import List, Literal, Optional, Tuple, TypedDict, Union, Dict
@@ -1561,6 +1564,99 @@ class ApplicationConfiguration(object):
         return f"<config name=\"{self.name}\">{value}</config>"
 
 
+class Parameter(object):
+    def __init__(self,
+        name: str,
+        args: Optional[Dict[str, str]] = None,
+        children: Optional[Union[str, List["Parameter"]]] = None,
+        ) -> None:
+        """
+        Create a Vespa Component configuration parameter.
+
+        :param name: Parameter name.
+        :param args: Parameter arguments.
+        :param children: Parameter children. Can be either a string or a list of :class:`Parameter` for nested configs.
+        """
+        self.name = name
+        self.args = args
+        self.children = children
+
+    def to_xml(self, root) -> ET.Element:
+        xml = ET.SubElement(root, self.name)
+        [xml.set(k, v) for k,v in self.args.items()]
+        if self.children:
+            if isinstance(self.children, str):
+                xml.text = self.children
+            elif isinstance(self.children, List):
+                for child in self.children:
+                    child.to_xml(xml)
+        return xml
+
+
+
+class Component(object):
+    def __init__(self,
+        id: str,
+        cls: Optional[str] = None,
+        bundle: Optional[str] = None,
+        type: Optional[str] = None,
+        parameters: Optional[List[Parameter]] = None,
+        ) -> None:
+        """
+        Create a Vespa Component.
+
+        Can be used both for embedders (https://docs.vespa.ai/en/reference/embedding-reference.html)
+        and generic components (https://docs.vespa.ai/en/reference/services-container.html#component).
+
+        Please see the Vespa documention for more information.
+
+        :param id: The component id.
+        :param cls: Component class.
+        :param bundle: Component bundle.
+        :param type: Component type.
+        :param parameters: Component configuration parameters.
+
+        Example:
+
+        >>> Component(id="hf-embedder", type="hugging-face-embedder",
+        ...           parameters=[
+        ...               Parameter("transformer-model", {"path": "my-models/model.onnx"}),
+        ...               Parameter("tokenizer-model", {"path": "my-models/tokenizer.onnx"}),
+        ...           ])
+        Component(id="hf-embedder", type="hugging-face-embedder")
+        """
+        self.id = id
+        self.cls = cls
+        self.bundle = bundle
+        self.type = type
+        self.parameters = parameters
+
+    def __repr__(self) -> str:
+        id = f"id=\"{self.id}\""
+        cls = f", class=\"{self.cls}\"" if self.cls else ""
+        bundle = f", bundle=\"{self.bundle}\"" if self.bundle else ""
+        type = f", type=\"{self.type}\"" if self.type else ""
+        return f"{self.__class__.__name__}({id}{cls}{bundle}{type})"
+
+    def to_xml_string(self, indent: int = 1) -> str:
+        root = ET.Element("component")
+        root.set("id", self.id)
+        if self.cls:
+            root.set("class", self.cls)
+        if self.bundle:
+            root.set("bundle", self.bundle)
+        if self.type:
+            root.set("type", self.type)
+        if self.parameters:
+            for param in self.parameters:
+                param.to_xml(root)
+
+        # Fix indentation, except for the first line (to fit in template), and filter out xml declaration
+        xml_lines = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4).strip().split("\n")
+        return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
+
+
+
 class ValidationID(Enum):
     """Collection of IDs that can be used in validation-overrides.xml
 
@@ -1647,7 +1743,8 @@ class ApplicationPackage(object):
         create_schema_by_default: bool = True,
         create_query_profile_by_default: bool = True,
         configurations: Optional[List[ApplicationConfiguration]] = None,
-        validations: Optional[List[Validation]] = None
+        validations: Optional[List[Validation]] = None,
+        components: Optional[List[Component]] = None
     ) -> None:
         """
         Create an `Application Package <https://docs.vespa.ai/en/application-packages.html>`__.
@@ -1669,6 +1766,7 @@ class ApplicationPackage(object):
             in case it is not explicitly defined by the user in the `query_profile` and `query_profile_type` parameters.
         :param configurations: List of :class:`ApplicationConfiguration` that contains configurations for the application.
         :param validations: Optional list of :class:`Validation` to be overridden.
+        :param components: List of :class:`Component` that contains configurations for application components.
 
         The easiest way to get started is to create a default application package:
 
@@ -1704,6 +1802,7 @@ class ApplicationPackage(object):
         self.models = {}
         self.configurations = configurations
         self.validations = validations
+        self.components = components
 
     @property
     def schemas(self) -> List[Schema]:
@@ -1794,6 +1893,7 @@ class ApplicationPackage(object):
             schemas=self.schemas,
             configurations=self.configurations,
             stateless_model_evaluation=self.stateless_model_evaluation,
+            components=self.components
         )
 
     @property
