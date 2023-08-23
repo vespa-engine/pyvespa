@@ -18,6 +18,8 @@ from vespa.package import (
     QueryProfileType,
     QueryField,
     QueryProfile,
+    Component,
+    Parameter,
     ApplicationPackage,
 )
 
@@ -1057,6 +1059,59 @@ class TestSimplifiedApplicationPackageWithMultipleSchemas(unittest.TestCase):
             "        <documents>\n"
             '            <document type="news" mode="index"></document>\n'
             '            <document type="user" mode="index"></document>\n'
+            "        </documents>\n"
+            "        <nodes>\n"
+            '            <node distribution-key="0" hostalias="node1"></node>\n'
+            "        </nodes>\n"
+            "    </content>\n"
+            "</services>"
+        )
+        self.assertEqual(self.app_package.services_to_text, expected_result)
+
+
+class TestComponentSetup(unittest.TestCase):
+    def setUp(self) -> None:
+        components = [Component(id="my-component", bundle="my-bundle"),
+                      Component(id="hf-embedder", type="hugging-face-embedder",
+                                parameters=[
+                                    Parameter("transformer-model", {"path": "my-models/model.onnx"}),
+                                    Parameter("tokenizer-model", {"path": "my-models/tokenizer.json"}),
+                                ]),
+                      Component(id="my-custom-component", cls="com.example.MyCustomEmbedder",
+                                parameters=[
+                                    Parameter("config", {"name": "com.example.my-embedder"}, [
+                                        Parameter("model", {"model-id": "minilm-l6-v2"}),
+                                        Parameter("vocab", {"path": "files/vocab.txt"}),
+                                        Parameter("myValue", {}, "foo"),
+                                    ]),
+                                ])
+                      ]
+        self.app_package = ApplicationPackage(name="content", components=components)
+
+    def test_services_to_text(self):
+        expected_result = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<services version="1.0">\n'
+            '    <container id="content_container" version="1.0">\n'
+            "        <search></search>\n"
+            "        <document-api></document-api>\n"
+            '        <component id="my-component" bundle="my-bundle"/>\n'
+            '        <component id="hf-embedder" type="hugging-face-embedder">\n'
+            '            <transformer-model path="my-models/model.onnx"/>\n'
+            '            <tokenizer-model path="my-models/tokenizer.json"/>\n'
+            '        </component>\n'
+            '        <component id="my-custom-component" class="com.example.MyCustomEmbedder">\n'
+            '            <config name="com.example.my-embedder">\n'
+            '                <model model-id="minilm-l6-v2"/>\n'
+            '                <vocab path="files/vocab.txt"/>\n'
+            '                <myValue>foo</myValue>\n'
+            '            </config>\n'
+            '        </component>\n'
+            "    </container>\n"
+            '    <content id="content_content" version="1.0">\n'
+            '        <redundancy reply-after="1">1</redundancy>\n'
+            "        <documents>\n"
+            '            <document type="content" mode="index"></document>\n'
             "        </documents>\n"
             "        <nodes>\n"
             '            <node distribution-key="0" hostalias="node1"></node>\n'

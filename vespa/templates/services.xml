@@ -12,6 +12,13 @@
         <search></search>
         <document-api></document-api>
         {% endif %}
+        {% if components %}
+        {% for component in components %}
+        {% autoescape off %}
+        {{ component.to_xml_string(2) }}
+        {% endautoescape %}
+        {% endfor %}
+        {% endif %}
         {% if stateless_model_evaluation %}
         <model-evaluation/>
         {% endif %}
