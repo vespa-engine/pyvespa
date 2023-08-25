@@ -44,6 +44,7 @@ setuptools.setup(
             "templates",
             [
                 "vespa/templates/hosts.xml",
+                "vespa/templates/macros.txt",
                 "vespa/templates/services.xml",
                 "vespa/templates/schema.txt",
                 "vespa/templates/query_profile.xml",
