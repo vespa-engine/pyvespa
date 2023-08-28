@@ -2,21 +2,22 @@
 
 import sys
 import ssl
+import json
 import aiohttp
 import asyncio
+import requests
+import traceback
 import concurrent.futures
-import json
 from collections import Counter
 from typing import Any, Optional, Dict, List, IO
 
-import requests
 from pandas import DataFrame
 from requests import Session
 from requests.models import Response
 from requests.exceptions import ConnectionError, HTTPError, JSONDecodeError
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
-from tenacity import retry, wait_exponential, stop_after_attempt
+from tenacity import retry, wait_exponential, stop_after_attempt, RetryError
 from time import sleep
 
 from vespa.exceptions import VespaError
@@ -369,7 +370,7 @@ class Vespa(object):
         schema: Optional[str] = None,
         asynchronous=True,
         connections: Optional[int] = 100,
-        total_timeout: int = 100,
+        total_timeout: int = 240,
         namespace: Optional[str] = None,
     ):
         """
@@ -415,7 +416,7 @@ class Vespa(object):
         schema: Optional[str] = None,
         asynchronous=True,
         connections: Optional[int] = 100,
-        total_timeout: int = 100,
+        total_timeout: int = 240,
         namespace: Optional[str] = None,
         batch_size=1000,
         output: bool = True,
@@ -1118,9 +1119,15 @@ class VespaAsync(object):
             namespace = schema
 
         async with semaphore:
-            return await self.feed_data_point(
-                schema=schema, data_id=data_id, fields=fields, namespace=namespace
-            )
+            try:
+                return await self.feed_data_point(
+                    schema=schema, data_id=data_id, fields=fields, namespace=namespace
+                )
+            except RetryError as e:
+                print("Unable to feed data point after retries. Giving up. Cause:", file=sys.stderr)
+                if e.__cause__:
+                    traceback.print_tb(e.__cause__.__traceback__)
+                e.reraise()
 
     async def feed_batch(self, schema: str, batch: List[Dict], namespace=None):
         if not namespace:
