@@ -34,6 +34,8 @@ jobs:
         # Strip jekyll liquid macros
         sed -i.orig  's/{%/{ %/g; s/%}/% }/g; s/{{/{ {/g; s/}}/} }/g' docs/sphinx/build/*.html ; rm docs/sphinx/build/*.orig
         bundle exec jekyll build -s docs/sphinx/build/ -p _plugins-vespafeed --config _config.yml
+        # Remove files that should not be in the search index
+        rm _site/search.html _site/genindex.html
 
     - name: Setup Python
       uses: actions/setup-python@v4
