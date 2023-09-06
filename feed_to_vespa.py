@@ -3,11 +3,13 @@
 
 import json
 import os
+import re
+import subprocess
 import sys
 import yaml
 import requests
 from requests.adapters import HTTPAdapter, Retry
-
+import urllib.parse
 
 def find(json, path, separator = "."):
     if len(path) == 0: return json
@@ -16,8 +18,8 @@ def find(json, path, separator = "."):
 
 
 # extract <id> from form id:open:doc::<id>
-def get_document_id(docid):
-    return docid[docid.rfind(":") + 1:]
+def get_document_id(id):
+    return id[id.rfind(":")+1:]
 
 
 def get_private_key_path():
@@ -50,13 +52,10 @@ def vespa_delete(endpoint, operation, options):
     return session.delete(url).json()
 
 
-def vespa_post(endpoint, doc, docid, namespace, doc_type):
-    url = "{0}/document/v1/{1}/{2}/docid/{3}".format(endpoint, namespace, doc_type, docid)
-    return session.post(url, json=doc).json()
-
-
 def vespa_visit(endpoint, namespace, doc_type, continuation = None):
-    options = ["wantedDocumentCount=500", "timeout=60s"]
+    options = []
+    options.append("wantedDocumentCount=500")
+    options.append("timeout=60s")
     if continuation is not None and len(continuation) > 0:
         options.append("&continuation={0}".format(continuation))
     return vespa_get(endpoint, "document/v1/{0}/{1}/docid".format(namespace,doc_type), options)
@@ -65,19 +64,15 @@ def vespa_visit(endpoint, namespace, doc_type, continuation = None):
 def vespa_remove(endpoint, doc_ids, namespace, doc_type):
     options = []
     for doc_id in doc_ids:
-        docid = get_document_id(doc_id)
-        vespa_delete(endpoint, "document/v1/{0}/{1}/docid/{2}".format(namespace, doc_type, docid), options)
+        id = get_document_id(doc_id)
+        vespa_delete(endpoint, "document/v1/{0}/{1}/docid/{2}".format(namespace, doc_type, id), options)
 
 
 def vespa_feed(endpoint, feed, namespace, doc_type):
-    for doc in get_docs(feed):
-        if doc_type == "doc":
-            document_id = find(doc, "fields.namespace") + find(doc, "fields.path")
-        elif doc_type == "term":
-            document_id = str(find(doc, "fields.hash"))
-        elif doc_type == "paragraph":
-            document_id = get_document_id(doc['put'])
-        print(vespa_post(endpoint, doc, document_id, namespace, doc_type))
+    if doc_type == "paragraph" or doc_type == "term" or doc_type == "doc":
+        splits = re.split(r'/|\.', endpoint)
+        app_string = splits[3] + '.' + splits[2]
+        print(subprocess.run(['./vespa', 'feed', '-a', app_string, '-t', endpoint, feed], capture_output=True))
 
 
 def get_docs(index):
@@ -89,12 +84,18 @@ def get_indexed_docids(endpoint, namespace, doc_type):
     docids = set()
     continuation = ""
     while continuation is not None:
-        visit_json = vespa_visit(endpoint, namespace, doc_type, continuation)
-        documents = find(visit_json, "documents")
+        json = vespa_visit(endpoint, namespace, doc_type, continuation)
+        documents = find(json, "documents")
         if documents is not None:
-            ids = [find(document, "id") for document in documents]
-            docids.update(ids)
-        continuation = find(visit_json, "continuation")
+            ids = [ find(document, "id") for document in documents ]
+            for id in ids:
+                # The document id might contain chars that needs to be escaped for the delete/put operation to work
+                # also for comparison with what is in the feed
+                docid = get_document_id(id) # return the last part
+                encoded = urllib.parse.quote(docid) #escape
+                id = id.replace(docid, encoded)
+                docids.add(id)
+        continuation = find(json, "continuation")
     return docids
 
 
@@ -154,8 +155,8 @@ def update_endpoint(endpoint, config):
         docids_to_remove = docids_in_index.difference(docids_in_feed)
         if len(docids_to_remove) > 0:
             print_header("Removing indexed documents not in feed in {0}".format(endpoint_url))
-            for docid in docids_to_remove:
-                print("To Remove: {0}".format(docid))
+            for id in docids_to_remove:
+                print("To Remove: {0}".format(id))
             vespa_remove(endpoint_url, docids_to_remove, namespace, doc_type)
             print("{0} documents removed.".format(len(docids_to_remove)))
         else:
@@ -175,7 +176,7 @@ def main():
     session = requests.Session()
     retries = Retry(total=10, connect=10,
         backoff_factor=0.8,
-        status_forcelist=[500, 503, 504, 429]
+        status_forcelist=[ 500, 503, 504, 429 ]
     )
     session.mount('https://', HTTPAdapter(max_retries=retries))
     session.cert = (get_public_cert_path(), get_private_key_path())
