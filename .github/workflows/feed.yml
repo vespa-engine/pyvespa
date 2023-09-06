@@ -48,6 +48,9 @@ jobs:
 
     - name: Get Vespa CLI - update to later versions as needed
       run: |
+        # Workaround: Rename the "vespa" directory in pyvespa, conflicts with the cli install below
+        # This directory is not needed for the feeding anyway
+        mv vespa vespa.org
         apt update && apt -y install curl
         curl -SsLo vespa-cli.tar.gz https://github.com/vespa-engine/vespa/releases/download/v8.209.11/vespa-cli_8.209.11_linux_amd64.tar.gz
         tar -xvf vespa-cli.tar.gz && ln -fs vespa-cli_8.209.11_linux_amd64/bin/vespa
