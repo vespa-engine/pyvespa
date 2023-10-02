@@ -167,6 +167,7 @@ def main():
                 paragraph = re.sub(r"```\n*", "```\n", paragraph)
                 paragraph = re.sub(r"window.MathJax = {.*}", "", paragraph)
                 paragraph = re.sub(r"© Copyright Copyright Yahoo.*?\);", "", paragraph, flags=re.DOTALL)
+                paragraph = re.sub(u'\uF0C1', '', paragraph)
 
                 paragraph = paragraph.replace("```\njson","```json")
                 paragraph = paragraph.replace("```\nxml","```xml")
