@@ -14,6 +14,7 @@ module Jekyll
             operations = []
             site.pages.each do |page|
                 next if (page.path.start_with?("search.html") ||
+                         page.path.start_with?("genindex.html") ||
                          page.url.start_with?("/redirects.json"))
                 if page.data["index"] == true
                     title = clean_chars(extract_title(page))
