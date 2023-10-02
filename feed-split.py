@@ -77,7 +77,7 @@ def create_text_doc(doc, paragraph, paragraph_id, header):
     return new_doc
 
 
-def split_text(soup):
+def split_text(soup, path):
     split_tables(soup)
     split_lists(soup)
     md = markdownify(str(soup), heading_style='ATX', code_language_callback=what_language, strip=['img'])
@@ -92,7 +92,11 @@ def split_text(soup):
                 data.append((id, header, text))
                 text = ""
             header = line.lstrip("#")
-            id = "-".join(header.split())
+            # Ugly hack: rst -> html conversion will lowercase the id - put .rst files in set below, with .html suffix
+            if path in {"/", "/examples.html", "/reference-api.html", "/troubleshooting.html"}:
+                id = "-".join(header.split()).lower()
+            else:
+                id = "-".join(header.split())
         else:
             text = text + "\n" + line
 
@@ -154,7 +158,7 @@ def main():
             html_doc = xml_fixup(html_doc)
             soup = BeautifulSoup(html_doc, 'html5lib')
             remove_notext_tags(soup)
-            data = split_text(soup)
+            data = split_text(soup, doc['fields']['path'])
 
             for paragraph_id, header, paragraph in data:
 
