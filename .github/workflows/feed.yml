@@ -72,7 +72,7 @@ jobs:
         export VESPA_CLI_DATA_PLANE_CERT
         export VESPA_CLI_DATA_PLANE_KEY
         export VESPA_CLI_API_KEY=
-        ./feed-split.py pyvespa_index.json https://pyvespa.readthedocs.io questions.jsonl
+        ./feed-split.py pyvespa_index.json https://pyvespa.readthedocs.io/en/latest questions.jsonl
         ./feed_to_vespa.py _paragraphs_config.yml
 
     - name: Feed suggestions 
