@@ -938,6 +938,41 @@ class SecondPhaseRanking(object):
             repr(self.rerank_count),
         )
 
+class GlobalPhaseRanking(object):
+    def __init__(self, expression: str, rerank_count: int = 100) -> None:
+        r"""
+        Create a Vespa global phase ranking configuration.
+
+        This is the optional reranking performed on the best hits from the content nodes phase(s). Check the
+        `Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#globalphase-rank>`__
+        for more detailed information about global phase ranking configuration.
+
+        :param expression: Specify the ranking expression to be used for second phase of ranking. Check also the
+            `Vespa documentation <https://docs.vespa.ai/en/reference/ranking-expressions.html>`__
+            for ranking expression.
+        :param rerank_count: Specifies the number of hits to be reranked in the second phase. Default value is 100.
+
+        >>> GlobalPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10)
+        GlobalPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10)
+        """
+        self.expression = expression
+        self.rerank_count = rerank_count
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return (
+            self.expression == other.expression
+            and self.rerank_count == other.rerank_count
+        )
+
+    def __repr__(self):
+        return "{0}({1}, {2})".format(
+            self.__class__.__name__,
+            repr(self.expression),
+            repr(self.rerank_count),
+        )
+
 
 class RankProfileFields(TypedDict, total=False):
     inherits: str
@@ -946,6 +981,7 @@ class RankProfileFields(TypedDict, total=False):
     summary_features: List
     match_features: List
     second_phase: SecondPhaseRanking
+    global_phase: GlobalPhaseRanking
     weight: List[Tuple[str, int]]
     rank_type: List[Tuple[str, str]]
     rank_properties: List[Tuple[str, str]]
@@ -964,6 +1000,7 @@ class RankProfile(object):
         summary_features: Optional[List] = None,
         match_features: Optional[List] = None,
         second_phase: Optional[SecondPhaseRanking] = None,
+        global_phase: Optional[GlobalPhaseRanking] = None,
         **kwargs: Unpack[RankProfileFields],
     ) -> None:
         """
@@ -994,6 +1031,8 @@ class RankProfile(object):
             about match features.
         :param second_phase: Optional config specifying the second phase of ranking.
             See :class:`SecondPhaseRanking`.
+        :param global_phase: Optional config specifying the global phase of ranking.
+            See :class:`GlobalPhaseRanking`.
         :key weight: A list of tuples containing the field and their weight
         :key rank_type: A list of tuples containing a field and the rank-type-name.
             `More info <https://docs.vespa.ai/en/reference/schema-reference.html#rank-type>`__ about rank-type.
@@ -1070,6 +1109,7 @@ class RankProfile(object):
         self.summary_features = kwargs.get("summary_features", summary_features)
         self.match_features = kwargs.get("match_features", match_features)
         self.second_phase = kwargs.get("second_phase", second_phase)
+        self.global_phase = kwargs.get("global_phase", global_phase)
         self.weight = kwargs.get("weight", None)
         self.rank_type = kwargs.get("rank_type", None)
         self.rank_properties = kwargs.get("rank_properties", None)
@@ -1087,6 +1127,7 @@ class RankProfile(object):
             and self.summary_features == other.summary_features
             and self.match_features == other.match_features
             and self.second_phase == other.second_phase
+            and self.global_phase == other.global_phase
             and self.weight == other.weight
             and self.rank_type == other.rank_type
             and self.rank_properties == other.rank_properties
@@ -1094,7 +1135,7 @@ class RankProfile(object):
         )
 
     def __repr__(self) -> str:
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.first_phase),
@@ -1104,6 +1145,7 @@ class RankProfile(object):
             repr(self.summary_features),
             repr(self.match_features),
             repr(self.second_phase),
+            repr(self.global_phase),
             repr(self.weight),
             repr(self.rank_type),
             repr(self.rank_properties),
@@ -1597,7 +1639,30 @@ class Parameter(object):
                     child.to_xml(xml)
         return xml
 
+class AuthClient(object):
+    def __init__(self,
+        id: str,
+        permissions: List[str],
+        parameters: Optional[List[Parameter]] = None,
+        )-> None:
+        self.id = id
+        self.permissions = permissions
+        self.parameters = parameters
 
+    def to_xml_string(self, indent: int = 1) -> str:
+        root = ET.Element("client")
+        root.set("id", self.id)
+        root.set("permissions", ",".join(self.permissions))
+        if self.parameters:
+            for param in self.parameters:
+                param.to_xml(root)
+        xml_lines = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4).strip().split("\n")
+        return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
+
+    def __repr__(self) -> str:
+        id = f"id=\"{self.id}\""
+        permissions = f", permissions=\"{self.permissions}\"" if self.permissions else ""
+        return f"{self.__class__.__name__}({id}{permissions})"
 
 class Component(object):
     def __init__(self,
@@ -1749,7 +1814,8 @@ class ApplicationPackage(object):
         create_query_profile_by_default: bool = True,
         configurations: Optional[List[ApplicationConfiguration]] = None,
         validations: Optional[List[Validation]] = None,
-        components: Optional[List[Component]] = None
+        components: Optional[List[Component]] = None,
+        auth_clients: Optional[List[AuthClient]] = None
     ) -> None:
         """
         Create an `Application Package <https://docs.vespa.ai/en/application-packages.html>`__.
@@ -1772,6 +1838,7 @@ class ApplicationPackage(object):
         :param configurations: List of :class:`ApplicationConfiguration` that contains configurations for the application.
         :param validations: Optional list of :class:`Validation` to be overridden.
         :param components: List of :class:`Component` that contains configurations for application components.
+        :param clients: List of :class:`Client` that contains configurations for client authorization.
 
         The easiest way to get started is to create a default application package:
 
@@ -1808,6 +1875,7 @@ class ApplicationPackage(object):
         self.configurations = configurations
         self.validations = validations
         self.components = components
+        self.auth_clients = auth_clients
 
     @property
     def schemas(self) -> List[Schema]:
@@ -1892,13 +1960,14 @@ class ApplicationPackage(object):
         )
         env.trim_blocks = True
         env.lstrip_blocks = True
-        schema_template = env.get_template("services.xml")
-        return schema_template.render(
+        services_template = env.get_template("services.xml")
+        return services_template.render(
             application_name=self.name,
             schemas=self.schemas,
             configurations=self.configurations,
             stateless_model_evaluation=self.stateless_model_evaluation,
-            components=self.components
+            components=self.components,
+            auth_clients=self.auth_clients
         )
 
     @property
