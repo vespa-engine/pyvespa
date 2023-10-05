@@ -1040,10 +1040,10 @@ class RankProfile(object):
             `More info <https://docs.vespa.ai/en/reference/schema-reference.html#rank-properties>`__ about rank-properties.
 
         >>> RankProfile(name = "default", first_phase = "nativeRank(title, body)")
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, None)
 
         >>> RankProfile(name = "new", first_phase = "BM25(title)", inherits = "default")
-        RankProfile('new', 'BM25(title)', 'default', None, None, None, None, None, None, None, None, None)
+        RankProfile('new', 'BM25(title)', 'default', None, None, None, None, None, None, None, None, None, None)
 
         >>> RankProfile(
         ...     name = "new",
@@ -1052,8 +1052,8 @@ class RankProfile(object):
         ...     constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
         ...     summary_features=["BM25(title)"]
         ... )
-        RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None, ['BM25(title)'], None, None, None, None, None, None)
-
+        RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None, ['BM25(title)'], None, None, None, None, None, None, None)
+       
         >>> RankProfile(
         ...     name="bert",
         ...     first_phase="bm25(title) + bm25(body)",
@@ -1072,34 +1072,35 @@ class RankProfile(object):
         ...     ],
         ...     summary_features=["question_length", "doc_length"]
         ... )
-        RankProfile('bert', 'bm25(title) + bm25(body)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, [Function('question_length', 'sum(map(query(query_token_ids), f(a)(a > 0)))', None), Function('doc_length', 'sum(map(attribute(doc_token_ids), f(a)(a > 0)))', None)], ['question_length', 'doc_length'], None, SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10), None, None, None, None)
+        RankProfile('bert', 'bm25(title) + bm25(body)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, [Function('question_length', 'sum(map(query(query_token_ids), f(a)(a > 0)))', None), Function('doc_length', 'sum(map(attribute(doc_token_ids), f(a)(a > 0)))', None)], ['question_length', 'doc_length'], None, SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10), None, None, None, None, None)
 
         >>> RankProfile(
         ...     name = "default",
         ...     first_phase = "nativeRank(title, body)",
         ...     weight = [("title", 200), ("body", 100)]
         ... )
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, [('title', 200), ('body', 100)], None, None, None)
-
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, [('title', 200), ('body', 100)], None, None, None)
+        
         >>> RankProfile(
         ...     name = "default",
         ...     first_phase = "nativeRank(title, body)",
         ...     rank_type = [("body", "about")]
         ... )
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, [('body', 'about')], None, None)
-
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, [('body', 'about')], None, None)
+        
         >>> RankProfile(
         ...     name = "default",
         ...     first_phase = "nativeRank(title, body)",
         ...     rank_properties = [("fieldMatch(title).maxAlternativeSegmentations", "10")]
         ... )
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, [('fieldMatch(title).maxAlternativeSegmentations', '10')], None)
-
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, [('fieldMatch(title).maxAlternativeSegmentations', '10')], None)
+        
         >>> RankProfile(
         ...    name = "default",
         ...    first_phase = FirstPhaseRanking(expression="nativeRank(title, body)", keep_rank_count=50)
         ... )
-        RankProfile('default', FirstPhaseRanking('nativeRank(title, body)', 50, None), None, None, None, None, None, None, None, None, None, None)
+        RankProfile('default', FirstPhaseRanking('nativeRank(title, body)', 50, None), None, None, None, None, None, None, None, None, None, None, None)
+        
         """
         self.name = name
         self.first_phase = first_phase
