@@ -8,6 +8,7 @@ import asyncio
 import json
 
 from requests import HTTPError
+from typing import List
 
 from vespa.package import (
     HNSW,
@@ -21,6 +22,7 @@ from vespa.package import (
     QueryProfile,
     QueryProfileType,
     QueryTypeField,
+    AuthClient
 )
 from vespa.deployment import VespaDocker
 from vespa.application import VespaSync
@@ -30,7 +32,7 @@ from vespa.exceptions import VespaError
 CONTAINER_STOP_TIMEOUT = 10
 
 
-def create_msmarco_application_package():
+def create_msmarco_application_package(auth_clients:List[AuthClient]=None):
     #
     # Application package
     #
@@ -75,7 +77,7 @@ def create_msmarco_application_package():
             RankProfile(name="default", first_phase="nativeRank(title, body)")
         ],
     )
-    app_package = ApplicationPackage(name="msmarco", schema=[msmarco_schema])
+    app_package = ApplicationPackage(name="msmarco", schema=[msmarco_schema], auth_clients=auth_clients)
     return app_package
 
 
