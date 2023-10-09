@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright Yahoo. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
+# Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 import copy
 import json
 import sys
@@ -170,7 +170,7 @@ def main():
                 paragraph = re.sub(r"\n*```", "\n```", paragraph)
                 paragraph = re.sub(r"```\n*", "```\n", paragraph)
                 paragraph = re.sub(r"window.MathJax = {.*}", "", paragraph)
-                paragraph = re.sub(r"© Copyright Copyright Yahoo.*?\);", "", paragraph, flags=re.DOTALL)
+                paragraph = re.sub(r"© Copyright Copyright Vespa.ai.*?\);", "", paragraph, flags=re.DOTALL)
                 paragraph = re.sub(u'\uF0C1', '', paragraph)
 
                 paragraph = paragraph.replace("```\njson","```json")
