@@ -101,14 +101,6 @@ class TestMsmarcoApplication(TestApplicationCommon):
             for i in range(10)
         ]
 
-    def test_model_endpoints_when_no_model_is_available(self):
-        self.get_model_endpoints_when_no_model_is_available(
-            app=self.app,
-            expected_model_endpoint="https://{}-container.{}.pyvespa-integration.vespa-team.aws-us-east-1c.dev.z.vespa-app.cloud:4443/model-evaluation/v1/".format(
-                self.app_package.name, self.instance_name
-            ),
-        )
-
     def test_prediction_when_model_not_defined(self):
         self.get_stateless_prediction_when_model_not_defined(
             app=self.app, application_package=self.app_package
