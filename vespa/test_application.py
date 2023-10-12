@@ -39,6 +39,17 @@ class TestVespa(unittest.TestCase):
         self.assertEqual(
             Vespa(url="http://localhost/", port=8080).end_point, "http://localhost:8080"
         )
+    
+    def test_query_token(self):
+        self.assertEqual(
+            Vespa(url="https://cord19.vespa.ai", vespa_cloud_secret_token="vespa_cloud_str_secret").vespa_cloud_secret_token, "vespa_cloud_str_secret"
+        )
+    def test_query_token_from_env(self):
+        import os
+        os.environ['VESPA_CLOUD_SECRET_TOKEN'] = "vespa_cloud_str_secret"
+        self.assertEqual(
+            Vespa(url="https://cord19.vespa.ai").vespa_cloud_secret_token, "vespa_cloud_str_secret"
+        )
 
     def test_infer_schema(self):
         #

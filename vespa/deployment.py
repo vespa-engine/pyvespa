@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from time import sleep, strftime, gmtime
-from typing import Tuple, Union, IO, Optional
+from typing import Tuple, Union, IO, Optional, List,Any
 
 import docker
 import requests
@@ -376,12 +376,12 @@ class VespaCloud(VespaDeployment):
         Deploy application to the Vespa Cloud (cloud.vespa.ai)
 
         :param tenant: Tenant name registered in the Vespa Cloud.
-        :param application: Application name registered in the Vespa Cloud.
+        :param application: Application name in the Vespa Cloud.
         :param application_package: ApplicationPackage to be deployed.
         :param key_location: Location of the private key used for signing HTTP requests to the Vespa Cloud.
         :param key_content: Content of the private key used for signing HTTP requests to the Vespa Cloud. Use only when
             key file is not available.
-        :param output_file: Output file to write output messages.
+        :param output_file: Output file to write output messages. Default is sys.stdout
         """
         self.tenant = tenant
         self.application = application
@@ -661,6 +661,15 @@ class VespaCloud(VespaDeployment):
         if not container_url:
             raise RuntimeError("No endpoints found for container 'test_app_container'")
         return container_url[0]
+
+    def _get_endpoints(self, instance: str, region: str) -> List[dict]:
+        endpoints = self._request(
+            "GET",
+            "/application/v4/tenant/{}/application/{}/instance/{}/environment/dev/region/{}".format(
+                self.tenant, self.application, instance, region
+            ),
+        )["endpoints"]
+        return endpoints
 
     def _start_deployment(self, instance: str, job: str, disk_folder: str,
                           application_zip_bytes: Optional[BytesIO] = None) -> int:

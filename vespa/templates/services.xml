@@ -19,6 +19,15 @@
         {% endautoescape %}
         {% endfor %}
         {% endif %}
+        {% if auth_clients %}
+        <clients>
+        {% for client in auth_clients %}
+        {% autoescape off %}
+            {{ client.to_xml_string(3) }}
+        {% endautoescape %}
+        {% endfor %}
+        </clients>
+        {% endif %}
         {% if stateless_model_evaluation %}
         <model-evaluation/>
         {% endif %}

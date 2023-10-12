@@ -11,6 +11,7 @@ from vespa.package import (
     FieldSet,
     Function,
     SecondPhaseRanking,
+    GlobalPhaseRanking,
     RankProfile,
     OnnxModel,
     Schema,
@@ -21,6 +22,7 @@ from vespa.package import (
     Component,
     Parameter,
     ApplicationPackage,
+    AuthClient
 )
 
 
@@ -462,6 +464,9 @@ class TestApplicationPackage(unittest.TestCase):
                     name="bert",
                     first_phase="bm25(title) + bm25(body)",
                     second_phase=SecondPhaseRanking(
+                        rerank_count=100, expression="bm25(title)"
+                    ),
+                    global_phase=SecondPhaseRanking(
                         rerank_count=10, expression="sum(onnx(bert).logits{d0:0,d1:0})"
                     ),
                     inherits="default",
@@ -654,6 +659,12 @@ class TestApplicationPackage(unittest.TestCase):
             "            }\n"
             "        }\n"
             "        second-phase {\n"
+            "            rerank-count: 100\n"
+            "            expression {\n"
+            "                bm25(title)\n"
+            "            }\n"
+            "        }\n"
+            "        global-phase {\n"
             "            rerank-count: 10\n"
             "            expression {\n"
             "                sum(onnx(bert).logits{d0:0,d1:0})\n"
@@ -891,6 +902,7 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
                 name="bm25",
                 first_phase="bm25(title) + bm25(body)",
                 inherits="default",
+                global_phase=GlobalPhaseRanking(rerank_count=10, expression="bm25(title)")
             )
         )
         self.app_package.query_profile_type.add_fields(
@@ -952,6 +964,12 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
             "        first-phase {\n"
             "            expression {\n"
             "                bm25(title) + bm25(body)\n"
+            "            }\n"
+            "        }\n"
+            "        global-phase {\n"
+            "            rerank-count: 10\n"
+            "            expression {\n"
+            "                bm25(title)\n"
             "            }\n"
             "        }\n"
             "    }\n"
@@ -1121,7 +1139,55 @@ class TestComponentSetup(unittest.TestCase):
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
 
+class TestClientTokenSetup(unittest.TestCase):
+    def setUp(self) -> None:
+        clients = [
+            AuthClient(id="mtls",
+                permissions=["read"],
+                parameters=[
+                Parameter("certificate", {"file": "security/clients.pem"})
+            ]),
+            AuthClient(id="token",
+                permissions=["read"],
+                parameters=[
+                Parameter("token", {"id": "accessToken"})
+            ])
+        ]
+        self.app_package = ApplicationPackage(name="content", auth_clients=clients)
 
+    def test_services_to_text(self):
+        self.maxDiff = None
+        expected_result = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<services version="1.0">\n'
+            '    <container id="content_container" version="1.0">\n'
+            "        <search></search>\n"
+            "        <document-api></document-api>\n"
+            '        <clients>\n'
+            '            <client id="mtls" permissions="read">\n'
+            '                <certificate file="security/clients.pem"/>\n'
+            '            </client>\n'
+            '            <client id="token" permissions="read">\n'
+            '                <token id="accessToken"/>\n'
+            '            </client>\n'
+            '        </clients>\n'
+            "    </container>\n"
+            '    <content id="content_content" version="1.0">\n'
+            '        <redundancy reply-after="1">1</redundancy>\n'
+            "        <documents>\n"
+            '            <document type="content" mode="index"></document>\n'
+            "        </documents>\n"
+            "        <nodes>\n"
+            '            <node distribution-key="0" hostalias="node1"></node>\n'
+            "        </nodes>\n"
+            "    </content>\n"
+            "</services>")
+
+
+        self.assertEqual(self.app_package.services_to_text, expected_result)
+        
+
+        
 class TestValidAppName(unittest.TestCase):
     def test_invalid_name(self):
         with pytest.raises(ValueError):
