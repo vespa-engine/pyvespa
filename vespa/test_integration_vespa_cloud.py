@@ -18,6 +18,7 @@ APP_INIT_TIMEOUT = 300
 
 class TestVespaKeyAndCertificate(unittest.TestCase):
     def setUp(self) -> None:
+        """
         self.clients = [
             AuthClient(id="mtls",
                 permissions=["read", "write"],
@@ -29,8 +30,8 @@ class TestVespaKeyAndCertificate(unittest.TestCase):
                 parameters=[
                 Parameter("token", {"id": "pyvespa_integration_msmarco"})
             ])
-        ]
-        self.app_package = create_msmarco_application_package(auth_clients=self.clients)
+        ]"""
+        self.app_package = create_msmarco_application_package()
         
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
@@ -87,6 +88,7 @@ class TestVespaKeyAndCertificate(unittest.TestCase):
 
 class TestMsmarcoApplication(TestApplicationCommon):
     def setUp(self) -> None:
+        """
         self.clients = [
             AuthClient(id="mtls",
                 permissions=["read", "write"],
@@ -99,7 +101,8 @@ class TestMsmarcoApplication(TestApplicationCommon):
                 Parameter("token", {"id": "pyvespa_integration_msmarco"})
             ])
         ]
-        self.app_package = create_msmarco_application_package(auth_clients=self.clients)
+        """
+        self.app_package = create_msmarco_application_package()
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
             application="pyvespa-integration",
