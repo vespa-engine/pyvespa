@@ -247,14 +247,18 @@ class Vespa(object):
         endpoint = "{}/ApplicationStatus".format(self.end_point)
 
         try:
+            if self.vespa_cloud_secret_token:
+                return requests.get(
+                    endpoint,
+                    headers={"Authorization": f"Bearer {self.vespa_cloud_secret_token}"},
+                )
             if self.key:
-                response = requests.get(endpoint, cert=(self.cert, self.key))
+                return requests.get(endpoint, cert=(self.cert, self.key))
             else:
-                response = requests.get(endpoint, cert=self.cert)
+                return requests.get(endpoint, cert=self.cert)
         except ConnectionError:
-            response = None
+            return None
 
-        return response
 
     def get_model_endpoint(self, model_id: Optional[str] = None) -> Optional[Response]:
         """Get model evaluation endpoints."""
