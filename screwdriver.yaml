@@ -131,7 +131,7 @@ jobs:
       - run-integration-cloud: |
           pytest vespa/test_integration_vespa_cloud.py -s -v
 
-integration-cloud-token:
+  integration-cloud-token:
     requires: [~commit]
     annotations:
       screwdriver.cd/timeout: 120
