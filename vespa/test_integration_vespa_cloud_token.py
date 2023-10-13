@@ -15,7 +15,6 @@ from vespa.test_integration_docker import (
 
 APP_INIT_TIMEOUT = 900
 
-
 class TestTokenBasedAuth(unittest.TestCase):
     def setUp(self) -> None:
         self.clients = [
@@ -25,7 +24,7 @@ class TestTokenBasedAuth(unittest.TestCase):
                 Parameter("certificate", {"file": "security/clients.pem"})
             ]),
             AuthClient(id="token",
-                permissions=["read"],
+                permissions=["read", "write"],
                 parameters=[
                 Parameter("token", {"id": "pyvespa_integration_msmarco"})
             ])
