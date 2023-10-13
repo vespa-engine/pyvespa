@@ -425,7 +425,12 @@ class VespaCloud(VespaDeployment):
         job = "dev-" + region
         run = self._start_deployment(instance, job, disk_folder, None)
         self._follow_deployment(instance, job, run)
-        endpoint_url = self._get_endpoint(instance=instance, region=region)
+        
+        if os.environ.get("VESPA_CLOUD_SECRET_TOKEN") is None:
+            endpoint_url = self._get_mtls_endpoint(instance=instance, region=region)
+        else:
+            endpoint_url = self._get_token_endpoint(instance=instance, region=region)       
+        
         app = Vespa(
             url=endpoint_url,
             cert=self.data_cert_path or os.path.join(disk_folder, self.private_cert_file_name),
@@ -462,7 +467,10 @@ class VespaCloud(VespaDeployment):
         job = "dev-" + region
         run = self._start_deployment(instance, job, disk_folder, application_zip_bytes=data)
         self._follow_deployment(instance, job, run)
-        endpoint_url = self._get_endpoint(instance=instance, region=region)
+        if os.environ.get("VESPA_CLOUD_SECRET_TOKEN") is None:
+            endpoint_url = self._get_mtls_endpoint(instance=instance, region=region)
+        else:
+            endpoint_url = self._get_token_endpoint(instance=instance, region=region)  
         app = Vespa(
             url=endpoint_url,
             cert=self.data_cert_path,
@@ -645,31 +653,36 @@ class VespaCloud(VespaDeployment):
                 )
             return parsed
 
-    def _get_endpoint(self, instance: str, region: str) -> str:
+    def _get_mtls_endpoint(self, instance: str, region: str) -> str:
         endpoints = self._request(
             "GET",
             "/application/v4/tenant/{}/application/{}/instance/{}/environment/dev/region/{}".format(
                 self.tenant, self.application, instance, region
             ),
         )["endpoints"]
-        container_url = [
-            endpoint["url"]
-            for endpoint in endpoints
-            if endpoint["cluster"]
-               == "{}_container".format(self.application_package.name)
-        ]
-        if not container_url:
-            raise RuntimeError("No endpoints found for container 'test_app_container'")
-        return container_url[0]
+        cluster_name = "{}_container".format(self.application_package.name)
+        for endpoint in endpoints:
+            if endpoint["cluster"] == cluster_name:
+                authMethod = endpoint.get("authMethod", None)
+                if authMethod == "mtls":
+                    return endpoint['url']
+        raise RuntimeError("No mtls endpoints found for container cluster " + cluster_name)
 
-    def _get_endpoints(self, instance: str, region: str) -> List[dict]:
+    def _get_token_endpoint(self, instance: str, region: str) -> List[dict]:
         endpoints = self._request(
             "GET",
             "/application/v4/tenant/{}/application/{}/instance/{}/environment/dev/region/{}".format(
                 self.tenant, self.application, instance, region
             ),
         )["endpoints"]
-        return endpoints
+        cluster_name = "{}_container".format(self.application_package.name)
+        for endpoint in endpoints:
+            if endpoint["cluster"] == cluster_name:
+                authMethod = endpoint.get("authMethod", None)
+                if authMethod == "token":
+                    return endpoint['url']
+        raise RuntimeError("No token endpoints found for container cluster " + cluster_name)
+
 
     def _start_deployment(self, instance: str, job: str, disk_folder: str,
                           application_zip_bytes: Optional[BytesIO] = None) -> int:
