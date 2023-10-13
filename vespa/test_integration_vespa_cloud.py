@@ -13,7 +13,7 @@ from vespa.test_integration_docker import (
     create_msmarco_application_package,
 )
 
-APP_INIT_TIMEOUT = 300
+APP_INIT_TIMEOUT = 900
 
 
 class TestVespaKeyAndCertificate(unittest.TestCase):
