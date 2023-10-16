@@ -39,7 +39,7 @@ class TestTokenBasedAuth(unittest.TestCase):
         )
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
         self.instance_name = "token"
-        self.app = self.vespa_cloud.deploy(
+        self.app: Vespa = self.vespa_cloud.deploy(
             instance=self.instance_name, disk_folder=self.disk_folder
         )
         print("Endpoint used " + self.app.url) 

@@ -1,7 +1,6 @@
 import http.client
 import json
 import os
-import pathlib
 import sys
 import zipfile
 import logging
@@ -10,7 +9,7 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from time import sleep, strftime, gmtime
-from typing import Tuple, Union, IO, Optional, List,Any
+from typing import Tuple, Union, IO, Optional, List
 
 import docker
 import requests
@@ -20,6 +19,7 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 
 from vespa.application import Vespa
+from vespa.application import VESPA_CLOUD_SECRET_TOKEN
 from vespa.package import ApplicationPackage
 
 CFG_SERVER_START_TIMEOUT = 300
@@ -426,7 +426,8 @@ class VespaCloud(VespaDeployment):
         run = self._start_deployment(instance, job, disk_folder, None)
         self._follow_deployment(instance, job, run)
         
-        if os.environ.get("VESPA_CLOUD_SECRET_TOKEN") is None:
+        token = os.environ.get(VESPA_CLOUD_SECRET_TOKEN, None)
+        if token is None:
             endpoint_url = self._get_mtls_endpoint(instance=instance, region=region)
         else:
             endpoint_url = self._get_token_endpoint(instance=instance, region=region)       

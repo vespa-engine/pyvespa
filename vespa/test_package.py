@@ -690,7 +690,7 @@ class TestApplicationPackage(unittest.TestCase):
             "        <document-api></document-api>\n"
             "    </container>\n"
             '    <content id="testapp_content" version="1.0">\n'
-            '        <redundancy reply-after="1">1</redundancy>\n'
+            '        <redundancy>1</redundancy>\n'
             "        <documents>\n"
             '            <document type="msmarco" mode="index"></document>\n'
             "        </documents>\n"
@@ -838,7 +838,7 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
             "        <document-api></document-api>\n"
             "    </container>\n"
             '    <content id="testapp_content" version="1.0">\n'
-            '        <redundancy reply-after="1">1</redundancy>\n'
+            '        <redundancy>1</redundancy>\n'
             "        <documents>\n"
             '            <document type="news" mode="index"></document>\n'
             '            <document type="user" mode="index"></document>\n'
@@ -986,7 +986,7 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
             "        <document-api></document-api>\n"
             "    </container>\n"
             '    <content id="testapp_content" version="1.0">\n'
-            '        <redundancy reply-after="1">1</redundancy>\n'
+            '        <redundancy>1</redundancy>\n'
             "        <documents>\n"
             '            <document type="testapp" mode="index"></document>\n'
             "        </documents>\n"
@@ -1073,7 +1073,7 @@ class TestSimplifiedApplicationPackageWithMultipleSchemas(unittest.TestCase):
             "        <document-api></document-api>\n"
             "    </container>\n"
             '    <content id="news_content" version="1.0">\n'
-            '        <redundancy reply-after="1">1</redundancy>\n'
+            '        <redundancy>1</redundancy>\n'
             "        <documents>\n"
             '            <document type="news" mode="index"></document>\n'
             '            <document type="user" mode="index"></document>\n'
@@ -1127,7 +1127,7 @@ class TestComponentSetup(unittest.TestCase):
             '        </component>\n'
             "    </container>\n"
             '    <content id="content_content" version="1.0">\n'
-            '        <redundancy reply-after="1">1</redundancy>\n'
+            '        <redundancy>1</redundancy>\n'
             "        <documents>\n"
             '            <document type="content" mode="index"></document>\n'
             "        </documents>\n"
@@ -1173,7 +1173,7 @@ class TestClientTokenSetup(unittest.TestCase):
             '        </clients>\n'
             "    </container>\n"
             '    <content id="content_content" version="1.0">\n'
-            '        <redundancy reply-after="1">1</redundancy>\n'
+            '        <redundancy>1</redundancy>\n'
             "        <documents>\n"
             '            <document type="content" mode="index"></document>\n'
             "        </documents>\n"

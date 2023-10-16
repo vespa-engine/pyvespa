@@ -32,6 +32,7 @@ retry_strategy = Retry(
     allowed_methods=["POST", "GET", "DELETE", "PUT"],
 )
 
+VESPA_CLOUD_SECRET_TOKEN: str = "VESPA_CLOUD_SECRET_TOKEN"
 
 def parse_feed_df(df: DataFrame, include_id: bool, id_field="id", id_prefix="") -> List[Dict[str, Any]]:
     """
@@ -148,7 +149,7 @@ class Vespa(object):
             self.end_point = str(url).rstrip("/") + ":" + str(port)
         self.search_end_point = self.end_point + "/search/"
         if vespa_cloud_secret_token is None:
-            token = environ.get("VESPA_CLOUD_SECRET_TOKEN", None)
+            token = environ.get(VESPA_CLOUD_SECRET_TOKEN, None)
             if token is not None:
                  self.vespa_cloud_secret_token = token
 
@@ -973,6 +974,8 @@ class VespaSync(object):
         end_point = "{}/document/v1/{}/{}/docid/?cluster={}&selection=true".format(
             self.app.end_point, namespace, schema, content_cluster_name
         )
+        # TODO - this require iteration and reading the continuation token
+        # https://github.com/vespa-engine/pyvespa/issues/586
         response = self.http_session.delete(end_point)
         raise_for_status(response)
         return response
@@ -996,7 +999,7 @@ class VespaSync(object):
             self.app.end_point, namespace, schema, str(data_id)
         )
         response = self.http_session.get(end_point)
-        raise_for_status(response)
+        raise_for_status(response) # This is qustionable, since it will throw on 404 as well. 
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,

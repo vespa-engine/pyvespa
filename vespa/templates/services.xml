@@ -34,7 +34,7 @@
     </container>
     {% if schemas %}
     <content id="{{ application_name }}_content" version="1.0">
-        <redundancy reply-after="1">1</redundancy>
+        <redundancy>1</redundancy>
         <documents>
             {% for schema in schemas %}
             {% if schema.global_document %}
