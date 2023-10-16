@@ -999,7 +999,7 @@ class VespaSync(object):
             self.app.end_point, namespace, schema, str(data_id)
         )
         response = self.http_session.get(end_point)
-        raise_for_status(response) # This is qustionable, since it will throw on 404 as well. 
+        raise_for_status(response) # This is questionable, since it will throw on 404 as well. 
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
