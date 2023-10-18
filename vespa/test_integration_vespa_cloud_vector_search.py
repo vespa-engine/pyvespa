@@ -12,11 +12,10 @@ APP_INIT_TIMEOUT = 900
 
 def create_vector_ada_application_package() -> ApplicationPackage:
     return ApplicationPackage(
-        name="sample_application",
+        name="vector",
         schema=Schema(
             name="vector",
             document=Document(
-                name="vector",
                 fields=[
                     Field(name="id", type="string", indexing=["attribute", "summary"]),
                     Field(
