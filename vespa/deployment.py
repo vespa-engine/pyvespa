@@ -405,7 +405,7 @@ class VespaCloud(VespaDeployment):
         self.output = output_file
         self.auth_client_token_id = auth_client_token_id
         if auth_client_token_id is not None:
-            application.auth_clients = [
+            self.application_package .auth_clients = [
                 AuthClient(id="mtls",
                     permissions=["read,write"],
                     parameters=[
@@ -419,7 +419,6 @@ class VespaCloud(VespaDeployment):
                         )
                 ])
             ]
-
 
     def __enter__(self) -> "VespaCloud":
         return self
