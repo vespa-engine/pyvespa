@@ -13,7 +13,7 @@ APP_INIT_TIMEOUT = 900
 def create_vector_ada_application_package() -> ApplicationPackage:
     return ApplicationPackage(
         name="vector",
-        schema=Schema(
+        schema=[Schema(
             name="vector",
             document=Document(
                 fields=[
@@ -28,14 +28,18 @@ def create_vector_ada_application_package() -> ApplicationPackage:
                             neighbors_to_explore_at_insert=128,
                         ),
                     )
-                ],
-                rank_profile=RankProfile(
+                ]
+            ),
+            rank_profiles=[
+                RankProfile(
                     name="default", 
                     inputs=[("query(q)", "tensor<float>(x[1536])")],
-                    first_phase="closeness(field, embedding))")
-            )
-    )
-)
+                    first_phase="closeness(field, embedding))"
+                )
+            ])
+        ]
+    ) 
+    
 
 class TestVectorSearch(unittest.TestCase):
     def setUp(self) -> None:
