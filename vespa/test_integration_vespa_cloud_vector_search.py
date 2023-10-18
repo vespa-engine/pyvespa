@@ -2,6 +2,8 @@
 
 import os
 import shutil
+import asyncio
+from typing import Iterable
 import unittest
 from vespa.application import Vespa, ApplicationPackage
 from vespa.package import Schema, Document, Field, HNSW, RankProfile
@@ -34,19 +36,35 @@ def create_vector_ada_application_package() -> ApplicationPackage:
                 RankProfile(
                     name="default", 
                     inputs=[("query(q)", "tensor<float>(x[1536])")],
-                    first_phase="closeness(field, embedding))"
+                    first_phase="closeness(field, embedding)"
                 )
             ])
         ]
     ) 
-    
+
+async def execute_async_data_operations(app: Vespa, docs: Iterable[dict]) -> int: 
+    async with app.asyncio() as async_session:
+        ok = 0
+        for doc in docs:
+            response:VespaResponse = await async_session.feed_data_point(
+                schema="vector",
+                data_id=doc["_id"],
+                fields={
+                    "id": doc["_id"],
+                    "embedding": doc["openai"]
+                }
+            )
+            if response.status_code == 200:
+                ok +=1
+        return ok
+            
 
 class TestVectorSearch(unittest.TestCase):
     def setUp(self) -> None:
         self.app_package = create_vector_ada_application_package()
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
-            application="pyvespa-integration-vector-search",
+            application="pyvespa-int-vsearch",
             key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
             auth_client_token_id="pyvespa_integration_msmarco"
@@ -56,21 +74,17 @@ class TestVectorSearch(unittest.TestCase):
         self.app: Vespa = self.vespa_cloud.deploy(
             instance=self.instance_name, disk_folder=self.disk_folder
         )
-        print("Endpoint used " + self.app.url) 
 
-    def test_right_endpoint_used_with_token(self):
-        # The secrect token is set in env variable. 
-        print("Endpoint used " + self.app.url)      
-        self.app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
-        self.assertEqual(200, self.app.get_application_status().status_code)
 
     def test_vector_indexing_and_query(self):
+        print("Waiting for endpoint " + self.app.url)      
+        self.app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
+        self.assertEqual(200, self.app.get_application_status().status_code)
+       
         from datasets import load_dataset
-        print("Endpoint used " + self.app.url)      
-        sample_size = 2000
-
+        sample_size = 4000
         dataset = load_dataset("KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True).take(sample_size)
-        docs = list(dataset)
+        docs = list(dataset) #we have enough memory to page everything into memory with list()
         ok = 0
         with self.app.syncio() as sync_session:
             for doc in docs:
@@ -86,24 +100,9 @@ class TestVectorSearch(unittest.TestCase):
                 ok +=1
 
         self.assertEqual(ok, sample_size)
-        ok = 0
         
-        with self.app.asyncio() as async_session:
-            for doc in docs:
-                response:VespaResponse = async_session.feed_data_point(
-                    schema="vector",
-                    data_id=doc["_id"],
-                    fields={
-                        "id": doc["_id"],
-                        "embedding": doc["openai"]
-                    }
-                )
-                self.assertEqual(response.get_status_code(), 200)
-                ok +=1
-        self.assertEqual(ok, sample_size)
-
         with self.app.syncio() as sync_session:
-            response:VespaResponse = sync_session.query(
+            response:VespaResponse = sync_session.query(   
                 {
                     "yql": "select id from sources * where {targetHits:10}nearestNeighbor(embedding,q)",
                     "input.query(q)": docs[0]["openai"],
@@ -113,21 +112,25 @@ class TestVectorSearch(unittest.TestCase):
             self.assertEqual(response.get_status_code(), 200)
             self.assertEqual(len(response.hits), 10)
         
-        with self.app.asyncio() as async_session:
-            response:VespaResponse = async_session.query(
-                {
-                    "yql": "select id from sources * where {targetHits:10}nearestNeighbor(embedding,q)",
-                    "input.query(q)": docs[0]["openai"],
-                    'hits' :10
-                }
-            )
-            self.assertEqual(response.get_status_code(), 200)
-            self.assertEqual(len(response.hits), 10)
+        # Async test
+        ok = 0
+        ok = asyncio.run(execute_async_data_operations(self.app, docs))
+        self.assertEqual(ok, sample_size)
+        
           
     def tearDown(self) -> None:
         self.app.delete_all_docs(
             content_cluster_name="vector_content", schema="vector"
         )
+        with self.app.syncio() as sync_session:
+            response:VespaResponse = sync_session.query(   
+                {
+                    "yql": "select id from sources * where true",
+                    'hits' :10
+                }
+            )
+            self.assertEqual(response.get_status_code(), 200)
+            print(response.get_json())
         shutil.rmtree(self.disk_folder, ignore_errors=True)
 
 
