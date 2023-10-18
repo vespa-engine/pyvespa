@@ -167,6 +167,20 @@ class Vespa(object):
             app=self, connections=connections, total_timeout=total_timeout
         )
 
+    def syncio(
+        self, connections: Optional[int] = 100, total_timeout: int = 10
+    ) -> "VespaSync":
+        """
+        Access Vespa synchronous connection layer
+
+        :param connections: Number of allowed concurrent connections
+        :param total_timeout: Total timeout in secs.
+        :return: Instance of Vespa asynchronous layer.
+        """
+        return VespaSync(
+            app=self, pool_connections=connections, pool_maxsize=connections
+        )
+
     @staticmethod
     def _run_coroutine_new_event_loop(loop, coro):
         asyncio.set_event_loop(loop)

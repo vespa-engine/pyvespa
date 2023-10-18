@@ -18,9 +18,8 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 
-from vespa.application import Vespa
-from vespa.application import VESPA_CLOUD_SECRET_TOKEN
-from vespa.package import ApplicationPackage
+from vespa.application import Vespa, VESPA_CLOUD_SECRET_TOKEN
+from vespa.package import ApplicationPackage, AuthClient, Parameter
 
 CFG_SERVER_START_TIMEOUT = 300
 APP_INIT_TIMEOUT = 300
@@ -370,6 +369,7 @@ class VespaCloud(VespaDeployment):
             application_package: ApplicationPackage,
             key_location: Optional[str] = None,
             key_content: Optional[str] = None,
+            auth_client_token_id: Optional[str] = None,
             output_file: IO = sys.stdout,
     ) -> None:
         """
@@ -381,6 +381,8 @@ class VespaCloud(VespaDeployment):
         :param key_location: Location of the private key used for signing HTTP requests to the Vespa Cloud.
         :param key_content: Content of the private key used for signing HTTP requests to the Vespa Cloud. Use only when
             key file is not available.
+        :param auth_client_token_id: Use token based data plane authentication. This is the token name configured in the Vespa Cloud Console.
+            This is used to configure Vespa services.xml. The token is given read and write permissions.
         :param output_file: Output file to write output messages. Default is sys.stdout
         """
         self.tenant = tenant
@@ -401,6 +403,23 @@ class VespaCloud(VespaDeployment):
             "api.vespa-external.aws.oath.cloud", 4443
         )
         self.output = output_file
+        self.auth_client_token_id = auth_client_token_id
+        if auth_client_token_id is not None:
+            application.auth_clients = [
+                AuthClient(id="mtls",
+                    permissions=["read,write"],
+                    parameters=[
+                        Parameter("certificate", {"file": "security/clients.pem"})
+                    ]
+                ),
+                AuthClient(id=auth_client_token_id,
+                    permissions=["read,write"],
+                    parameters=[
+                        Parameter("token", {"id": "accessToken"}
+                        )
+                ])
+            ]
+
 
     def __enter__(self) -> "VespaCloud":
         return self
@@ -468,7 +487,7 @@ class VespaCloud(VespaDeployment):
         job = "dev-" + region
         run = self._start_deployment(instance, job, disk_folder, application_zip_bytes=data)
         self._follow_deployment(instance, job, run)
-        if os.environ.get("VESPA_CLOUD_SECRET_TOKEN") is None:
+        if os.environ.get(VESPA_CLOUD_SECRET_TOKEN) is None:
             endpoint_url = self._get_mtls_endpoint(instance=instance, region=region)
         else:
             endpoint_url = self._get_token_endpoint(instance=instance, region=region)  

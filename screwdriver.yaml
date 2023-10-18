@@ -155,6 +155,30 @@ jobs:
       - run-integration-cloud: |
           pytest vespa/test_integration_vespa_cloud_token.py -s -v
 
+  integration-cloud-vector-search:
+    requires: [~commit]
+    annotations:
+      screwdriver.cd/timeout: 120
+      screwdriver.cd/cpu: HIGH
+      screwdriver.cd/ram: HIGH
+      screwdriver.cd/buildPeriodically: H 11 * * *
+    secrets:
+      - VESPA_TEAM_API_KEY
+      - VESPA_CLOUD_SECRET_TOKEN
+    environment:
+      SD_ZIP_ARTIFACTS: true
+    steps:
+      - setup: |
+          export WORK_DIR=$SD_DIND_SHARE_PATH
+          export RESOURCES_DIR=$(pwd)/vespa/resources
+      - install-python: |
+          dnf install -y python38-pip
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest datasets
+          python3 -m pip install -e .[full]
+      - run-integration-cloud: |
+          pytest vespa/test_integration_vespa_cloud_vector_search.py -s -v
+
   notebooks-cloud:
     requires: [integration-cloud]
     annotations:
