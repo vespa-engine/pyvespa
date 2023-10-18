@@ -412,10 +412,10 @@ class VespaCloud(VespaDeployment):
                         Parameter("certificate", {"file": "security/clients.pem"})
                     ]
                 ),
-                AuthClient(id=auth_client_token_id,
+                AuthClient(id="token",
                     permissions=["read,write"],
                     parameters=[
-                        Parameter("token", {"id": "accessToken"}
+                        Parameter("token", {"id": auth_client_token_id}
                         )
                 ])
             ]
