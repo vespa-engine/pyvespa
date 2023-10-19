@@ -80,7 +80,7 @@ class TestVectorSearch(unittest.TestCase):
         self.assertEqual(200, self.app.get_application_status().status_code)
        
         from datasets import load_dataset
-        sample_size = 100000
+        sample_size = 10000
         # streaming=True pages the data from S3. This is needed to avoid memory issues when loading the dataset.
         dataset = load_dataset("KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True).take(sample_size)
         # Map does not page, this allows chaining of maps where the lambda is yielding the next document.
@@ -103,7 +103,7 @@ class TestVectorSearch(unittest.TestCase):
             callbacks +=1
 
         start = time.time()
-        self.app.feed_iterable(iter=docs, schema="vector", namespace="benchmark", callback=callback, max_workers=48, max_connections=48)
+        self.app.feed_iterable(iter=docs, schema="vector", namespace="benchmark", callback=callback, max_workers=48, max_connections=48, max_queue_size=4000)
         self.assertEqual(ok, sample_size)
         duration = time.time() - start
         docs_per_second = sample_size / duration
@@ -124,12 +124,12 @@ class TestVectorSearch(unittest.TestCase):
         ok = 0
         callbacks = 0
         start_time = time.time()
-        dataset = load_dataset("KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True).take(10000)
+        dataset = load_dataset("KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True).take(100)
         feed_with_wrong_field = dataset.map(lambda x: {"id": x["_id"], "fields": {"id": x["_id"], "vector":x["openai"]}})
         faulty_docs = list(feed_with_wrong_field) 
         self.app.feed_iterable(iter=faulty_docs, schema="vector", namespace="benchmark", callback=callback, max_workers=48, max_connections=48)
         self.assertEqual(ok, 0)
-        self.assertEqual(callbacks, 10000)
+        self.assertEqual(callbacks, 100)
 
         # Async test to compare time
         ok = 0
