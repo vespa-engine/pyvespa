@@ -98,10 +98,12 @@ def raise_for_status(response: Response) -> None:
         except JSONDecodeError:
             raise http_error
         errors = response_json.get("root", {}).get("errors", [])
-        if not errors:
-            raise http_error
-        raise VespaError(errors) from http_error
-
+        error_message = response_json.get("message", None)
+        if errors:
+            raise VespaError(errors) from http_error
+        if error_message:
+            raise VespaError(error_message) from http_error
+        raise http_error
 
 class Vespa(object):
     def __init__(
