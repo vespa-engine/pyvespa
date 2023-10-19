@@ -85,7 +85,7 @@ class TestVectorSearch(unittest.TestCase):
         # streaming=True pages the data from S3. This is needed to avoid memory issues when loading the dataset.
         dataset = load_dataset("KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True).take(sample_size)
         # Map does not page, this allows chaining of maps where the lambda is yielding the next document.
-        pyvespa_feed_format = dataset.map(lambda x: {"id": x["_id"], "fields": {"id": x["_id"], "vector":x["openai"]}})
+        pyvespa_feed_format = dataset.map(lambda x: {"id": x["_id"], "fields": {"id": x["_id"], "embedding":x["openai"]}})
 
         docs = list(pyvespa_feed_format) # we have enough memory to page everything into memory with list()
         ok = 0
