@@ -530,15 +530,15 @@ class Vespa(object):
         Uses a queue to feed data in parallel with a thread pool. The result of each operation is forwarded
         to the user provided callback function that can process the returned `VespaResponse`. 
 
-        >>> def my_feed():  # doctest: +SKIP
-        >>>     def my_callback(response:VespaResponse, id:str):
-        >>>            if response.get_status_code() != 200:
-        >>>                print("Error for doc " + id)
-        >>>                print(response.get_json())
-        >>>     dataset = load_dataset("KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True)
-        >>>     pyvespa_feed_format = dataset.map(lambda x: {"id": x["_id"], "fields": {"id": x["_id"], "vector":x["openai"]}})
-        >>>     vespa: Vespa = Vespa(url="https://acc75ec5.f228fbc2.z.vespa-app.cloud/")
-        >>>     vespa.feed_iterable(iter=pyvespa_feed_format, schema="vector", namespace="benchmark", callback=my_callback, max_workers=48, max_connections=48)
+        def my_feed():  # doctest: +SKIP
+            def my_callback(response:VespaResponse, id:str):
+                if response.get_status_code() != 200:
+                    print("Error for doc " + id)
+                    print(response.get_json())
+            dataset = load_dataset("KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True)
+            pyvespa_feed_format = dataset.map(lambda x: {"id": x["_id"], "fields": {"id": x["_id"], "vector":x["openai"]}})
+            vespa: Vespa = Vespa(url="https://acc75ec5.f228fbc2.z.vespa-app.cloud/")
+            vespa.feed_iterable(iter=pyvespa_feed_format, schema="vector", namespace="benchmark", callback=my_callback, max_workers=48, max_connections=48)
 
         :param iter: An iterable of Dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
         :param schema: The Vespa schema name that we are sending data to.
