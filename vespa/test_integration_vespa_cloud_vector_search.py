@@ -1,7 +1,6 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import os
-import sys
 import shutil
 import asyncio
 from typing import Iterable
@@ -89,13 +88,20 @@ class TestVectorSearch(unittest.TestCase):
 
         docs = list(pyvespa_feed_format) # we have enough memory to page everything into memory with list()
         ok = 0
+        callbacks = 0
+        start_time = time.time()
         def callback(response:VespaResponse, id:str):
             nonlocal ok
-            if response.get_status_code() != 200:
-                print("Error for doc " + id, sys.stderr)
-                print(response.get_json())
-            else:
+            nonlocal start_time
+            nonlocal callbacks
+            if response.get_status_code() == 200:
                 ok +=1
+            if callbacks % 1000 == 0:
+                duration = time.time() - start_time
+                docs_per_second = callbacks / duration
+                print("Feed time: " + str(duration) + " docs per second: " + str(docs_per_second))
+            callbacks +=1
+
         start = time.time()
         self.app.feed_iterable(iter=docs, schema="vector", namespace="benchmark", callback=callback, max_workers=48, max_connections=48)
         self.assertEqual(ok, sample_size)
@@ -114,7 +120,18 @@ class TestVectorSearch(unittest.TestCase):
             self.assertEqual(response.get_status_code(), 200)
             self.assertEqual(len(response.hits), 10)
         
-        # Async test
+        #check error callbacks 
+        ok = 0
+        callbacks = 0
+        start_time = time.time()
+        dataset = load_dataset("KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True).take(10000)
+        feed_with_wrong_field = dataset.map(lambda x: {"id": x["_id"], "fields": {"id": x["_id"], "vector":x["openai"]}})
+        faulty_docs = list(feed_with_wrong_field) 
+        self.app.feed_iterable(iter=faulty_docs, schema="vector", namespace="benchmark", callback=callback, max_workers=48, max_connections=48)
+        self.assertEqual(ok, 0)
+        self.assertEqual(callbacks, 10000)
+
+        # Async test to compare time
         ok = 0
         start = time.time()
         ok = asyncio.run(execute_async(self.app, docs))
