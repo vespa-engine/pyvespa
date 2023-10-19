@@ -1,6 +1,7 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import os
+import sys
 import shutil
 import asyncio
 from typing import Iterable
@@ -9,6 +10,7 @@ from vespa.application import Vespa, ApplicationPackage
 from vespa.package import Schema, Document, Field, HNSW, RankProfile
 from vespa.deployment import VespaCloud
 from vespa.io import VespaResponse
+import time
 
 APP_INIT_TIMEOUT = 900
 
@@ -42,17 +44,14 @@ def create_vector_ada_application_package() -> ApplicationPackage:
         ]
     ) 
 
-async def execute_async_data_operations(app: Vespa, docs: Iterable[dict]) -> int: 
+async def execute_async(app: Vespa, docs: Iterable[dict]) -> int: 
     async with app.asyncio() as async_session:
         ok = 0
         for doc in docs:
             response:VespaResponse = await async_session.feed_data_point(
                 schema="vector",
-                data_id=doc["_id"],
-                fields={
-                    "id": doc["_id"],
-                    "embedding": doc["openai"]
-                }
+                data_id=doc["id"],
+                fields=doc["fields"]
             )
             if response.status_code == 200:
                 ok +=1
@@ -82,24 +81,27 @@ class TestVectorSearch(unittest.TestCase):
         self.assertEqual(200, self.app.get_application_status().status_code)
        
         from datasets import load_dataset
-        sample_size = 4000
+        sample_size = 100000
+        # streaming=True pages the data from S3. This is needed to avoid memory issues when loading the dataset.
         dataset = load_dataset("KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True).take(sample_size)
-        docs = list(dataset) #we have enough memory to page everything into memory with list()
-        ok = 0
-        with self.app.syncio() as sync_session:
-            for doc in docs:
-                response:VespaResponse = sync_session.feed_data_point(
-                    schema="vector",
-                    data_id=doc["_id"],
-                    fields={
-                        "id": doc["_id"],
-                        "embedding": doc["openai"]
-                    }
-                )
-                self.assertEqual(response.get_status_code(), 200)
-                ok +=1
+        # Map does not page, this allows chaining of maps where the lambda is yielding the next document.
+        pyvespa_feed_format = dataset.map(lambda x: {"id": x["_id"], "fields": {"id": x["_id"], "vector":x["openai"]}})
 
+        docs = list(pyvespa_feed_format) # we have enough memory to page everything into memory with list()
+        ok = 0
+        def callback(response:VespaResponse, id:str):
+            nonlocal ok
+            if response.get_status_code() != 200:
+                print("Error for doc " + id, sys.stderr)
+                print(response.get_json())
+            else:
+                ok +=1
+        start = time.time()
+        self.app.feed_iterable(iter=docs, schema="vector", namespace="benchmark", callback=callback, max_workers=48, max_connections=48)
         self.assertEqual(ok, sample_size)
+        duration = time.time() - start
+        docs_per_second = sample_size / duration
+        print("Sync Feed time: " + str(duration) + " docs per second: " + str(docs_per_second))
         
         with self.app.syncio() as sync_session:
             response:VespaResponse = sync_session.query(   
@@ -114,9 +116,13 @@ class TestVectorSearch(unittest.TestCase):
         
         # Async test
         ok = 0
-        ok = asyncio.run(execute_async_data_operations(self.app, docs))
+        start = time.time()
+        ok = asyncio.run(execute_async(self.app, docs))
         self.assertEqual(ok, sample_size)
-        
+        duration = time.time() - start
+        docs_per_second = sample_size / duration
+        print("Async Feed time: " + str(duration) + " docs per second: " + str(docs_per_second))
+
           
     def tearDown(self) -> None:
         self.app.delete_all_docs(

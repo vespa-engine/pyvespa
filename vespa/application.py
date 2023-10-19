@@ -9,8 +9,11 @@ import requests
 import traceback
 import concurrent.futures
 from collections import Counter
-from typing import Any, Optional, Dict, List, IO
-
+from typing import Any, Optional, Dict, List, IO, Iterable, Callable
+from concurrent.futures import ThreadPoolExecutor, Future
+from queue import Queue, Empty
+import threading
+from functools import partial
 from pandas import DataFrame
 from requests import Session
 from requests.models import Response
@@ -20,6 +23,7 @@ from urllib3.util import Retry
 from tenacity import retry, wait_exponential, stop_after_attempt, RetryError
 from time import sleep
 from os import environ
+import traceback
 
 from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse
@@ -518,6 +522,84 @@ class Vespa(object):
         """
         batch = parse_feed_df(df=df, include_id=include_id, id_field=id_field)
         return self.feed_batch(batch=batch, **kwargs)
+  
+    def feed_iterable(self, iter:Iterable[Dict], schema:str, namespace:str = None, callback:Callable = None, max_queue_size:int = 1000, max_workers:int = 8,max_connections:int = 100):
+        """
+        Feed data from an Iterable of Dict with the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
+        
+        Uses a queue to feed data in parallel with a thread pool. The result of each operation is forwarded
+        to the user provided callback function that can process the returned `VespaResponse`. 
+
+        >>> def my_feed():  # doctest: +SKIP
+        >>>     def my_callback(response:VespaResponse, id:str):
+        >>>            if response.get_status_code() != 200:
+        >>>                print("Error for doc " + id)
+        >>>                print(response.get_json())
+        >>>     dataset = load_dataset("KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True)
+        >>>     pyvespa_feed_format = dataset.map(lambda x: {"id": x["_id"], "fields": {"id": x["_id"], "vector":x["openai"]}})
+        >>>     vespa: Vespa = Vespa(url="https://acc75ec5.f228fbc2.z.vespa-app.cloud/")
+        >>>     vespa.feed_iterable(iter=pyvespa_feed_format, schema="vector", namespace="benchmark", callback=my_callback, max_workers=48, max_connections=48)
+
+        :param iter: An iterable of Dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
+        :param schema: The Vespa schema name that we are sending data to.
+        :param namespace: The Vespa document id namespace. If no namespace is provided the schema is used.
+        :param callback: A callback function to be called on each result. Signature callback(response:VespaResponse, id:str)
+        :param max_queue_size: The maximum size of the blocking queue.
+        :param max_workers: The maximum number of workers in the threadpool executor.
+        :param max_connections: The maximum number of persisted connections to the Vespa endpoint.
+        """        
+        
+        if namespace is None:
+            namespace = schema
+
+        def _consumer(queue:Queue, executor:ThreadPoolExecutor, sync_session:VespaSync):
+            while True:
+                try:
+                    doc = queue.get(timeout=5)
+                except Empty:
+                    continue
+                if doc is None: # 
+                    queue.task_done()
+                    break
+                future:Future = executor.submit(_submit, doc, sync_session)
+                future.add_done_callback(
+                    partial(_handle_result_callback, callback=callback)
+                )
+                queue.task_done()
+
+        def _submit(doc:dict, sync_session:VespaSync):
+            id = doc['id']
+            fields = doc['fields']
+            try:
+                response:VespaResponse = sync_session.feed_data_point(schema=schema, namespace=namespace, data_id=id, fields=fields)
+                return (id,response)
+            except Exception as e:
+                traceback.print_exception(type(e), e, e.__traceback__, file=sys.stderr)
+            return (id,e)
+
+        def _handle_result_callback(future:Future, callback:Callable):
+            id, response = future.result()
+            if isinstance(response, Exception): 
+                print(f"Exception caught when submitting to Vespa for id {id}", file=sys.stderr)
+                traceback.print_exception(type(response), response, response.__traceback__, file=sys.stderr)
+                response = VespaResponse(status_code=599, json={"Exception":str(response), "id":id, "message":"Exception during feed_data_point"})
+            if callback is not None:    
+                try:
+                    callback(response,id=id)
+                except Exception as e:
+                    print(f"Exception during callback for id {id}", file=sys.stderr)
+                    traceback.print_exception(type(e), e, e.__traceback__, file=sys.stderr)
+        
+        with VespaSync(app=self,pool_maxsize=max_connections, pool_connections=max_connections) as session:
+            queue = Queue(maxsize=max_queue_size)   
+            with ThreadPoolExecutor(max_workers=max_workers) as executor: 
+                consumer_thread = threading.Thread(target=_consumer, args=(queue, executor, session))
+                consumer_thread.start()  
+                for doc in iter:
+                    queue.put(doc, block=True)
+                queue.put(None, block=True)
+                queue.join() 
+                consumer_thread.join()
 
     def delete_data(
         self, schema: str, data_id: str, namespace: str = None
