@@ -530,20 +530,10 @@ class Vespa(object):
         Uses a queue to feed data in parallel with a thread pool. The result of each operation is forwarded
         to the user provided callback function that can process the returned `VespaResponse`. 
 
-        def my_feed():  # doctest: +SKIP
-            def my_callback(response:VespaResponse, id:str):
-                if response.get_status_code() != 200:
-                    print("Error for doc " + id)
-                    print(response.get_json())
-            dataset = load_dataset("KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True)
-            pyvespa_feed_format = dataset.map(lambda x: {"id": x["_id"], "fields": {"id": x["_id"], "vector":x["openai"]}})
-            vespa: Vespa = Vespa(url="https://acc75ec5.f228fbc2.z.vespa-app.cloud/")
-            vespa.feed_iterable(iter=pyvespa_feed_format, schema="vector", namespace="benchmark", callback=my_callback, max_workers=48, max_connections=48)
-
         :param iter: An iterable of Dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
         :param schema: The Vespa schema name that we are sending data to.
         :param namespace: The Vespa document id namespace. If no namespace is provided the schema is used.
-        :param callback: A callback function to be called on each result. Signature callback(response:VespaResponse, id:str)
+        :param callback: A callback function to be called on each result. Signature def callback(response:VespaResponse, id:str):
         :param max_queue_size: The maximum size of the blocking queue.
         :param max_workers: The maximum number of workers in the threadpool executor.
         :param max_connections: The maximum number of persisted connections to the Vespa endpoint.
@@ -1071,7 +1061,7 @@ class VespaSync(object):
         self, content_cluster_name: str, schema: str, namespace: str = None
     ) -> Response:
         """
-        Delete all documents associated with the schema
+        Delete all documents associated with the schema.
 
         :param content_cluster_name: Name of content cluster to GET from, or visit.
         :param schema: The schema that we are deleting data from.
@@ -1085,11 +1075,23 @@ class VespaSync(object):
         end_point = "{}/document/v1/{}/{}/docid/?cluster={}&selection=true".format(
             self.app.end_point, namespace, schema, content_cluster_name
         )
-        # TODO - this require iteration and reading the continuation token
-        # https://github.com/vespa-engine/pyvespa/issues/586
-        response = self.http_session.delete(end_point)
-        raise_for_status(response)
-        return response
+        request_endpoint = end_point
+        last_response = None
+        while True:
+            try:
+                response = self.http_session.delete(request_endpoint)
+                last_response = response
+                result = response.json()
+                if "continuation" in result:
+                    request_endpoint = "{}&continuation={}".format(
+                        end_point, result["continuation"]
+                    )
+                else:
+                    break
+            except Exception:
+                last_response = None
+
+        return last_response
 
     def get_data(
         self, schema: str, data_id: str, namespace: str = None
