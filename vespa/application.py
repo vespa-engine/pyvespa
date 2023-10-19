@@ -567,7 +567,7 @@ class Vespa(object):
                 return (id,response)
             except Exception as e:
                 traceback.print_exception(type(e), e, e.__traceback__, file=sys.stderr)
-            return (id,e)
+                return (id,e)
 
         def _handle_result_callback(future:Future, callback:Callable):
             id, response = future.result()
