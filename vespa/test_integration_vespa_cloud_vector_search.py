@@ -49,6 +49,7 @@ async def execute_async(app: Vespa, docs: Iterable[dict]) -> int:
         for doc in docs:
             response:VespaResponse = await async_session.feed_data_point(
                 schema="vector",
+                namespace="benchmark",
                 data_id=doc["id"],
                 fields=doc["fields"]
             )
@@ -143,7 +144,7 @@ class TestVectorSearch(unittest.TestCase):
           
     def tearDown(self) -> None:
         self.app.delete_all_docs(
-            content_cluster_name="vector_content", schema="vector"
+            content_cluster_name="vector_content", schema="vector",namespace="benchmark"
         )
         with self.app.syncio() as sync_session:
             response:VespaResponse = sync_session.query(   
@@ -153,6 +154,7 @@ class TestVectorSearch(unittest.TestCase):
                 }
             )
             self.assertEqual(response.get_status_code(), 200)
+            self.assertEqual(len(response.hits), 0)
             print(response.get_json())
         shutil.rmtree(self.disk_folder, ignore_errors=True)
 
