@@ -8,7 +8,7 @@ import unittest
 from vespa.application import Vespa, ApplicationPackage
 from vespa.package import Schema, Document, Field, HNSW, RankProfile
 from vespa.deployment import VespaCloud
-from vespa.io import VespaResponse
+from vespa.io import VespaResponse, VespaQueryResponse
 import time
 
 APP_INIT_TIMEOUT = 900
@@ -21,6 +21,7 @@ def create_vector_ada_application_package() -> ApplicationPackage:
             document=Document(
                 fields=[
                     Field(name="id", type="string", indexing=["attribute", "summary"]),
+                    Field(name="meta", type="string", indexing=["attribute", "summary"]),
                     Field(
                         name="embedding",
                         type="tensor<bfloat16>(x[1536])",
@@ -42,21 +43,6 @@ def create_vector_ada_application_package() -> ApplicationPackage:
             ])
         ]
     ) 
-
-async def execute_async(app: Vespa, docs: Iterable[dict]) -> int: 
-    async with app.asyncio() as async_session:
-        ok = 0
-        for doc in docs:
-            response:VespaResponse = await async_session.feed_data_point(
-                schema="vector",
-                namespace="benchmark",
-                data_id=doc["id"],
-                fields=doc["fields"]
-            )
-            if response.status_code == 200:
-                ok +=1
-        return ok
-            
 
 class TestVectorSearch(unittest.TestCase):
     def setUp(self) -> None:
@@ -95,7 +81,7 @@ class TestVectorSearch(unittest.TestCase):
             nonlocal ok
             nonlocal start_time
             nonlocal callbacks
-            if response.get_status_code() == 200:
+            if response.is_successfull():
                 ok +=1
             if callbacks % 1000 == 0:
                 duration = time.time() - start_time
@@ -111,7 +97,7 @@ class TestVectorSearch(unittest.TestCase):
         print("Sync Feed time: " + str(duration) + " docs per second: " + str(docs_per_second))
         
         with self.app.syncio() as sync_session:
-            response:VespaResponse = sync_session.query(   
+            response:VespaQueryResponse = sync_session.query(   
                 {
                     "yql": "select id from sources * where {targetHits:10}nearestNeighbor(embedding,q)",
                     "input.query(q)": docs[0]["openai"],
@@ -120,8 +106,19 @@ class TestVectorSearch(unittest.TestCase):
             )
             self.assertEqual(response.get_status_code(), 200)
             self.assertEqual(len(response.hits), 10)
-        
+
+            response:VespaQueryResponse = sync_session.query(
+                yql="select id from sources * where {targetHits:10}nearestNeighbor(embedding,q)",
+                hits=5,
+                body={
+                    "input.query(q)": docs[0]["openai"]
+                }
+            )
+            self.assertEqual(response.get_status_code(), 200)
+            self.assertEqual(len(response.hits), 5)
+       
         #check error callbacks 
+
         ok = 0
         callbacks = 0
         start_time = time.time()
@@ -132,14 +129,24 @@ class TestVectorSearch(unittest.TestCase):
         self.assertEqual(ok, 0)
         self.assertEqual(callbacks, 100)
 
-        # Async test to compare time
         ok = 0
-        start = time.time()
-        ok = asyncio.run(execute_async(self.app, docs))
+        dataset = load_dataset("KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True).take(sample_size)
+        # Run update - assign all docs with a meta field
+        
+        updates = dataset.map(lambda x: {"id": x["_id"], "fields": {"meta":"stuff"}})
+        self.app.feed_iterable(iter=updates, schema="vector", namespace="benchmark", callback=callback, operation_type="update")
         self.assertEqual(ok, sample_size)
-        duration = time.time() - start
-        docs_per_second = sample_size / duration
-        print("Async Feed time: " + str(duration) + " docs per second: " + str(docs_per_second))
+
+        with self.app.syncio() as sync_session:
+            response:VespaQueryResponse = sync_session.query(
+                yql="select id from sources * where meta contains \"stuff\"",
+                hits=5,
+                timeout="15s"
+            )
+            self.assertEqual(response.get_status_code(), 200)
+            self.assertEqual(len(response.hits), 5)
+            self.assertEqual(len(response.number_documents_retrieved), sample_size)
+
 
           
     def tearDown(self) -> None:

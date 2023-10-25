@@ -24,6 +24,7 @@ from time import sleep
 from os import environ
 import traceback
 import time
+import warnings
 
 from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse
@@ -32,6 +33,7 @@ from vespa.package import ApplicationPackage
 retry_strategy = Retry(
     total=3,
     backoff_factor=1,
+    raise_on_status=False, # we want to raise and wrap with VespaError instead to get the payload (if any)
     status_forcelist=[429, 500, 502, 503, 504],
     allowed_methods=["POST", "GET", "DELETE", "PUT"],
 )
@@ -40,7 +42,7 @@ VESPA_CLOUD_SECRET_TOKEN: str = "VESPA_CLOUD_SECRET_TOKEN"
 
 def parse_feed_df(df: DataFrame, include_id: bool, id_field="id", id_prefix="") -> List[Dict[str, Any]]:
     """
-    Convert a DataFrame into batch format for feeding
+    [Deprecated] Convert a DataFrame into batch format for feeding
 
     :param df: DataFrame with the following required columns ["id"]. Additional columns are assumed to be fields.
     :param include_id: Include id on the fields to be fed.
@@ -48,6 +50,7 @@ def parse_feed_df(df: DataFrame, include_id: bool, id_field="id", id_prefix="") 
     :param id_prefix: Add a string prefix to ID field, e.g. "id:namespace:schema::"
     :return: List of Dict containing 'id' and 'fields'.
     """
+    warnings.warn("parse_feed_df is deprecated and will be removed in a future version. No replacement is planned.", DeprecationWarning)
     required_columns = [id_field]
     assert all(
         [x in list(df.columns) for x in required_columns]
@@ -67,7 +70,7 @@ def parse_feed_df(df: DataFrame, include_id: bool, id_field="id", id_prefix="") 
 
 def df_to_vespafeed(df: DataFrame, schema_name: str, id_field="id", namespace="") -> str:
     """
-    Convert a DataFrame into a string in Vespa JSON feed format,
+    [Deprecated] Convert a DataFrame into a string in Vespa JSON feed format,
     see https://docs.vespa.ai/en/reference/document-json-format.html
 
     :param df: DataFrame with the following required columns ["id"]. Additional columns are assumed to be fields.
@@ -76,6 +79,7 @@ def df_to_vespafeed(df: DataFrame, schema_name: str, id_field="id", namespace=""
     :param namespace: Set if namespace != schema_name
     :return: JSON string in Vespa feed format
     """
+    warnings.warn("df_to_vespafeed is deprecated and will be removed in a future version. No replacement is planned.", DeprecationWarning)
     return json.dumps(parse_feed_df(df, True, id_field,
                                     "id:{}:{}::".format(schema_name if namespace == "" else namespace, schema_name)))
 
@@ -103,7 +107,7 @@ def raise_for_status(response: Response) -> None:
             raise VespaError(errors) from http_error
         if error_message:
             raise VespaError(error_message) from http_error
-        raise http_error
+        raise HTTPError(http_error) from http_error
 
 class Vespa(object):
     def __init__(
@@ -174,7 +178,7 @@ class Vespa(object):
         )
 
     def syncio(
-        self, connections: Optional[int] = 100, total_timeout: int = 10
+        self, connections: Optional[int] = 100
     ) -> "VespaSync":
         """
         Access Vespa synchronous connection layer
@@ -207,7 +211,7 @@ class Vespa(object):
             return asyncio.run(coro)
 
     def http(self, pool_maxsize: int = 10):
-        return VespaSync(app=self, pool_maxsize=pool_maxsize)
+        return VespaSync(app=self, pool_maxsize=pool_maxsize, pool_connections=pool_maxsize)
 
     def __repr__(self):
         if self.port:
@@ -304,7 +308,7 @@ class Vespa(object):
 
     def query(
         self,
-        body: Optional[Dict] = None,
+        body: Optional[Dict] = None, **kwargs
     ) -> VespaQueryResponse:
         """
         Send a query request to the Vespa application.
@@ -312,17 +316,21 @@ class Vespa(object):
         Send 'body' containing all the request parameters.
 
         :param body: Dict containing all the request parameters.
+        param kwargs: Extra valid Vespa Query API parameters.
         :return: The response from the Vespa application.
         """
-        with VespaSync(self) as sync_app:
+        #Use one connection as this is a single query and 
+        #context manager is shutting down the connection after use
+        with VespaSync(self,pool_maxsize=1, pool_connections=1) as sync_app:
             return sync_app.query(
-                body=body,
+                body=body, **kwargs
             )
 
     def _query_batch_sync(
         self,
         body_batch: Optional[List[Dict]],
     ):
+        """[Deprecated]"""
         return [self.query(body=body) for body in body_batch]
 
     async def _query_batch_async(
@@ -350,7 +358,7 @@ class Vespa(object):
         **kwargs,
     ):
         """
-        Send queries in batch to a Vespa app.
+        [Deprecated] Send queries in batch to a Vespa app.
 
         :param body_batch: A list of dict containing all the request parameters. Set to None if using 'query_batch'.
             of the field to use to recall and the second element is a list of the values to be recalled.
@@ -360,6 +368,8 @@ class Vespa(object):
         :param kwargs: Additional parameters to be sent along the request.
         :return: List of HTTP POST responses
         """
+        warnings.warn("query_batch is deprecated and will be removed in a future version. No replacement is planned.", DeprecationWarning)
+        
         if asynchronous:
             coro = self._query_batch_async(
                 body_batch=body_batch,
@@ -374,10 +384,12 @@ class Vespa(object):
             )
 
     def feed_data_point(
-        self, schema: str, data_id: str, fields: Dict, namespace: str = None
+        self, schema: str, data_id: str, fields: Dict, namespace: str = None, **kwargs
     ) -> VespaResponse:
         """
-        Feed a data point to a Vespa app.
+        Feed a data point to a Vespa app. Will create a new Sync Session with
+        connection overhead.
+        ``` with VespaSync(app) as sync_app: sync_app.feed_data_point(...) ```
 
         :param schema: The schema that we are sending data to.
         :param data_id: Unique id associated with this data point.
@@ -387,15 +399,17 @@ class Vespa(object):
         """
         if not namespace:
             namespace = schema
-
-        with VespaSync(app=self) as sync_app:
+        # Use low low connection settings to avoid too much overhead for a 
+        # single data point
+        with VespaSync(app=self, pool_connections=1,pool_maxsize=1) as sync_app:
             return sync_app.feed_data_point(
-                schema=schema, data_id=data_id, fields=fields, namespace=namespace
+                schema=schema, data_id=data_id, fields=fields, namespace=namespace, **kwargs
             )
 
     def _feed_batch_sync(
         self, schema: str, batch: List[Dict], namespace: str
     ) -> List[VespaResponse]:
+        """[Deprecated]"""
         return [
             self.feed_data_point(
                 schema, data_point["id"], data_point["fields"], namespace
@@ -406,6 +420,7 @@ class Vespa(object):
     async def _feed_batch_async(
         self, schema: str, batch: List[Dict], connections, total_timeout, namespace: str
     ):
+        """[Deprecated]"""
         async with VespaAsync(
             app=self, connections=connections, total_timeout=total_timeout
         ) as async_app:
@@ -424,7 +439,7 @@ class Vespa(object):
         namespace: Optional[str] = None,
     ):
         """
-        Feed a batch of data to a Vespa app.
+        [Deprecated] Feed a batch of data to a Vespa app.
 
         :param batch: A list of dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
         :param schema: The schema that we are sending data to. The schema is optional in case it is possible to infer
@@ -472,7 +487,7 @@ class Vespa(object):
         output: bool = True,
     ):
         """
-        Feed a batch of data to a Vespa app.
+        [Deprecated] Feed a batch of data to a Vespa app.
 
         :param batch: A list of dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
         :param schema: The schema that we are sending data to. The schema is optional in case it is possible to infer
@@ -485,6 +500,7 @@ class Vespa(object):
         :param output: Prints a final message about the feed result.
         :return: List of HTTP POST responses
         """
+        warnings.warn("feed_batch is deprecated and will be removed in a future version. No replacement is planned.", DeprecationWarning)
         mini_batches = [
             batch[i: i + batch_size] for i in range(0, len(batch), batch_size)
         ]
@@ -514,7 +530,7 @@ class Vespa(object):
 
     def feed_df(self, df: DataFrame, include_id: bool = True, id_field="id", **kwargs):
         """
-        Feed data contained in a DataFrame.
+        [Deprecated] Feed data contained in a DataFrame.
 
         :param df: A DataFrame containing a required 'id' column and the remaining fields to be fed.
         :param include_id: Include id on the fields to be fed. Default to True.
@@ -522,10 +538,21 @@ class Vespa(object):
         :param kwargs: Additional parameters are passed to :func:`feed_batch`.
         :return: List of HTTP POST responses
         """
+        warnings.warn("feed_df is deprecated and will be removed in a future version. No replacement is planned.", DeprecationWarning)
         batch = parse_feed_df(df=df, include_id=include_id, id_field=id_field)
         return self.feed_batch(batch=batch, **kwargs)
   
-    def feed_iterable(self, iter:Iterable[Dict], schema:str, namespace:str = None, callback:Callable = None, max_queue_size:int = 1000, max_workers:int = 8, max_connections:int = 100):
+    def feed_iterable(self, 
+        iter:Iterable[Dict], 
+        schema:Optional[str] = None, 
+        namespace:Optional[str] = None, 
+        callback:Optional[Callable] = None, 
+        operation_type:Optional[str] = "feed",
+        max_queue_size:int = 1000,
+        max_workers:int = 8, 
+        max_connections:int = 32,
+        **kwargs
+    ):
         """
         Feed data from an Iterable of Dict with the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
         
@@ -535,17 +562,26 @@ class Vespa(object):
         :param iter: An iterable of Dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
         :param schema: The Vespa schema name that we are sending data to.
         :param namespace: The Vespa document id namespace. If no namespace is provided the schema is used.
-        :param callback: A callback function to be called on each result. Signature def callback(response:VespaResponse, id:str):
-        :param max_queue_size: The maximum size of the blocking queue and in-flight operations.
+        :param callback: A callback function to be called on each result. Signature `callback(response:VespaResponse, id:str)`
+        :param operation_type: The operation to perform. Default to `feed`. Valid are `feed`, `update` or `delete`.
+        :param max_queue_size: The maximum size of the blocking queue and max in-flight operations.
         :param max_workers: The maximum number of workers in the threadpool executor.
         :param max_connections: The maximum number of persisted connections to the Vespa endpoint.
+        :param kwargs: Additional parameters are passed to the respective operation type specific :func:`_data_point`.
         """        
         
         if namespace is None:
             namespace = schema
+        if not schema:
+            try:
+                schema = self._infer_schema_name()
+            except ValueError:
+                raise ValueError(
+                    "Not possible to infer schema name. Specify schema parameter."
+                )
 
-        def _consumer(queue:Queue, executor:ThreadPoolExecutor, sync_session:VespaSync, max_in_flight=2000):
-            in_flight = 0 #Single threaded consumer
+        def _consumer(queue:Queue, executor:ThreadPoolExecutor, sync_session:VespaSync, max_in_flight=max_queue_size):
+            in_flight = 0 # Single threaded consumer
             futures:List[Future]= []
             while True:
                 try:
@@ -571,9 +607,10 @@ class Vespa(object):
                 future:Future = executor.submit(_submit, doc, sync_session)
                 futures.append(future)
                 in_flight += 1
-                queue.task_done() # signal that we have consumed the doc
+                queue.task_done() # signal that we have consumed the doc from queue
             
-            # make sure callback is called for all pending operations before returning consumer thread
+            # make sure callback is called for all pending operations before 
+            # exiting the consumer thread
             for future in futures:
                 _handle_result_callback(future, callback)
             
@@ -583,10 +620,17 @@ class Vespa(object):
             if id == None or fields == None:
                 return id, VespaResponse(status_code=499, 
                     json={"id":id, "message":"Missing id or fields in input dict"}, 
-                    url="n/a", operation_type="feed_data_point")
+                    url="n/a", operation_type=operation_type)
             try:
-                response:VespaResponse = sync_session.feed_data_point(schema=schema, namespace=namespace, data_id=id, fields=fields)
-                return (id, response)
+                if operation_type == "feed":
+                    response:VespaResponse = sync_session.feed_data_point(schema=schema, namespace=namespace, data_id=id, fields=fields, **kwargs)
+                    return (id, response)
+                elif operation_type == "update":
+                    response:VespaResponse = sync_session.update_data(schema=schema, namespace=namespace, data_id=id, fields=fields, **kwargs)
+                    return (id, response)
+                elif operation_type == "delete":
+                    response:VespaResponse = sync_session.delete_data(schema=schema, namespace=namespace, data_id=id, **kwargs)
+                    return (id, response)
             except Exception as e:
                 return (id, e)
 
@@ -596,7 +640,7 @@ class Vespa(object):
                 response = VespaResponse(
                     status_code=599, 
                     json={"Exception":str(response), "id":id, "message":"Exception during feed_data_point"},
-                    url="n/a", operation_type="feed_data_point")
+                    url="n/a", operation_type=operation_type)
             if callback is not None:    
                 try:
                     callback(response,id=id)
@@ -607,7 +651,7 @@ class Vespa(object):
         with VespaSync(app=self,pool_maxsize=max_connections, pool_connections=max_connections) as session:
             queue = Queue(maxsize=max_queue_size)   
             with ThreadPoolExecutor(max_workers=max_workers) as executor: 
-                consumer_thread = threading.Thread(target=_consumer, args=(queue, executor, session,max_workers))
+                consumer_thread = threading.Thread(target=_consumer, args=(queue, executor, session, max_queue_size))
                 consumer_thread.start()  
                 for doc in iter:
                     queue.put(doc, block=True)
@@ -616,7 +660,7 @@ class Vespa(object):
                 consumer_thread.join()
 
     def delete_data(
-        self, schema: str, data_id: str, namespace: str = None
+        self, schema: str, data_id: str, namespace: str = None, **kwargs
     ) -> VespaResponse:
         """
         Delete a data point from a Vespa app.
@@ -624,17 +668,19 @@ class Vespa(object):
         :param schema: The schema that we are deleting data from.
         :param data_id: Unique id associated with this data point.
         :param namespace: The namespace that we are deleting data from. If no namespace is provided the schema is used.
+        :param kwargs: Additional arguments to be passed to the HTTP DELETE request https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters
         :return: Response of the HTTP DELETE request.
         """
         if not namespace:
             namespace = schema
 
-        with VespaSync(self) as sync_app:
+        with VespaSync(self, pool_connections=1, pool_maxsize=1) as sync_app:
             return sync_app.delete_data(
-                schema=schema, data_id=data_id, namespace=namespace
+                schema=schema, data_id=data_id, namespace=namespace, **kwargs
             )
 
     def _delete_batch_sync(self, schema: str, batch: List[Dict], namespace: str):
+        """[Deprecated]"""
         return [
             self.delete_data(schema, data_point["id"], namespace)
             for data_point in batch
@@ -643,6 +689,7 @@ class Vespa(object):
     async def _delete_batch_async(
         self, schema: str, batch: List[Dict], connections, total_timeout, namespace: str
     ):
+        """[Deprecated]"""
         async with VespaAsync(
             app=self, connections=connections, total_timeout=total_timeout
         ) as async_app:
@@ -660,7 +707,7 @@ class Vespa(object):
         namespace: Optional[str] = None,
     ):
         """
-        Delete a batch of data from a Vespa app.
+        [Deprecated] Delete a batch of data from a Vespa app.
 
         :param batch: A list of dict containing the key 'id'.
         :param schema: The schema that we are deleting data from. The schema is optional in case it is possible to infer
@@ -671,6 +718,7 @@ class Vespa(object):
         :param namespace: The namespace that we are deleting data from. If no namespace is provided the schema is used.
         :return: List of HTTP POST responses
         """
+        warnings.warn("delete_batch is deprecated and will be removed in a future version. No replacement is planned.", DeprecationWarning)
         if not schema:
             try:
                 schema = self._infer_schema_name()
@@ -697,7 +745,7 @@ class Vespa(object):
             )
 
     def delete_all_docs(
-        self, content_cluster_name: str, schema: str, namespace: str = None
+        self, content_cluster_name: str, schema: str, namespace: str = None, **kwargs
     ) -> Response:
         """
         Delete all documents associated with the schema
@@ -705,20 +753,21 @@ class Vespa(object):
         :param content_cluster_name: Name of content cluster to GET from, or visit.
         :param schema: The schema that we are deleting data from.
         :param namespace: The  namespace that we are deleting data from. If no namespace is provided the schema is used.
+        :param kwargs: Additional arguments to be passed to the HTTP DELETE request https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters
         :return: Response of the HTTP DELETE request.
         """
         if not namespace:
             namespace = schema
 
-        with VespaSync(self) as sync_app:
+        with VespaSync(self, pool_connections=1, pool_maxsize=1) as sync_app:
             return sync_app.delete_all_docs(
                 content_cluster_name=content_cluster_name,
                 namespace=namespace,
-                schema=schema,
+                schema=schema, **kwargs
             )
 
     def get_data(
-        self, schema: str, data_id: str, namespace: str = None
+        self, schema: str, data_id: str, namespace: str = None, **kwargs
     ) -> VespaResponse:
         """
         Get a data point from a Vespa app.
@@ -726,17 +775,19 @@ class Vespa(object):
         :param schema: The schema that we are getting data from.
         :param data_id: Unique id associated with this data point.
         :param namespace: The namespace that we are getting data from. If no namespace is provided the schema is used.
+        :param kwargs: Additional arguments to be passed to the HTTP GET request https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters
         :return: Response of the HTTP GET request.
         """
         if not namespace:
             namespace = schema
 
-        with VespaSync(self) as sync_app:
+        with VespaSync(self,pool_connections=1,pool_maxsize=1) as sync_app:
             return sync_app.get_data(
-                schema=schema, data_id=data_id, namespace=namespace
+                schema=schema, data_id=data_id, namespace=namespace, **kwargs
             )
 
     def _get_batch_sync(self, schema: str, batch: List[Dict], namespace: str):
+        """[Deprecated]"""
         return [
             self.get_data(schema, data_point["id"], namespace) for data_point in batch
         ]
@@ -744,6 +795,7 @@ class Vespa(object):
     async def _get_batch_async(
         self, schema: str, batch: List[Dict], connections, total_timeout, namespace: str
     ):
+        """[Deprecated]"""
         async with VespaAsync(
             app=self, connections=connections, total_timeout=total_timeout
         ) as async_app:
@@ -761,7 +813,7 @@ class Vespa(object):
         namespace: Optional[str] = None,
     ):
         """
-        Get a batch of data from a Vespa app.
+        [Deprecated] Get a batch of data from a Vespa app.
 
         :param batch: A list of dict containing the key 'id'.
         :param schema: The schema that we are getting data from. The schema is optional in case it is possible to infer
@@ -772,6 +824,7 @@ class Vespa(object):
         :param namespace: The namespace that we are getting data from. If no namespace is provided the schema is used.
         :return: List of HTTP POST responses
         """
+        warnings.warn("get_batch is deprecated and will be removed in a future version. No replacement is planned.", DeprecationWarning)
         if not schema:
             try:
                 schema = self._infer_schema_name()
@@ -802,6 +855,7 @@ class Vespa(object):
         fields: Dict,
         create: bool = False,
         namespace: str = None,
+        **kwargs
     ) -> VespaResponse:
         """
         Update a data point in a Vespa app.
@@ -811,21 +865,24 @@ class Vespa(object):
         :param fields: Dict containing all the fields you want to update.
         :param create: If true, updates to non-existent documents will create an empty document to update
         :param namespace: The namespace that we are updating data. If no namespace is provided the schema is used.
+        :param kwargs: Additional arguments to be passed to the HTTP PUT request. https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters
         :return: Response of the HTTP PUT request.
         """
         if not namespace:
             namespace = schema
 
-        with VespaSync(self) as sync_app:
+        with VespaSync(self,pool_connections=1,pool_maxsize=1) as sync_app:
             return sync_app.update_data(
                 schema=schema,
                 data_id=data_id,
                 fields=fields,
                 create=create,
-                namespace=namespace,
+                namespace=namespace, 
+                **kwargs
             )
 
     def _update_batch_sync(self, schema: str, batch: List[Dict], namespace: str):
+        """[Deprecated]"""
         return [
             self.update_data(
                 schema,
@@ -840,6 +897,7 @@ class Vespa(object):
     async def _update_batch_async(
         self, schema: str, batch: List[Dict], connections, total_timeout, namespace: str
     ):
+        """[Deprecated]"""
         async with VespaAsync(
             app=self, connections=connections, total_timeout=total_timeout
         ) as async_app:
@@ -857,7 +915,7 @@ class Vespa(object):
         namespace: Optional[str] = None,
     ):
         """
-        Update a batch of data in a Vespa app.
+        [Deprecated] Update a batch of data in a Vespa app.
 
         :param batch: A list of dict containing the keys 'id', 'fields' and 'create' (create defaults to False).
         :param schema: The schema that we are updating data to. The schema is optional in case it is possible to infer
@@ -868,6 +926,7 @@ class Vespa(object):
         :param namespace: The namespace that we are updating data. If no namespace is provided the schema is used.
         :return: List of HTTP POST responses
         """
+        warnings.warn("update_batch is deprecated and will be removed in a future version. No replacement is planned.", DeprecationWarning)
         if not schema:
             try:
                 schema = self._infer_schema_name()
@@ -1006,7 +1065,7 @@ class VespaSync(object):
         return response
 
     def feed_data_point(
-        self, schema: str, data_id: str, fields: Dict, namespace: str = None
+        self, schema: str, data_id: str, fields: Dict, namespace: str = None, **kwargs
     ) -> VespaResponse:
         """
         Feed a data point to a Vespa app.
@@ -1015,6 +1074,7 @@ class VespaSync(object):
         :param data_id: Unique id associated with this data point.
         :param fields: Dict containing all the fields required by the `schema`.
         :param namespace: The namespace that we are sending data to. If no namespace is provided the schema is used.
+        :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)
         :return: Response of the HTTP POST request.
         :raises HTTPError: if one occurred
         """
@@ -1026,7 +1086,7 @@ class VespaSync(object):
             self.app.end_point, namespace, schema, str(data_id)
         )
         vespa_format = {"fields": fields}
-        response = self.http_session.post(end_point, json=vespa_format)
+        response = self.http_session.post(end_point, json=vespa_format, params=kwargs)
         raise_for_status(response)
         return VespaResponse(
             json=response.json(),
@@ -1037,7 +1097,8 @@ class VespaSync(object):
 
     def query(
         self,
-        body: Optional[Dict] = None,
+        body: Optional[Dict] = None, 
+        **kwargs
     ) -> VespaQueryResponse:
         """
         Send a query request to the Vespa application.
@@ -1045,17 +1106,19 @@ class VespaSync(object):
         Send 'body' containing all the request parameters.
 
         :param body: Dict containing all the request parameters.
+        :param kwargs: Additional Valid Vespa HTTP Query Api parameters (https://docs.vespa.ai/en/reference/query-api-reference.html)
         :return: Either the request body if debug_request is True or the result from the Vespa application
         :raises HTTPError: if one occurred
         """
-        response = self.http_session.post(self.app.search_end_point, json=body)
+        response = self.http_session.post(self.app.search_end_point, json=body, params=kwargs)
         raise_for_status(response)
         return VespaQueryResponse(
             json=response.json(), status_code=response.status_code, url=str(response.url)
         )
 
     def delete_data(
-        self, schema: str, data_id: str, namespace: str = None
+        self, schema: str, data_id: str, namespace: str = None, 
+        **kwargs
     ) -> VespaResponse:
         """
         Delete a data point from a Vespa app.
@@ -1063,6 +1126,7 @@ class VespaSync(object):
         :param schema: The schema that we are deleting data from.
         :param data_id: Unique id associated with this data point.
         :param namespace: The namespace that we are deleting data from.
+        :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)
         :return: Response of the HTTP DELETE request.
         :raises HTTPError: if one occurred
         """
@@ -1072,7 +1136,7 @@ class VespaSync(object):
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
             self.app.end_point, namespace, schema, str(data_id)
         )
-        response = self.http_session.delete(end_point)
+        response = self.http_session.delete(end_point, params=kwargs)
         raise_for_status(response)
         return VespaResponse(
             json=response.json(),
@@ -1082,7 +1146,7 @@ class VespaSync(object):
         )
 
     def delete_all_docs(
-        self, content_cluster_name: str, schema: str, namespace: str = None
+        self, content_cluster_name: str, schema: str, namespace: str = None, **kwargs
     ) -> Response:
         """
         Delete all documents associated with the schema.
@@ -1090,6 +1154,7 @@ class VespaSync(object):
         :param content_cluster_name: Name of content cluster to GET from, or visit.
         :param schema: The schema that we are deleting data from.
         :param namespace: The namespace that we are deleting data from.
+        :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)
         :return: Response of the HTTP DELETE request.
         :raises HTTPError: if one occurred
         """
@@ -1103,7 +1168,7 @@ class VespaSync(object):
         last_response = None
         while True:
             try:
-                response = self.http_session.delete(request_endpoint)
+                response = self.http_session.delete(request_endpoint, params=kwargs)
                 last_response = response
                 result = response.json()
                 if "continuation" in result:
@@ -1112,13 +1177,13 @@ class VespaSync(object):
                     )
                 else:
                     break
-            except Exception:
+            except Exception as e:
+                print(e)
                 last_response = None
-
         return last_response
 
     def get_data(
-        self, schema: str, data_id: str, namespace: str = None
+        self, schema: str, data_id: str, namespace: str = None, **kwargs
     ) -> VespaResponse:
         """
         Get a data point from a Vespa app.
@@ -1126,6 +1191,7 @@ class VespaSync(object):
         :param schema: The schema that we are getting data from.
         :param data_id: Unique id associated with this data point.
         :param namespace: The namespace that we are getting data from.
+        :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)
         :return: Response of the HTTP GET request.
         :raises HTTPError: if one occurred
         """
@@ -1135,7 +1201,7 @@ class VespaSync(object):
         end_point = "{}/document/v1/{}/{}/docid/{}".format(
             self.app.end_point, namespace, schema, str(data_id)
         )
-        response = self.http_session.get(end_point)
+        response = self.http_session.get(end_point, params=kwargs)
         raise_for_status(response) # This is questionable, since it will throw on 404 as well. 
         return VespaResponse(
             json=response.json(),
@@ -1151,6 +1217,7 @@ class VespaSync(object):
         fields: Dict,
         create: bool = False,
         namespace: str = None,
+        **kwargs
     ) -> VespaResponse:
         """
         Update a data point in a Vespa app.
@@ -1160,6 +1227,7 @@ class VespaSync(object):
         :param fields: Dict containing all the fields you want to update.
         :param create: If true, updates to non-existent documents will create an empty document to update
         :param namespace: The namespace that we are updating data.
+        :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)
         :return: Response of the HTTP PUT request.
         :raises HTTPError: if one occurred
         """
@@ -1170,7 +1238,7 @@ class VespaSync(object):
             self.app.end_point, namespace, schema, str(data_id), str(create).lower()
         )
         vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
-        response = self.http_session.put(end_point, json=vespa_format)
+        response = self.http_session.put(end_point, json=vespa_format, params=kwargs)
         raise_for_status(response)
         return VespaResponse(
             json=response.json(),

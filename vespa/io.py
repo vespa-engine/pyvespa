@@ -1,10 +1,13 @@
 from typing import Optional, Dict, List
-
+import warnings
 from pandas import DataFrame
 
 
 class VespaResponse(object):
-    def __init__(self, json, status_code, url, operation_type) -> None:
+    """
+    Class to represent a Vespa HTTP API response.
+    """
+    def __init__(self, json:Dict, status_code:int, url:str, operation_type:str) -> None:
         self.json = json
         self.status_code = status_code
         self.url = url
@@ -20,10 +23,16 @@ class VespaResponse(object):
             and self.operation_type == other.operation_type
         )
 
-    def get_status_code(self):
+    def get_status_code(self) -> int:
+        """Return status code of the response."""
         return self.status_code
 
-    def get_json(self):
+    def is_successfull(self) -> bool:
+        """True if status code is 200."""
+        return self.status_code == 200
+
+    def get_json(self) -> Dict:
+        """Return json of the response."""
         return self.json
 
 
@@ -31,7 +40,7 @@ def trec_format(
     vespa_result, id_field: Optional[str] = None, qid: int = 0
 ) -> DataFrame:
     """
-    Function to format Vespa output according to TREC format.
+    [Deprecated] Function to format Vespa output according to TREC format.
 
     TREC format include qid, doc_id, score and rank.
 
@@ -40,6 +49,10 @@ def trec_format(
     :param qid: custom query id.
     :return: pandas DataFrame with columns qid, doc_id, score and rank.
     """
+    warnings.warn(
+        "trec_format is deprecated and will be removed in a future version. No replacement is planned.",
+        DeprecationWarning
+    )
     hits = vespa_result.get("root", {}).get("children", [])
     records = []
     for rank, hit in enumerate(hits):
@@ -71,12 +84,16 @@ class VespaQueryResponse(VespaResponse):
 
     def get_hits(self, format_function=trec_format, **kwargs) -> DataFrame:
         """
-        Get Vespa hits according to `format_function` format.
+        [Deprecated] Get Vespa hits according to `format_function` format.
 
         :param format_function: function to format the raw Vespa result. Should take raw vespa result as first argument.
         :param kwargs: Extra arguments to be passed to `format_function`.
         :return: Output of the `format_function`.
         """
+        warnings.warn(
+            "get_hits is deprecated and will be removed in a future version. No replacement is planned.",
+            DeprecationWarning
+        )
         if not format_function:
             return self.hits
         return format_function(self.json, **kwargs)
@@ -91,18 +108,10 @@ class VespaQueryResponse(VespaResponse):
             self.json.get("root", {}).get("coverage", {}).get("documents", 0)
         )
 
-    def get_json(self):
+    def get_json(self) -> Dict:
         """
         For debugging when the response does not have hits.
 
         :return: JSON object with full response
         """
         return self.json
-
-    def get_status_code(self):
-        """
-        For debugging when the response does not have hits.
-
-        :return: HTTP status code
-        """
-        return self.status_code

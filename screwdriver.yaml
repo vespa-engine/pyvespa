@@ -22,7 +22,7 @@ jobs:
           dnf install -y python38-pip
           dnf install -y --enablerepo=powertools pandoc
           python3 -m pip install --upgrade pip
-          python3 -m pip install pytest notebook nbconvert
+          python3 -m pip install pytest notebook nbconvert requests_mock
           python3 -m pip install -e .[full]
           python3 -m pip install -r docs/sphinx/source/requirements.txt
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
