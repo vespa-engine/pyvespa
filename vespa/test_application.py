@@ -12,6 +12,8 @@ from requests.models import HTTPError, Response
 from vespa.package import ApplicationPackage, Schema, Document
 from vespa.application import Vespa, parse_feed_df, df_to_vespafeed, raise_for_status
 from vespa.exceptions import VespaError
+from vespa.io import VespaQueryResponse, VespaResponse
+import requests_mock
 
 
 def test_df_to_vespafeed():
@@ -27,7 +29,48 @@ def test_df_to_vespafeed():
     feed = json.loads(df_to_vespafeed(df, "myschema", "id", "mynamespace"))
     assert feed[2]["id"] == "id:mynamespace:myschema::2"
 
+class TestVespaRequestsUsage(unittest.TestCase):
 
+    def test_additional_query_params(self):
+        app = Vespa(url="http://localhost", port=8080)
+        with requests_mock.Mocker() as m:
+            m.post("http://localhost:8080/search/", status_code=200, text="{}")
+            r:VespaQueryResponse = app.query(
+                query="this is a test",
+                hits=10,
+                searchChain="default"
+            )
+            self.assertEqual(r.url, "http://localhost:8080/search/?query=this+is+a+test&hits=10&searchChain=default")
+        
+    def test_additional_doc_params(self):
+        app = Vespa(url="http://localhost", port=8080)
+        with requests_mock.Mocker() as m:
+            m.post("http://localhost:8080/document/v1/foo/foo/docid/0", status_code=200, text="{}")
+            r:VespaResponse = app.feed_data_point(
+                schema="foo", data_id="0", fields={"body": "this is a test"}, route="default", timeout="10s")
+            self.assertEqual(r.url, "http://localhost:8080/document/v1/foo/foo/docid/0?route=default&timeout=10s")
+
+        with requests_mock.Mocker() as m:
+            m.put("http://localhost:8080/document/v1/foo/foo/docid/0", status_code=200, text="{}")
+            r:VespaResponse = app.update_data(
+                schema="foo", data_id="0", fields={"body": "this is a test"}, route="default", timeout="10s")
+            self.assertEqual(r.url, "http://localhost:8080/document/v1/foo/foo/docid/0?create=false&route=default&timeout=10s")
+        
+        with requests_mock.Mocker() as m:
+            m.delete("http://localhost:8080/document/v1/foo/foo/docid/0", status_code=200, text="{}")
+            r:VespaResponse = app.delete_data(
+                schema="foo", data_id="0", route="default", timeout="10s", dryRun=True)
+            self.assertEqual(r.url, "http://localhost:8080/document/v1/foo/foo/docid/0?route=default&timeout=10s&dryRun=True")
+
+    def test_delete_all_docs(self):
+        app = Vespa(url="http://localhost", port=8080)
+        with requests_mock.Mocker() as m:
+            m.delete("http://localhost:8080/document/v1/foo/foo/docid/", status_code=200, text="{}")
+            r:VespaResponse = app.delete_all_docs(
+                schema="foo", namespace="foo", content_cluster_name="content", timeout="200s")
+            self.assertEqual(r.url, "http://localhost:8080/document/v1/foo/foo/docid/?cluster=content&selection=true&timeout=200s")
+            
+        
 class TestVespa(unittest.TestCase):
     def test_end_point(self):
         self.assertEqual(
@@ -39,11 +82,15 @@ class TestVespa(unittest.TestCase):
         self.assertEqual(
             Vespa(url="http://localhost/", port=8080).end_point, "http://localhost:8080"
         )
+        self.assertEqual(
+            Vespa(url="http://localhost:8080").end_point, "http://localhost:8080"
+        )
     
     def test_query_token(self):
         self.assertEqual(
             Vespa(url="https://cord19.vespa.ai", vespa_cloud_secret_token="vespa_cloud_str_secret").vespa_cloud_secret_token, "vespa_cloud_str_secret"
         )
+
     def test_query_token_from_env(self):
         import os
         os.environ['VESPA_CLOUD_SECRET_TOKEN'] = "vespa_cloud_str_secret"
@@ -235,6 +282,38 @@ class TestRaiseForStatus(unittest.TestCase):
             with pytest.raises(VespaError):
                 raise_for_status(response)
 
+    def test_failure_response_with_error_content_504(self):
+        with patch("requests.models.Response.content", new_callable=PropertyMock) as mock_content:
+            response_json = {
+                "root": {
+                    "errors": [
+                        {"code": 12, "summary": "Timed out", "message": "No time left after waiting for 1ms to execute query"},
+                    ],
+                },
+            }
+            mock_content.return_value = json.dumps(response_json).encode("utf-8")
+            response = Response()
+            response.status_code = 504
+            response.reason = "reason"
+            response.url = "http://localhost:8080"
+            with pytest.raises(VespaError) as e:
+                raise_for_status(response)
+            self.assertEqual(str(e.value), "[{'code': 12, 'summary': 'Timed out', 'message': 'No time left after waiting for 1ms to execute query'}]")
+
+    def test_doc_failure_response_with_error_content(self):
+        with patch("requests.models.Response.content", new_callable=PropertyMock) as mock_content:
+            response_json = {
+                "pathId": "/document/v1/textsearch/textsearch/docid/00",
+                  "message": "No field 'foo' in the structure of type 'textsearch'"
+            }
+            mock_content.return_value = json.dumps(response_json).encode("utf-8")
+            response = Response()
+            response.status_code = 400
+            response.reason = "Bad Request"
+            response.url = "http://localhost:8080/document/v1/textsearch/textsearch/docid/00"
+            with pytest.raises(VespaError) as e:
+                raise_for_status(response)
+            self.assertEqual(str(e.value), "No field 'foo' in the structure of type 'textsearch'")
 
 class TestVespaCollectData(unittest.TestCase):
     def setUp(self) -> None:
