@@ -83,10 +83,6 @@ class TestVectorSearch(unittest.TestCase):
             nonlocal callbacks
             if response.is_successfull():
                 ok +=1
-            if callbacks % 1000 == 0:
-                duration = time.time() - start_time
-                docs_per_second = callbacks / duration
-                print("Feed time: " + str(duration) + " docs per second: " + str(docs_per_second))
             callbacks +=1
 
         start = time.time()
@@ -94,7 +90,7 @@ class TestVectorSearch(unittest.TestCase):
         self.assertEqual(ok, sample_size)
         duration = time.time() - start
         docs_per_second = sample_size / duration
-        print("Sync Feed time: " + str(duration) + " docs per second: " + str(docs_per_second))
+        print("Sync Feed time: " + str(duration) + " seconds,  docs per second: " + str(docs_per_second))
         
         with self.app.syncio() as sync_session:
             response:VespaQueryResponse = sync_session.query(   
@@ -118,7 +114,6 @@ class TestVectorSearch(unittest.TestCase):
             self.assertEqual(len(response.hits), 5)
        
         #check error callbacks 
-
         ok = 0
         callbacks = 0
         start_time = time.time()
@@ -134,8 +129,12 @@ class TestVectorSearch(unittest.TestCase):
         # Run update - assign all docs with a meta field
         
         updates = dataset.map(lambda x: {"id": x["_id"], "fields": {"meta":"stuff"}})
+        start_time = time.time()
         self.app.feed_iterable(iter=updates, schema="vector", namespace="benchmark", callback=callback, operation_type="update")
         self.assertEqual(ok, sample_size)
+        duration = time.time() - start_time
+        docs_per_second = sample_size / duration
+        print("Sync Update time: " + str(duration) + " seconds,  docs per second: " + str(docs_per_second))
 
         with self.app.syncio() as sync_session:
             response:VespaQueryResponse = sync_session.query(
@@ -145,8 +144,7 @@ class TestVectorSearch(unittest.TestCase):
             )
             self.assertEqual(response.get_status_code(), 200)
             self.assertEqual(len(response.hits), 5)
-            self.assertEqual(len(response.number_documents_retrieved), sample_size)
-
+            self.assertEqual(response.number_documents_retrieved, sample_size)
 
           
     def tearDown(self) -> None:
