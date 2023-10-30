@@ -207,6 +207,6 @@ jobs:
             runnb --allow-not-trusted $f
             if [ $? -ne 0 ]
             then
-              break
+              exit 1
             fi
           done
