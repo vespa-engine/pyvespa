@@ -378,8 +378,8 @@ class VespaCloud(VespaDeployment):
         :param tenant: Tenant name registered in the Vespa Cloud.
         :param application: Application name in the Vespa Cloud.
         :param application_package: ApplicationPackage to be deployed.
-        :param key_location: Location of the private key used for signing HTTP requests to the Vespa Cloud.
-        :param key_content: Content of the private key used for signing HTTP requests to the Vespa Cloud. Use only when
+        :param key_location: Location of the control plane key used for signing HTTP requests to the Vespa Cloud.
+        :param key_content: Content of the control plane key used for signing HTTP requests to the Vespa Cloud. Use only when
             key file is not available.
         :param auth_client_token_id: Use token based data plane authentication. This is the token name configured in the Vespa Cloud Console.
             This is used to configure Vespa services.xml. The token is given read and write permissions.
@@ -426,7 +426,7 @@ class VespaCloud(VespaDeployment):
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.close()
 
-    def deploy(self, instance: str, disk_folder: Optional[str] = None) -> Vespa:
+    def deploy(self, instance: Optional[str]="default", disk_folder: Optional[str] = None) -> Vespa:
         """
         Deploy the given application package as the given instance in the Vespa Cloud dev environment.
 
@@ -439,16 +439,16 @@ class VespaCloud(VespaDeployment):
         if not disk_folder:
             disk_folder = os.path.join(os.getcwd(), self.application_package.name)
 
-        region = self._get_dev_region()
+        region = self.get_dev_region()
         job = "dev-" + region
         run = self._start_deployment(instance, job, disk_folder, None)
         self._follow_deployment(instance, job, run)
         
         token = os.environ.get(VESPA_CLOUD_SECRET_TOKEN, None)
         if token is None:
-            endpoint_url = self._get_mtls_endpoint(instance=instance, region=region)
+            endpoint_url = self.get_mtls_endpoint(instance=instance, region=region)
         else:
-            endpoint_url = self._get_token_endpoint(instance=instance, region=region)       
+            endpoint_url = self.get_token_endpoint(instance=instance, region=region)       
         
         app = Vespa(
             url=endpoint_url,
@@ -482,14 +482,14 @@ class VespaCloud(VespaDeployment):
 
         # Deploy the zipped application package
         disk_folder = os.path.join(os.getcwd(), self.application_package.name)
-        region = self._get_dev_region()
+        region = self.get_dev_region()
         job = "dev-" + region
         run = self._start_deployment(instance, job, disk_folder, application_zip_bytes=data)
         self._follow_deployment(instance, job, run)
         if os.environ.get(VESPA_CLOUD_SECRET_TOKEN) is None:
-            endpoint_url = self._get_mtls_endpoint(instance=instance, region=region)
+            endpoint_url = self.get_mtls_endpoint(instance=instance, region=region)
         else:
-            endpoint_url = self._get_token_endpoint(instance=instance, region=region)  
+            endpoint_url = self.get_token_endpoint(instance=instance, region=region)  
         app = Vespa(
             url=endpoint_url,
             cert=self.data_cert_path,
@@ -504,7 +504,7 @@ class VespaCloud(VespaDeployment):
     def close(self) -> None:
         self.connection.close()
 
-    def delete(self, instance: str) -> None:
+    def delete(self, instance: Optional[str]="default") -> None:
         """
         Delete the specified instance from the dev environment in the Vespa Cloud.
 
@@ -515,7 +515,7 @@ class VespaCloud(VespaDeployment):
             self._request(
                 "DELETE",
                 "/application/v4/tenant/{}/application/{}/instance/{}/environment/dev/region/{}".format(
-                    self.tenant, self.application, instance, self._get_dev_region()
+                    self.tenant, self.application, instance, self.get_dev_region()
                 ),
             )["message"],
             file=self.output,
@@ -626,7 +626,7 @@ class VespaCloud(VespaDeployment):
             )
             file.write(cert.public_bytes(serialization.Encoding.PEM).decode("UTF-8"))
 
-    def _get_dev_region(self) -> str:
+    def get_dev_region(self) -> str:
         return self._request("GET", "/zone/v1/environment/dev/default")["name"]
 
     def _request(
@@ -672,7 +672,9 @@ class VespaCloud(VespaDeployment):
                 )
             return parsed
 
-    def _get_mtls_endpoint(self, instance: str, region: str) -> str:
+    def get_mtls_endpoint(self, instance: Optional[str]="default", region: Optional[str]=None) -> str:
+        if region is None:
+            region = self.get_dev_region()
         endpoints = self._request(
             "GET",
             "/application/v4/tenant/{}/application/{}/instance/{}/environment/dev/region/{}".format(
@@ -687,7 +689,9 @@ class VespaCloud(VespaDeployment):
                     return endpoint['url']
         raise RuntimeError("No mtls endpoints found for container cluster " + cluster_name)
 
-    def _get_token_endpoint(self, instance: str, region: str) -> List[dict]:
+    def get_token_endpoint(self, instance: Optional[str]="default", region: Optional[str]=None) -> List[dict]:
+        if region is None:
+            region = self.get_dev_region()
         endpoints = self._request(
             "GET",
             "/application/v4/tenant/{}/application/{}/instance/{}/environment/dev/region/{}".format(
