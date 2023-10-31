@@ -164,7 +164,7 @@ class Vespa(object):
                  self.vespa_cloud_secret_token = token
 
     def asyncio(
-        self, connections: Optional[int] = 100, total_timeout: int = 10
+        self, connections: Optional[int] = 8, total_timeout: int = 10
     ) -> "VespaAsync":
         """
         Access Vespa asynchronous connection layer
@@ -178,7 +178,7 @@ class Vespa(object):
         )
 
     def syncio(
-        self, connections: Optional[int] = 100
+        self, connections: Optional[int] = 8
     ) -> "VespaSync":
         """
         Access Vespa synchronous connection layer
@@ -353,7 +353,7 @@ class Vespa(object):
         self,
         body_batch: Optional[List[Dict]] = None,
         asynchronous=True,
-        connections: Optional[int] = 100,
+        connections: Optional[int] = 8,
         total_timeout: int = 100,
         **kwargs,
     ):
@@ -434,7 +434,7 @@ class Vespa(object):
         batch: List[Dict],
         schema: Optional[str] = None,
         asynchronous=True,
-        connections: Optional[int] = 100,
+        connections: Optional[int] = 8,
         total_timeout: int = 240,
         namespace: Optional[str] = None,
     ):
@@ -480,7 +480,7 @@ class Vespa(object):
         batch: List[Dict],
         schema: Optional[str] = None,
         asynchronous=True,
-        connections: Optional[int] = 100,
+        connections: Optional[int] = 8,
         total_timeout: int = 240,
         namespace: Optional[str] = None,
         batch_size=1000,
@@ -550,7 +550,7 @@ class Vespa(object):
         operation_type:Optional[str] = "feed",
         max_queue_size:int = 1000,
         max_workers:int = 8, 
-        max_connections:int = 32,
+        max_connections:int = 16,
         **kwargs
     ):
         """
@@ -702,7 +702,7 @@ class Vespa(object):
         batch: List[Dict],
         schema: Optional[str] = None,
         asynchronous=True,
-        connections: Optional[int] = 100,
+        connections: Optional[int] = 8,
         total_timeout: int = 100,
         namespace: Optional[str] = None,
     ):
