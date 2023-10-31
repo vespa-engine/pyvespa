@@ -214,6 +214,8 @@ jobs:
           curl -fsSL https://github.com/vespa-engine/vespa/releases/download/v${VESPA_CLI_VERSION}/vespa-cli_${VESPA_CLI_VERSION}_linux_amd64.tar.gz | tar -zxf - -C /opt && \
           ln -sf /opt/vespa-cli_${VESPA_CLI_VERSION}_linux_amd64/bin/vespa /usr/local/bin/
       - run-notebooks-cloud-related: |
+          echo "PATH:"
+          echo $PATH
           find docs -name '*cloud*.ipynb' | while read f
           do
             echo "running: runnb --allow-not-trusted $f"
