@@ -201,5 +201,12 @@ jobs:
           python3 -m pip install -r docs/sphinx/source/requirements.txt
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
       - run-notebooks-cloud-related: |
-          find docs -name '*cloud*.ipynb'
-          find docs -name '*cloud*.ipynb' -exec ls {} \; -name '*cloud*.ipynb' -exec runnb --allow-not-trusted {} \;
+          find docs -name '*cloud*.ipynb' | while read f
+          do
+            echo "running: runnb --allow-not-trusted $f"
+            runnb --allow-not-trusted $f
+            if [ $? -ne 0 ]
+            then
+              exit 1
+            fi
+          done
