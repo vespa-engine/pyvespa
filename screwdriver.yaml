@@ -13,6 +13,9 @@ jobs:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
       screwdriver.cd/ram: HIGH
+      screwdriver.cd/dockerEnabled: true
+      screwdriver.cd/dockerCpu: TURBO
+      screwdriver.cd/dockerRam: TURBO
       screwdriver.cd/buildPeriodically: H 11 * * *
     steps:
       - setup: |
