@@ -2,7 +2,6 @@ import http.client
 import json
 import os
 import sys
-from types import TracebackType
 import zipfile
 import logging
 from base64 import standard_b64encode
