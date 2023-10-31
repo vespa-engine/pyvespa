@@ -2,6 +2,7 @@ import http.client
 import json
 import os
 import sys
+from types import TracebackType
 import zipfile
 import logging
 from base64 import standard_b64encode
@@ -9,6 +10,7 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from time import sleep, strftime, gmtime
+import random
 from typing import Tuple, Union, IO, Optional, List
 
 import docker
@@ -656,21 +658,34 @@ class VespaCloud(VespaDeployment):
         }
 
         body.seek(0)
-        self.connection.request(method, path, body, headers)
-        with self.connection.getresponse() as response:
-            parsed = json.load(response)
-            if response.status != 200:
-                raise RuntimeError(
-                    "Status code "
-                    + str(response.status)
-                    + " doing "
-                    + method
-                    + " at "
-                    + url
-                    + ":\n"
-                    + parsed["message"]
-                )
-            return parsed
+        retry_count = 0
+        max_retries = 3
+        while retry_count < max_retries:
+            try:
+                self.connection.request(method, path, body, headers)
+                with self.connection.getresponse() as response:
+                    parsed = json.load(response)
+                    if response.status != 200:
+                        raise RuntimeError(
+                            "Status code "
+                            + str(response.status)
+                            + " doing "
+                            + method
+                            + " at "
+                            + url
+                            + ":\n"
+                            + parsed["message"]
+                        )
+                    return parsed
+            except Exception as e:
+                retry_count += 1
+                if retry_count == max_retries:
+                    raise e
+                else:
+                    delay = min(2**retry_count, 1) + random.uniform(0, 1)
+                    sleep(delay)
+
+           
 
     def get_mtls_endpoint(self, instance: Optional[str]="default", region: Optional[str]=None) -> str:
         if region is None:
