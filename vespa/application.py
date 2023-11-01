@@ -1027,6 +1027,7 @@ class VespaSync(object):
             return
 
         self.http_session = Session()
+        self.http_session.headers.update({"User-Agent": "pyvespa syncio client"})
         self.http_session.mount("https://", self.adapter)
         self.http_session.mount("http://", self.adapter)
         if self.app.vespa_cloud_secret_token:
@@ -1271,7 +1272,10 @@ class VespaAsync(object):
         self.connections = connections
         self.total_timeout = total_timeout
         if self.app.vespa_cloud_secret_token:
-            self.headers = {"Authorization": f"Bearer {self.app.vespa_cloud_secret_token}"}
+            self.headers = {
+                "Authorization": f"Bearer {self.app.vespa_cloud_secret_token}",
+                "User-Agent": "pyvespa asyncio client",
+            }
 
     async def __aenter__(self):
         await self._open_aiohttp_session()
@@ -1296,7 +1300,8 @@ class VespaAsync(object):
             )
         else:
             self.aiohttp_session = aiohttp.ClientSession(
-                connector=conn, timeout=aiohttp.ClientTimeout(total=self.total_timeout)
+                connector=conn, timeout=aiohttp.ClientTimeout(total=self.total_timeout),
+                headers={"User-Agent": "pyvespa asyncio client"}
             )
         return self.aiohttp_session
 
