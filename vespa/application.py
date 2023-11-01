@@ -292,9 +292,13 @@ class Vespa(object):
             if self.key:
                 print("Using mTLS (key,cert) Authentication against endpoint {}".format(endpoint), file=self.output_file)
                 return requests.get(endpoint, cert=(self.cert, self.key))
-            else:
+            elif self.cert:
                 print("Using mTLS (cert) Authentication against endpoint {}".format(endpoint), file=self.output_file)
                 return requests.get(endpoint, cert=self.cert)
+            else:
+                print("Using plain http against endpoint {}".format(endpoint), file=self.output_file)
+                return requests.get(endpoint)
+
                 
         except ConnectionError:
             return None
@@ -569,7 +573,9 @@ class Vespa(object):
         :param max_connections: The maximum number of persisted connections to the Vespa endpoint.
         :param kwargs: Additional parameters are passed to the respective operation type specific :func:`_data_point`.
         """        
-        
+        if operation_type not in ["feed", "update", "delete"]:
+            raise ValueError("Invalid operation type. Valid are `feed`, `update` or `delete`.")
+
         if namespace is None:
             namespace = schema
         if not schema:
@@ -580,7 +586,7 @@ class Vespa(object):
                     "Not possible to infer schema name. Specify schema parameter."
                 )
 
-        def _consumer(queue:Queue, executor:ThreadPoolExecutor, sync_session:VespaSync, max_in_flight=max_queue_size):
+        def _consumer(queue:Queue, executor:ThreadPoolExecutor, sync_session:VespaSync, max_in_flight=2*max_queue_size):
             in_flight = 0 # Single threaded consumer
             futures:List[Future]= []
             while True:
@@ -591,7 +597,13 @@ class Vespa(object):
                 if doc is None: # producer is done
                     queue.task_done()
                     break #Break and wait for all futures to complete
-                start_time = time.time()
+               
+                completed_futures = [future for future in futures if future.done()]
+                for future in completed_futures:
+                    futures.remove(future)
+                    in_flight -= 1
+                    _handle_result_callback(future, callback=callback)
+
                 while in_flight >= max_in_flight:
                     # Check for completed tasks and reduce in-flight tasks
                     for future in futures:
@@ -599,10 +611,8 @@ class Vespa(object):
                             futures.remove(future)
                             in_flight -= 1
                             _handle_result_callback(future, callback=callback)
-                    sleep(0.1) #wait a bit for more futures to complete
-                    if time.time() - start_time > 60:
-                        print("No new results from Vespa completed in 60 seconds", sys.stderr)
-                        start_time = time.time()
+                    sleep(0.01) # wait a bit for more futures to complete
+                
                 # we can submit a new doc to Vespa        
                 future:Future = executor.submit(_submit, doc, sync_session)
                 futures.append(future)
@@ -616,10 +626,14 @@ class Vespa(object):
             
         def _submit(doc:dict, sync_session:VespaSync) -> Tuple[str, Union[VespaResponse, Exception]]:
             id = doc.get("id", None)
-            fields = doc.get('fields', None)
-            if id == None or fields == None:
+            if id is None:
                 return id, VespaResponse(status_code=499, 
-                    json={"id":id, "message":"Missing id or fields in input dict"}, 
+                    json={"id":id, "message":"Missing id in input dict"}, 
+                    url="n/a", operation_type=operation_type)
+            fields = doc.get('fields', None)
+            if fields is None and operation_type != "delete":
+                return id, VespaResponse(status_code=499, 
+                    json={"id":id, "message":"Missing fields in input dict"}, 
                     url="n/a", operation_type=operation_type)
             try:
                 if operation_type == "feed":
