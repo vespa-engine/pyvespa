@@ -151,6 +151,7 @@ class TestVectorSearch(unittest.TestCase):
         self.app.delete_all_docs(
             content_cluster_name="vector_content", schema="vector",namespace="benchmark"
         )
+        time.sleep(5)
         with self.app.syncio() as sync_session:
             response:VespaResponse = sync_session.query(   
                 {
