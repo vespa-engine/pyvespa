@@ -59,6 +59,7 @@ class VespaDocker(VespaDeployment):
             output_file: IO = sys.stdout,
             container: Optional[docker.models.containers.Container] = None,
             container_image: str = "vespaengine/vespa",
+            volumes: Optional[List[str]] = None,
             cfgsrv_port: int = 19071,
             debug_port: int = 5005,
     ) -> None:
@@ -71,6 +72,7 @@ class VespaDocker(VespaDeployment):
         :param output_file: Output file to write output messages.
         :param container_memory: Docker container memory available to the application.
         :param container: Used when instantiating VespaDocker from a running container.
+        :param volumes: A list of strings which each one of its elements specifies a mount volume. For example: `['/home/user1/:/mnt/vol2','/var/www:/mnt/vol1']`.
         :param container_image: Docker container image.
         """
         self.container = container
@@ -86,6 +88,7 @@ class VespaDocker(VespaDeployment):
         self.cfgsrv_port = cfgsrv_port
         self.debug_port = debug_port
         self.container_memory = container_memory
+        self.volumes = volumes
         self.output = output_file
         self.container_image = container_image
 
@@ -276,7 +279,10 @@ class VespaDocker(VespaDeployment):
         :return: A Vespa connection instance
         """
         self._run_vespa_engine_container(
-            application_name=application.name, container_memory=self.container_memory, debug=debug
+            application_name=application.name,
+            container_memory=self.container_memory,
+            volumes=self.volumes,
+            debug=debug,
         )
         self.wait_for_config_server_start(max_wait=CFG_SERVER_START_TIMEOUT)
 
@@ -306,6 +312,7 @@ class VespaDocker(VespaDeployment):
             self,
             application_name: str,
             container_memory: str,
+            volumes: List[str],
             debug: bool,
     ) -> None:
         client = docker.from_env(timeout=DOCKER_TIMEOUT)
@@ -324,12 +331,14 @@ class VespaDocker(VespaDeployment):
                     "mem_limit: {mem_limit}, "
                     "name: {name}, "
                     "hostname: {hostname}, "
-                    "ports: {ports}".format(
+                    "ports: {ports}, "
+                    "volumes: {volumes}".format(
                         image=self.container_image,
                         mem_limit=container_memory,
                         name=application_name,
                         hostname=application_name,
                         ports=mapped_ports,
+                        volumes=volumes,
                     )
                 )
                 self.container = client.containers.run(
@@ -340,6 +349,7 @@ class VespaDocker(VespaDeployment):
                     hostname=application_name,
                     privileged=True,
                     ports=mapped_ports,
+                    volumes=volumes,
                 )
             self.container_name = self.container.name
             self.container_id = self.container.id
@@ -444,13 +454,13 @@ class VespaCloud(VespaDeployment):
         job = "dev-" + region
         run = self._start_deployment(instance, job, disk_folder, None)
         self._follow_deployment(instance, job, run)
-        
+
         token = os.environ.get(VESPA_CLOUD_SECRET_TOKEN, None)
         if token is None:
             endpoint_url = self.get_mtls_endpoint(instance=instance, region=region)
         else:
-            endpoint_url = self.get_token_endpoint(instance=instance, region=region)       
-        
+            endpoint_url = self.get_token_endpoint(instance=instance, region=region)
+
         app = Vespa(
             url=endpoint_url,
             cert=self.data_cert_path or os.path.join(disk_folder, self.private_cert_file_name),
@@ -490,7 +500,7 @@ class VespaCloud(VespaDeployment):
         if os.environ.get(VESPA_CLOUD_SECRET_TOKEN) is None:
             endpoint_url = self.get_mtls_endpoint(instance=instance, region=region)
         else:
-            endpoint_url = self.get_token_endpoint(instance=instance, region=region)  
+            endpoint_url = self.get_token_endpoint(instance=instance, region=region)
         app = Vespa(
             url=endpoint_url,
             cert=self.data_cert_path,
@@ -684,7 +694,7 @@ class VespaCloud(VespaDeployment):
                     delay = min(2**retry_count, 1) + random.uniform(0, 1)
                     sleep(delay)
 
-           
+
 
     def get_mtls_endpoint(self, instance: Optional[str]="default", region: Optional[str]=None) -> str:
         if region is None:
