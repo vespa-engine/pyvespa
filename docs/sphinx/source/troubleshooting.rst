@@ -14,13 +14,11 @@ by running ``docker pull vespaengine/vespa`` and :doc:`install pyvespa <index>`.
 ``python3 -m pip show pyvespa`` shows current version.
 
 
-
 Docker Memory
 -------------
 pyvespa will start a Docker container with 4G memory by default -
 make sure Docker settings have at least this.
 Use the Docker Desktop settings or ``docker info | grep "Total Memory"`` to validate.
-
 
 
 Port conflicts / Docker
@@ -49,8 +47,6 @@ After a deployment, validate status:
 
 Look for ``"status" : { "code" : "up"}`` - both URLs must work before feeding or querying.
 
-
-
 Full disk
 ---------
 Make sure to allocate enough disk space for Docker in Docker settings -
@@ -74,23 +70,19 @@ to reconfigure for higher usage.
 Check number of indexed documents
 ---------------------------------
 For query errors, check the number of documents indexed before debugging further:
-``app.query(body={'yql': 'select * from sources * where true'}).number_documents_indexed``.
+``app.query(yql='select * from sources * where true).number_documents_indexed``.
 
 If this is zero, check that the deployment of the application worked, and the subsequent feeding step.
-
-
 
 Too many open files during batch feeding
 ----------------------------------------
 This is an OS-related issue. There are two options to solve the problem:
 
-1. Reduce the number of async connections via the connections parameter:
-   ``app.feed_batch(..., connections, ...)``.
+1. Reduce the number of connections via the connections parameter:
+   ``with app.syncio(connections=12):``.
 
 2. Increase the open file limit: ``ulimit -n 10000``.
    Check if the limit was increased with ``ulimit -Sn``.
-
-
 
 Data export
 -----------

@@ -3,31 +3,16 @@
 import json
 import unittest
 
-import pandas
 import pytest
 from unittest.mock import PropertyMock, patch
-from pandas import DataFrame
 from requests.models import HTTPError, Response
 
 from vespa.package import ApplicationPackage, Schema, Document
-from vespa.application import Vespa, parse_feed_df, df_to_vespafeed, raise_for_status
+from vespa.application import Vespa, raise_for_status
 from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse
 import requests_mock
 
-
-def test_df_to_vespafeed():
-    df = pandas.DataFrame({
-        "id": [0, 1, 2],
-        "body": ["body 1", "body 2", "body 3"]
-    })
-    feed = json.loads(df_to_vespafeed(df, "myschema", "id"))
-
-    assert feed[1]["fields"]["body"] == "body 2"
-    assert feed[0]["id"] == "id:myschema:myschema::0"
-
-    feed = json.loads(df_to_vespafeed(df, "myschema", "id", "mynamespace"))
-    assert feed[2]["id"] == "id:mynamespace:myschema::2"
 
 class TestVespaRequestsUsage(unittest.TestCase):
 
@@ -88,7 +73,8 @@ class TestVespa(unittest.TestCase):
     
     def test_query_token(self):
         self.assertEqual(
-            Vespa(url="https://cord19.vespa.ai", vespa_cloud_secret_token="vespa_cloud_str_secret").vespa_cloud_secret_token, "vespa_cloud_str_secret"
+            Vespa(url="https://cord19.vespa.ai", vespa_cloud_secret_token="vespa_cloud_str_secret").vespa_cloud_secret_token, 
+            "vespa_cloud_str_secret"
         )
 
     def test_query_token_from_env(self):
@@ -147,63 +133,6 @@ class TestVespa(unittest.TestCase):
         app = Vespa(url="http://localhost", port=8080, application_package=app_package)
         schema_name = app._infer_schema_name()
         self.assertEqual("x", schema_name)
-
-
-class TestParseFeedDataFrame(unittest.TestCase):
-    def setUp(self) -> None:
-        records = [
-            {
-                "id": idx,
-                "title": "This doc is about {}".format(x),
-                "body": "There is so much to learn about {}".format(x),
-            }
-            for idx, x in enumerate(
-                ["finance", "sports", "celebrity", "weather", "politics"]
-            )
-        ]
-        self.df = DataFrame.from_records(records)
-
-    def test_parse_simplified_feed_batch(self):
-        batch = parse_feed_df(self.df, include_id=True)
-        expected_batch = [
-            {
-                "id": idx,
-                "fields": {
-                    "id": idx,
-                    "title": "This doc is about {}".format(x),
-                    "body": "There is so much to learn about {}".format(x),
-                },
-            }
-            for idx, x in enumerate(
-                ["finance", "sports", "celebrity", "weather", "politics"]
-            )
-        ]
-        self.assertEqual(expected_batch, batch)
-
-    def test_parse_simplified_feed_batch_not_including_id(self):
-        batch = parse_feed_df(self.df, include_id=False)
-        expected_batch = [
-            {
-                "id": idx,
-                "fields": {
-                    "title": "This doc is about {}".format(x),
-                    "body": "There is so much to learn about {}".format(x),
-                },
-            }
-            for idx, x in enumerate(
-                ["finance", "sports", "celebrity", "weather", "politics"]
-            )
-        ]
-        self.assertEqual(expected_batch, batch)
-
-    def test_parse_simplified_feed_batch_with_wrong_columns(self):
-        missing_id_df = self.df[["title", "body"]]
-        with self.assertRaisesRegex(
-            AssertionError,
-            "DataFrame needs at least the following columns: \['id'\]",
-        ):
-            _ = parse_feed_df(df=missing_id_df, include_id=True)
-
 
 
 class TestRaiseForStatus(unittest.TestCase):
@@ -380,61 +309,6 @@ class TestVespaCollectData(unittest.TestCase):
                         "source": "content",
                         "fields": {
                             "vespa_id_field": "ghi",
-                            "sddocname": "doc",
-                            "body_text": "this is a body 3",
-                            "title": "this is a title 3",
-                            "rankfeatures": {"a": 5, "b": 6},
-                        },
-                    },
-                ],
-            }
-        }
-
-
-class TestVespaEvaluate(unittest.TestCase):
-    def setUp(self) -> None:
-        self.app = Vespa(url="http://localhost", port=8080)
-
-        self.labeled_data = [
-            {
-                "query_id": 0,
-                "query": "Intrauterine virus infections and congenital heart disease",
-                "relevant_docs": [{"id": "def", "score": 1}, {"id": "abc", "score": 1}],
-            },
-        ]
-
-        self.query_results = {
-            "root": {
-                "id": "toplevel",
-                "relevance": 1.0,
-                "fields": {"totalCount": 1083},
-                "coverage": {
-                    "coverage": 100,
-                    "documents": 62529,
-                    "full": True,
-                    "nodes": 2,
-                    "results": 1,
-                    "resultsFull": 1,
-                },
-                "children": [
-                    {
-                        "id": "id:covid-19:doc::40216",
-                        "relevance": 10,
-                        "source": "content",
-                        "fields": {
-                            "vespa_id_field": "ghi",
-                            "sddocname": "doc",
-                            "body_text": "this is a body 2",
-                            "title": "this is a title 2",
-                            "rankfeatures": {"a": 3, "b": 4},
-                        },
-                    },
-                    {
-                        "id": "id:covid-19:doc::40217",
-                        "relevance": 8,
-                        "source": "content",
-                        "fields": {
-                            "vespa_id_field": "def",
                             "sddocname": "doc",
                             "body_text": "this is a body 3",
                             "title": "this is a title 3",

@@ -4,7 +4,6 @@ import os
 import asyncio
 import shutil
 import unittest
-from cryptography.hazmat.primitives import serialization
 from vespa.application import Vespa
 from vespa.package import AuthClient, Parameter
 from vespa.deployment import VespaCloud
@@ -55,7 +54,7 @@ class TestTokenBasedAuth(unittest.TestCase):
                 "pathId": "/document/v1/msmarco/msmarco/docid/1",
                 "id": "id:msmarco:msmarco::1",
             },
-            self.app.get_batch(batch=[{"id": 1}])[0].json,
+            self.app.get_data(data_id="1").json,
         )
 
     def tearDown(self) -> None:
@@ -128,33 +127,6 @@ class TestMsmarcoApplicationWithTokenAuth(TestApplicationCommon):
                 field_to_update=self.fields_to_update[0],
                 expected_fields_from_get_operation=self.fields_to_send,
             )
-        )
-
-    def test_batch_operations_synchronous_mode(self):
-        self.batch_operations_synchronous_mode(
-            app=self.app,
-            schema_name=self.app_package.name,
-            fields_to_send=self.fields_to_send,
-            expected_fields_from_get_operation=self.fields_to_send,
-            fields_to_update=self.fields_to_update,
-        )
-
-    def test_batch_operations_asynchronous_mode(self):
-        self.batch_operations_asynchronous_mode(
-            app=self.app,
-            schema_name=self.app_package.name,
-            fields_to_send=self.fields_to_send,
-            expected_fields_from_get_operation=self.fields_to_send,
-            fields_to_update=self.fields_to_update,
-        )
-
-    def test_batch_operations_default_mode_with_one_schema(self):
-        self.batch_operations_default_mode_with_one_schema(
-            app=self.app,
-            schema_name=self.app_package.name,
-            fields_to_send=self.fields_to_send,
-            expected_fields_from_get_operation=self.fields_to_send,
-            fields_to_update=self.fields_to_update,
         )
 
     def tearDown(self) -> None:

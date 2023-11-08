@@ -3,7 +3,6 @@
 import unittest
 import pytest
 import os
-import re
 import asyncio
 import json
 
@@ -16,7 +15,6 @@ from vespa.package import (
     Field,
     Schema,
     FieldSet,
-    SecondPhaseRanking,
     RankProfile,
     ApplicationPackage,
     QueryProfile,
@@ -582,320 +580,7 @@ class TestApplicationCommon(unittest.TestCase):
                 queries[0].result().number_documents_indexed, len(fields_to_send) - 1
             )
 
-    def batch_operations_synchronous_mode(
-        self,
-        app,
-        schema_name,
-        fields_to_send,
-        expected_fields_from_get_operation,
-        fields_to_update,
-        body_batch=None,
-        hit_field_to_check=None,
-        queries_first_hit=None,
-    ):
-        """
-        Sync feed a batch of data to the application
-
-        :param app: Vespa instance holding the connection to the application
-        :param schema_name: Schema name containing the document we want to send and retrieve data
-        :param fields_to_send: List of Dicts where keys are field names and values are field values. Must
-            contain 'id' field.
-        :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
-            There are cases where fields returned from Vespa are different from inputs, e.g. when dealing with Tensors.
-        :param fields_to_update: Dict where keys are field names and values are field values.
-        :param body_batch: Optional list of query body requests.
-        :param hit_field_to_check: Which field of the query response should be checked.
-        :param queries_first_hit: The expected field of the first hit of each query sent
-        :return:
-        """
-
-        #
-        # Create and feed documents
-        #
-        num_docs = len(fields_to_send)
-        schema = schema_name
-        docs = [{"id": fields["id"], "fields": fields} for fields in fields_to_send]
-        update_docs = [
-            {"id": fields["id"], "fields": fields} for fields in fields_to_update
-        ]
-
-        app.feed_batch(schema=schema, batch=docs, asynchronous=False)
-
-        #
-        # Verify that all documents are fed
-        #
-        result = app.query(
-            body={
-                "yql": 'select * from sources * where (userInput("sddocname:{}"))'.format(
-                    schema_name
-                ),
-                "ranking": {"profile": "default", "listFeatures": "false"},
-            }
-        )
-        self.assertEqual(result.number_documents_indexed, num_docs)
-
-        #
-        # Query data
-        #
-        if body_batch:
-            result = app.query_batch(body_batch=body_batch, asynchronous=False)
-            for idx, first_hit in enumerate(queries_first_hit):
-                self.assertEqual(
-                    first_hit, result[idx].hits[0]["fields"][hit_field_to_check]
-                )
-
-        #
-        # get batch data
-        #
-        result = app.get_batch(schema=schema, batch=docs, asynchronous=False)
-        for idx, response in enumerate(result):
-            self.assertDictEqual(
-                response.json["fields"], expected_fields_from_get_operation[idx]
-            )
-
-        #
-        # Update data
-        #
-        result = app.update_batch(schema=schema, batch=update_docs, asynchronous=False)
-        for idx, response in enumerate(result):
-            self.assertEqual(
-                response.json["id"],
-                "id:{}:{}::{}".format(schema, schema, fields_to_update[idx]["id"]),
-            )
-
-        #
-        # Get updated data
-        #
-        result = app.get_batch(schema=schema, batch=docs, asynchronous=False)
-        for idx, response in enumerate(result):
-            expected_updated_fields = {
-                k: v for k, v in expected_fields_from_get_operation[idx].items()
-            }
-            expected_updated_fields.update(fields_to_update[idx])
-            self.assertDictEqual(response.json["fields"], expected_updated_fields)
-
-        #
-        # Delete data
-        #
-        result = app.delete_batch(schema=schema, batch=docs, asynchronous=False)
-        for idx, response in enumerate(result):
-            self.assertEqual(
-                response.json["id"],
-                "id:{}:{}::{}".format(schema, schema, docs[idx]["id"]),
-            )
-
-        #
-        # get batch deleted data
-        #
-        with pytest.raises(HTTPError):
-            app.get_batch(schema=schema, batch=docs, asynchronous=False)
-
-    def batch_operations_asynchronous_mode(
-        self,
-        app,
-        schema_name,
-        fields_to_send,
-        expected_fields_from_get_operation,
-        fields_to_update,
-        body_batch=None,
-        hit_field_to_check=None,
-        queries_first_hit=None,
-    ):
-        """
-        Async feed a batch of data to the application
-
-        :param app: Vespa instance holding the connection to the application
-        :param schema_name: Schema name containing the document we want to send and retrieve data
-        :param fields_to_send: List of Dicts where keys are field names and values are field values. Must
-            contain 'id' field.
-        :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
-            There are cases where fields returned from Vespa are different from inputs, e.g. when dealing with Tensors.
-        :param fields_to_update: Dict where keys are field names and values are field values.
-        :param body_batch: Optional list of query body.
-        :param hit_field_to_check: Which field of the query response should be checked.
-        :param queries_first_hit: The expected field of the first hit of each query sent
-        :return:
-        """
-        #
-        # Create and feed documents
-        #
-        num_docs = len(fields_to_send)
-        schema = schema_name
-        docs = [{"id": fields["id"], "fields": fields} for fields in fields_to_send]
-        update_docs = [
-            {"id": fields["id"], "fields": fields} for fields in fields_to_update
-        ]
-
-        app.feed_batch(
-            schema=schema,
-            batch=docs,
-            asynchronous=True,
-            connections=120,
-            total_timeout=50,
-        )
-
-        #
-        # Verify that all documents are fed
-        #
-        result = app.query(
-            body={
-                "yql": 'select * from sources * where (userInput("sddocname:{}"))'.format(
-                    schema_name
-                ),
-                "ranking": {"profile": "default", "listFeatures": "false"},
-            }
-        )
-        self.assertEqual(result.number_documents_indexed, num_docs)
-
-        #
-        # Query data
-        #
-        if body_batch:
-            result = app.query_batch(body_batch=body_batch)
-            for idx, first_hit in enumerate(queries_first_hit):
-                self.assertEqual(
-                    first_hit, result[idx].hits[0]["fields"][hit_field_to_check]
-                )
-
-        #
-        # get batch data
-        #
-        result = app.get_batch(schema=schema, batch=docs, asynchronous=True)
-        for idx, response in enumerate(result):
-            self.assertDictEqual(
-                response.json["fields"], expected_fields_from_get_operation[idx]
-            )
-
-        #
-        # Update data
-        #
-        result = app.update_batch(schema=schema, batch=update_docs, asynchronous=True)
-        for idx, response in enumerate(result):
-            self.assertEqual(
-                response.json["id"],
-                "id:{}:{}::{}".format(schema, schema, fields_to_update[idx]["id"]),
-            )
-
-        #
-        # Get updated data
-        #
-        result = app.get_batch(schema=schema, batch=docs, asynchronous=True)
-        for idx, response in enumerate(result):
-            expected_updated_fields = {
-                k: v for k, v in expected_fields_from_get_operation[idx].items()
-            }
-            expected_updated_fields.update(fields_to_update[idx])
-            self.assertDictEqual(response.json["fields"], expected_updated_fields)
-
-        #
-        # Delete data
-        #
-        result = app.delete_batch(schema=schema, batch=docs, asynchronous=True)
-        for idx, response in enumerate(result):
-            self.assertEqual(
-                response.json["id"],
-                "id:{}:{}::{}".format(schema, schema, docs[idx]["id"]),
-            )
-
-        #
-        # get batch deleted data
-        #
-        result = app.get_batch(schema=schema, batch=docs, asynchronous=True)
-        for idx, response in enumerate(result):
-            self.assertEqual(response.status_code, 404)
-
-    def batch_operations_default_mode_with_one_schema(
-        self,
-        app,
-        schema_name,
-        fields_to_send,
-        expected_fields_from_get_operation,
-        fields_to_update,
-    ):
-        """
-        Document batch operations for applications with one schema
-
-        :param app: Vespa instance holding the connection to the application
-        :param schema_name: Schema name containing the document we want to send and retrieve data
-        :param fields_to_send: List of Dicts where keys are field names and values are field values. Must
-            contain 'id' field.
-        :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
-            There are cases where fields returned from Vespa are different from inputs, e.g. when dealing with Tensors.
-        :param fields_to_update: Dict where keys are field names and values are field values.
-        :return:
-        """
-        #
-        # Create and feed documents
-        #
-        num_docs = len(fields_to_send)
-        schema = schema_name
-        docs = [{"id": fields["id"], "fields": fields} for fields in fields_to_send]
-        update_docs = [
-            {"id": fields["id"], "fields": fields} for fields in fields_to_update
-        ]
-
-        app.feed_batch(batch=docs)
-
-        #
-        # Verify that all documents are fed
-        #
-        result = app.query(
-            body={
-                "yql": 'select * from sources * where (userInput("sddocname:{}"))'.format(
-                    schema_name
-                ),
-                "ranking": {"profile": "default", "listFeatures": "false"},
-            }
-        )
-        self.assertEqual(result.number_documents_indexed, num_docs)
-
-        #
-        # get batch data
-        #
-        result = app.get_batch(batch=docs)
-        for idx, response in enumerate(result):
-            self.assertDictEqual(
-                response.json["fields"], expected_fields_from_get_operation[idx]
-            )
-
-        #
-        # Update data
-        #
-        result = app.update_batch(batch=update_docs)
-        for idx, response in enumerate(result):
-            self.assertEqual(
-                response.json["id"],
-                "id:{}:{}::{}".format(schema, schema, fields_to_update[idx]["id"]),
-            )
-
-        #
-        # Get updated data
-        #
-        result = app.get_batch(batch=docs)
-        for idx, response in enumerate(result):
-            expected_updated_fields = {
-                k: v for k, v in expected_fields_from_get_operation[idx].items()
-            }
-            expected_updated_fields.update(fields_to_update[idx])
-            self.assertDictEqual(response.json["fields"], expected_updated_fields)
-
-        #
-        # Delete data
-        #
-        result = app.delete_batch(batch=docs)
-        for idx, response in enumerate(result):
-            self.assertEqual(
-                response.json["id"],
-                "id:{}:{}::{}".format(schema, schema, docs[idx]["id"]),
-            )
-
-        #
-        # get batch deleted data
-        #
-        result = app.get_batch(batch=docs)
-        for idx, response in enumerate(result):
-            self.assertEqual(response.status_code, 404)
-
+    
     def get_model_endpoints_when_no_model_is_available(
         self, app, expected_model_endpoint
     ):
@@ -992,16 +677,6 @@ class TestMsmarcoApplication(TestApplicationCommon):
             }
             for i in range(10)
         ]
-        self.body_batch = [
-            {
-                "yql": 'select * from sources * where ({grammar: "any"}userInput("Give me title 1"))',
-                "ranking": {"profile": "default", "listFeatures": "false"},
-            },
-            {
-                "yql": 'select * from sources * where ({grammar: "any"}userInput("Give me title 2"))',
-                "ranking": {"profile": "default", "listFeatures": "false"},
-            },
-        ]
         self.queries_first_hit = ["this is title 1", "this is title 2"]
 
     def test_model_endpoints_when_no_model_is_available(self):
@@ -1034,40 +709,6 @@ class TestMsmarcoApplication(TestApplicationCommon):
                 expected_fields_from_get_operation=self.fields_to_send,
             )
         )
-
-    def test_batch_operations_synchronous_mode(self):
-        self.batch_operations_synchronous_mode(
-            app=self.app,
-            schema_name=self.app_package.name,
-            fields_to_send=self.fields_to_send,
-            expected_fields_from_get_operation=self.fields_to_send,
-            fields_to_update=self.fields_to_update,
-            body_batch=self.body_batch,
-            hit_field_to_check="title",
-            queries_first_hit=self.queries_first_hit,
-        )
-
-    def test_batch_operations_asynchronous_mode(self):
-        self.batch_operations_asynchronous_mode(
-            app=self.app,
-            schema_name=self.app_package.name,
-            fields_to_send=self.fields_to_send,
-            expected_fields_from_get_operation=self.fields_to_send,
-            fields_to_update=self.fields_to_update,
-            body_batch=self.body_batch,
-            hit_field_to_check="title",
-            queries_first_hit=self.queries_first_hit,
-        )
-
-    def test_batch_operations_default_mode_with_one_schema(self):
-        self.batch_operations_default_mode_with_one_schema(
-            app=self.app,
-            schema_name=self.app_package.name,
-            fields_to_send=self.fields_to_send,
-            expected_fields_from_get_operation=self.fields_to_send,
-            fields_to_update=self.fields_to_update,
-        )
-
     def tearDown(self) -> None:
         self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
@@ -1156,24 +797,6 @@ class TestQaApplication(TestApplicationCommon):
                 field_to_update=self.fields_to_update[0],
                 expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
             )
-        )
-
-    def test_batch_operations_synchronous_mode(self):
-        self.batch_operations_synchronous_mode(
-            app=self.app,
-            schema_name="sentence",
-            fields_to_send=self.fields_to_send_sentence,
-            expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
-            fields_to_update=self.fields_to_update,
-        )
-
-    def test_batch_operations_asynchronous_mode(self):
-        self.batch_operations_asynchronous_mode(
-            app=self.app,
-            schema_name="sentence",
-            fields_to_send=self.fields_to_send_sentence,
-            expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation,
-            fields_to_update=self.fields_to_update,
         )
 
     def tearDown(self) -> None:

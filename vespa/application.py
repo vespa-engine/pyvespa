@@ -2,29 +2,24 @@
 
 import sys
 import ssl
-import json
 import aiohttp
 import asyncio
 import requests
 import traceback
 import concurrent.futures
-from collections import Counter
-from typing import Any, Optional, Dict, List, IO, Iterable, Callable, Tuple,Union
+from typing import Optional, Dict, List, IO, Iterable, Callable, Tuple,Union
 from concurrent.futures import ThreadPoolExecutor, Future
 from queue import Queue, Empty
 import threading
-from pandas import DataFrame
 from requests import Session
 from requests.models import Response
 from requests.exceptions import ConnectionError, HTTPError, JSONDecodeError
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
-from tenacity import retry, wait_exponential, stop_after_attempt, RetryError
+from tenacity import retry, wait_exponential, stop_after_attempt
 from time import sleep
 from os import environ
 import traceback
-import time
-import warnings
 
 from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse
@@ -39,50 +34,6 @@ retry_strategy = Retry(
 )
 
 VESPA_CLOUD_SECRET_TOKEN: str = "VESPA_CLOUD_SECRET_TOKEN"
-
-def parse_feed_df(df: DataFrame, include_id: bool, id_field="id", id_prefix="") -> List[Dict[str, Any]]:
-    """
-    [Deprecated] Convert a DataFrame into batch format for feeding
-
-    :param df: DataFrame with the following required columns ["id"]. Additional columns are assumed to be fields.
-    :param include_id: Include id on the fields to be fed.
-    :param id_field: Name of the column containing the id field.
-    :param id_prefix: Add a string prefix to ID field, e.g. "id:namespace:schema::"
-    :return: List of Dict containing 'id' and 'fields'.
-    """
-    warnings.warn("parse_feed_df is deprecated and will be removed in a future version. No replacement is planned.", DeprecationWarning)
-    required_columns = [id_field]
-    assert all(
-        [x in list(df.columns) for x in required_columns]
-    ), "DataFrame needs at least the following columns: {}".format(required_columns)
-    records = df.to_dict(orient="records")
-    batch = [
-        {
-            "id": record[id_field] if id_prefix == "" else id_prefix + str(record[id_field]),
-            "fields": record
-            if include_id
-            else {k: v for k, v in record.items() if k not in [id_field]},
-        }
-        for record in records
-    ]
-    return batch
-
-
-def df_to_vespafeed(df: DataFrame, schema_name: str, id_field="id", namespace="") -> str:
-    """
-    [Deprecated] Convert a DataFrame into a string in Vespa JSON feed format,
-    see https://docs.vespa.ai/en/reference/document-json-format.html
-
-    :param df: DataFrame with the following required columns ["id"]. Additional columns are assumed to be fields.
-    :param schema_name: Schema name
-    :param id_field: Name of the column containing the id field.
-    :param namespace: Set if namespace != schema_name
-    :return: JSON string in Vespa feed format
-    """
-    warnings.warn("df_to_vespafeed is deprecated and will be removed in a future version. No replacement is planned.", DeprecationWarning)
-    return json.dumps(parse_feed_df(df, True, id_field,
-                                    "id:{}:{}::".format(schema_name if namespace == "" else namespace, schema_name)))
-
 
 def raise_for_status(response: Response) -> None:
     """
@@ -323,69 +274,12 @@ class Vespa(object):
         param kwargs: Extra valid Vespa Query API parameters.
         :return: The response from the Vespa application.
         """
-        #Use one connection as this is a single query and 
-        #context manager is shutting down the connection after use
+        #Use one connection as this is a single query
         with VespaSync(self,pool_maxsize=1, pool_connections=1) as sync_app:
             return sync_app.query(
                 body=body, **kwargs
             )
 
-    def _query_batch_sync(
-        self,
-        body_batch: Optional[List[Dict]],
-    ):
-        """[Deprecated]"""
-        return [self.query(body=body) for body in body_batch]
-
-    async def _query_batch_async(
-        self,
-        body_batch: Optional[List[Dict]],
-        connections,
-        total_timeout,
-        **kwargs,
-    ):
-        async with VespaAsync(
-            app=self, connections=connections, total_timeout=total_timeout
-        ) as async_app:
-            return await async_app.query_batch(
-                body_batch=body_batch,
-                **kwargs,
-            )
-
-    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
-    def query_batch(
-        self,
-        body_batch: Optional[List[Dict]] = None,
-        asynchronous=True,
-        connections: Optional[int] = 8,
-        total_timeout: int = 100,
-        **kwargs,
-    ):
-        """
-        [Deprecated] Send queries in batch to a Vespa app.
-
-        :param body_batch: A list of dict containing all the request parameters. Set to None if using 'query_batch'.
-            of the field to use to recall and the second element is a list of the values to be recalled.
-        :param asynchronous: Set True to send data in async mode. Default to True.
-        :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
-        :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
-        :param kwargs: Additional parameters to be sent along the request.
-        :return: List of HTTP POST responses
-        """
-        warnings.warn("query_batch is deprecated and will be removed in a future version. No replacement is planned.", DeprecationWarning)
-        
-        if asynchronous:
-            coro = self._query_batch_async(
-                body_batch=body_batch,
-                connections=connections,
-                total_timeout=total_timeout,
-                **kwargs,
-            )
-            return Vespa._check_for_running_loop_and_run_coroutine(coro=coro)
-        else:
-            return self._query_batch_sync(
-                body_batch=body_batch,
-            )
 
     def feed_data_point(
         self, schema: str, data_id: str, fields: Dict, namespace: str = None, **kwargs
@@ -409,143 +303,7 @@ class Vespa(object):
             return sync_app.feed_data_point(
                 schema=schema, data_id=data_id, fields=fields, namespace=namespace, **kwargs
             )
-
-    def _feed_batch_sync(
-        self, schema: str, batch: List[Dict], namespace: str
-    ) -> List[VespaResponse]:
-        """[Deprecated]"""
-        return [
-            self.feed_data_point(
-                schema, data_point["id"], data_point["fields"], namespace
-            )
-            for data_point in batch
-        ]
-
-    async def _feed_batch_async(
-        self, schema: str, batch: List[Dict], connections, total_timeout, namespace: str
-    ):
-        """[Deprecated]"""
-        async with VespaAsync(
-            app=self, connections=connections, total_timeout=total_timeout
-        ) as async_app:
-            return await async_app.feed_batch(
-                schema=schema, batch=batch, namespace=namespace
-            )
-
-    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
-    def _feed_batch(
-        self,
-        batch: List[Dict],
-        schema: Optional[str] = None,
-        asynchronous=True,
-        connections: Optional[int] = 8,
-        total_timeout: int = 240,
-        namespace: Optional[str] = None,
-    ):
-        """
-        [Deprecated] Feed a batch of data to a Vespa app.
-
-        :param batch: A list of dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
-        :param schema: The schema that we are sending data to. The schema is optional in case it is possible to infer
-            the schema from the application package.
-        :param asynchronous: Set True to send data in async mode. Default to True.
-        :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
-        :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
-        :param namespace: The namespace that we are sending data to. If no namespace is provided the schema is used.
-        :return: List of HTTP POST responses
-        """
-        if not schema:
-            try:
-                schema = self._infer_schema_name()
-            except ValueError:
-                raise ValueError(
-                    "Not possible to infer schema name. Specify schema parameter."
-                )
-
-        if not namespace:
-            namespace = schema
-
-        if asynchronous:
-            coro = self._feed_batch_async(
-                schema=schema,
-                batch=batch,
-                connections=connections,
-                total_timeout=total_timeout,
-                namespace=namespace,
-            )
-            return Vespa._check_for_running_loop_and_run_coroutine(coro=coro)
-        else:
-            return self._feed_batch_sync(
-                schema=schema, batch=batch, namespace=namespace
-            )
-
-    def feed_batch(
-        self,
-        batch: List[Dict],
-        schema: Optional[str] = None,
-        asynchronous=True,
-        connections: Optional[int] = 8,
-        total_timeout: int = 240,
-        namespace: Optional[str] = None,
-        batch_size=1000,
-        output: bool = True,
-    ):
-        """
-        [Deprecated] Feed a batch of data to a Vespa app.
-
-        :param batch: A list of dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
-        :param schema: The schema that we are sending data to. The schema is optional in case it is possible to infer
-            the schema from the application package.
-        :param asynchronous: Set True to send data in async mode. Default to True.
-        :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
-        :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
-        :param namespace: The namespace that we are sending data to. If no namespace is provided the schema is used.
-        :param batch_size: The number of documents to feed per batch.
-        :param output: Prints a final message about the feed result.
-        :return: List of HTTP POST responses
-        """
-        warnings.warn("feed_batch is deprecated and will be removed in a future version. No replacement is planned.", DeprecationWarning)
-        mini_batches = [
-            batch[i: i + batch_size] for i in range(0, len(batch), batch_size)
-        ]
-        batch_http_responses = []
-        for idx, mini_batch in enumerate(mini_batches):
-            feed_results = self._feed_batch(
-                batch=mini_batch,
-                schema=schema,
-                asynchronous=asynchronous,
-                connections=connections,
-                total_timeout=total_timeout,
-                namespace=namespace,
-            )
-            batch_http_responses.extend(feed_results)
-            status_code_summary = Counter([x.status_code for x in feed_results])
-
-            if output:
-                print(
-                    "Successful documents fed: {}/{}.\nBatch progress: {}/{}.".format(
-                        status_code_summary[200],
-                        len(mini_batch),
-                        idx + 1,
-                        len(mini_batches),
-                    )
-                )
-        return batch_http_responses
-
-    def feed_df(self, df: DataFrame, include_id: bool = True, id_field="id", **kwargs):
-        """
-        [Deprecated] Feed data contained in a DataFrame.
-
-        :param df: A DataFrame containing a required 'id' column and the remaining fields to be fed.
-        :param include_id: Include id on the fields to be fed. Default to True.
-        :param id_field: Name of the column containing the id field.
-        :param kwargs: Additional parameters are passed to :func:`feed_batch`.
-        :return: List of HTTP POST responses
-        """
-        warnings.warn("feed_df is deprecated and will be removed in a future version. No replacement is planned.", DeprecationWarning)
-        batch = parse_feed_df(df=df, include_id=include_id, id_field=id_field)
-        return self.feed_batch(batch=batch, **kwargs)
-  
+   
     def feed_iterable(self, 
         iter:Iterable[Dict], 
         schema:Optional[str] = None, 
@@ -693,71 +451,7 @@ class Vespa(object):
                 schema=schema, data_id=data_id, namespace=namespace, **kwargs
             )
 
-    def _delete_batch_sync(self, schema: str, batch: List[Dict], namespace: str):
-        """[Deprecated]"""
-        return [
-            self.delete_data(schema, data_point["id"], namespace)
-            for data_point in batch
-        ]
-
-    async def _delete_batch_async(
-        self, schema: str, batch: List[Dict], connections, total_timeout, namespace: str
-    ):
-        """[Deprecated]"""
-        async with VespaAsync(
-            app=self, connections=connections, total_timeout=total_timeout
-        ) as async_app:
-            return await async_app.delete_batch(
-                schema=schema, batch=batch, namespace=namespace
-            )
-
-    def delete_batch(
-        self,
-        batch: List[Dict],
-        schema: Optional[str] = None,
-        asynchronous=True,
-        connections: Optional[int] = 8,
-        total_timeout: int = 100,
-        namespace: Optional[str] = None,
-    ):
-        """
-        [Deprecated] Delete a batch of data from a Vespa app.
-
-        :param batch: A list of dict containing the key 'id'.
-        :param schema: The schema that we are deleting data from. The schema is optional in case it is possible to infer
-            the schema from the application package.
-        :param asynchronous: Set True to get data in async mode. Default to True.
-        :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
-        :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
-        :param namespace: The namespace that we are deleting data from. If no namespace is provided the schema is used.
-        :return: List of HTTP POST responses
-        """
-        warnings.warn("delete_batch is deprecated and will be removed in a future version. No replacement is planned.", DeprecationWarning)
-        if not schema:
-            try:
-                schema = self._infer_schema_name()
-            except ValueError:
-                raise ValueError(
-                    "Not possible to infer schema name. Specify schema parameter."
-                )
-
-        if not namespace:
-            namespace = schema
-
-        if asynchronous:
-            coro = self._delete_batch_async(
-                schema=schema,
-                batch=batch,
-                connections=connections,
-                total_timeout=total_timeout,
-                namespace=namespace,
-            )
-            return Vespa._check_for_running_loop_and_run_coroutine(coro=coro)
-        else:
-            return self._delete_batch_sync(
-                schema=schema, batch=batch, namespace=namespace
-            )
-
+   
     def delete_all_docs(
         self, content_cluster_name: str, schema: str, namespace: str = None, **kwargs
     ) -> Response:
@@ -800,68 +494,6 @@ class Vespa(object):
                 schema=schema, data_id=data_id, namespace=namespace, **kwargs
             )
 
-    def _get_batch_sync(self, schema: str, batch: List[Dict], namespace: str):
-        """[Deprecated]"""
-        return [
-            self.get_data(schema, data_point["id"], namespace) for data_point in batch
-        ]
-
-    async def _get_batch_async(
-        self, schema: str, batch: List[Dict], connections, total_timeout, namespace: str
-    ):
-        """[Deprecated]"""
-        async with VespaAsync(
-            app=self, connections=connections, total_timeout=total_timeout
-        ) as async_app:
-            return await async_app.get_batch(
-                schema=schema, batch=batch, namespace=namespace
-            )
-
-    def get_batch(
-        self,
-        batch: List[Dict],
-        schema: Optional[str] = None,
-        asynchronous=True,
-        connections: Optional[int] = 100,
-        total_timeout: int = 100,
-        namespace: Optional[str] = None,
-    ):
-        """
-        [Deprecated] Get a batch of data from a Vespa app.
-
-        :param batch: A list of dict containing the key 'id'.
-        :param schema: The schema that we are getting data from. The schema is optional in case it is possible to infer
-            the schema from the application package.
-        :param asynchronous: Set True to get data in async mode. Default to True.
-        :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
-        :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
-        :param namespace: The namespace that we are getting data from. If no namespace is provided the schema is used.
-        :return: List of HTTP POST responses
-        """
-        warnings.warn("get_batch is deprecated and will be removed in a future version. No replacement is planned.", DeprecationWarning)
-        if not schema:
-            try:
-                schema = self._infer_schema_name()
-            except ValueError:
-                raise ValueError(
-                    "Not possible to infer schema name. Specify schema parameter."
-                )
-
-        if not namespace:
-            namespace = schema
-
-        if asynchronous:
-            coro = self._get_batch_async(
-                schema=schema,
-                batch=batch,
-                connections=connections,
-                total_timeout=total_timeout,
-                namespace=namespace,
-            )
-            return Vespa._check_for_running_loop_and_run_coroutine(coro=coro)
-        else:
-            return self._get_batch_sync(schema=schema, batch=batch, namespace=namespace)
-
     def update_data(
         self,
         schema: str,
@@ -893,77 +525,6 @@ class Vespa(object):
                 create=create,
                 namespace=namespace, 
                 **kwargs
-            )
-
-    def _update_batch_sync(self, schema: str, batch: List[Dict], namespace: str):
-        """[Deprecated]"""
-        return [
-            self.update_data(
-                schema,
-                data_point["id"],
-                data_point["fields"],
-                data_point.get("create", False),
-                namespace,
-            )
-            for data_point in batch
-        ]
-
-    async def _update_batch_async(
-        self, schema: str, batch: List[Dict], connections, total_timeout, namespace: str
-    ):
-        """[Deprecated]"""
-        async with VespaAsync(
-            app=self, connections=connections, total_timeout=total_timeout
-        ) as async_app:
-            return await async_app.update_batch(
-                schema=schema, batch=batch, namespace=namespace
-            )
-
-    def update_batch(
-        self,
-        batch: List[Dict],
-        schema: Optional[str] = None,
-        asynchronous=True,
-        connections: Optional[int] = 100,
-        total_timeout: int = 100,
-        namespace: Optional[str] = None,
-    ):
-        """
-        [Deprecated] Update a batch of data in a Vespa app.
-
-        :param batch: A list of dict containing the keys 'id', 'fields' and 'create' (create defaults to False).
-        :param schema: The schema that we are updating data to. The schema is optional in case it is possible to infer
-            the schema from the application package.
-        :param asynchronous: Set True to update data in async mode. Default to True.
-        :param connections: Number of allowed concurrent connections, valid only if `asynchronous=True`.
-        :param total_timeout: Total timeout in secs for each of the concurrent requests when using `asynchronous=True`.
-        :param namespace: The namespace that we are updating data. If no namespace is provided the schema is used.
-        :return: List of HTTP POST responses
-        """
-        warnings.warn("update_batch is deprecated and will be removed in a future version. No replacement is planned.", DeprecationWarning)
-        if not schema:
-            try:
-                schema = self._infer_schema_name()
-            except ValueError:
-                raise ValueError(
-                    "Not possible to infer schema name. Specify schema parameter."
-                )
-
-        if not namespace:
-            namespace = schema
-
-        if asynchronous:
-            coro = self._update_batch_async(
-                schema=schema,
-                batch=batch,
-                connections=connections,
-                total_timeout=total_timeout,
-                namespace=namespace,
-            )
-            return Vespa._check_for_running_loop_and_run_coroutine(coro=coro)
-        else:
-            return self._update_batch_sync(
-                schema=schema, batch=batch, namespace=namespace
             )
 
     @property
@@ -1326,26 +887,6 @@ class VespaAsync(object):
             json=await r.json(), status_code=r.status, url=str(r.url)
         )
 
-    async def _query_semaphore(
-        self,
-        body: Optional[Dict],
-        semaphore: asyncio.Semaphore,
-    ):
-        async with semaphore:
-            return await self.query(body=body)
-
-    async def query_batch(
-        self,
-        body_batch: Optional[List[Dict]],
-        **kwargs,
-    ):
-        sem = asyncio.Semaphore(self.connections)
-        return await VespaAsync._wait(
-            self._query_semaphore,
-            [(body, sem) for body in body_batch],
-            **kwargs,
-        )
-
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def feed_data_point(
         self, schema: str, data_id: str, fields: Dict, namespace: str = None
@@ -1362,40 +903,6 @@ class VespaAsync(object):
             status_code=response.status,
             url=str(response.url),
             operation_type="feed",
-        )
-
-    async def _feed_data_point_semaphore(
-        self,
-        schema: str,
-        data_id: str,
-        fields: Dict,
-        semaphore: asyncio.Semaphore,
-        namespace: str = None,
-    ):
-        if not namespace:
-            namespace = schema
-
-        async with semaphore:
-            try:
-                return await self.feed_data_point(
-                    schema=schema, data_id=data_id, fields=fields, namespace=namespace
-                )
-            except RetryError as e:
-                print("Unable to feed data point after retries. Giving up. Cause:", file=sys.stderr)
-                if e.__cause__:
-                    traceback.print_tb(e.__cause__.__traceback__)
-                e.reraise()
-
-    async def feed_batch(self, schema: str, batch: List[Dict], namespace=None):
-        if not namespace:
-            namespace = schema
-        sem = asyncio.Semaphore(self.connections)
-        return await VespaAsync._wait(
-            self._feed_data_point_semaphore,
-            [
-                (schema, data_point["id"], data_point["fields"], sem, namespace)
-                for data_point in batch
-            ],
         )
 
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
@@ -1416,30 +923,6 @@ class VespaAsync(object):
             operation_type="delete",
         )
 
-    async def _delete_data_semaphore(
-        self,
-        schema: str,
-        data_id: str,
-        semaphore: asyncio.Semaphore,
-        namespace: str = None,
-    ):
-        if not namespace:
-            namespace = schema
-
-        async with semaphore:
-            return await self.delete_data(
-                schema=schema, data_id=data_id, namespace=namespace
-            )
-
-    async def delete_batch(self, schema: str, batch: List[Dict], namespace: str = None):
-        sem = asyncio.Semaphore(self.connections)
-        if not namespace:
-            namespace = schema
-        return await VespaAsync._wait(
-            self._delete_data_semaphore,
-            [(schema, data_point["id"], sem, namespace) for data_point in batch],
-        )
-
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def get_data(
         self, schema: str, data_id: str, namespace: str = None
@@ -1455,31 +938,6 @@ class VespaAsync(object):
             status_code=response.status,
             url=str(response.url),
             operation_type="get",
-        )
-
-    async def _get_data_semaphore(
-        self,
-        schema: str,
-        data_id: str,
-        semaphore: asyncio.Semaphore,
-        namespace: str = None,
-    ):
-        if not namespace:
-            namespace = schema
-
-        async with semaphore:
-            return await self.get_data(
-                schema=schema, data_id=data_id, namespace=namespace
-            )
-
-    async def get_batch(self, schema: str, batch: List[Dict], namespace: str = None):
-        if not namespace:
-            namespace = schema
-
-        sem = asyncio.Semaphore(self.connections)
-        return await VespaAsync._wait(
-            self._get_data_semaphore,
-            [(schema, data_point["id"], sem, namespace) for data_point in batch],
         )
 
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
@@ -1504,44 +962,4 @@ class VespaAsync(object):
             status_code=response.status,
             url=str(response.url),
             operation_type="update",
-        )
-
-    async def _update_data_semaphore(
-        self,
-        schema: str,
-        data_id: str,
-        fields: Dict,
-        semaphore: asyncio.Semaphore,
-        create: bool = False,
-        namespace: str = None,
-    ):
-        if not namespace:
-            namespace = schema
-
-        async with semaphore:
-            return await self.update_data(
-                schema=schema,
-                data_id=data_id,
-                fields=fields,
-                create=create,
-                namespace=namespace,
-            )
-
-    async def update_batch(self, schema: str, batch: List[Dict], namespace: str = None):
-        if not namespace:
-            namespace = schema
-        sem = asyncio.Semaphore(self.connections)
-        return await VespaAsync._wait(
-            self._update_data_semaphore,
-            [
-                (
-                    schema,
-                    data_point["id"],
-                    data_point["fields"],
-                    sem,
-                    data_point.get("create", False),
-                    namespace,
-                )
-                for data_point in batch
-            ],
         )
