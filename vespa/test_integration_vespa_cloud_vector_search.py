@@ -161,6 +161,6 @@ class TestVectorSearch(unittest.TestCase):
             self.assertEqual(len(response.hits), 0)
             print(response.get_json())
         shutil.rmtree(self.disk_folder, ignore_errors=True)
-        #self.vespa_cloud.delete()
+        self.vespa_cloud.delete()
 
 
