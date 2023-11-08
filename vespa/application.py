@@ -1,9 +1,7 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
-from lib2to3.pgen2.token import OP
 import sys
 import ssl
-from xmlrpc.client import Boolean
 import aiohttp
 import asyncio
 import requests
@@ -20,7 +18,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 from tenacity import retry, wait_exponential, stop_after_attempt
 from time import sleep
-from os import environ, scandir
+from os import environ
 import traceback
 
 from vespa.exceptions import VespaError
