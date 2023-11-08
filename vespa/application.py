@@ -475,17 +475,21 @@ class Vespa(object):
             )
 
     def get_data(
-        self, schema: str, data_id: str, namespace: str = None, **kwargs
+        self, data_id: str, schema: Optional[str]=None, namespace: str = None, **kwargs
     ) -> VespaResponse:
         """
         Get a data point from a Vespa app.
 
-        :param schema: The schema that we are getting data from.
         :param data_id: Unique id associated with this data point.
+        :param schema: The schema that we are getting data from. Will attempt to infer schema name if not provided.
         :param namespace: The namespace that we are getting data from. If no namespace is provided the schema is used.
         :param kwargs: Additional arguments to be passed to the HTTP GET request https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters
         :return: Response of the HTTP GET request.
         """
+
+        if not schema:
+            schema = self._infer_schema_name()
+
         if not namespace:
             namespace = schema
 
