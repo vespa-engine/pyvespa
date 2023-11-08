@@ -2,6 +2,7 @@
 
 import sys
 import ssl
+from xmlrpc.client import Boolean
 import aiohttp
 import asyncio
 import requests
@@ -35,13 +36,14 @@ retry_strategy = Retry(
 
 VESPA_CLOUD_SECRET_TOKEN: str = "VESPA_CLOUD_SECRET_TOKEN"
 
-def raise_for_status(response: Response) -> None:
+def raise_for_status(response: Response, ignore_not_found:bool=False) -> None:
     """
     Raises an appropriate error if necessary.
 
     If the response contains an error message, VespaError is raised along with HTTPError to provide more details.
 
     :param response: Response object from Vespa API.
+    :param ignore_not_found: If True, ignore 404 status code.
     :raises HTTPError: If status_code is between 400 and 599.
     :raises VespaError: If the response JSON contains an error message.
     """
@@ -50,6 +52,8 @@ def raise_for_status(response: Response) -> None:
     except HTTPError as http_error:
         try:
             response_json = response.json()
+            if response.status_code == 404 and ignore_not_found:
+                return
         except JSONDecodeError:
             raise http_error
         errors = response_json.get("root", {}).get("errors", [])
@@ -782,7 +786,7 @@ class VespaSync(object):
             self.app.end_point, namespace, schema, str(data_id)
         )
         response = self.http_session.get(end_point, params=kwargs)
-        raise_for_status(response) # This is questionable, since it will throw on 404 as well. 
+        raise_for_status(response,ignore_not_found=True) 
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
