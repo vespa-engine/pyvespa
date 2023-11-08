@@ -4,8 +4,6 @@ import os
 import asyncio
 import shutil
 import unittest
-import pytest
-from requests import HTTPError
 from vespa.application import Vespa
 from vespa.package import AuthClient, Parameter
 from vespa.deployment import VespaCloud

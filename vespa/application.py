@@ -2,7 +2,6 @@
 
 import sys
 import ssl
-from xmlrpc.client import Boolean
 import aiohttp
 import asyncio
 import requests
@@ -36,7 +35,7 @@ retry_strategy = Retry(
 
 VESPA_CLOUD_SECRET_TOKEN: str = "VESPA_CLOUD_SECRET_TOKEN"
 
-def raise_for_status(response: Response, ignore_not_found:bool=False) -> None:
+def raise_for_status(response: Response, raise_on_not_found: Optional[bool]=False) -> None:
     """
     Raises an appropriate error if necessary.
 
@@ -52,7 +51,7 @@ def raise_for_status(response: Response, ignore_not_found:bool=False) -> None:
     except HTTPError as http_error:
         try:
             response_json = response.json()
-            if response.status_code == 404 and ignore_not_found:
+            if response.status_code == 404 and not raise_on_not_found:
                 return
         except JSONDecodeError:
             raise http_error
@@ -479,7 +478,7 @@ class Vespa(object):
             )
 
     def get_data(
-        self, data_id: str, schema: Optional[str]=None, namespace: str = None, **kwargs
+        self, data_id: str, schema: Optional[str]=None, namespace: str = None, raise_on_not_found:Optional[bool]=False, **kwargs
     ) -> VespaResponse:
         """
         Get a data point from a Vespa app.
@@ -487,6 +486,7 @@ class Vespa(object):
         :param data_id: Unique id associated with this data point.
         :param schema: The schema that we are getting data from. Will attempt to infer schema name if not provided.
         :param namespace: The namespace that we are getting data from. If no namespace is provided the schema is used.
+        :param raise_on_not_found: Raise an exception if the data_id is not found. Default is False.
         :param kwargs: Additional arguments to be passed to the HTTP GET request https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters
         :return: Response of the HTTP GET request.
         """
@@ -499,7 +499,7 @@ class Vespa(object):
 
         with VespaSync(self,pool_connections=1,pool_maxsize=1) as sync_app:
             return sync_app.get_data(
-                schema=schema, data_id=data_id, namespace=namespace, **kwargs
+                schema=schema, data_id=data_id, namespace=namespace, raise_on_not_found=raise_on_not_found, **kwargs
             )
 
     def update_data(
@@ -568,7 +568,6 @@ class Vespa(object):
                     encoded_tokens=encoded_tokens,
                 )
             )
-
 
 class VespaSync(object):
     def __init__(self, app: Vespa, pool_maxsize: int = 100, pool_connections=100) -> None:
@@ -767,7 +766,7 @@ class VespaSync(object):
         return last_response
 
     def get_data(
-        self, schema: str, data_id: str, namespace: str = None, **kwargs
+        self, schema: str, data_id: str, namespace: str = None, raise_on_not_found: Optional[bool]=False, **kwargs
     ) -> VespaResponse:
         """
         Get a data point from a Vespa app.
@@ -775,6 +774,7 @@ class VespaSync(object):
         :param schema: The schema that we are getting data from.
         :param data_id: Unique id associated with this data point.
         :param namespace: The namespace that we are getting data from.
+        :param raise_on_not_found: Raise an exception if the document is not found.
         :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)
         :return: Response of the HTTP GET request.
         :raises HTTPError: if one occurred
@@ -786,7 +786,7 @@ class VespaSync(object):
             self.app.end_point, namespace, schema, str(data_id)
         )
         response = self.http_session.get(end_point, params=kwargs)
-        raise_for_status(response,ignore_not_found=True) 
+        raise_for_status(response, raise_on_not_found=raise_on_not_found) 
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,

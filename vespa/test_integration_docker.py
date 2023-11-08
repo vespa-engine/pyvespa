@@ -8,6 +8,7 @@ import json
 
 from requests import HTTPError
 from typing import List
+from vespa.io import VespaResponse
 
 from vespa.package import (
     HNSW,
@@ -277,8 +278,10 @@ class TestApplicationCommon(unittest.TestCase):
         #
         # Get data that does not exist
         #
-        with pytest.raises(HTTPError):
-            app.get_data(schema=schema_name, data_id=fields_to_send["id"])
+        
+        response:VespaResponse  =   app.get_data(schema=schema_name, data_id=fields_to_send["id"])
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(response.is_successfull())
 
         #
         # Feed a data point
@@ -351,9 +354,8 @@ class TestApplicationCommon(unittest.TestCase):
         )
         #
         # Deleted data should be gone
-        #
-        with pytest.raises(HTTPError):
-            app.get_data(schema=schema_name, data_id=fields_to_send["id"])
+        response: VespaResponse = app.get_data(schema=schema_name, data_id=fields_to_send["id"])
+        self.assertFalse(response.is_successfull())
 
         #
         # Update a non-existent data point
