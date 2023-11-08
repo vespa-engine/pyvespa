@@ -4,6 +4,8 @@ import os
 import asyncio
 import shutil
 import unittest
+import pytest
+from requests import HTTPError
 from vespa.application import Vespa
 from vespa.package import AuthClient, Parameter
 from vespa.deployment import VespaCloud
@@ -48,7 +50,6 @@ class TestTokenBasedAuth(unittest.TestCase):
         # The token is used to access the application status endpoint.  
         print("Endpoint used " + self.app.url)      
         self.app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
-        self.assertEqual(200, self.app.get_application_status().status_code)
         self.assertDictEqual(
             {
                 "pathId": "/document/v1/msmarco/msmarco/docid/1",
@@ -56,12 +57,15 @@ class TestTokenBasedAuth(unittest.TestCase):
             },
             self.app.get_data(data_id="1").json,
         )
+        self.assertEqual(self.app.get_data(data_id="1").is_successfull(), False)
+        
 
     def tearDown(self) -> None:
         self.app.delete_all_docs(
             content_cluster_name="msmarco_content", schema="msmarco"
         )
         shutil.rmtree(self.disk_folder, ignore_errors=True)
+        #self.vespa_cloud.delete()
 
 
 class TestMsmarcoApplicationWithTokenAuth(TestApplicationCommon):

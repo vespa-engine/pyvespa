@@ -63,12 +63,15 @@ class TestVespaKeyAndCertificate(unittest.TestCase):
             },
             self.app.get_data(data_id="1").json,
         )
+        self.assertEqual(self.app.get_data(data_id="1").is_successfull(), False)
 
+        
     def tearDown(self) -> None:
         self.app.delete_all_docs(
             content_cluster_name="msmarco_content", schema="msmarco"
         )
         shutil.rmtree(self.disk_folder, ignore_errors=True)
+        #self.vespa_cloud.delete()
 
 
 class TestMsmarcoApplication(TestApplicationCommon):
