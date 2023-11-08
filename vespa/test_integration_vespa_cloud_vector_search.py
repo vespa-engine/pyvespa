@@ -2,8 +2,6 @@
 
 import os
 import shutil
-import asyncio
-from typing import Iterable
 import unittest
 from vespa.application import Vespa, ApplicationPackage
 from vespa.package import Schema, Document, Field, HNSW, RankProfile
@@ -163,5 +161,6 @@ class TestVectorSearch(unittest.TestCase):
             self.assertEqual(len(response.hits), 0)
             print(response.get_json())
         shutil.rmtree(self.disk_folder, ignore_errors=True)
+        #self.vespa_cloud.delete()
 
 
