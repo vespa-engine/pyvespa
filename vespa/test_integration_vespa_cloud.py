@@ -3,6 +3,8 @@
 import os
 import asyncio
 import shutil
+import pytest
+from requests import HTTPError
 import unittest
 from cryptography.hazmat.primitives import serialization
 from vespa.application import Vespa
@@ -64,6 +66,8 @@ class TestVespaKeyAndCertificate(unittest.TestCase):
             self.app.get_data(data_id="1").json,
         )
         self.assertEqual(self.app.get_data(data_id="1").is_successfull(), False)
+        with pytest.raises(HTTPError):
+            self.app.get_data(data_id="1",raise_on_not_found=True)
 
         
     def tearDown(self) -> None:
@@ -71,7 +75,7 @@ class TestVespaKeyAndCertificate(unittest.TestCase):
             content_cluster_name="msmarco_content", schema="msmarco"
         )
         shutil.rmtree(self.disk_folder, ignore_errors=True)
-        #self.vespa_cloud.delete()
+        self.vespa_cloud.delete()
 
 
 class TestMsmarcoApplication(TestApplicationCommon):
