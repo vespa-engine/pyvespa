@@ -75,7 +75,7 @@ class TestVespaKeyAndCertificate(unittest.TestCase):
             content_cluster_name="msmarco_content", schema="msmarco"
         )
         shutil.rmtree(self.disk_folder, ignore_errors=True)
-        self.vespa_cloud.delete()
+        self.vespa_cloud.delete(instance=self.instance_name)
 
 
 class TestMsmarcoApplication(TestApplicationCommon):
@@ -138,3 +138,4 @@ class TestMsmarcoApplication(TestApplicationCommon):
             content_cluster_name="msmarco_content", schema="msmarco"
         )
         shutil.rmtree(self.disk_folder, ignore_errors=True)
+        self.vespa_cloud.delete(instance=self.instance_name)
