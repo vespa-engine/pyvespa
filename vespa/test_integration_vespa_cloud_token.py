@@ -67,7 +67,7 @@ class TestTokenBasedAuth(unittest.TestCase):
             content_cluster_name="msmarco_content", schema="msmarco"
         )
         shutil.rmtree(self.disk_folder, ignore_errors=True)
-        self.vespa_cloud.delete()
+        self.vespa_cloud.delete(instance=self.instance_name)
 
 
 class TestMsmarcoApplicationWithTokenAuth(TestApplicationCommon):
@@ -140,3 +140,4 @@ class TestMsmarcoApplicationWithTokenAuth(TestApplicationCommon):
             content_cluster_name="msmarco_content", schema="msmarco"
         )
         shutil.rmtree(self.disk_folder, ignore_errors=True)
+        self.vespa_cloud.delete(instance=self.instance_name)

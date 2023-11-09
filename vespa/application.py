@@ -42,7 +42,7 @@ def raise_for_status(response: Response, raise_on_not_found: Optional[bool]=Fals
     If the response contains an error message, VespaError is raised along with HTTPError to provide more details.
 
     :param response: Response object from Vespa API.
-    :param ignore_not_found: If True, ignore 404 status code.
+    :param raise_on_not_found: If True, raise HTTPError if status_code is 404.
     :raises HTTPError: If status_code is between 400 and 599.
     :raises VespaError: If the response JSON contains an error message.
     """
@@ -195,7 +195,7 @@ class Vespa(object):
 
     def wait_for_application_up(self, max_wait: int) -> None:
         """
-        Wait for application ready.
+        Wait for application endpoint ready (/ApplicationStatus).
 
         :param max_wait: Seconds to wait for the application endpoint
         :raises RuntimeError: If not able to reach endpoint within :max_wait: param or the client fails to authenticate.
@@ -231,7 +231,7 @@ class Vespa(object):
 
     def get_application_status(self) -> Optional[Response]:
         """
-        Get application status.
+        Get application status (/ApplicationStatus)
 
         :return:
         """
@@ -252,16 +252,15 @@ class Vespa(object):
             else:
                 print("Using plain http against endpoint {}".format(endpoint), file=self.output_file)
                 return requests.get(endpoint)
-
-                
+         
         except ConnectionError:
             return None
 
 
     def get_model_endpoint(self, model_id: Optional[str] = None) -> Optional[Response]:
-        """Get model evaluation endpoints."""
+        """Get stateless model evaluation endpoints."""
 
-        with VespaSync(self) as sync_app:
+        with VespaSync(self,pool_connections=1, pool_maxsize=1) as sync_app:
             return sync_app.get_model_endpoint(model_id=model_id)
 
     def query(
@@ -273,8 +272,8 @@ class Vespa(object):
 
         Send 'body' containing all the request parameters.
 
-        :param body: Dict containing all the request parameters.
-        param kwargs: Extra valid Vespa Query API parameters.
+        :param body: Dict containing request parameters.
+        param kwargs: Extra Vespa Query API parameters.
         :return: The response from the Vespa application.
         """
         #Use one connection as this is a single query
@@ -288,7 +287,7 @@ class Vespa(object):
         self, schema: str, data_id: str, fields: Dict, namespace: str = None, **kwargs
     ) -> VespaResponse:
         """
-        Feed a data point to a Vespa app. Will create a new Sync Session with
+        Feed a data point to a Vespa app. Will create a new VespaSync with
         connection overhead.
         ``` with VespaSync(app) as sync_app: sync_app.feed_data_point(...) ```
 
@@ -296,7 +295,7 @@ class Vespa(object):
         :param data_id: Unique id associated with this data point.
         :param fields: Dict containing all the fields required by the `schema`.
         :param namespace: The namespace that we are sending data to.
-        :return: Response of the HTTP POST request.
+        :return: VespaResponse of the HTTP POST request.
         """
         if not namespace:
             namespace = schema
@@ -459,7 +458,8 @@ class Vespa(object):
         self, content_cluster_name: str, schema: str, namespace: str = None, **kwargs
     ) -> Response:
         """
-        Delete all documents associated with the schema
+        Delete all documents associated with the schema. This might block for a long time as
+        it requires sending multiple delete requests to complete.
 
         :param content_cluster_name: Name of content cluster to GET from, or visit.
         :param schema: The schema that we are deleting data from.
