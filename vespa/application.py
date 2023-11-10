@@ -2,7 +2,6 @@
 
 import sys
 import ssl
-from tokenize import group
 import aiohttp
 import asyncio
 import requests
