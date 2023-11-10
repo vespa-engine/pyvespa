@@ -39,18 +39,18 @@
     <content id="{{ application_name }}_content" version="1.0">
         <redundancy>1</redundancy>
         <documents>
-            {% set document_processing_added = false %}
+            {% set streaming_modes = namespace(total = 0)%}
             {% for schema in schemas %}
             {% if schema.global_document %}
             <document type="{{ schema.name }}" mode="index" global="true"></document>
             {% else %}
             <document type="{{ schema.name }}" mode="{{ schema.mode }}"></document>
             {% endif %}
-            {% if schema.mode == "streaming" and not document_processing_added %}
-            <document-processing chain="indexing" cluster="default" />
-            {% set document_processing_added = true %}
-            {% endif %}
+            {% if schema.mode == "streaming" %}{% set streaming_modes.total = 1 + streaming_modes.total %}{% endif %}
             {% endfor %}
+            {% if streaming_modes.total > 0 %}
+            <document-processing chain="indexing" cluster="{{ application_name }}_container" />
+            {% endif %}
         </documents>
         <nodes>
             <node distribution-key="0" hostalias="node1"></node>

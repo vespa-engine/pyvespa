@@ -2,6 +2,7 @@
 
 import sys
 import ssl
+from tokenize import group
 import aiohttp
 import asyncio
 import requests
@@ -264,7 +265,7 @@ class Vespa(object):
 
     def query(
         self,
-        body: Optional[Dict] = None, **kwargs
+        body: Optional[Dict] = None, groupname:str=None, **kwargs
     ) -> VespaQueryResponse:
         """
         Send a query request to the Vespa application.
@@ -272,18 +273,19 @@ class Vespa(object):
         Send 'body' containing all the request parameters.
 
         :param body: Dict containing request parameters.
+        :param groupname: The groupname used with streaming search.
         param kwargs: Extra Vespa Query API parameters.
         :return: The response from the Vespa application.
         """
         #Use one connection as this is a single query
         with VespaSync(self,pool_maxsize=1, pool_connections=1) as sync_app:
             return sync_app.query(
-                body=body, **kwargs
+                body=body, groupname=groupname, **kwargs
             )
 
 
     def feed_data_point(
-        self, schema: str, data_id: str, fields: Dict, namespace: str = None, **kwargs
+        self, schema: str, data_id: str, fields: Dict, namespace: str = None, groupname:str = None, **kwargs
     ) -> VespaResponse:
         """
         Feed a data point to a Vespa app. Will create a new VespaSync with
@@ -294,6 +296,7 @@ class Vespa(object):
         :param data_id: Unique id associated with this data point.
         :param fields: Dict containing all the fields required by the `schema`.
         :param namespace: The namespace that we are sending data to.
+        :param groupname: The groupname that we are sending data 
         :return: VespaResponse of the HTTP POST request.
         """
         if not namespace:
@@ -302,7 +305,7 @@ class Vespa(object):
         # single data point
         with VespaSync(app=self, pool_connections=1,pool_maxsize=1) as sync_app:
             return sync_app.feed_data_point(
-                schema=schema, data_id=data_id, fields=fields, namespace=namespace, **kwargs
+                schema=schema, data_id=data_id, fields=fields, namespace=namespace, groupname=groupname, **kwargs
             )
    
     def feed_iterable(self, 
@@ -394,15 +397,21 @@ class Vespa(object):
                 return id, VespaResponse(status_code=499, 
                     json={"id":id, "message":"Missing fields in input dict"}, 
                     url="n/a", operation_type=operation_type)
+            groupname = doc.get("groupname", None)
             try:
                 if operation_type == "feed":
-                    response:VespaResponse = sync_session.feed_data_point(schema=schema, namespace=namespace, data_id=id, fields=fields, **kwargs)
+                    response:VespaResponse = sync_session.feed_data_point(
+                        schema=schema, namespace=namespace, 
+                        groupname=groupname, data_id=id, fields=fields, **kwargs)
                     return (id, response)
                 elif operation_type == "update":
-                    response:VespaResponse = sync_session.update_data(schema=schema, namespace=namespace, data_id=id, fields=fields, **kwargs)
+                    response:VespaResponse = sync_session.update_data(
+                        schema=schema, namespace=namespace, 
+                        groupname=groupname, data_id=id, fields=fields, **kwargs)
                     return (id, response)
                 elif operation_type == "delete":
-                    response:VespaResponse = sync_session.delete_data(schema=schema, namespace=namespace, data_id=id, **kwargs)
+                    response:VespaResponse = sync_session.delete_data(
+                        schema=schema, namespace=namespace, data_id=id, groupname=groupname, **kwargs)
                     return (id, response)
             except Exception as e:
                 return (id, e)
@@ -433,7 +442,7 @@ class Vespa(object):
                 consumer_thread.join()
 
     def delete_data(
-        self, schema: str, data_id: str, namespace: str = None, **kwargs
+        self, schema: str, data_id: str, namespace: str = None, groupname:str=None, **kwargs
     ) -> VespaResponse:
         """
         Delete a data point from a Vespa app.
@@ -441,13 +450,14 @@ class Vespa(object):
         :param schema: The schema that we are deleting data from.
         :param data_id: Unique id associated with this data point.
         :param namespace: The namespace that we are deleting data from. If no namespace is provided the schema is used.
+        :param groupname: The groupname that we are deleting data from. 
         :param kwargs: Additional arguments to be passed to the HTTP DELETE request https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters
         :return: Response of the HTTP DELETE request.
         """
         
         with VespaSync(self, pool_connections=1, pool_maxsize=1) as sync_app:
             return sync_app.delete_data(
-                schema=schema, data_id=data_id, namespace=namespace, **kwargs
+                schema=schema, data_id=data_id, namespace=namespace, groupname=groupname, **kwargs
             )
 
    
@@ -475,7 +485,7 @@ class Vespa(object):
             )
 
     def get_data(
-        self,  schema:str, data_id: str, namespace: str = None, raise_on_not_found:Optional[bool]=False, **kwargs
+        self,  schema:str, data_id: str, namespace: str = None, groupname:str=None, raise_on_not_found:Optional[bool]=False, **kwargs
     ) -> VespaResponse:
         """
         Get a data point from a Vespa app.
@@ -484,6 +494,7 @@ class Vespa(object):
         :param schema: The schema that we are getting data from. Will attempt to infer schema name if not provided.
         :param data_id: Unique id associated with this data point.
         :param namespace: The namespace that we are getting data from. If no namespace is provided the schema is used.
+        :param groupname: The groupname that we are getting data from.
         :param raise_on_not_found: Raise an exception if the data_id is not found. Default is False.
         :param kwargs: Additional arguments to be passed to the HTTP GET request https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters
         :return: Response of the HTTP GET request.
@@ -491,7 +502,8 @@ class Vespa(object):
 
         with VespaSync(self,pool_connections=1,pool_maxsize=1) as sync_app:
             return sync_app.get_data(
-                schema=schema, data_id=data_id, namespace=namespace, raise_on_not_found=raise_on_not_found, **kwargs
+                schema=schema, data_id=data_id, namespace=namespace, groupname=groupname, 
+                raise_on_not_found=raise_on_not_found, **kwargs
             )
 
     def update_data(
@@ -501,6 +513,7 @@ class Vespa(object):
         fields: Dict,
         create: bool = False,
         namespace: str = None,
+        groupname:str=None,
         **kwargs
     ) -> VespaResponse:
         """
@@ -511,6 +524,7 @@ class Vespa(object):
         :param fields: Dict containing all the fields you want to update.
         :param create: If true, updates to non-existent documents will create an empty document to update
         :param namespace: The namespace that we are updating data. If no namespace is provided the schema is used.
+        :param groupname: The groupname that we are updating data.
         :param kwargs: Additional arguments to be passed to the HTTP PUT request. https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters
         :return: Response of the HTTP PUT request.
         """
@@ -523,6 +537,7 @@ class Vespa(object):
                 fields=fields,
                 create=create,
                 namespace=namespace, 
+                groupname=groupname,
                 **kwargs
             )
 
@@ -668,7 +683,7 @@ class VespaSync(object):
         return response
 
     def feed_data_point(
-        self, schema: str, data_id: str, fields: Dict, namespace: str = None, **kwargs
+        self, schema: str, data_id: str, fields: Dict, namespace: str = None, groupname:str=None, **kwargs
     ) -> VespaResponse:
         """
         Feed a data point to a Vespa app.
@@ -677,12 +692,13 @@ class VespaSync(object):
         :param data_id: Unique id associated with this data point.
         :param fields: Dict containing all the fields required by the `schema`.
         :param namespace: The namespace that we are sending data to. If no namespace is provided the schema is used.
+        :param groupname: The group that we are sending data to.
         :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)
         :return: Response of the HTTP POST request.
         :raises HTTPError: if one occurred
         """
 
-        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace)
+        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace, group=groupname)
         end_point = "{}{}".format(
             self.app.end_point, path
         )
@@ -699,6 +715,7 @@ class VespaSync(object):
     def query(
         self,
         body: Optional[Dict] = None, 
+        groupname:str=None,
         **kwargs
     ) -> VespaQueryResponse:
         """
@@ -707,10 +724,14 @@ class VespaSync(object):
         Send 'body' containing all the request parameters.
 
         :param body: Dict containing all the request parameters.
+        :param groupname: The groupname used in streaming search
         :param kwargs: Additional Valid Vespa HTTP Query Api parameters (https://docs.vespa.ai/en/reference/query-api-reference.html)
         :return: Either the request body if debug_request is True or the result from the Vespa application
         :raises HTTPError: if one occurred
         """
+
+        if groupname:
+            kwargs["streaming.groupname"] = groupname
         response = self.http_session.post(self.app.search_end_point, json=body, params=kwargs)
         raise_for_status(response)
         return VespaQueryResponse(
@@ -718,7 +739,7 @@ class VespaSync(object):
         )
 
     def delete_data(
-        self, schema: str, data_id: str, namespace: str = None, 
+        self, schema: str, data_id: str, namespace: str = None, groupname:str=None,
         **kwargs
     ) -> VespaResponse:
         """
@@ -732,11 +753,10 @@ class VespaSync(object):
         :raises HTTPError: if one occurred
         """
         
-        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace)
+        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace, group=groupname)
         end_point = "{}{}".format(
             self.app.end_point, path
         )
-    
         response = self.http_session.delete(end_point, params=kwargs)
         raise_for_status(response)
         return VespaResponse(
@@ -793,7 +813,8 @@ class VespaSync(object):
 
 
     def get_data(
-        self, schema: str, data_id: str, namespace: str = None, raise_on_not_found: Optional[bool]=False, **kwargs
+        self, schema: str, data_id: str, namespace: str = None, groupname:str = None, 
+        raise_on_not_found: Optional[bool]=False, **kwargs
     ) -> VespaResponse:
         """
         Get a data point from a Vespa app.
@@ -801,12 +822,13 @@ class VespaSync(object):
         :param schema: The schema that we are getting data from.
         :param data_id: Unique id associated with this data point.
         :param namespace: The namespace that we are getting data from.
+        :param groupname: The groupname used to get data
         :param raise_on_not_found: Raise an exception if the document is not found.
         :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)
         :return: Response of the HTTP GET request.
         :raises HTTPError: if one occurred
         """
-        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace)
+        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace, group=groupname)
         end_point = "{}{}".format(
             self.app.end_point, path
         )
@@ -827,6 +849,7 @@ class VespaSync(object):
         fields: Dict,
         create: bool = False,
         namespace: str = None,
+        groupname:str = None,
         **kwargs
     ) -> VespaResponse:
         """
@@ -837,12 +860,13 @@ class VespaSync(object):
         :param fields: Dict containing all the fields you want to update.
         :param create: If true, updates to non-existent documents will create an empty document to update
         :param namespace: The namespace that we are updating data.
+        :param groupname: The groupname used to update data
         :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)
         :return: Response of the HTTP PUT request.
         :raises HTTPError: if one occurred
         """
         
-        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace)
+        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace, group=groupname)
         end_point = "{}{}?create={}".format(
             self.app.end_point, path, str(create).lower()
         )
@@ -914,8 +938,11 @@ class VespaAsync(object):
     async def query(
         self,
         body: Optional[Dict] = None, 
+        groupname:str = None,
         **kwargs
     ) -> VespaQueryResponse:
+        if groupname:
+            kwargs["streaming.groupname"] = groupname
         r = await self.aiohttp_session.post(self.app.search_end_point, json=body, params=kwargs)
         return VespaQueryResponse(
             json=await r.json(), status_code=r.status, url=str(r.url)
@@ -923,10 +950,10 @@ class VespaAsync(object):
 
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def feed_data_point(
-        self, schema: str, data_id: str, fields: Dict, namespace: str = None, **kwargs
+        self, schema: str, data_id: str, fields: Dict, namespace: str = None, groupname:str=None, **kwargs
     ) -> VespaResponse:
         
-        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace)
+        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace, group=groupname)
         end_point = "{}{}".format(
             self.app.end_point, path
         )
@@ -941,9 +968,9 @@ class VespaAsync(object):
 
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def delete_data(
-        self, schema: str, data_id: str, namespace: str = None, **kwargs
+        self, schema: str, data_id: str, namespace: str = None, groupname:str=None, **kwargs
     ) -> VespaResponse:
-        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace)
+        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace, group=groupname)
         end_point = "{}{}".format(
             self.app.end_point, path
         )
@@ -957,9 +984,9 @@ class VespaAsync(object):
 
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def get_data(
-        self, schema: str, data_id: str, namespace: str = None, **kwargs
+        self, schema: str, data_id: str, namespace: str = None, groupname:str=None, **kwargs
     ) -> VespaResponse:
-        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace)
+        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace, group=groupname)
         end_point = "{}{}".format(
             self.app.end_point, path
         )
@@ -979,9 +1006,10 @@ class VespaAsync(object):
         fields: Dict,
         create: bool = False,
         namespace: str = None,
+        groupname:str=None,
         **kwargs
     ) -> VespaResponse:
-        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace)
+        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace, group=groupname)
         end_point = "{}{}?create={}".format(
             self.app.end_point, path, str(create).lower()
         )

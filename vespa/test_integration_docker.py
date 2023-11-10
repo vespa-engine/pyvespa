@@ -808,3 +808,108 @@ class TestQaApplication(TestApplicationCommon):
     def tearDown(self) -> None:
         self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
+
+class TestStreamingApplication(unittest.TestCase):
+    def setUp(self) -> None:
+        document = Document(
+            fields=[
+            Field(name="id", type="string", indexing=["attribute", "summary"]),
+            Field(
+                name="title",
+                type="string",
+                indexing=["index", "summary"],
+                index="enable-bm25",
+            ),
+            Field(
+                name="body",
+                type="string",
+                indexing=["index", "summary"],
+                index="enable-bm25",
+            )
+        ]
+    )
+        mail_schema = Schema(
+        name="mail",
+        mode="streaming",
+        document=document,
+        fieldsets=[FieldSet(name="default", fields=["title", "body"])],
+        rank_profiles=[
+            RankProfile(name="default", first_phase="nativeRank(title, body)")
+        ])
+        self.app_package = ApplicationPackage(name="mail", schema=[mail_schema])
+    
+        self.vespa_docker = VespaDocker(port=8089)
+        self.app = self.vespa_docker.deploy(application_package=self.app_package)
+        
+    def test_streaming(self):
+        docs = [{ 
+            "id": 1,
+            "groupname": "a@hotmail.com",
+            "fields": {
+                "title": "this is a title",
+                "body": "this is a body"
+            }
+        },
+        {
+            "id": 1,
+            "groupname": "b@hotmail.com",
+            "fields": {
+                "title": "this is a title",
+                "body": "this is a body"
+            }
+        },
+        {
+            "id": 2,
+            "groupname": "b@hotmail.com",
+            "fields": {
+                "title": "this is another title",
+                "body": "this is another body"
+            }
+        }
+        ]
+        self.app.wait_for_application_up(300)
+        
+        def callback(response:VespaResponse, id:str):
+            if not response.is_successfull():
+               print("Id " + id + " + failed : " + response.json)
+
+        self.app.feed_iterable(docs, schema="mail", namespace="test", callback=callback)
+        from vespa.io import VespaQueryResponse
+        response:VespaQueryResponse = self.app.query(yql="select * from sources * where title contains 'title'", groupname="a@hotmail.com")
+        self.assertTrue(response.is_successfull())
+        self.assertEqual(response.number_documents_retrieved, 1)
+
+        response:VespaQueryResponse = self.app.query(yql="select * from sources * where title contains 'title'", groupname="b@hotmail.com")
+        self.assertTrue(response.is_successfull())
+        self.assertEqual(response.number_documents_retrieved, 2)
+
+        with pytest.raises(Exception):
+            response:VespaQueryResponse = self.app.query(yql="select * from sources * where title contains 'title'")
+    
+        self.app.delete_data(schema="mail", namespace="test", data_id=2, groupname="b@hotmail.com")
+
+        response:VespaQueryResponse = self.app.query(yql="select * from sources * where title contains 'title'", groupname="b@hotmail.com")
+        self.assertTrue(response.is_successfull())
+        self.assertEqual(response.number_documents_retrieved, 1)
+
+        self.app.update_data(schema="mail", namespace="test", data_id=1, groupname="b@hotmail.com", fields={"title": "this is a new foo"})
+        response:VespaQueryResponse = self.app.query(yql="select * from sources * where title contains 'foo'", groupname="b@hotmail.com")
+        self.assertTrue(response.is_successfull())
+        self.assertEqual(response.number_documents_retrieved, 1)
+
+        response = self.app.get_data(schema="mail", namespace="test", data_id=1, groupname="b@hotmail.com")
+        self.assertDictEqual(response.json,
+            { 
+                "pathId": "/document/v1/test/mail/group/b@hotmail.com/1",
+                "id": "id:test:mail:g=b@hotmail.com:1",
+                "fields": {
+                    "body": "this is a body",
+                    "title": "this is a new foo"
+                }
+            }
+        )
+        
+    def tearDown(self) -> None:
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
+        self.vespa_docker.container.remove()
+

@@ -771,9 +771,9 @@ class TestApplicationPackageStreaming(unittest.TestCase):
             '        <redundancy>1</redundancy>\n'
             "        <documents>\n"
             '            <document type="mail" mode="streaming"></document>\n'
-            '            <document-processing chain="indexing" cluster="default" />\n'
             '            <document type="calendar" mode="streaming"></document>\n'
             '            <document type="event" mode="index"></document>\n'
+            '            <document-processing chain="indexing" cluster="testapp_container" />\n'
             "        </documents>\n"
             "        <nodes>\n"
             '            <node distribution-key="0" hostalias="node1"></node>\n'
@@ -781,7 +781,6 @@ class TestApplicationPackageStreaming(unittest.TestCase):
             "    </content>\n"
             "</services>"
         )
-        print(self.app_package.services_to_text)
         self.assertEqual(self.app_package.services_to_text, expected_result)
 
 
