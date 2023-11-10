@@ -40,7 +40,7 @@
             {% if schema.global_document %}
             <document type="{{ schema.name }}" mode="index" global="true"></document>
             {% else %}
-            <document type="{{ schema.name }}" mode="index"></document>
+            <document type="{{ schema.name }}" mode="{{ schema.mode }}"></document>
             {% endif %}
             {% endfor %}
         </documents>
