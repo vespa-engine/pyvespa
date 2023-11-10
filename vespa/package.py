@@ -1231,6 +1231,7 @@ class Schema(object):
         global_document: bool = False,
         imported_fields: Optional[List[ImportedField]] = None,
         document_summaries: Optional[List[DocumentSummary]] = None,
+        mode: Optional[str] = "index",
         **kwargs: Unpack[SchemaConfiguration],
     ) -> None:
         """
@@ -1247,6 +1248,7 @@ class Schema(object):
         :param global_document: Set to True to copy the documents to all content nodes. Default to False.
         :param imported_fields: A list of :class:`ImportedField` defining fields from global documents to be imported.
         :param document_summaries: A list of :class:`DocumentSummary` associated with the schema.
+        :param mode: Schema mode. Defaults to 'index'. Other options are 'store-only' and 'streaming'.
         :key stemming: The default stemming setting. Defaults to 'best'.
 
         To create a Schema:
@@ -1257,6 +1259,14 @@ class Schema(object):
         self.name = name
         self.document = document
         self.global_document = global_document
+
+        if mode not in ["index", "store-only", "streaming"]:
+            raise ValueError(
+                "Invalid mode: {0}. Valid options are 'index', 'store-only' and 'streaming'.".format(
+                    mode
+                )
+            )
+        self.mode = mode
 
         self.fieldsets = {}
         if fieldsets is not None:

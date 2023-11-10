@@ -721,6 +721,43 @@ class TestApplicationPackage(unittest.TestCase):
         )
         self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)
 
+class TestApplicationPackageStreaming(unittest.TestCase):
+    def setUp(self) -> None:
+        self.mail = Schema(
+            name="mail",
+            mode="streaming",
+            document=Document(
+                fields=[
+                    Field(
+                        name="title", type="string", indexing=["attribute", "summary"]
+                    )
+                ])
+        )
+        self.app_package = ApplicationPackage(
+            name="testapp",
+            schema=[self.mail])
+    
+    def test_generated_services_uses_mode_streaming(self):
+        expected_result = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<services version="1.0">\n'
+            '    <container id="testapp_container" version="1.0">\n'
+            "        <search></search>\n"
+            "        <document-api></document-api>\n"
+            "    </container>\n"
+            '    <content id="testapp_content" version="1.0">\n'
+            '        <redundancy>1</redundancy>\n'
+            "        <documents>\n"
+            '            <document type="mail" mode="streaming"></document>\n'
+            "        </documents>\n"
+            "        <nodes>\n"
+            '            <node distribution-key="0" hostalias="node1"></node>\n'
+            "        </nodes>\n"
+            "    </content>\n"
+            "</services>"
+        )
+        self.assertEqual(self.app_package.services_to_text, expected_result)
+
 
 class TestApplicationPackageMultipleSchema(unittest.TestCase):
     def setUp(self) -> None:
