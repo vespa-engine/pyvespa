@@ -13,8 +13,6 @@
         <document-api></document-api>
         <document-processing></document-processing>
         {% endif %}
-        {% if search_clusters %}
-        {% endif %}
         {% if components %}
         {% for component in components %}
         {% autoescape off %}
