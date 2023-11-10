@@ -70,6 +70,38 @@ class TestVespa(unittest.TestCase):
         self.assertEqual(
             Vespa(url="http://localhost:8080").end_point, "http://localhost:8080"
         )
+
+    def test_document_v1_format(self):
+        vespa =  Vespa(url="http://localhost", port=8080)
+        self.assertEqual(
+            vespa.get_document_v1_path(id=0, schema="foo"),
+            "/document/v1/foo/foo/docid/0",
+        )
+        self.assertEqual(
+            vespa.get_document_v1_path(id="0", schema="foo"),
+            "/document/v1/foo/foo/docid/0",
+        )
+
+        self.assertEqual(
+            vespa.get_document_v1_path(id="0", schema="foo", namespace="bar"),
+            "/document/v1/bar/foo/docid/0",
+        )
+
+        self.assertEqual(
+            vespa.get_document_v1_path(id="0", schema="foo", namespace="bar", group="g0"),
+            "/document/v1/bar/foo/group/g0/0",
+        )
+
+        self.assertEqual(
+            vespa.get_document_v1_path(id="0", schema="foo", namespace="bar", number="0"),
+            "/document/v1/bar/foo/number/0/0",
+        )
+
+        self.assertEqual(
+            vespa.get_document_v1_path(id="#1", schema="foo", namespace="bar", group="ab"),
+            "/document/v1/bar/foo/group/ab/#1",
+        )
+
     
     def test_query_token(self):
         self.assertEqual(
@@ -98,16 +130,15 @@ class TestVespa(unittest.TestCase):
         # No schema
         #
         app_package = ApplicationPackage(name="test")
-        # ToDo: re-enable this test later, maybe ...
-        #app = Vespa(url="http://localhost", port=8080, application_package=app_package)
-        #with self.assertRaisesRegex(
-        #    ValueError,
-        #    "Application has no schema. Not possible to infer schema name.",
-        #):
-        #    _ = app._infer_schema_name()
-        #
+        
+       # app = Vespa(url="http://localhost", port=8080, application_package=app_package)
+       # with self.assertRaisesRegex(
+       #     ValueError,
+       #     "Application has no schema. Not possible to infer schema name.",
+       # ):
+       #     _ = app._infer_schema_name()
+        
         # More than one schema
-        #
         app_package = ApplicationPackage(
             name="test",
             schema=[
@@ -121,9 +152,8 @@ class TestVespa(unittest.TestCase):
             "Application has more than one schema. Not possible to infer schema name.",
         ):
             _ = app._infer_schema_name()
-        #
+        
         # One schema
-        #
         app_package = ApplicationPackage(
             name="test",
             schema=[

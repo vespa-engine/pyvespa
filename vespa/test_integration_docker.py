@@ -405,12 +405,14 @@ class TestApplicationCommon(unittest.TestCase):
             response = sync_app.feed_data_point(
                 schema=schema_name,
                 data_id=fields_to_send["id"],
-                fields=fields_to_send,
+                fields=fields_to_send, tracelevel=9
             )
         self.assertEqual(
             response.json["id"],
             "id:{}:{}::{}".format(schema_name, schema_name, fields_to_send["id"]),
         )
+        self.assertTrue(response.is_successfull())
+        self.assertTrue("trace" in response.json)
 
     async def execute_async_data_operations(
         self,
@@ -432,18 +434,17 @@ class TestApplicationCommon(unittest.TestCase):
             There are cases where fields returned from Vespa are different from inputs, e.g. when dealing with Tensors.
         :return:
         """
-        async with app.asyncio(connections=120, total_timeout=50) as async_app:
+        async with app.asyncio(connections=12, total_timeout=50) as async_app:
             #
-            # Get data that does not exist
+            # Get data that does not exist and test additional request params
             #
             response = await async_app.get_data(
-                schema=schema_name, data_id=fields_to_send[0]["id"]
+                schema=schema_name, data_id=fields_to_send[0]["id"], tracelevel=9
             )
             self.assertEqual(response.status_code, 404)
+            self.assertTrue("trace" in response.json)
 
-            #
             # Feed some data points
-            #
             feed = []
             for fields in fields_to_send:
                 feed.append(
@@ -452,6 +453,7 @@ class TestApplicationCommon(unittest.TestCase):
                             schema=schema_name,
                             data_id=fields["id"],
                             fields=fields,
+                            timeout=10
                         )
                     )
                 )
@@ -477,13 +479,12 @@ class TestApplicationCommon(unittest.TestCase):
                 ),
             )
 
-            #
             # Get data that exists
-            #
             response = await async_app.get_data(
-                schema=schema_name, data_id=fields_to_send[0]["id"]
+                schema=schema_name, data_id=fields_to_send[0]["id"], timeout=180
             )
             self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.is_successfull(), True)
             result = response.json
             self.assertDictEqual(
                 result,
@@ -498,14 +499,15 @@ class TestApplicationCommon(unittest.TestCase):
                 },
             )
             #
-            # Update data
+            # date data
             #
             response = await async_app.update_data(
                 schema=schema_name,
                 data_id=field_to_update["id"],
-                fields=field_to_update,
+                fields=field_to_update, tracelevel=9
             )
             result = response.json
+            self.assertTrue("trace" in result)
             self.assertEqual(
                 result["id"],
                 "id:{}:{}::{}".format(schema_name, schema_name, field_to_update["id"]),
@@ -536,43 +538,41 @@ class TestApplicationCommon(unittest.TestCase):
                     ),
                 },
             )
-            #
+            
             # Delete a data point
-            #
             response = await async_app.delete_data(
-                schema=schema_name, data_id=fields_to_send[0]["id"]
+                schema=schema_name, data_id=fields_to_send[0]["id"], tracelevel=9
             )
             result = response.json
+            self.assertTrue("trace" in result)
             self.assertEqual(
                 result["id"],
                 "id:{}:{}::{}".format(
                     schema_name, schema_name, fields_to_send[0]["id"]
                 ),
             )
-            #
+    
             # Deleted data should be gone
-            #
             response = await async_app.get_data(
-                schema=schema_name, data_id=fields_to_send[0]["id"]
+                schema=schema_name, data_id=fields_to_send[0]["id"], tracelevel=9
             )
             self.assertEqual(response.status_code, 404)
-            #
+            self.assertTrue("trace" in response.json)
+
+            
             # Issue a bunch of queries in parallel
-            #
             queries = []
             for i in range(10):
                 queries.append(
                     asyncio.create_task(
                         async_app.query(
+                            yql="select * from sources * where true",
                             body={
-                                "yql": 'select * from sources * where (userInput("sddocname:{}"))'.format(
-                                    schema_name
-                                ),
                                 "ranking": {
                                     "profile": "default",
                                     "listFeatures": "false",
                                 },
-                                "timeout": 5000,
+                                "timeout": 5,
                             }
                         )
                     )
@@ -581,6 +581,9 @@ class TestApplicationCommon(unittest.TestCase):
             self.assertEqual(
                 queries[0].result().number_documents_indexed, len(fields_to_send) - 1
             )
+            for query in queries:
+                self.assertEqual(query.result().status_code, 200)
+                self.assertEqual(query.result().is_successfull(), True)
 
     
     def get_model_endpoints_when_no_model_is_available(
@@ -712,6 +715,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
             )
         )
     def tearDown(self) -> None:
+        self.app.delete_all_docs(content_cluster_name="content_msmarco", schema=self.app_package.name)
         self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
 
