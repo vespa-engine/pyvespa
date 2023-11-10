@@ -11,6 +11,9 @@
         {% if schemas %}
         <search></search>
         <document-api></document-api>
+        <document-processing></document-processing>
+        {% endif %}
+        {% if search_clusters %}
         {% endif %}
         {% if components %}
         {% for component in components %}
@@ -36,11 +39,16 @@
     <content id="{{ application_name }}_content" version="1.0">
         <redundancy>1</redundancy>
         <documents>
+            {% set document_processing_added = false %}
             {% for schema in schemas %}
             {% if schema.global_document %}
             <document type="{{ schema.name }}" mode="index" global="true"></document>
             {% else %}
             <document type="{{ schema.name }}" mode="{{ schema.mode }}"></document>
+            {% endif %}
+            {% if schema.mode == "streaming" and not document_processing_added %}
+            <document-processing chain="indexing" cluster="default" />
+            {% set document_processing_added = true %}
             {% endif %}
             {% endfor %}
         </documents>

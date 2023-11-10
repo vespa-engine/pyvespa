@@ -688,6 +688,7 @@ class TestApplicationPackage(unittest.TestCase):
             '    <container id="testapp_container" version="1.0">\n'
             "        <search></search>\n"
             "        <document-api></document-api>\n"
+            "        <document-processing></document-processing>\n"
             "    </container>\n"
             '    <content id="testapp_content" version="1.0">\n'
             '        <redundancy>1</redundancy>\n'
@@ -733,9 +734,29 @@ class TestApplicationPackageStreaming(unittest.TestCase):
                     )
                 ])
         )
+        self.calendar = Schema(
+            name="calendar",
+            mode="streaming",
+            document=Document(
+                fields=[
+                    Field(
+                        name="title", type="string", indexing=["attribute", "summary"]
+                    )
+                ])
+        )
+        self.event = Schema(
+            name="event",
+            mode="index",
+            document=Document(
+                fields=[
+                    Field(
+                        name="title", type="string", indexing=["attribute", "summary"]
+                    )
+                ])
+        )
         self.app_package = ApplicationPackage(
             name="testapp",
-            schema=[self.mail])
+            schema=[self.mail, self.calendar, self.event])
     
     def test_generated_services_uses_mode_streaming(self):
         expected_result = (
@@ -744,11 +765,15 @@ class TestApplicationPackageStreaming(unittest.TestCase):
             '    <container id="testapp_container" version="1.0">\n'
             "        <search></search>\n"
             "        <document-api></document-api>\n"
+            "        <document-processing></document-processing>\n"
             "    </container>\n"
             '    <content id="testapp_content" version="1.0">\n'
             '        <redundancy>1</redundancy>\n'
             "        <documents>\n"
             '            <document type="mail" mode="streaming"></document>\n'
+            '            <document-processing chain="indexing" cluster="default" />\n'
+            '            <document type="calendar" mode="streaming"></document>\n'
+            '            <document type="event" mode="index"></document>\n'
             "        </documents>\n"
             "        <nodes>\n"
             '            <node distribution-key="0" hostalias="node1"></node>\n'
@@ -756,6 +781,7 @@ class TestApplicationPackageStreaming(unittest.TestCase):
             "    </content>\n"
             "</services>"
         )
+        print(self.app_package.services_to_text)
         self.assertEqual(self.app_package.services_to_text, expected_result)
 
 
@@ -873,6 +899,7 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
             '    <container id="testapp_container" version="1.0">\n'
             "        <search></search>\n"
             "        <document-api></document-api>\n"
+            "        <document-processing></document-processing>\n"
             "    </container>\n"
             '    <content id="testapp_content" version="1.0">\n'
             '        <redundancy>1</redundancy>\n'
@@ -1021,6 +1048,7 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
             '    <container id="testapp_container" version="1.0">\n'
             "        <search></search>\n"
             "        <document-api></document-api>\n"
+            "        <document-processing></document-processing>\n"
             "    </container>\n"
             '    <content id="testapp_content" version="1.0">\n'
             '        <redundancy>1</redundancy>\n'
@@ -1108,6 +1136,7 @@ class TestSimplifiedApplicationPackageWithMultipleSchemas(unittest.TestCase):
             '    <container id="news_container" version="1.0">\n'
             "        <search></search>\n"
             "        <document-api></document-api>\n"
+            "        <document-processing></document-processing>\n"
             "    </container>\n"
             '    <content id="news_content" version="1.0">\n'
             '        <redundancy>1</redundancy>\n'
@@ -1150,6 +1179,7 @@ class TestComponentSetup(unittest.TestCase):
             '    <container id="content_container" version="1.0">\n'
             "        <search></search>\n"
             "        <document-api></document-api>\n"
+            "        <document-processing></document-processing>\n"
             '        <component id="my-component" bundle="my-bundle"/>\n'
             '        <component id="hf-embedder" type="hugging-face-embedder">\n'
             '            <transformer-model path="my-models/model.onnx"/>\n'
@@ -1200,6 +1230,7 @@ class TestClientTokenSetup(unittest.TestCase):
             '    <container id="content_container" version="1.0">\n'
             "        <search></search>\n"
             "        <document-api></document-api>\n"
+            "        <document-processing></document-processing>\n"
             '        <clients>\n'
             '            <client id="mtls" permissions="read">\n'
             '                <certificate file="security/clients.pem"/>\n'
