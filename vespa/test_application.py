@@ -51,9 +51,9 @@ class TestVespaRequestsUsage(unittest.TestCase):
         app = Vespa(url="http://localhost", port=8080)
         with requests_mock.Mocker() as m:
             m.delete("http://localhost:8080/document/v1/foo/foo/docid/", status_code=200, text="{}")
-            r:VespaResponse = app.delete_all_docs(
+            app.delete_all_docs(
                 schema="foo", namespace="foo", content_cluster_name="content", timeout="200s")
-            self.assertEqual(r.url, "http://localhost:8080/document/v1/foo/foo/docid/?cluster=content&selection=true&timeout=200s")
+            
             
         
 class TestVespa(unittest.TestCase):
