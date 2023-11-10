@@ -63,11 +63,11 @@ class TestVespaKeyAndCertificate(unittest.TestCase):
                 "pathId": "/document/v1/msmarco/msmarco/docid/1",
                 "id": "id:msmarco:msmarco::1",
             },
-            self.app.get_data(data_id="1").json,
+            self.app.get_data(schema="msmarco", data_id="1").json,
         )
         self.assertEqual(self.app.get_data(data_id="1").is_successfull(), False)
         with pytest.raises(HTTPError):
-            self.app.get_data(data_id="1",raise_on_not_found=True)
+            self.app.get_data(schema="msmarco", data_id="1", raise_on_not_found=True)
 
         
     def tearDown(self) -> None:
