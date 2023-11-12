@@ -11,6 +11,7 @@
         {% if schemas %}
         <search></search>
         <document-api></document-api>
+        <document-processing></document-processing>
         {% endif %}
         {% if components %}
         {% for component in components %}
@@ -36,13 +37,18 @@
     <content id="{{ application_name }}_content" version="1.0">
         <redundancy>1</redundancy>
         <documents>
+            {% set streaming_modes = namespace(total = 0)%}
             {% for schema in schemas %}
             {% if schema.global_document %}
             <document type="{{ schema.name }}" mode="index" global="true"></document>
             {% else %}
             <document type="{{ schema.name }}" mode="{{ schema.mode }}"></document>
             {% endif %}
+            {% if schema.mode == "streaming" %}{% set streaming_modes.total = 1 + streaming_modes.total %}{% endif %}
             {% endfor %}
+            {% if streaming_modes.total > 0 %}
+            <document-processing chain="indexing" cluster="{{ application_name }}_container" />
+            {% endif %}
         </documents>
         <nodes>
             <node distribution-key="0" hostalias="node1"></node>
