@@ -2071,7 +2071,7 @@ class ApplicationPackage(object):
         :return:
         """
         if not os.path.exists(root):
-            raise ValueError("Invalid path for export: {}".format(root))
+            Path(root).mkdir(parents=True, exist_ok=True)
 
         Path(os.path.join(root, "schemas")).mkdir(parents=True, exist_ok=True)
         Path(os.path.join(root, "files")).mkdir(parents=True, exist_ok=True)
