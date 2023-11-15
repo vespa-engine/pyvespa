@@ -449,7 +449,8 @@ class VespaCloud(VespaDeployment):
         """
         if not disk_folder:
             disk_folder = os.path.join(os.getcwd(), self.application_package.name)
-
+        self.application_package.to_files(disk_folder)
+        
         region = self.get_dev_region()
         job = "dev-" + region
         run = self._start_deployment(instance, job, disk_folder, None)
