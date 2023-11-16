@@ -1,3 +1,4 @@
+import warnings
 from typing import Optional, Dict, List
 
 class VespaResponse(object):
@@ -25,6 +26,12 @@ class VespaResponse(object):
         return self.status_code
 
     def is_successfull(self) -> bool:
+        """[Deprecated] Use is_successful() instead"""
+        warnings.warn("is_successfull is deprecated, use is_successful() instead.",
+                      DeprecationWarning)
+        return self.status_code == 200
+
+    def is_successful(self) -> bool:
         """True if status code is 200."""
         return self.status_code == 200
 
