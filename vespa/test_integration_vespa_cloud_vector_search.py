@@ -79,7 +79,7 @@ class TestVectorSearch(unittest.TestCase):
             nonlocal ok
             nonlocal start_time
             nonlocal callbacks
-            if response.is_successfull():
+            if response.is_successful():
                 ok +=1
             callbacks +=1
 
