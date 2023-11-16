@@ -281,7 +281,7 @@ class TestApplicationCommon(unittest.TestCase):
         
         response:VespaResponse  =   app.get_data(schema=schema_name, data_id=fields_to_send["id"])
         self.assertEqual(response.status_code, 404)
-        self.assertFalse(response.is_successfull())
+        self.assertFalse(response.is_successful())
 
         #
         # Feed a data point
@@ -355,7 +355,7 @@ class TestApplicationCommon(unittest.TestCase):
         #
         # Deleted data should be gone
         response: VespaResponse = app.get_data(schema=schema_name, data_id=fields_to_send["id"])
-        self.assertFalse(response.is_successfull())
+        self.assertFalse(response.is_successful())
 
         #
         # Update a non-existent data point
@@ -411,7 +411,7 @@ class TestApplicationCommon(unittest.TestCase):
             response.json["id"],
             "id:{}:{}::{}".format(schema_name, schema_name, fields_to_send["id"]),
         )
-        self.assertTrue(response.is_successfull())
+        self.assertTrue(response.is_successful())
         self.assertTrue("trace" in response.json)
 
     async def execute_async_data_operations(
@@ -484,7 +484,7 @@ class TestApplicationCommon(unittest.TestCase):
                 schema=schema_name, data_id=fields_to_send[0]["id"], timeout=180
             )
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.is_successfull(), True)
+            self.assertEqual(response.is_successful(), True)
             result = response.json
             self.assertDictEqual(
                 result,
@@ -583,7 +583,7 @@ class TestApplicationCommon(unittest.TestCase):
             )
             for query in queries:
                 self.assertEqual(query.result().status_code, 200)
-                self.assertEqual(query.result().is_successfull(), True)
+                self.assertEqual(query.result().is_successful(), True)
 
     
     def get_model_endpoints_when_no_model_is_available(
@@ -870,17 +870,17 @@ class TestStreamingApplication(unittest.TestCase):
         self.app.wait_for_application_up(300)
         
         def callback(response:VespaResponse, id:str):
-            if not response.is_successfull():
+            if not response.is_successful():
                print("Id " + id + " + failed : " + response.json)
 
         self.app.feed_iterable(docs, schema="mail", namespace="test", callback=callback)
         from vespa.io import VespaQueryResponse
         response:VespaQueryResponse = self.app.query(yql="select * from sources * where title contains 'title'", groupname="a@hotmail.com")
-        self.assertTrue(response.is_successfull())
+        self.assertTrue(response.is_successful())
         self.assertEqual(response.number_documents_retrieved, 1)
 
         response:VespaQueryResponse = self.app.query(yql="select * from sources * where title contains 'title'", groupname="b@hotmail.com")
-        self.assertTrue(response.is_successfull())
+        self.assertTrue(response.is_successful())
         self.assertEqual(response.number_documents_retrieved, 2)
 
         with pytest.raises(Exception):
@@ -889,12 +889,12 @@ class TestStreamingApplication(unittest.TestCase):
         self.app.delete_data(schema="mail", namespace="test", data_id=2, groupname="b@hotmail.com")
 
         response:VespaQueryResponse = self.app.query(yql="select * from sources * where title contains 'title'", groupname="b@hotmail.com")
-        self.assertTrue(response.is_successfull())
+        self.assertTrue(response.is_successful())
         self.assertEqual(response.number_documents_retrieved, 1)
 
         self.app.update_data(schema="mail", namespace="test", data_id=1, groupname="b@hotmail.com", fields={"title": "this is a new foo"})
         response:VespaQueryResponse = self.app.query(yql="select * from sources * where title contains 'foo'", groupname="b@hotmail.com")
-        self.assertTrue(response.is_successfull())
+        self.assertTrue(response.is_successful())
         self.assertEqual(response.number_documents_retrieved, 1)
 
         response = self.app.get_data(schema="mail", namespace="test", data_id=1, groupname="b@hotmail.com")

@@ -65,7 +65,7 @@ class TestVespaKeyAndCertificate(unittest.TestCase):
             },
             self.app.get_data(schema="msmarco", data_id="1").json,
         )
-        self.assertEqual(self.app.get_data(schema="msmarco", data_id="1").is_successfull(), False)
+        self.assertEqual(self.app.get_data(schema="msmarco", data_id="1").is_successful(), False)
         with pytest.raises(HTTPError):
             self.app.get_data(schema="msmarco", data_id="1", raise_on_not_found=True)
 
