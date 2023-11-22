@@ -1232,6 +1232,7 @@ class Schema(object):
         imported_fields: Optional[List[ImportedField]] = None,
         document_summaries: Optional[List[DocumentSummary]] = None,
         mode: Optional[str] = "index",
+        inherits: Optional[str] = None,
         **kwargs: Unpack[SchemaConfiguration],
     ) -> None:
         """
@@ -1249,6 +1250,7 @@ class Schema(object):
         :param imported_fields: A list of :class:`ImportedField` defining fields from global documents to be imported.
         :param document_summaries: A list of :class:`DocumentSummary` associated with the schema.
         :param mode: Schema mode. Defaults to 'index'. Other options are 'store-only' and 'streaming'.
+        :param inherits: Schema to inherit from.
         :key stemming: The default stemming setting. Defaults to 'best'.
 
         To create a Schema:
@@ -1259,6 +1261,7 @@ class Schema(object):
         self.name = name
         self.document = document
         self.global_document = global_document
+        self.inherits = inherits
 
         if mode not in ["index", "store-only", "streaming"]:
             raise ValueError(
@@ -1359,6 +1362,7 @@ class Schema(object):
         return schema_template.render(
             schema_name=self.name,
             document_name=self.name,
+            schema=self,
             document=self.document,
             fieldsets=self.fieldsets,
             rank_profiles=self.rank_profiles,
@@ -2071,7 +2075,7 @@ class ApplicationPackage(object):
         :return:
         """
         if not os.path.exists(root):
-            raise ValueError("Invalid path for export: {}".format(root))
+            Path(root).mkdir(parents=True, exist_ok=True)
 
         Path(os.path.join(root, "schemas")).mkdir(parents=True, exist_ok=True)
         Path(os.path.join(root, "files")).mkdir(parents=True, exist_ok=True)

@@ -783,6 +783,47 @@ class TestApplicationPackageStreaming(unittest.TestCase):
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
 
+class TestSchemaInheritance(unittest.TestCase):
+    def setUp(self) -> None:
+        self.news_schema = Schema(
+            name="news",
+            document=Document(
+                fields=[
+                    Field(
+                        name="news_id", type="string", indexing=["attribute", "summary"]
+                    )
+                ]
+            )
+        )
+        self.mail = Schema(
+            name="mail",
+            inherits="news",
+            document=Document(
+                inherits="news",
+                fields=[
+                    Field(
+                        name="mail_id", type="string", indexing=["attribute", "summary"]
+                    ),
+                ]
+            ),
+        )
+        
+        self.app_package = ApplicationPackage(
+            name="testapp",
+            schema=[self.news_schema, self.mail],
+        )
+    def test_schema_to_text(self):
+        expected_mail_result = (
+            "schema mail inherits news {\n"
+            "    document mail inherits news {\n"
+            "        field mail_id type string {\n"
+            "            indexing: attribute | summary\n"
+            "        }\n"
+            "    }\n"
+            "}"
+        )
+        self.assertEqual(self.app_package.get_schema(name="mail").schema_to_text, expected_mail_result)
+        
 
 class TestApplicationPackageMultipleSchema(unittest.TestCase):
     def setUp(self) -> None:
@@ -836,6 +877,7 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
             name="testapp",
             schema=[self.news_schema, self.user_schema, self.category_ctr_schema],
         )
+    
 
     def test_get_schema(self):
         self.assertEqual(self.app_package.get_schema(name="news"), self.news_schema)
