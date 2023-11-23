@@ -298,6 +298,7 @@ class FieldConfiguration(TypedDict, total=False):
     rank: str
     query_command: List[str]
     struct_fields: List[StructField]
+    alias: List[str]
 
 
 class Field(object):
@@ -342,9 +343,10 @@ class Field(object):
         :key rank: Add configuration for ranking calculations of the field.
         :key query_command: Add configuration for query-command of the field.
         :key struct_fields: Add struct-fields to the field.
+        :key alias: Add alias to the field.
 
         >>> Field(name = "title", type = "string", indexing = ["index", "summary"], index = "enable-bm25")
-        Field('title', 'string', ['index', 'summary'], 'enable-bm25', None, None, None, None, None, None, True, None, None, None, [])
+        Field('title', 'string', ['index', 'summary'], 'enable-bm25', None, None, None, None, None, None, True, None, None, None, [], None)
 
         >>> Field(
         ...     name = "abstract",
@@ -352,7 +354,7 @@ class Field(object):
         ...     indexing = ["attribute"],
         ...     attribute=["fast-search", "fast-access"]
         ... )
-        Field('abstract', 'string', ['attribute'], None, ['fast-search', 'fast-access'], None, None, None, None, None, True, None, None, None, [])
+        Field('abstract', 'string', ['attribute'], None, ['fast-search', 'fast-access'], None, None, None, None, None, True, None, None, None, [], None)
 
         >>> Field(name="tensor_field",
         ...     type="tensor<float>(x[128])",
@@ -363,56 +365,56 @@ class Field(object):
         ...         neighbors_to_explore_at_insert=200,
         ...     ),
         ... )
-        Field('tensor_field', 'tensor<float>(x[128])', ['attribute'], None, None, HNSW('euclidean', 16, 200), None, None, None, None, True, None, None, None, [])
+        Field('tensor_field', 'tensor<float>(x[128])', ['attribute'], None, None, HNSW('euclidean', 16, 200), None, None, None, None, True, None, None, None, [], None)
 
         >>> Field(
         ...     name = "abstract",
         ...     type = "string",
         ...     match = ["exact", ("exact-terminator", '"@%"',)],
         ... )
-        Field('abstract', 'string', None, None, None, None, ['exact', ('exact-terminator', '"@%"')], None, None, None, True, None, None, None, [])
+        Field('abstract', 'string', None, None, None, None, ['exact', ('exact-terminator', '"@%"')], None, None, None, True, None, None, None, [], None)
 
         >>> Field(
         ...     name = "abstract",
         ...     type = "string",
         ...     weight = 200,
         ... )
-        Field('abstract', 'string', None, None, None, None, None, 200, None, None, True, None, None, None, [])
+        Field('abstract', 'string', None, None, None, None, None, 200, None, None, True, None, None, None, [], None)
 
         >>> Field(
         ...     name = "abstract",
         ...     type = "string",
         ...     bolding = True,
         ... )
-        Field('abstract', 'string', None, None, None, None, None, None, True, None, True, None, None, None, [])
+        Field('abstract', 'string', None, None, None, None, None, None, True, None, True, None, None, None, [], None)
 
         >>> Field(
         ...     name = "abstract",
         ...     type = "string",
         ...     summary = Summary(None, None, ["dynamic", ["bolding", "on"]]),
         ... )
-        Field('abstract', 'string', None, None, None, None, None, None, None, Summary(None, None, ['dynamic', ['bolding', 'on']]), True, None, None, None, [])
+        Field('abstract', 'string', None, None, None, None, None, None, None, Summary(None, None, ['dynamic', ['bolding', 'on']]), True, None, None, None, [], None)
 
         >>> Field(
         ...     name = "abstract",
         ...     type = "string",
         ...     stemming = "shortest",
         ... )
-        Field('abstract', 'string', None, None, None, None, None, None, None, None, True, 'shortest', None, None, [])
+        Field('abstract', 'string', None, None, None, None, None, None, None, None, True, 'shortest', None, None, [], None)
 
         >>> Field(
         ...     name = "abstract",
         ...     type = "string",
         ...     rank = "filter",
         ... )
-        Field('abstract', 'string', None, None, None, None, None, None, None, None, True, None, 'filter', None, [])
+        Field('abstract', 'string', None, None, None, None, None, None, None, None, True, None, 'filter', None, [], None)
 
         >>> Field(
         ...     name = "abstract",
         ...     type = "string",
         ...     query_command = ['"exact %%"'],
         ... )
-        Field('abstract', 'string', None, None, None, None, None, None, None, None, True, None, None, ['"exact %%"'], [])
+        Field('abstract', 'string', None, None, None, None, None, None, None, None, True, None, None, ['"exact %%"'], [], None)
 
         >>> Field(
         ...     name = "abstract",
@@ -425,7 +427,14 @@ class Field(object):
         ...         ),
         ...     ],
         ... )
-        Field('abstract', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [StructField('first_name', ['attribute'], ['fast-search'], None, None, None)])
+        Field('abstract', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [StructField('first_name', ['attribute'], ['fast-search'], None, None, None)], None)
+
+        >>> Field(
+        ...     name = "artist",
+        ...     type = "string",
+        ...     alias = ["artist_name"],
+        ... )
+        Field('artist', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], ['artist_name'])
         """
         self.name = name
         self.type = type
@@ -451,6 +460,7 @@ class Field(object):
                 ]
             )
         )
+        self.alias = kwargs.get("alias", None)
 
     @property
     def indexing_to_text(self) -> Optional[str]:
@@ -489,10 +499,11 @@ class Field(object):
             and self.rank == other.rank
             and self.query_command == other.query_command
             and self.struct_fields == other.struct_fields
+            and self.alias == other.alias
         )
 
     def __repr__(self) -> str:
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15}, {16})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.type),
@@ -509,6 +520,7 @@ class Field(object):
             repr(self.rank),
             repr(self.query_command),
             repr(self.struct_fields),
+            repr(self.alias),
         )
 
 
@@ -580,7 +592,7 @@ class Struct(object):
         ...         Field("last_name", "string"),
         ...     ],
         ... )
-        Struct('person', [Field('first_name', 'string', None, None, None, None, None, None, None, None, True, None, None, None, []), Field('last_name', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [])])
+        Struct('person', [Field('first_name', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], None), Field('last_name', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], None)])
         """
         self.name = name
         self.fields = fields
@@ -691,10 +703,10 @@ class Document(object):
         Document(None, None, None)
 
         >>> Document(fields=[Field(name="title", type="string")])
-        Document([Field('title', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [])], None, None)
+        Document([Field('title', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], None)], None, None)
 
         >>> Document(fields=[Field(name="title", type="string")], inherits="context")
-        Document([Field('title', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [])], context, None)
+        Document([Field('title', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], None)], context, None)
         """
         self.inherits = inherits
         self._fields = (

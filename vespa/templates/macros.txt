@@ -61,6 +61,11 @@ field {{ field.name }} type {{ field.type }} {
     query-command: {{ qc }}
     {% endfor %}
     {% endif %}
+    {% if field.alias %}
+    {% for alias in field.alias %}
+    alias: {{ alias }}
+    {% endfor %}
+    {% endif %}
     {% if field.struct_fields %}
     {% for struct_field in field.struct_fields %}
     struct-field {{ struct_field.name }} {
@@ -88,6 +93,11 @@ field {{ field.name }} type {{ field.type }} {
         {% if field.query_command %}
         {% for qc in field.query_command %}
         query-command: {{ qc }}
+        {% endfor %}
+        {% endif %}
+        {% if field.alias %}
+        {% for alias in field.alias %}
+        alias: {{ alias }}
         {% endfor %}
         {% endif %}
         {% if struct_field.summary %}
