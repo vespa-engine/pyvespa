@@ -191,7 +191,7 @@ class HNSW(object):
             == other.neighbors_to_explore_at_insert
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}({1}, {2}, {3})".format(
             self.__class__.__name__,
             repr(self.distance_metric),
@@ -491,7 +491,7 @@ class Field(object):
             and self.struct_fields == other.struct_fields
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15})".format(
             self.__class__.__name__,
             repr(self.name),
@@ -550,7 +550,7 @@ class ImportedField(object):
             and self.field_to_import == other.field_to_import
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}({1}, {2}, {3})".format(
             self.__class__.__name__,
             repr(self.name),
@@ -745,7 +745,7 @@ class Document(object):
             other.structs,
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}({1}, {2}, {3})".format(
             self.__class__.__name__,
             repr(self.fields) if self.fields else None,
@@ -782,7 +782,7 @@ class FieldSet(object):
             return False
         return self.name == other.name and self.fields == other.fields
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}({1}, {2})".format(
             self.__class__.__name__, repr(self.name), repr(self.fields)
         )
@@ -845,7 +845,7 @@ class Function(object):
             and self.args == other.args
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}({1}, {2}, {3})".format(
             self.__class__.__name__,
             repr(self.name),
@@ -931,7 +931,7 @@ class SecondPhaseRanking(object):
             and self.rerank_count == other.rerank_count
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}({1}, {2})".format(
             self.__class__.__name__,
             repr(self.expression),
@@ -966,7 +966,7 @@ class GlobalPhaseRanking(object):
             and self.rerank_count == other.rerank_count
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}({1}, {2})".format(
             self.__class__.__name__,
             repr(self.expression),
@@ -1208,7 +1208,7 @@ class OnnxModel(object):
             and self.outputs == other.outputs
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}({1}, {2}, {3}, {4})".format(
             self.__class__.__name__,
             repr(self.model_name),
@@ -1438,7 +1438,7 @@ class QueryTypeField(object):
             return False
         return self.name == other.name and self.type == other.type
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}({1}, {2})".format(
             self.__class__.__name__,
             repr(self.name),
@@ -1498,7 +1498,7 @@ class QueryProfileType(object):
             return False
         return self.fields == other.fields
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}({1})".format(
             self.__class__.__name__, repr(self.fields) if self.fields else None
         )
@@ -1527,7 +1527,7 @@ class QueryField(object):
             return False
         return self.name == other.name and self.value == other.value
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}({1}, {2})".format(
             self.__class__.__name__,
             repr(self.name),
@@ -1573,7 +1573,7 @@ class QueryProfile(object):
             return False
         return self.fields == other.fields
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}({1})".format(
             self.__class__.__name__, repr(self.fields) if self.fields else None
         )
@@ -2123,7 +2123,7 @@ class ApplicationPackage(object):
             return False
         return self.name == other.name and self._schema == other._schema
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{0}({1}, {2}, {3}, {4})".format(
             self.__class__.__name__,
             repr(self.name),

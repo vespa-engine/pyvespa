@@ -166,7 +166,7 @@ class Vespa(object):
     def http(self, pool_maxsize: int = 10):
         return VespaSync(app=self, pool_maxsize=pool_maxsize, pool_connections=pool_maxsize)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self.port:
             return "Vespa({}, {})".format(self.url, self.port)
         else:
