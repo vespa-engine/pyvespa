@@ -19,7 +19,6 @@ from urllib3.util import Retry
 from tenacity import retry, wait_exponential, stop_after_attempt
 from time import sleep
 from os import environ
-import traceback
 
 from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse
@@ -166,7 +165,7 @@ class Vespa(object):
     def http(self, pool_maxsize: int = 10):
         return VespaSync(app=self, pool_maxsize=pool_maxsize, pool_connections=pool_maxsize)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self.port:
             return "Vespa({}, {})".format(self.url, self.port)
         else:
