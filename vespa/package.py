@@ -181,9 +181,9 @@ class HNSW(object):
         self.max_links_per_node = max_links_per_node
         self.neighbors_to_explore_at_insert = neighbors_to_explore_at_insert
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return (
             self.distance_metric == other.distance_metric
             and self.max_links_per_node == other.max_links_per_node
@@ -470,9 +470,9 @@ class Field(object):
         for struct_field in struct_fields:
             self._struct_fields.update({struct_field.name: struct_field})
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return (
             self.name == other.name
             and self.type == other.type
@@ -541,9 +541,9 @@ class ImportedField(object):
         self.reference_field = reference_field
         self.field_to_import = field_to_import
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return (
             self.name == other.name
             and self.reference_field == other.reference_field
@@ -736,9 +736,9 @@ class Document(object):
         for struct in structs:
             self._structs.update({struct.name: struct})
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return (self.fields, self.inherits, self.structs) == (
             other.fields,
             other.inherits,
@@ -777,9 +777,9 @@ class FieldSet(object):
         if self.fields is not None:
             return ", ".join(self.fields)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return self.name == other.name and self.fields == other.fields
 
     def __repr__(self) -> str:
@@ -836,9 +836,9 @@ class Function(object):
         else:
             return ""
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return (
             self.name == other.name
             and self.expression == other.expression
@@ -923,9 +923,9 @@ class SecondPhaseRanking(object):
         self.expression = expression
         self.rerank_count = rerank_count
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return (
             self.expression == other.expression
             and self.rerank_count == other.rerank_count
@@ -958,9 +958,9 @@ class GlobalPhaseRanking(object):
         self.expression = expression
         self.rerank_count = rerank_count
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return (
             self.expression == other.expression
             and self.rerank_count == other.rerank_count
@@ -1198,9 +1198,9 @@ class OnnxModel(object):
         self.model_file_name = self.model_name + ".onnx"
         self.file_path = os.path.join("files", self.model_file_name)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return (
             self.model_name == other.model_name
             and self.model_file_path == other.model_file_path
@@ -1433,9 +1433,9 @@ class QueryTypeField(object):
         self.name = name
         self.type = type
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return self.name == other.name and self.type == other.type
 
     def __repr__(self) -> str:
@@ -1493,9 +1493,9 @@ class QueryProfileType(object):
         """
         self.fields.extend(fields)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return self.fields == other.fields
 
     def __repr__(self) -> str:
@@ -1522,9 +1522,9 @@ class QueryField(object):
         self.name = name
         self.value = value
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return self.name == other.name and self.value == other.value
 
     def __repr__(self) -> str:
@@ -1568,9 +1568,9 @@ class QueryProfile(object):
         """
         self.fields.extend(fields)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return self.fields == other.fields
 
     def __repr__(self) -> str:
@@ -2118,9 +2118,9 @@ class ApplicationPackage(object):
             with open(os.path.join(root, "validation-overrides.xml"), "w") as f:
                 f.write(self.validations_to_text)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
-            return False
+            return NotImplemented
         return self.name == other.name and self._schema == other._schema
 
     def __repr__(self) -> str:
