@@ -1303,3 +1303,53 @@ class TestValidAppName(unittest.TestCase):
             ApplicationPackage(name="test_app")
         with pytest.raises(ValueError):
             ApplicationPackage(name="test-app")
+
+
+class TestFieldAlias(unittest.TestCase):
+    def setUp(self) -> None:
+        self.test_schema = Schema(
+            name="alias_test_schema",
+            document=Document(
+                fields=[
+                    Field(
+                        name="single_aliased_field",
+                        type="string",
+                        alias=["single_aliased_field_alias"],
+                    ),
+                    Field(
+                        name="multiple_aliased_field",
+                        type="string",
+                        alias=[
+                            "first_alias",
+                            "second_alias",
+                            "third_alias",
+                        ],
+                    )
+                ]
+            ),
+        )
+        
+        self.app_package = ApplicationPackage(
+            name="testapp",
+            schema=[self.test_schema],
+        )
+
+    def test_alias_to_schema(self) -> None:
+        expected_result = (
+            "schema alias_test_schema {\n"
+            "    document alias_test_schema {\n"
+            "        field single_aliased_field type string {\n"
+            "            alias: single_aliased_field_alias\n"
+            "        }\n"
+            "        field multiple_aliased_field type string {\n"
+            "            alias: first_alias\n"
+            "            alias: second_alias\n"
+            "            alias: third_alias\n"
+            "        }\n"
+            "    }\n"
+            "}"
+        )
+        self.assertEqual(
+            self.app_package.get_schema("alias_test_schema").schema_to_text,
+            expected_result,
+        )
