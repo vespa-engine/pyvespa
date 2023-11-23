@@ -19,7 +19,6 @@ from urllib3.util import Retry
 from tenacity import retry, wait_exponential, stop_after_attempt
 from time import sleep
 from os import environ
-import traceback
 
 from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse
