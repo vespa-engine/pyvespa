@@ -213,7 +213,7 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
         {% endfor %}
         {% endif %}
         {% if document_summary.from_disk %}
-        {{ document_summary.from_disk }}
+        from-disk
         {% endif %}
         {% if document_summary.omit_summary_features %}
         {{ document_summary.omit_summary_features }}
