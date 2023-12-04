@@ -20,6 +20,8 @@ from vespa.package import (
     QueryField,
     QueryProfile,
     Component,
+    Nodes,
+    Cluster,
     Parameter,
     ApplicationPackage,
     AuthClient
@@ -1353,3 +1355,69 @@ class TestFieldAlias(unittest.TestCase):
             self.app_package.get_schema("alias_test_schema").schema_to_text,
             expected_result,
         )
+
+
+class TestNodes(unittest.TestCase):
+    def setUp(self) -> None:
+        self.nodes = Nodes(count="1",
+                           resources={
+                               "vcpu": "4.0",
+                               "memory": "16Gb",
+                               "disk": "125Gb",
+                           },
+                           gpu={
+                               "count": "1",
+                               "memory": "16Gb"
+                           }
+                           )
+
+    def test_xml_output(self):
+        expected_result = (
+            '<nodes count="1">\n'
+            '    <resources vcpu="4.0" memory="16Gb" disk="125Gb">\n'
+            '        <gpu count="1" memory="16Gb"/>\n'
+            '    </resources>\n'
+            '</nodes>'
+        )
+        self.assertEqual(self.nodes.to_xml_string(0), expected_result)
+
+
+class TestCluster(unittest.TestCase):
+    def setUp(self) -> None:
+        clusters = [
+            Cluster(type="container", id="test_container")
+        ]
+        components = [Component(id="e5", type="hugging-face-embedder",
+                                parameters=[
+                                    Parameter("transformer-model", {"path": "model/model.onnx"}),
+                                    Parameter("tokenizer-model", {"path": "model/tokenizer.json"})
+                                ]
+                            )]
+
+        self.app_package = ApplicationPackage(name="test", clusters=clusters)
+
+    def test_services_to_text(self):
+        expected_result = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<services version="1.0">\n'
+            '    <container id="test_container" version="1.0">\n'
+            '        <search></search>\n'
+            '        <document-api></document-api>\n'
+            '        <document-processing></document-processing>\n'
+            '        <component id="embedding" type="hugging-face-embedder">\n'
+            '            <transformer-model path="model/model.onnx"/>\n'
+            '            <tokenizer-model path="model/tokenizer.json"/>\n'
+            '        </component>\n'
+            '    </container>\n'
+            '    <content id="test_content" version="1.0">\n'
+            '        <redundancy>1</redundancy>\n'
+            '        <documents>\n'
+            '            <document type="test" mode="index"></document>\n'
+            '        </documents>\n'
+            '        <nodes>\n'
+            '            <node distribution-key="0" hostalias="node1"></node>\n'
+            '        </nodes>\n'
+            '    </content>\n'
+            '</services>'
+        )
+        self.assertEqual(self.app_package.services_to_text, expected_result)
