@@ -1753,6 +1753,19 @@ class Component(object):
         return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
 
 
+class Nodes(object):
+    def __init__(self,
+                 count: Optional[str] = None,
+                 resources: Optional[Dict] = None,
+                 gpu: Optional[Dict] = None,
+                 node: Optional[Dict] = None,
+                ):
+        self.count = count
+        self.resources = resources
+        self.gpu = gpu
+        self.node = node
+
+
 class Cluster(object):
     def __init__(self,
                  id: Optional[str],  
