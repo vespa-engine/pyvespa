@@ -1765,6 +1765,26 @@ class Nodes(object):
         self.gpu = gpu
         self.node = node
 
+    def to_xml_string(self, indent: int = 1) -> str:
+        root = ET.Element("nodes")
+        root.set("count", self.count)
+
+        if self.resources:
+            resources_xml = ET.SubElement(root, "resources")
+            resources_xml.set("vcpu", self.resources["vcpu"])
+            resources_xml.set("memory", self.resources["memory"])
+            resources_xml.set("disk", self.resources["disk"])
+
+            if self.gpu:
+                gpu_xml = ET.SubElement(resources_xml, "gpu")
+                gpu_xml.set("count", self.gpu["count"])
+                gpu_xml.set("memory", self.gpu["memory"])
+
+        # Fix indentation, except for the first line (to fit in template), and filter out xml declaration
+        xml_lines = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4).strip().split("\n")
+        print(xml_lines)
+        return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
+
 
 class Cluster(object):
     def __init__(self,
@@ -1870,7 +1890,9 @@ class ApplicationPackage(object):
         configurations: Optional[List[ApplicationConfiguration]] = None,
         validations: Optional[List[Validation]] = None,
         components: Optional[List[Component]] = None,
-        auth_clients: Optional[List[AuthClient]] = None
+        auth_clients: Optional[List[AuthClient]] = None,
+        clusters: Optional[List[Cluster]] = None,
+        nodes: Optional[Nodes] = None
     ) -> None:
         """
         Create an `Application Package <https://docs.vespa.ai/en/application-packages.html>`__.
@@ -1931,6 +1953,8 @@ class ApplicationPackage(object):
         self.validations = validations
         self.components = components
         self.auth_clients = auth_clients
+        self.clusters = clusters
+        self.nodes = nodes
 
     @property
     def schemas(self) -> List[Schema]:
