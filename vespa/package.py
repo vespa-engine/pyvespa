@@ -1753,6 +1753,21 @@ class Component(object):
         return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
 
 
+class Cluster(object):
+    def __init__(self,
+                 id: Optional[str],  
+                 type: str,
+                 version: str = "1.0",
+                 nodes: Nodes = None,
+                 components: Optional[List[Component]] = None
+                 ) -> None:
+
+        self.id = id
+        self.type = type
+        self.version = version
+        self.nodes = nodes
+        self.components = components
+
 
 class ValidationID(Enum):
     """Collection of IDs that can be used in validation-overrides.xml
