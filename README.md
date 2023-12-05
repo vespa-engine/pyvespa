@@ -43,7 +43,7 @@ python3 setup.py sdist bdist_wheel
 ``` 
 
 With write access to [pypi.org/project/pyvespa/](https://pypi.org/project/pyvespa/),
-upload, this requires username and password:
+upload, this requires username "__token__" and the token value as password, including the pypi- prefix:
 
 ```
 python3 -m twine upload dist/*
