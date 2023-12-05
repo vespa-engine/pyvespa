@@ -26,9 +26,7 @@ Vespa python API
 compute and rank big data at user serving time.
 ``pyvespa`` provides a python API to Vespa -
 use it to create, modify, deploy and interact with running Vespa instances.
-The main goal of the library is to allow for faster prototyping
-and to facilitate `Machine Learning experiments <https://vespa-engine.github.io/learntorank/>`__
-for Vespa applications.
+The main goal of the library is to allow for faster prototyping and get familiar with Vespa features.
 
 .. warning::
     pyvespa is under active development and backward incompatible changes may occur.
