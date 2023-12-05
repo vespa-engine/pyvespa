@@ -13,9 +13,7 @@
 compute and rank big data at user serving time.
 `pyvespa` provides a python API to Vespa.
 It allows users to create, modify, deploy and interact with running Vespa instances.
-The main goal of the library is to allow for faster prototyping
-and to facilitate Machine Learning experiments for Vespa applications -
-also see [learntorank](https://github.com/vespa-engine/learntorank).
+The main goal of the library is to allow for faster prototyping and get familiar with Vespa features.
 
 
 ## License
@@ -45,7 +43,7 @@ python3 setup.py sdist bdist_wheel
 ``` 
 
 With write access to [pypi.org/project/pyvespa/](https://pypi.org/project/pyvespa/),
-upload, this requires username and password:
+upload, this requires username "__token__" and the token value as password, including the pypi- prefix:
 
 ```
 python3 -m twine upload dist/*
