@@ -203,6 +203,7 @@ jobs:
       screwdriver.cd/ram: HIGH
     secrets:
       - VESPA_TEAM_API_KEY
+      - OPENAI_API_KEY
     environment:
       SD_ZIP_ARTIFACTS: true
     steps:
