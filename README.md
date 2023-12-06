@@ -2,7 +2,11 @@
 
 # pyvespa
 
-![Vespa logo](https://vespa.ai/assets/vespa-logo-color.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://vespa.ai/assets/vespa-ai-logo-heather.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://vespa.ai/assets/vespa-ai-logo-rock.svg">
+  <img alt="#Vespa" width="200" src="https://vespa.ai/assets/vespa-ai-logo-rock.svg" style="margin-bottom: 25px;">
+</picture>
 
 [![Documentation Status](https://readthedocs.org/projects/pyvespa/badge/?version=latest)](https://pyvespa.readthedocs.io/en/latest/?badge=latest)
 <a href="https://cd.screwdriver.cd/pipelines/7055"><img src="https://cd.screwdriver.cd/pipelines/7055/badge"/></a>
