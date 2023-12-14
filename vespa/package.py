@@ -1734,24 +1734,6 @@ class Component(object):
         bundle = f", bundle=\"{self.bundle}\"" if self.bundle else ""
         type = f", type=\"{self.type}\"" if self.type else ""
         return f"{self.__class__.__name__}({id}{cls}{bundle}{type})"
-
-    def to_xml_string(self, indent: int = 1) -> str:
-        root = ET.Element("component")
-        root.set("id", self.id)
-        if self.cls:
-            root.set("class", self.cls)
-        if self.bundle:
-            root.set("bundle", self.bundle)
-        if self.type:
-            root.set("type", self.type)
-        if self.parameters:
-            for param in self.parameters:
-                param.to_xml(root)
-
-        # Fix indentation, except for the first line (to fit in template), and filter out xml declaration
-        xml_lines = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4).strip().split("\n")
-        return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
-
     def to_xml(self, root) -> ET.Element:
         xml = ET.SubElement(root, "component")
         xml.set("id", self.id)
@@ -1766,6 +1748,16 @@ class Component(object):
                 param.to_xml(xml)
 
         return root
+
+    def to_xml_string(self, indent: int = 1) -> str:
+        root = ET.Element("root") # Add temporary root (needed by to_xml())
+        self.to_xml(root)
+        root = root.find("component") # Strip away temporary root
+
+        # Fix indentation, except for the first line (to fit in template), and filter out xml declaration
+        xml_lines = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4).strip().split("\n")
+        return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
+
 
 
 class Nodes(object):
