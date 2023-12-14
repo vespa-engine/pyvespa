@@ -1406,7 +1406,7 @@ class TestCluster(unittest.TestCase):
             '        <search></search>\n'
             '        <document-api></document-api>\n'
             '        <document-processing></document-processing>\n'
-            '        <component id="embedding" type="hugging-face-embedder">\n'
+            '        <component id="e5" type="hugging-face-embedder">\n'
             '            <transformer-model path="model/model.onnx"/>\n'
             '            <tokenizer-model path="model/tokenizer.json"/>\n'
             '        </component>\n'
