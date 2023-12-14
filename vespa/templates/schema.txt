@@ -216,7 +216,7 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
         from-disk
         {% endif %}
         {% if document_summary.omit_summary_features %}
-        {{ document_summary.omit_summary_features }}
+        omit-summary-features
         {% endif %}
     }
 {% endfor %}
