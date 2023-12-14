@@ -7,6 +7,13 @@
     {% endautoescape %}
     {% endfor %}
     {% endif %}
+    {% if clusters %}
+    {% for cluster in clusters %}
+    {% autoescape off %}
+    {{ cluster.to_xml_string(1) }}
+    {% endautoescape %}
+    {% endfor %}
+    {% else %}
     <container id="{{ application_name }}_container" version="1.0">
         {% if schemas %}
         <search></search>
@@ -33,6 +40,7 @@
         <model-evaluation/>
         {% endif %}
     </container>
+    {% endif %}
     {% if schemas %}
     <content id="{{ application_name }}_content" version="1.0">
         <redundancy>1</redundancy>

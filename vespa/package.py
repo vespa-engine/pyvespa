@@ -1752,6 +1752,21 @@ class Component(object):
         xml_lines = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4).strip().split("\n")
         return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
 
+    def to_xml(self, root) -> ET.Element:
+        xml = ET.SubElement(root, "component")
+        xml.set("id", self.id)
+        if self.cls:
+            xml.set("class", self.cls)
+        if self.bundle:
+            xml.set("bundle", self.bundle)
+        if self.type:
+            xml.set("type", self.type)
+        if self.parameters:
+            for param in self.parameters:
+                param.to_xml(xml)
+
+        return root
+
 
 class Nodes(object):
     def __init__(self,
@@ -1788,7 +1803,7 @@ class Nodes(object):
 
 class Cluster(object):
     def __init__(self,
-                 id: Optional[str],  
+                 id: Optional[str],
                  type: str,
                  version: str = "1.0",
                  nodes: Nodes = None,
@@ -1801,6 +1816,31 @@ class Cluster(object):
         self.nodes = nodes
         self.components = components
 
+    def to_xml_string(self, indent=1):
+        if self.type == "container":
+            root = ET.Element("container")
+            root.set("id", self.id) # TODO Figure out what to do with id (should it be non-optional?)
+            root.set("version", "1.0")
+
+            # Add default elements in container
+            for child in ["search", "document-api", "document-processing"]:
+                ET.SubElement(root, child)
+
+            # Add potential components
+            if self.components:
+                for comp in self.components:
+                    comp.to_xml(root)
+
+            # Temporary workaround to get ElementTree to print closing tags.
+            # Otherwise it prints <search/>, etc.
+            # TODO: Find a permanent solution
+            xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4)
+            for child in ["search", "document-api", "document-processing"]:
+                xml_str = xml_str.replace(f'<{child}/>', f'<{child}></{child}>')
+
+            # Indent XML and remove opening tag
+            xml_lines = xml_str.strip().split("\n")
+            return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
 
 class ValidationID(Enum):
     """Collection of IDs that can be used in validation-overrides.xml
@@ -2046,7 +2086,8 @@ class ApplicationPackage(object):
             configurations=self.configurations,
             stateless_model_evaluation=self.stateless_model_evaluation,
             components=self.components,
-            auth_clients=self.auth_clients
+            auth_clients=self.auth_clients,
+            clusters=self.clusters
         )
 
     @property
