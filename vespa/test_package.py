@@ -1385,14 +1385,16 @@ class TestNodes(unittest.TestCase):
 class TestCluster(unittest.TestCase):
     def setUp(self) -> None:
         clusters = [
-            Cluster(type="container", id="test_container")
+            Cluster(type="container", id="test_container", components=[Component(id="e5", type="hugging-face-embedder",
+                                                                                 parameters=[
+                                                                                     Parameter("transformer-model", {
+                                                                                         "path": "model/model.onnx"}),
+                                                                                     Parameter("tokenizer-model", {
+                                                                                         "path": "model/tokenizer.json"})
+                                                                                 ]
+                                                                                 )]
+                    )
         ]
-        components = [Component(id="e5", type="hugging-face-embedder",
-                                parameters=[
-                                    Parameter("transformer-model", {"path": "model/model.onnx"}),
-                                    Parameter("tokenizer-model", {"path": "model/tokenizer.json"})
-                                ]
-                            )]
 
         self.app_package = ApplicationPackage(name="test", clusters=clusters)
 
@@ -1420,4 +1422,4 @@ class TestCluster(unittest.TestCase):
             '    </content>\n'
             '</services>'
         )
-        # self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertEqual(self.app_package.services_to_text, expected_result)
