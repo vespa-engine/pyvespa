@@ -1833,6 +1833,10 @@ class Cluster(object):
             # Indent XML and remove opening tag
             xml_lines = xml_str.strip().split("\n")
             return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
+        elif self.type == "content":
+            raise NotImplementedError("to_xml_string not yet implemented for content cluster.")
+        else:
+            raise ValueError(f"Invalid Cluster type '{self.type}'. Supported types: 'container', 'content'")
 
 class ValidationID(Enum):
     """Collection of IDs that can be used in validation-overrides.xml
