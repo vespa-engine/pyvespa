@@ -28,7 +28,6 @@ setuptools.setup(
     include_package_data=True,
     install_requires=[
         "requests",
-        "pandas",
         "docker",
         "jinja2",
         "cryptography",
