@@ -1393,7 +1393,8 @@ class TestCluster(unittest.TestCase):
                                                                                          "path": "model/tokenizer.json"})
                                                                                  ]
                                                                                  )]
-                    )
+                    ),
+            Cluster(type="content", id="test_content")
         ]
 
         self.app_package = ApplicationPackage(name="test", clusters=clusters)
