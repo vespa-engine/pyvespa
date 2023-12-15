@@ -1795,10 +1795,10 @@ class Nodes(object):
 
 class Cluster(object):
     def __init__(self,
-                 id: Optional[str],
-                 type: str,
+                 id: str,
+                 type: str,  # "container" or "content"
                  version: str = "1.0",
-                 nodes: Nodes = None,
+                 nodes: Optional[Nodes] = None,
                  components: Optional[List[Component]] = None
                  ) -> None:
 
@@ -1811,7 +1811,7 @@ class Cluster(object):
     def to_xml_string(self, indent=1):
         if self.type == "container":
             root = ET.Element("container")
-            root.set("id", self.id) # TODO Figure out what to do with id (should it be non-optional?)
+            root.set("id", self.id)
             root.set("version", "1.0")
 
             # Add default elements in container
