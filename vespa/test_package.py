@@ -759,7 +759,7 @@ class TestApplicationPackageStreaming(unittest.TestCase):
         self.app_package = ApplicationPackage(
             name="testapp",
             schema=[self.mail, self.calendar, self.event])
-    
+
     def test_generated_services_uses_mode_streaming(self):
         expected_result = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -809,7 +809,7 @@ class TestSchemaInheritance(unittest.TestCase):
                 ]
             ),
         )
-        
+
         self.app_package = ApplicationPackage(
             name="testapp",
             schema=[self.news_schema, self.mail],
@@ -825,7 +825,7 @@ class TestSchemaInheritance(unittest.TestCase):
             "}"
         )
         self.assertEqual(self.app_package.get_schema(name="mail").schema_to_text, expected_mail_result)
-        
+
 
 class TestApplicationPackageMultipleSchema(unittest.TestCase):
     def setUp(self) -> None:
@@ -879,7 +879,7 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
             name="testapp",
             schema=[self.news_schema, self.user_schema, self.category_ctr_schema],
         )
-    
+
 
     def test_get_schema(self):
         self.assertEqual(self.app_package.get_schema(name="news"), self.news_schema)
@@ -1296,9 +1296,9 @@ class TestClientTokenSetup(unittest.TestCase):
 
 
         self.assertEqual(self.app_package.services_to_text, expected_result)
-        
 
-        
+
+
 class TestValidAppName(unittest.TestCase):
     def test_invalid_name(self):
         with pytest.raises(ValueError):
@@ -1330,7 +1330,7 @@ class TestFieldAlias(unittest.TestCase):
                 ]
             ),
         )
-        
+
         self.app_package = ApplicationPackage(
             name="testapp",
             schema=[self.test_schema],
