@@ -1789,7 +1789,6 @@ class Nodes(object):
 
         # Fix indentation, except for the first line (to fit in template), and filter out xml declaration
         xml_lines = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4).strip().split("\n")
-        print(xml_lines)
         return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
 
 
@@ -1959,7 +1958,6 @@ class ApplicationPackage(object):
         components: Optional[List[Component]] = None,
         auth_clients: Optional[List[AuthClient]] = None,
         clusters: Optional[List[Cluster]] = None,
-        nodes: Optional[Nodes] = None
     ) -> None:
         """
         Create an `Application Package <https://docs.vespa.ai/en/application-packages.html>`__.
@@ -2021,7 +2019,6 @@ class ApplicationPackage(object):
         self.components = components
         self.auth_clients = auth_clients
         self.clusters = clusters
-        self.nodes = nodes
 
     @property
     def schemas(self) -> List[Schema]:

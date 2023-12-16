@@ -1385,14 +1385,28 @@ class TestNodes(unittest.TestCase):
 class TestCluster(unittest.TestCase):
     def setUp(self) -> None:
         clusters = [
-            Cluster(type="container", id="test_container", components=[Component(id="e5", type="hugging-face-embedder",
-                                                                                 parameters=[
-                                                                                     Parameter("transformer-model", {
-                                                                                         "path": "model/model.onnx"}),
-                                                                                     Parameter("tokenizer-model", {
-                                                                                         "path": "model/tokenizer.json"})
-                                                                                 ]
-                                                                                 )]
+            Cluster(type="container",
+                    id="test_container",
+                    nodes=Nodes(
+                        count="1",
+                        resources={
+                            "vcpu": "4.0",
+                            "memory": "16Gb",
+                            "disk": "125Gb"
+                        },
+                        gpu={
+                            "count": "1",
+                            "memory": "16Gb"
+                        },
+                    ),
+                    components=[Component(id="e5", type="hugging-face-embedder",
+                                          parameters=[
+                                              Parameter("transformer-model", {
+                                                  "path": "model/model.onnx"}),
+                                              Parameter("tokenizer-model", {
+                                                  "path": "model/tokenizer.json"})
+                                          ])
+                                ]
                     ),
             Cluster(type="content", id="test_content", document_name="test")
         ]
@@ -1411,6 +1425,11 @@ class TestCluster(unittest.TestCase):
             '            <transformer-model path="model/model.onnx"/>\n'
             '            <tokenizer-model path="model/tokenizer.json"/>\n'
             '        </component>\n'
+            '        <nodes deploy:environment="dev" count="1">\n'
+            '            <resources vcpu="4.0" memory="16Gb" disk="125Gb">\n'
+            '                <gpu count="1" memory="16Gb"/>\n'
+            '            </resources>\n'
+            '        </nodes>\n'
             '    </container>\n'
             '    <content id="test_content" version="1.0">\n'
             '        <redundancy>1</redundancy>\n'
