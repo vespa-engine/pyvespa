@@ -40,7 +40,6 @@
         <model-evaluation/>
         {% endif %}
     </container>
-    {% endif %}
     {% if schemas %}
     <content id="{{ application_name }}_content" version="1.0">
         <redundancy>1</redundancy>
@@ -62,5 +61,6 @@
             <node distribution-key="0" hostalias="node1"></node>
         </nodes>
     </content>
+    {% endif %}
     {% endif %}
 </services>

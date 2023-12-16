@@ -1394,7 +1394,7 @@ class TestCluster(unittest.TestCase):
                                                                                  ]
                                                                                  )]
                     ),
-            Cluster(type="content", id="test_content")
+            Cluster(type="content", id="test_content", document_name="test")
         ]
 
         self.app_package = ApplicationPackage(name="test", clusters=clusters)

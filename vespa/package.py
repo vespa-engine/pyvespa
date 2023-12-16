@@ -1797,6 +1797,7 @@ class Cluster(object):
     def __init__(self,
                  id: str,
                  type: str,  # "container" or "content"
+                 document_name: Optional[str] = None,  # Name of document in content Cluster
                  version: str = "1.0",
                  nodes: Optional[Nodes] = None,
                  components: Optional[List[Component]] = None
@@ -1804,6 +1805,7 @@ class Cluster(object):
 
         self.id = id
         self.type = type
+        self.document_name = document_name
         self.version = version
         self.nodes = nodes
         self.components = components
@@ -1812,7 +1814,7 @@ class Cluster(object):
         if self.type == "container":
             root = ET.Element("container")
             root.set("id", self.id)
-            root.set("version", "1.0")
+            root.set("version", self.version)
 
             # Add default elements in container
             for child in ["search", "document-api", "document-processing"]:
@@ -1834,7 +1836,36 @@ class Cluster(object):
             xml_lines = xml_str.strip().split("\n")
             return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
         elif self.type == "content":
-            raise NotImplementedError("to_xml_string not yet implemented for content cluster.")
+            root = ET.Element("content")
+            root.set("id", self.id)
+            root.set("version", self.version)
+
+            ET.SubElement(root, "redundancy").text = "1"
+
+            if self.document_name:
+                documents = ET.SubElement(root, "documents")
+                document = ET.SubElement(documents, "document")
+                document.set("type", self.document_name)
+                document.set("mode", "index")
+            else:
+                raise ValueError("Missing parameter 'document_name' for content Cluster")
+
+            nodes = ET.SubElement(root, "nodes")
+            node = ET.SubElement(nodes, "node")
+            node.set("distribution-key", "0")
+            node.set("hostalias", "node1")
+
+            # Temporary workaround for expanding tags.
+            # minidom's toprettyxml collapses empty tags, even if short_empty_elements is false in ET.tostring()
+            # Probably need to pretty print the xml ourselves
+            # TODO Find a more permanent solution
+            xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4)
+            xml_str = xml_str.replace('<document type="test" mode="index"/>', '<document type="test" mode="index"></document>')
+            xml_str = xml_str.replace('<node distribution-key="0" hostalias="node1"/>', '<node distribution-key="0" hostalias="node1"></node>')
+
+            # Indent XML and remove opening tag
+            xml_lines = xml_str.strip().split("\n")
+            return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
         else:
             raise ValueError(f"Invalid Cluster type '{self.type}'. Supported types: 'container', 'content'")
 
