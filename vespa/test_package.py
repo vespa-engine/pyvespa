@@ -1425,7 +1425,7 @@ class TestCluster(unittest.TestCase):
             '            <transformer-model path="model/model.onnx"/>\n'
             '            <tokenizer-model path="model/tokenizer.json"/>\n'
             '        </component>\n'
-            '        <nodes deploy:environment="dev" count="1">\n'
+            '        <nodes count="1">\n'
             '            <resources vcpu="4.0" memory="16Gb" disk="125Gb">\n'
             '                <gpu count="1" memory="16Gb"/>\n'
             '            </resources>\n'

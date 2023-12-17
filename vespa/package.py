@@ -1772,12 +1772,12 @@ class Nodes(object):
         self.gpu = gpu
         self.node = node
 
-    def to_xml_string(self, indent: int = 1) -> str:
-        root = ET.Element("nodes")
-        root.set("count", self.count)
+    def to_xml(self, root) -> ET.Element:
+        xml = ET.SubElement(root, "nodes")
+        xml.set("count", self.count)
 
         if self.resources:
-            resources_xml = ET.SubElement(root, "resources")
+            resources_xml = ET.SubElement(xml, "resources")
             resources_xml.set("vcpu", self.resources["vcpu"])
             resources_xml.set("memory", self.resources["memory"])
             resources_xml.set("disk", self.resources["disk"])
@@ -1787,9 +1787,7 @@ class Nodes(object):
                 gpu_xml.set("count", self.gpu["count"])
                 gpu_xml.set("memory", self.gpu["memory"])
 
-        # Fix indentation, except for the first line (to fit in template), and filter out xml declaration
-        xml_lines = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4).strip().split("\n")
-        return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
+        return root
 
 
 class Cluster(object):
@@ -1823,6 +1821,9 @@ class Cluster(object):
             if self.components:
                 for comp in self.components:
                     comp.to_xml(root)
+
+            if self.nodes:
+                self.nodes.to_xml(root)
 
             # Temporary workaround to get ElementTree to print closing tags.
             # Otherwise it prints <search/>, etc.
