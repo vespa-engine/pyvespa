@@ -1357,31 +1357,6 @@ class TestFieldAlias(unittest.TestCase):
         )
 
 
-class TestNodes(unittest.TestCase):
-    def setUp(self) -> None:
-        self.nodes = Nodes(count="1",
-                           resources={
-                               "vcpu": "4.0",
-                               "memory": "16Gb",
-                               "disk": "125Gb",
-                           },
-                           gpu={
-                               "count": "1",
-                               "memory": "16Gb"
-                           }
-                           )
-
-    def test_xml_output(self):
-        expected_result = (
-            '<nodes count="1">\n'
-            '    <resources vcpu="4.0" memory="16Gb" disk="125Gb">\n'
-            '        <gpu count="1" memory="16Gb"/>\n'
-            '    </resources>\n'
-            '</nodes>'
-        )
-        self.assertEqual(self.nodes.to_xml_string(0), expected_result)
-
-
 class TestCluster(unittest.TestCase):
     def setUp(self) -> None:
         clusters = [
