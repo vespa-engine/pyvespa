@@ -1759,33 +1759,23 @@ class Component(object):
         return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
 
 
-
 class Nodes(object):
     def __init__(self,
-                 count: Optional[str] = None,
-                 resources: Optional[Dict] = None,
-                 gpu: Optional[Dict] = None,
+                 count: Optional[str] = "1",
                  node: Optional[Dict] = None,
+                 parameters: Optional[List[Parameter]] = None,
                 ):
         self.count = count
-        self.resources = resources
-        self.gpu = gpu
         self.node = node
+        self.parameters = parameters
 
     def to_xml(self, root) -> ET.Element:
         xml = ET.SubElement(root, "nodes")
         xml.set("count", self.count)
 
-        if self.resources:
-            resources_xml = ET.SubElement(xml, "resources")
-            resources_xml.set("vcpu", self.resources["vcpu"])
-            resources_xml.set("memory", self.resources["memory"])
-            resources_xml.set("disk", self.resources["disk"])
-
-            if self.gpu:
-                gpu_xml = ET.SubElement(resources_xml, "gpu")
-                gpu_xml.set("count", self.gpu["count"])
-                gpu_xml.set("memory", self.gpu["memory"])
+        if self.parameters:
+            for param in self.parameters:
+                param.to_xml(xml)
 
         return root
 
@@ -1799,7 +1789,6 @@ class Cluster(object):
                  nodes: Optional[Nodes] = None,
                  components: Optional[List[Component]] = None
                  ) -> None:
-
         self.id = id
         self.type = type
         self.document_name = document_name

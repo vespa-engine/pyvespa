@@ -1364,15 +1364,10 @@ class TestCluster(unittest.TestCase):
                     id="test_container",
                     nodes=Nodes(
                         count="1",
-                        resources={
-                            "vcpu": "4.0",
-                            "memory": "16Gb",
-                            "disk": "125Gb"
-                        },
-                        gpu={
-                            "count": "1",
-                            "memory": "16Gb"
-                        },
+                        parameters=[
+                            Parameter("resources", {"vcpu": "4.0", "memory": "16Gb", "disk": "125Gb"},
+                                      [Parameter("gpu", {"count": "1", "memory": "16Gb"})]),
+                        ]
                     ),
                     components=[Component(id="e5", type="hugging-face-embedder",
                                           parameters=[
