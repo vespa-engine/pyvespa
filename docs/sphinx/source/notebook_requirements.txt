@@ -1,2 +1,6 @@
 plotly
 datasets
+pytest
+notebook
+nbconvert<=7.12.0
+runnb
