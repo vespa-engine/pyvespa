@@ -1762,11 +1762,28 @@ class Component(object):
 class Nodes(object):
     def __init__(self,
                  count: Optional[str] = "1",
-                 node: Optional[Dict] = None,
                  parameters: Optional[List[Parameter]] = None,
-                ):
+                 ) -> None:
+        """
+        Specify node resources for a content or container cluster as part of a :class: `Cluster`.
+
+        :param count: Number of nodes in a cluster.
+        :param parameters: List of :class: `Parameter`s defining the configuration of the cluster resources.
+
+        Example:
+
+        >>>Cluster(id="example_container", type="container",
+        ...    nodes=Nodes(
+        ...        count="2",
+        ...        parameters=[
+        ...            Parameter("resources", {"vcpu": "4.0", "memory": "16Gb", "disk": "125Gb"},
+        ...            [Parameter("gpu", {"count": "1", "memory": "16Gb"})]),
+        ...            Parameter("node", {"hostalias": "node1", "distribution-key": "0"}),
+        ...        ]
+        ...    )
+        ...)
+        """
         self.count = count
-        self.node = node
         self.parameters = parameters
 
     def to_xml(self, root) -> ET.Element:
