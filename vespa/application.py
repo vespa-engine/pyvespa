@@ -423,7 +423,7 @@ class Vespa(object):
                     url="n/a", operation_type=operation_type)
             if callback is not None:    
                 try:
-                    callback(response,id=id)
+                    callback(response, id)
                 except Exception as e:
                     print(f"Exception in user callback for id {id}", file=sys.stderr)
                     traceback.print_exception(type(e), e, e.__traceback__, file=sys.stderr)
