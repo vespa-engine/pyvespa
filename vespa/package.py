@@ -1800,12 +1800,37 @@ class Nodes(object):
 class Cluster(object):
     def __init__(self,
                  id: str,
-                 type: str,  # "container" or "content"
-                 document_name: Optional[str] = None,  # Name of document in content Cluster
+                 type: str,
+                 document_name: Optional[str] = None,
                  version: str = "1.0",
                  nodes: Optional[Nodes] = None,
                  components: Optional[List[Component]] = None
                  ) -> None:
+        """
+        Define the configuration of a container or content cluster.
+
+        If :class: `Cluster` is used, :class: `Component`s must be added to the :class: `Cluster`,
+        rather than to the :class: `ApplicationPackage`, in order to be included in the generated schema.
+
+        :param id: Cluster id
+        :param type: The type of cluster. Either "container" or "content".
+        :param document_name: Name of document. Only used in content Cluster
+        :param version: Cluster version.
+        :param nodes: :class: `Nodes` that specifies node resources.
+        :param components: List of :class:`Component` that contains configurations for application components, e.g. embedders.
+
+        Example:
+
+        >>>Cluster(id="example_container", type="container",
+        ...    components=[Component(id="e5", type="hugging-face-embedder",
+        ...        parameters=[
+        ...            Parameter("transformer-model", {"url": "https://github.com/vespa-engine/sample-apps/raw/master/simple-semantic-search/model/e5-small-v2-int8.onnx"}),
+        ...            Parameter("tokenizer-model", {"url": "https://raw.githubusercontent.com/vespa-engine/sample-apps/master/simple-semantic-search/model/tokenizer.json"})
+        ...        ]
+        ...    )]
+        ...)
+        >>>Cluster(id="example_content", type="content", document_name="doc")
+        """
         self.id = id
         self.type = type
         self.document_name = document_name
