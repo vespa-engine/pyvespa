@@ -7,6 +7,13 @@
     {% endautoescape %}
     {% endfor %}
     {% endif %}
+    {% if clusters %}
+    {% for cluster in clusters %}
+    {% autoescape off %}
+    {{ cluster.to_xml_string(1) }}
+    {% endautoescape %}
+    {% endfor %}
+    {% else %}
     <container id="{{ application_name }}_container" version="1.0">
         {% if schemas %}
         <search></search>
@@ -54,5 +61,6 @@
             <node distribution-key="0" hostalias="node1"></node>
         </nodes>
     </content>
+    {% endif %}
     {% endif %}
 </services>

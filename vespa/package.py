@@ -1734,25 +1734,129 @@ class Component(object):
         bundle = f", bundle=\"{self.bundle}\"" if self.bundle else ""
         type = f", type=\"{self.type}\"" if self.type else ""
         return f"{self.__class__.__name__}({id}{cls}{bundle}{type})"
-
-    def to_xml_string(self, indent: int = 1) -> str:
-        root = ET.Element("component")
-        root.set("id", self.id)
+    def to_xml(self, root) -> ET.Element:
+        xml = ET.SubElement(root, "component")
+        xml.set("id", self.id)
         if self.cls:
-            root.set("class", self.cls)
+            xml.set("class", self.cls)
         if self.bundle:
-            root.set("bundle", self.bundle)
+            xml.set("bundle", self.bundle)
         if self.type:
-            root.set("type", self.type)
+            xml.set("type", self.type)
         if self.parameters:
             for param in self.parameters:
-                param.to_xml(root)
+                param.to_xml(xml)
+
+        return root
+
+    def to_xml_string(self, indent: int = 1) -> str:
+        root = ET.Element("root") # Add temporary root (needed by to_xml())
+        self.to_xml(root)
+        root = root.find("component") # Strip away temporary root
 
         # Fix indentation, except for the first line (to fit in template), and filter out xml declaration
         xml_lines = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4).strip().split("\n")
         return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
 
 
+class Nodes(object):
+    def __init__(self,
+                 count: Optional[str] = "1",
+                 node: Optional[Dict] = None,
+                 parameters: Optional[List[Parameter]] = None,
+                ):
+        self.count = count
+        self.node = node
+        self.parameters = parameters
+
+    def to_xml(self, root) -> ET.Element:
+        xml = ET.SubElement(root, "nodes")
+        xml.set("count", self.count)
+
+        if self.parameters:
+            for param in self.parameters:
+                param.to_xml(xml)
+
+        return root
+
+
+class Cluster(object):
+    def __init__(self,
+                 id: str,
+                 type: str,  # "container" or "content"
+                 document_name: Optional[str] = None,  # Name of document in content Cluster
+                 version: str = "1.0",
+                 nodes: Optional[Nodes] = None,
+                 components: Optional[List[Component]] = None
+                 ) -> None:
+        self.id = id
+        self.type = type
+        self.document_name = document_name
+        self.version = version
+        self.nodes = nodes
+        self.components = components
+
+    def to_xml_string(self, indent=1):
+        if self.type == "container":
+            root = ET.Element("container")
+            root.set("id", self.id)
+            root.set("version", self.version)
+
+            # Add default elements in container
+            for child in ["search", "document-api", "document-processing"]:
+                ET.SubElement(root, child)
+
+            # Add potential components
+            if self.components:
+                for comp in self.components:
+                    comp.to_xml(root)
+
+            if self.nodes:
+                self.nodes.to_xml(root)
+
+            # Temporary workaround to get ElementTree to print closing tags.
+            # Otherwise it prints <search/>, etc.
+            # TODO: Find a permanent solution
+            xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4)
+            for child in ["search", "document-api", "document-processing"]:
+                xml_str = xml_str.replace(f'<{child}/>', f'<{child}></{child}>')
+
+            # Indent XML and remove opening tag
+            xml_lines = xml_str.strip().split("\n")
+            return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
+        elif self.type == "content":
+            root = ET.Element("content")
+            root.set("id", self.id)
+            root.set("version", self.version)
+
+            ET.SubElement(root, "redundancy").text = "1"
+
+            if self.document_name:
+                documents = ET.SubElement(root, "documents")
+                document = ET.SubElement(documents, "document")
+                document.set("type", self.document_name)
+                document.set("mode", "index")
+            else:
+                raise ValueError("Missing parameter 'document_name' for content Cluster")
+
+            nodes = ET.SubElement(root, "nodes")
+            node = ET.SubElement(nodes, "node")
+            node.set("distribution-key", "0")
+            node.set("hostalias", "node1")
+
+            # Temporary workaround for expanding tags.
+            # minidom's toprettyxml collapses empty tags, even if short_empty_elements is false in ET.tostring()
+            # Probably need to pretty print the xml ourselves
+            # TODO Find a more permanent solution
+            xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4)
+            xml_str = xml_str.replace('<document type="test" mode="index"/>', '<document type="test" mode="index"></document>')
+            xml_str = xml_str.replace('<node distribution-key="0" hostalias="node1"/>', '<node distribution-key="0" hostalias="node1"></node>')
+
+            # Indent XML and remove opening tag
+            xml_lines = xml_str.strip().split("\n")
+            return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
+        else:
+            raise ValueError(f"Invalid Cluster type '{self.type}'. Supported types: 'container', 'content'")
 
 class ValidationID(Enum):
     """Collection of IDs that can be used in validation-overrides.xml
@@ -1842,7 +1946,8 @@ class ApplicationPackage(object):
         configurations: Optional[List[ApplicationConfiguration]] = None,
         validations: Optional[List[Validation]] = None,
         components: Optional[List[Component]] = None,
-        auth_clients: Optional[List[AuthClient]] = None
+        auth_clients: Optional[List[AuthClient]] = None,
+        clusters: Optional[List[Cluster]] = None,
     ) -> None:
         """
         Create an `Application Package <https://docs.vespa.ai/en/application-packages.html>`__.
@@ -1903,6 +2008,7 @@ class ApplicationPackage(object):
         self.validations = validations
         self.components = components
         self.auth_clients = auth_clients
+        self.clusters = clusters
 
     @property
     def schemas(self) -> List[Schema]:
@@ -1994,7 +2100,8 @@ class ApplicationPackage(object):
             configurations=self.configurations,
             stateless_model_evaluation=self.stateless_model_evaluation,
             components=self.components,
-            auth_clients=self.auth_clients
+            auth_clients=self.auth_clients,
+            clusters=self.clusters
         )
 
     @property
