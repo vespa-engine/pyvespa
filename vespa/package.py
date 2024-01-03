@@ -1781,10 +1781,15 @@ class Nodes(object):
         ...            Parameter("node", {"hostalias": "node1", "distribution-key": "0"}),
         ...        ]
         ...    )
-        ...)
+        ... )
+        Cluster(id="example_container", type="container", version="1.0", nodes="Nodes(count="2")")
         """
         self.count = count
         self.parameters = parameters
+
+    def __repr__(self) -> str:
+        count = f"count=\"{self.count}\""
+        return f"{self.__class__.__name__}({count})"
 
     def to_xml(self, root) -> ET.Element:
         xml = ET.SubElement(root, "nodes")
@@ -1801,10 +1806,10 @@ class Cluster(object):
     def __init__(self,
                  id: str,
                  type: str,
-                 document_name: Optional[str] = None,
                  version: str = "1.0",
                  nodes: Optional[Nodes] = None,
-                 components: Optional[List[Component]] = None
+                 components: Optional[List[Component]] = None,
+                 document_name: Optional[str] = None
                  ) -> None:
         """
         Define the configuration of a container or content cluster.
@@ -1814,10 +1819,10 @@ class Cluster(object):
 
         :param id: Cluster id
         :param type: The type of cluster. Either "container" or "content".
-        :param document_name: Name of document. Only used in content Cluster
         :param version: Cluster version.
         :param nodes: :class: `Nodes` that specifies node resources.
         :param components: List of :class:`Component` that contains configurations for application components, e.g. embedders.
+        :param document_name: Name of document. Only used in content Cluster
 
         Example:
 
@@ -1828,15 +1833,26 @@ class Cluster(object):
         ...            Parameter("tokenizer-model", {"url": "https://raw.githubusercontent.com/vespa-engine/sample-apps/master/simple-semantic-search/model/tokenizer.json"})
         ...        ]
         ...    )]
-        ...)
+        ... )
+        Cluster(id="example_container", type="container", version="1.0", components="[Component(id="e5", type="hugging-face-embedder")]")
         >>> Cluster(id="example_content", type="content", document_name="doc")
+        Cluster(id="example_content", type="content", version="1.0", document_name="doc")
         """
         self.id = id
         self.type = type
-        self.document_name = document_name
         self.version = version
         self.nodes = nodes
         self.components = components
+        self.document_name = document_name
+
+    def __repr__(self) -> str:
+        id = f"id=\"{self.id}\""
+        type = f", type=\"{self.type}\""
+        version = f", version=\"{self.version}\""
+        nodes = f", nodes=\"{self.nodes}\"" if self.nodes else ""
+        components = f", components=\"{self.components}\"" if self.components else ""
+        document_name = f", document_name=\"{self.document_name}\"" if self.document_name else ""
+        return f"{self.__class__.__name__}({id}{type}{version}{nodes}{components}{document_name})"
 
     def to_xml_string(self, indent=1):
         if self.type == "container":
