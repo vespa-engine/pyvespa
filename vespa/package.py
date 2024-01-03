@@ -1772,7 +1772,7 @@ class Nodes(object):
 
         Example:
 
-        >>>Cluster(id="example_container", type="container",
+        >>> Cluster(id="example_container", type="container",
         ...    nodes=Nodes(
         ...        count="2",
         ...        parameters=[
@@ -1821,7 +1821,7 @@ class Cluster(object):
 
         Example:
 
-        >>>Cluster(id="example_container", type="container",
+        >>> Cluster(id="example_container", type="container",
         ...    components=[Component(id="e5", type="hugging-face-embedder",
         ...        parameters=[
         ...            Parameter("transformer-model", {"url": "https://github.com/vespa-engine/sample-apps/raw/master/simple-semantic-search/model/e5-small-v2-int8.onnx"}),
@@ -1829,7 +1829,7 @@ class Cluster(object):
         ...        ]
         ...    )]
         ...)
-        >>>Cluster(id="example_content", type="content", document_name="doc")
+        >>> Cluster(id="example_content", type="content", document_name="doc")
         """
         self.id = id
         self.type = type
