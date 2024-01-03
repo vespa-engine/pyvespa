@@ -35,6 +35,12 @@ setuptools.setup(
         "tenacity",
         "typing_extensions",
     ],
+    extras_require={
+        "dev": [
+            "pytest",
+            "requests-mock",
+        ],
+    },
     python_requires=">=3.8",
     zip_safe=False,
     package_data={"vespa": ["py.typed"]},
