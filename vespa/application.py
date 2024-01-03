@@ -306,15 +306,15 @@ class Vespa(object):
                 schema=schema, data_id=data_id, fields=fields, namespace=namespace, groupname=groupname, **kwargs
             )
    
-    def feed_iterable(self, 
-        iter:Iterable[Dict], 
-        schema:Optional[str] = None, 
-        namespace:Optional[str] = None, 
-        callback:Optional[Callable] = None, 
-        operation_type:Optional[str] = "feed",
-        max_queue_size:int = 1000,
-        max_workers:int = 8, 
-        max_connections:int = 16,
+    def feed_iterable(self,
+        iter: Iterable[Dict],
+        schema: Optional[str] = None,
+        namespace: Optional[str] = None,
+        callback: Optional[Callable[[VespaResponse, str], None]] = None,
+        operation_type: Optional[str] = "feed",
+        max_queue_size: int = 1000,
+        max_workers: int = 8,
+        max_connections: int = 16,
         **kwargs
     ):
         """
@@ -414,7 +414,7 @@ class Vespa(object):
             except Exception as e:
                 return (id, e)
 
-        def _handle_result_callback(future:Future, callback:Callable):
+        def _handle_result_callback(future: Future, callback: Optional[Callable[[VespaResponse, str], None]]):
             id, response = future.result()
             if isinstance(response, Exception): 
                 response = VespaResponse(
@@ -423,7 +423,7 @@ class Vespa(object):
                     url="n/a", operation_type=operation_type)
             if callback is not None:    
                 try:
-                    callback(response,id=id)
+                    callback(response, id)
                 except Exception as e:
                     print(f"Exception in user callback for id {id}", file=sys.stderr)
                     traceback.print_exception(type(e), e, e.__traceback__, file=sys.stderr)
