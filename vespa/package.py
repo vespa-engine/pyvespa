@@ -1832,7 +1832,7 @@ class ContainerCluster(Cluster):
                  id: str,
                  version: str = "1.0",
                  nodes: Optional[Nodes] = None,
-                 components: Optional[List[Component]] = None,
+                 components: Optional[List[Component]] = None
                  ) -> None:
         """
         Defines the configuration of a container cluster.
@@ -1854,9 +1854,7 @@ class ContainerCluster(Cluster):
         ... )
         ContainerCluster(id="example_container", version="1.0", components="[Component(id="e5", type="hugging-face-embedder")]")
         """
-        self.id = id
-        self.version = version
-        self.nodes = nodes
+        super().__init__(id, version, nodes)
         self.components = components
 
     def __repr__(self) -> str:
@@ -1910,9 +1908,7 @@ class ContentCluster(Cluster):
         >>> ContentCluster(id="example_content", document_name="doc")
         ContentCluster(id="example_content", version="1.0", document_name="doc")
         """
-        self.id = id
-        self.version = version
-        self.nodes = nodes
+        super().__init__(id, version, nodes)
         self.document_name = document_name
 
     def __repr__(self) -> str:
