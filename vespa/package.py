@@ -1924,7 +1924,10 @@ class ContainerCluster(Cluster):
                  nodes: Optional[Nodes] = None,
                  components: Optional[List[Component]] = None,
                  ) -> None:
-        pass
+        self.id = id
+        self.version = version
+        self.nodes = nodes
+        self.components = components
 
     def __repr__(self) -> str:
         pass
@@ -1940,7 +1943,10 @@ class ContentCluster(Cluster):
                  nodes: Optional[Nodes] = None,
                  document_name: Optional[str] = None
                  ) -> None:
-        pass
+        self.id = id
+        self.version = version
+        self.nodes = nodes
+        self.document_name = document_name
 
     def __repr__(self) -> str:
         pass
