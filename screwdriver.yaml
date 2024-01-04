@@ -39,9 +39,9 @@ jobs:
           sphinx-build -E -D exclude_patterns=getting-started-pyvespa-cloud.ipynb docs/sphinx/source docs/sphinx/build
           rm -fr docs/sphinx/build
       - run-doc-tests: |
-          pytest vespa --doctest-modules --ignore-glob=vespa/test_*.py
+          pytest vespa --doctest-modules
       - run-unit-tests: |
-          pytest vespa --ignore-glob=vespa/test_integration*.py
+          pytest tests/unit
 
   integration-except-cloud:
     requires: [~commit,~pr]
@@ -68,7 +68,7 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[dev]
       - run-integration-docker: |
-          pytest vespa/test_integration_docker.py -s -v
+          pytest tests/integration/test_integration_docker.py -s -v
 
   notebooks-except-cloud:
     requires: [~commit,~pr]
@@ -141,7 +141,7 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[dev]
       - run-integration-cloud: |
-          pytest vespa/test_integration_vespa_cloud.py -s -v
+          pytest tests/integration/test_integration_vespa_cloud.py -s -v
 
   integration-cloud-token:
     requires: [~commit]
@@ -164,7 +164,7 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[dev]
       - run-integration-cloud: |
-          pytest vespa/test_integration_vespa_cloud_token.py -s -v
+          pytest tests/integration/test_integration_vespa_cloud_token.py -s -v
 
   integration-cloud-vector-search:
     requires: [~commit]
@@ -187,7 +187,7 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[dev]
       - run-integration-cloud: |
-          pytest vespa/test_integration_vespa_cloud_vector_search.py -s -v
+          pytest tests/integration/test_integration_vespa_cloud_vector_search.py -s -v
 
   notebooks-cloud:
     requires: [integration-cloud]
