@@ -31,7 +31,6 @@ jobs:
           dnf install -y python38-pip
           dnf install -y --enablerepo=powertools pandoc
           python3 -m pip install --upgrade pip
-          python3 -m pip install pytest notebook nbconvert requests_mock
           python3 -m pip install -e .[dev]
           python3 -m pip install -r docs/sphinx/source/requirements.txt
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
@@ -67,7 +66,6 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
-          python3 -m pip install pytest
           python3 -m pip install -e .[dev]
       - run-integration-docker: |
           pytest vespa/test_integration_docker.py -s -v
@@ -141,7 +139,6 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
-          python3 -m pip install pytest
           python3 -m pip install -e .[dev]
       - run-integration-cloud: |
           pytest vespa/test_integration_vespa_cloud.py -s -v
@@ -165,7 +162,6 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
-          python3 -m pip install pytest
           python3 -m pip install -e .[dev]
       - run-integration-cloud: |
           pytest vespa/test_integration_vespa_cloud_token.py -s -v
@@ -189,7 +185,6 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
-          python3 -m pip install pytest datasets
           python3 -m pip install -e .[dev]
       - run-integration-cloud: |
           pytest vespa/test_integration_vespa_cloud_vector_search.py -s -v
@@ -212,7 +207,6 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
-          python3 -m pip install pytest notebook nbconvert runnb
           python3 -m pip install -e .[dev]
           python3 -m pip install -r docs/sphinx/source/requirements.txt
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt

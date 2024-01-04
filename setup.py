@@ -39,6 +39,10 @@ setuptools.setup(
         "dev": [
             "pytest",
             "requests-mock",
+            "datasets",
+            "notebook",
+            "nbconvert",
+            "runnb",
         ],
     },
     python_requires=">=3.8",
