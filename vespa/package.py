@@ -1903,9 +1903,9 @@ class ContainerCluster(Cluster):
 class ContentCluster(Cluster):
     def __init__(self,
                  id: str,
+                 document_name: str,
                  version: str = "1.0",
-                 nodes: Optional[Nodes] = None,
-                 document_name: Optional[str] = None
+                 nodes: Optional[Nodes] = None
                  ) -> None:
         self.id = id
         self.version = version
@@ -1922,13 +1922,10 @@ class ContentCluster(Cluster):
 
         ET.SubElement(root, "redundancy").text = "1"
 
-        if self.document_name:
-            documents = ET.SubElement(root, "documents")
-            document = ET.SubElement(documents, "document")
-            document.set("type", self.document_name)
-            document.set("mode", "index")
-        else:
-            raise ValueError("Missing parameter 'document_name' for content Cluster")
+        documents = ET.SubElement(root, "documents")
+        document = ET.SubElement(documents, "document")
+        document.set("type", self.document_name)
+        document.set("mode", "index")
 
         nodes = ET.SubElement(root, "nodes")
         node = ET.SubElement(nodes, "node")
