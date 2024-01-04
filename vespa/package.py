@@ -1772,7 +1772,7 @@ class Nodes(object):
 
         Example:
 
-        >>> Cluster(id="example_container", type="container",
+        >>> ContainerCluster(id="example_container",
         ...    nodes=Nodes(
         ...        count="2",
         ...        parameters=[
@@ -1782,7 +1782,7 @@ class Nodes(object):
         ...        ]
         ...    )
         ... )
-        Cluster(id="example_container", type="container", version="1.0", nodes="Nodes(count="2")")
+        ContainerCluster(id="example_container", version="1.0", nodes="Nodes(count="2")")
         """
         self.count = count
         self.parameters = parameters
@@ -1805,11 +1805,8 @@ class Nodes(object):
 class Cluster(object):
     def __init__(self,
                  id: str,
-                 type: str,
                  version: str = "1.0",
                  nodes: Optional[Nodes] = None,
-                 components: Optional[List[Component]] = None,
-                 document_name: Optional[str] = None
                  ) -> None:
         """
         Define the configuration of a container or content cluster.
@@ -1818,15 +1815,12 @@ class Cluster(object):
         rather than to the :class: `ApplicationPackage`, in order to be included in the generated schema.
 
         :param id: Cluster id
-        :param type: The type of cluster. Either "container" or "content".
         :param version: Cluster version.
         :param nodes: :class: `Nodes` that specifies node resources.
-        :param components: List of :class:`Component` that contains configurations for application components, e.g. embedders.
-        :param document_name: Name of document. Only used in content Cluster
 
         Example:
 
-        >>> Cluster(id="example_container", type="container",
+        >>> ContainerCluster(id="example_container",
         ...    components=[Component(id="e5", type="hugging-face-embedder",
         ...        parameters=[
         ...            Parameter("transformer-model", {"url": "https://github.com/vespa-engine/sample-apps/raw/master/simple-semantic-search/model/e5-small-v2-int8.onnx"}),
@@ -1834,25 +1828,19 @@ class Cluster(object):
         ...        ]
         ...    )]
         ... )
-        Cluster(id="example_container", type="container", version="1.0", components="[Component(id="e5", type="hugging-face-embedder")]")
-        >>> Cluster(id="example_content", type="content", document_name="doc")
-        Cluster(id="example_content", type="content", version="1.0", document_name="doc")
+        ContainerCluster(id="example_container", version="1.0", components="[Component(id="e5", type="hugging-face-embedder")]")
+        >>> ContentCluster(id="example_content", document_name="doc")
+        ContentCluster(id="example_content", version="1.0", document_name="doc")
         """
         self.id = id
-        self.type = type
         self.version = version
         self.nodes = nodes
-        self.components = components
-        self.document_name = document_name
 
     def __repr__(self) -> str:
         id = f"id=\"{self.id}\""
-        type = f", type=\"{self.type}\""
         version = f", version=\"{self.version}\""
         nodes = f", nodes=\"{self.nodes}\"" if self.nodes else ""
-        components = f", components=\"{self.components}\"" if self.components else ""
-        document_name = f", document_name=\"{self.document_name}\"" if self.document_name else ""
-        return f"{self.__class__.__name__}({id}{type}{version}{nodes}{components}{document_name})"
+        return f"{self.__class__.__name__}({id}{version}{nodes}"
 
 
 class ContainerCluster(Cluster):
@@ -1868,7 +1856,9 @@ class ContainerCluster(Cluster):
         self.components = components
 
     def __repr__(self) -> str:
-        pass
+        base_str = super().__repr__()
+        components = f", components=\"{self.components}\"" if self.components else ""
+        return f"{base_str}{components})"
 
     def to_xml_string(self, indent=1):
         root = ET.Element("container")
@@ -1911,9 +1901,10 @@ class ContentCluster(Cluster):
         self.version = version
         self.nodes = nodes
         self.document_name = document_name
-
     def __repr__(self) -> str:
-        pass
+        base_str = super().__repr__()
+        document_name = f", document_name=\"{self.document_name}\"" if self.document_name else ""
+        return f"{base_str}{document_name})"
 
     def to_xml_string(self, indent=1):
         root = ET.Element("content")
