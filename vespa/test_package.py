@@ -22,6 +22,7 @@ from vespa.package import (
     Component,
     Nodes,
     Cluster,
+    ContainerCluster,
     Parameter,
     ApplicationPackage,
     AuthClient
@@ -1360,8 +1361,7 @@ class TestFieldAlias(unittest.TestCase):
 class TestCluster(unittest.TestCase):
     def setUp(self) -> None:
         clusters = [
-            Cluster(type="container",
-                    id="test_container",
+            ContainerCluster(id="test_container",
                     nodes=Nodes(
                         count="1",
                         parameters=[

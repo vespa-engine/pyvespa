@@ -1855,34 +1855,7 @@ class Cluster(object):
         return f"{self.__class__.__name__}({id}{type}{version}{nodes}{components}{document_name})"
 
     def to_xml_string(self, indent=1):
-        if self.type == "container":
-            root = ET.Element("container")
-            root.set("id", self.id)
-            root.set("version", self.version)
-
-            # Add default elements in container
-            for child in ["search", "document-api", "document-processing"]:
-                ET.SubElement(root, child)
-
-            # Add potential components
-            if self.components:
-                for comp in self.components:
-                    comp.to_xml(root)
-
-            if self.nodes:
-                self.nodes.to_xml(root)
-
-            # Temporary workaround to get ElementTree to print closing tags.
-            # Otherwise it prints <search/>, etc.
-            # TODO: Find a permanent solution
-            xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4)
-            for child in ["search", "document-api", "document-processing"]:
-                xml_str = xml_str.replace(f'<{child}/>', f'<{child}></{child}>')
-
-            # Indent XML and remove opening tag
-            xml_lines = xml_str.strip().split("\n")
-            return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
-        elif self.type == "content":
+        if self.type == "content":
             root = ET.Element("content")
             root.set("id", self.id)
             root.set("version", self.version)
@@ -1933,7 +1906,33 @@ class ContainerCluster(Cluster):
         pass
 
     def to_xml_string(self, indent=1):
-        pass
+        root = ET.Element("container")
+        root.set("id", self.id)
+        root.set("version", self.version)
+
+        # Add default elements in container
+        for child in ["search", "document-api", "document-processing"]:
+            ET.SubElement(root, child)
+
+        # Add potential components
+        if self.components:
+            for comp in self.components:
+                comp.to_xml(root)
+
+        if self.nodes:
+            self.nodes.to_xml(root)
+
+        # Temporary workaround to get ElementTree to print closing tags.
+        # Otherwise it prints <search/>, etc.
+        # TODO: Find a permanent solution
+        xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4)
+        for child in ["search", "document-api", "document-processing"]:
+            xml_str = xml_str.replace(f'<{child}/>', f'<{child}></{child}>')
+
+        # Indent XML and remove opening tag
+        xml_lines = xml_str.strip().split("\n")
+        return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
+
 
 
 class ContentCluster(Cluster):
