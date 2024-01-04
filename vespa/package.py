@@ -1826,6 +1826,14 @@ class Cluster(object):
         nodes = f", nodes=\"{self.nodes}\"" if self.nodes else ""
         return f"{self.__class__.__name__}({id}{version}{nodes}"
 
+    def to_xml(self, root):
+        """Set up XML elements that are used in both container and content clusters."""
+        root.set("id", self.id)
+        root.set("version", self.version)
+
+        if self.nodes:
+            self.nodes.to_xml(root)
+
 
 class ContainerCluster(Cluster):
     def __init__(self,
@@ -1864,8 +1872,7 @@ class ContainerCluster(Cluster):
 
     def to_xml_string(self, indent=1):
         root = ET.Element("container")
-        root.set("id", self.id)
-        root.set("version", self.version)
+        super().to_xml(root)
 
         # Add default elements in container
         for child in ["search", "document-api", "document-processing"]:
@@ -1875,9 +1882,6 @@ class ContainerCluster(Cluster):
         if self.components:
             for comp in self.components:
                 comp.to_xml(root)
-
-        if self.nodes:
-            self.nodes.to_xml(root)
 
         # Temporary workaround to get ElementTree to print closing tags.
         # Otherwise it prints <search/>, etc.
@@ -1918,8 +1922,15 @@ class ContentCluster(Cluster):
 
     def to_xml_string(self, indent=1):
         root = ET.Element("content")
-        root.set("id", self.id)
-        root.set("version", self.version)
+        super().to_xml(root)
+
+        if not self.nodes:
+            # Use some sensible defaults if the user doesn't pass a Nodes configuration.
+            # The defaults are the ones generated if the Cluster classes are not used at all.
+            nodes = ET.SubElement(root, "nodes")
+            node = ET.SubElement(nodes, "node")
+            node.set("distribution-key", "0")
+            node.set("hostalias", "node1")
 
         ET.SubElement(root, "redundancy").text = "1"
 
@@ -1927,11 +1938,6 @@ class ContentCluster(Cluster):
         document = ET.SubElement(documents, "document")
         document.set("type", self.document_name)
         document.set("mode", "index")
-
-        nodes = ET.SubElement(root, "nodes")
-        node = ET.SubElement(nodes, "node")
-        node.set("distribution-key", "0")
-        node.set("hostalias", "node1")
 
         # Temporary workaround for expanding tags.
         # minidom's toprettyxml collapses empty tags, even if short_empty_elements is false in ET.tostring()
