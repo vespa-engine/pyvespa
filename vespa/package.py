@@ -1916,6 +1916,39 @@ class Cluster(object):
         else:
             raise ValueError(f"Invalid Cluster type '{self.type}'. Supported types: 'container', 'content'")
 
+
+class ContainerCluster(Cluster):
+    def __init__(self,
+                 id: str,
+                 version: str = "1.0",
+                 nodes: Optional[Nodes] = None,
+                 components: Optional[List[Component]] = None,
+                 ) -> None:
+        pass
+
+    def __repr__(self) -> str:
+        pass
+
+    def to_xml_string(self, indent=1):
+        pass
+
+
+class ContentCluster(Cluster):
+    def __init__(self,
+                 id: str,
+                 version: str = "1.0",
+                 nodes: Optional[Nodes] = None,
+                 document_name: Optional[str] = None
+                 ) -> None:
+        pass
+
+    def __repr__(self) -> str:
+        pass
+
+    def to_xml_string(self, indent=1):
+        pass
+
+
 class ValidationID(Enum):
     """Collection of IDs that can be used in validation-overrides.xml
 
