@@ -1809,28 +1809,12 @@ class Cluster(object):
                  nodes: Optional[Nodes] = None,
                  ) -> None:
         """
-        Define the configuration of a container or content cluster.
-
-        If :class: `Cluster` is used, :class: `Component`s must be added to the :class: `Cluster`,
-        rather than to the :class: `ApplicationPackage`, in order to be included in the generated schema.
+        Base class for a cluster configuration. Should not be instantiated directly.
+        Use subclasses :class: `ContainerCluster` or :class: `ContentCluster` instead.
 
         :param id: Cluster id
         :param version: Cluster version.
         :param nodes: :class: `Nodes` that specifies node resources.
-
-        Example:
-
-        >>> ContainerCluster(id="example_container",
-        ...    components=[Component(id="e5", type="hugging-face-embedder",
-        ...        parameters=[
-        ...            Parameter("transformer-model", {"url": "https://github.com/vespa-engine/sample-apps/raw/master/simple-semantic-search/model/e5-small-v2-int8.onnx"}),
-        ...            Parameter("tokenizer-model", {"url": "https://raw.githubusercontent.com/vespa-engine/sample-apps/master/simple-semantic-search/model/tokenizer.json"})
-        ...        ]
-        ...    )]
-        ... )
-        ContainerCluster(id="example_container", version="1.0", components="[Component(id="e5", type="hugging-face-embedder")]")
-        >>> ContentCluster(id="example_content", document_name="doc")
-        ContentCluster(id="example_content", version="1.0", document_name="doc")
         """
         self.id = id
         self.version = version
@@ -1850,6 +1834,26 @@ class ContainerCluster(Cluster):
                  nodes: Optional[Nodes] = None,
                  components: Optional[List[Component]] = None,
                  ) -> None:
+        """
+        Defines the configuration of a container cluster.
+
+        :param components: List of :class:`Component` that contains configurations for application components, e.g. embedders.
+
+        If :class: `ContainerCluster` is used, any :class: `Component`s must be added to the :class: `ContainerCluster`,
+        rather than to the :class: `ApplicationPackage`, in order to be included in the generated schema.
+
+        Example:
+
+        >>> ContainerCluster(id="example_container",
+        ...    components=[Component(id="e5", type="hugging-face-embedder",
+        ...        parameters=[
+        ...            Parameter("transformer-model", {"url": "https://github.com/vespa-engine/sample-apps/raw/master/simple-semantic-search/model/e5-small-v2-int8.onnx"}),
+        ...            Parameter("tokenizer-model", {"url": "https://raw.githubusercontent.com/vespa-engine/sample-apps/master/simple-semantic-search/model/tokenizer.json"})
+        ...        ]
+        ...    )]
+        ... )
+        ContainerCluster(id="example_container", version="1.0", components="[Component(id="e5", type="hugging-face-embedder")]")
+        """
         self.id = id
         self.version = version
         self.nodes = nodes
@@ -1889,7 +1893,6 @@ class ContainerCluster(Cluster):
         return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
 
 
-
 class ContentCluster(Cluster):
     def __init__(self,
                  id: str,
@@ -1897,10 +1900,21 @@ class ContentCluster(Cluster):
                  version: str = "1.0",
                  nodes: Optional[Nodes] = None
                  ) -> None:
+        """
+        Defines the configuration of a content cluster.
+
+        :param document_name: Name of document.
+
+        Example:
+
+        >>> ContentCluster(id="example_content", document_name="doc")
+        ContentCluster(id="example_content", version="1.0", document_name="doc")
+        """
         self.id = id
         self.version = version
         self.nodes = nodes
         self.document_name = document_name
+
     def __repr__(self) -> str:
         base_str = super().__repr__()
         document_name = f", document_name=\"{self.document_name}\"" if self.document_name else ""
