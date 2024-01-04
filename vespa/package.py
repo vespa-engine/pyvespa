@@ -1765,7 +1765,7 @@ class Nodes(object):
                  parameters: Optional[List[Parameter]] = None,
                  ) -> None:
         """
-        Specify node resources for a content or container cluster as part of a :class: `Cluster`.
+        Specify node resources for a content or container cluster as part of a :class: `ContainerCluster` or :class: `ContentCluster`.
 
         :param count: Number of nodes in a cluster.
         :param parameters: List of :class: `Parameter`s defining the configuration of the cluster resources.
