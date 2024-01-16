@@ -21,7 +21,8 @@ from vespa.package import (
     QueryProfile,
     Component,
     Nodes,
-    Cluster,
+    ContentCluster,
+    ContainerCluster,
     Parameter,
     ApplicationPackage,
     AuthClient
@@ -1360,8 +1361,7 @@ class TestFieldAlias(unittest.TestCase):
 class TestCluster(unittest.TestCase):
     def setUp(self) -> None:
         clusters = [
-            Cluster(type="container",
-                    id="test_container",
+            ContainerCluster(id="test_container",
                     nodes=Nodes(
                         count="1",
                         parameters=[
@@ -1378,7 +1378,7 @@ class TestCluster(unittest.TestCase):
                                           ])
                                 ]
                     ),
-            Cluster(type="content", id="test_content", document_name="test")
+            ContentCluster(id="test_content", document_name="test")
         ]
 
         self.app_package = ApplicationPackage(name="test", clusters=clusters)
@@ -1388,6 +1388,11 @@ class TestCluster(unittest.TestCase):
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<services version="1.0">\n'
             '    <container id="test_container" version="1.0">\n'
+            '        <nodes count="1">\n'
+            '            <resources vcpu="4.0" memory="16Gb" disk="125Gb">\n'
+            '                <gpu count="1" memory="16Gb"/>\n'
+            '            </resources>\n'
+            '        </nodes>\n'
             '        <search></search>\n'
             '        <document-api></document-api>\n'
             '        <document-processing></document-processing>\n'
@@ -1395,20 +1400,15 @@ class TestCluster(unittest.TestCase):
             '            <transformer-model path="model/model.onnx"/>\n'
             '            <tokenizer-model path="model/tokenizer.json"/>\n'
             '        </component>\n'
-            '        <nodes count="1">\n'
-            '            <resources vcpu="4.0" memory="16Gb" disk="125Gb">\n'
-            '                <gpu count="1" memory="16Gb"/>\n'
-            '            </resources>\n'
-            '        </nodes>\n'
             '    </container>\n'
             '    <content id="test_content" version="1.0">\n'
+            '        <nodes>\n'
+            '            <node distribution-key="0" hostalias="node1"></node>\n'
+            '        </nodes>\n'
             '        <redundancy>1</redundancy>\n'
             '        <documents>\n'
             '            <document type="test" mode="index"></document>\n'
             '        </documents>\n'
-            '        <nodes>\n'
-            '            <node distribution-key="0" hostalias="node1"></node>\n'
-            '        </nodes>\n'
             '    </content>\n'
             '</services>'
         )
