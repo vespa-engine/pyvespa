@@ -1,4 +1,4 @@
-.[full]
+.[dev]
 sphinx
 ipykernel
 nbsphinx
