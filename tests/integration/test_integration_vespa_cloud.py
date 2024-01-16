@@ -9,7 +9,7 @@ import unittest
 from cryptography.hazmat.primitives import serialization
 from vespa.application import Vespa
 from vespa.deployment import VespaCloud
-from vespa.test_integration_docker import (
+from test_integration_docker import (
     TestApplicationCommon,
     create_msmarco_application_package,
 )

@@ -31,8 +31,7 @@ jobs:
           dnf install -y python38-pip
           dnf install -y --enablerepo=powertools pandoc
           python3 -m pip install --upgrade pip
-          python3 -m pip install pytest notebook nbconvert requests_mock
-          python3 -m pip install -e .[full]
+          python3 -m pip install -e .[dev]
           python3 -m pip install -r docs/sphinx/source/requirements.txt
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
       - run-doc-linkcheck: |
@@ -40,9 +39,9 @@ jobs:
           sphinx-build -E -D exclude_patterns=getting-started-pyvespa-cloud.ipynb docs/sphinx/source docs/sphinx/build
           rm -fr docs/sphinx/build
       - run-doc-tests: |
-          pytest vespa --doctest-modules --ignore-glob=vespa/test_*.py
+          pytest vespa --doctest-modules
       - run-unit-tests: |
-          pytest vespa --ignore-glob=vespa/test_integration*.py
+          pytest tests/unit
 
   integration-except-cloud:
     requires: [~commit,~pr]
@@ -67,10 +66,9 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
-          python3 -m pip install pytest
-          python3 -m pip install -e .[full]
+          python3 -m pip install -e .[dev]
       - run-integration-docker: |
-          pytest vespa/test_integration_docker.py -s -v
+          pytest tests/integration/test_integration_docker.py -s -v
 
   notebooks-except-cloud:
     requires: [~commit,~pr]
@@ -96,7 +94,7 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
-          python3 -m pip install -e .[full]
+          python3 -m pip install -e .[dev]
           python3 -m pip install -r docs/sphinx/source/requirements.txt
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
       - install-vespa-cli: |
@@ -141,10 +139,9 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
-          python3 -m pip install pytest
-          python3 -m pip install -e .[full]
+          python3 -m pip install -e .[dev]
       - run-integration-cloud: |
-          pytest vespa/test_integration_vespa_cloud.py -s -v
+          pytest tests/integration/test_integration_vespa_cloud.py -s -v
 
   integration-cloud-token:
     requires: [~commit]
@@ -165,10 +162,9 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
-          python3 -m pip install pytest
-          python3 -m pip install -e .[full]
+          python3 -m pip install -e .[dev]
       - run-integration-cloud: |
-          pytest vespa/test_integration_vespa_cloud_token.py -s -v
+          pytest tests/integration/test_integration_vespa_cloud_token.py -s -v
 
   integration-cloud-vector-search:
     requires: [~commit]
@@ -189,10 +185,9 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
-          python3 -m pip install pytest datasets
-          python3 -m pip install -e .[full]
+          python3 -m pip install -e .[dev]
       - run-integration-cloud: |
-          pytest vespa/test_integration_vespa_cloud_vector_search.py -s -v
+          pytest tests/integration/test_integration_vespa_cloud_vector_search.py -s -v
 
   notebooks-cloud:
     requires: [integration-cloud]
@@ -212,8 +207,7 @@ jobs:
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
-          python3 -m pip install pytest notebook nbconvert runnb
-          python3 -m pip install -e .[full]
+          python3 -m pip install -e .[dev]
           python3 -m pip install -r docs/sphinx/source/requirements.txt
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
       - install-vespa-cli: |

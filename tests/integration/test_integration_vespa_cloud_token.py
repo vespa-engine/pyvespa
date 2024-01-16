@@ -9,7 +9,7 @@ from requests import HTTPError
 from vespa.application import Vespa
 from vespa.package import AuthClient, Parameter
 from vespa.deployment import VespaCloud
-from vespa.test_integration_docker import (
+from test_integration_docker import (
     TestApplicationCommon,
     create_msmarco_application_package,
 )
