@@ -8,7 +8,7 @@ shared:
     PYVESPA_VERSION: 0.7
 jobs:
   unit-tests:
-    requires: [~commit,~pr]
+    requires: [~commit]
     annotations:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
@@ -44,7 +44,7 @@ jobs:
           pytest tests/unit
 
   integration-except-cloud:
-    requires: [~commit,~pr]
+    requires: [~commit]
     annotations:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
@@ -71,7 +71,7 @@ jobs:
           pytest tests/integration/test_integration_docker.py -s -v
 
   notebooks-except-cloud:
-    requires: [~commit,~pr]
+    requires: [~commit]
     annotations:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
