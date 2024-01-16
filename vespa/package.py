@@ -1765,14 +1765,14 @@ class Nodes(object):
                  parameters: Optional[List[Parameter]] = None,
                  ) -> None:
         """
-        Specify node resources for a content or container cluster as part of a :class: `Cluster`.
+        Specify node resources for a content or container cluster as part of a :class: `ContainerCluster` or :class: `ContentCluster`.
 
         :param count: Number of nodes in a cluster.
         :param parameters: List of :class: `Parameter`s defining the configuration of the cluster resources.
 
         Example:
 
-        >>> Cluster(id="example_container", type="container",
+        >>> ContainerCluster(id="example_container",
         ...    nodes=Nodes(
         ...        count="2",
         ...        parameters=[
@@ -1782,7 +1782,7 @@ class Nodes(object):
         ...        ]
         ...    )
         ... )
-        Cluster(id="example_container", type="container", version="1.0", nodes="Nodes(count="2")")
+        ContainerCluster(id="example_container", version="1.0", nodes="Nodes(count="2")")
         """
         self.count = count
         self.parameters = parameters
@@ -1805,28 +1805,54 @@ class Nodes(object):
 class Cluster(object):
     def __init__(self,
                  id: str,
-                 type: str,
                  version: str = "1.0",
                  nodes: Optional[Nodes] = None,
-                 components: Optional[List[Component]] = None,
-                 document_name: Optional[str] = None
                  ) -> None:
         """
-        Define the configuration of a container or content cluster.
-
-        If :class: `Cluster` is used, :class: `Component`s must be added to the :class: `Cluster`,
-        rather than to the :class: `ApplicationPackage`, in order to be included in the generated schema.
+        Base class for a cluster configuration. Should not be instantiated directly.
+        Use subclasses :class: `ContainerCluster` or :class: `ContentCluster` instead.
 
         :param id: Cluster id
-        :param type: The type of cluster. Either "container" or "content".
         :param version: Cluster version.
         :param nodes: :class: `Nodes` that specifies node resources.
+        """
+        self.id = id
+        self.version = version
+        self.nodes = nodes
+
+    def __repr__(self) -> str:
+        id = f"id=\"{self.id}\""
+        version = f", version=\"{self.version}\""
+        nodes = f", nodes=\"{self.nodes}\"" if self.nodes else ""
+        return f"{self.__class__.__name__}({id}{version}{nodes}"
+
+    def to_xml(self, root):
+        """Set up XML elements that are used in both container and content clusters."""
+        root.set("id", self.id)
+        root.set("version", self.version)
+
+        if self.nodes:
+            self.nodes.to_xml(root)
+
+
+class ContainerCluster(Cluster):
+    def __init__(self,
+                 id: str,
+                 version: str = "1.0",
+                 nodes: Optional[Nodes] = None,
+                 components: Optional[List[Component]] = None
+                 ) -> None:
+        """
+        Defines the configuration of a container cluster.
+
         :param components: List of :class:`Component` that contains configurations for application components, e.g. embedders.
-        :param document_name: Name of document. Only used in content Cluster
+
+        If :class: `ContainerCluster` is used, any :class: `Component`s must be added to the :class: `ContainerCluster`,
+        rather than to the :class: `ApplicationPackage`, in order to be included in the generated schema.
 
         Example:
 
-        >>> Cluster(id="example_container", type="container",
+        >>> ContainerCluster(id="example_container",
         ...    components=[Component(id="e5", type="hugging-face-embedder",
         ...        parameters=[
         ...            Parameter("transformer-model", {"url": "https://github.com/vespa-engine/sample-apps/raw/master/simple-semantic-search/model/e5-small-v2-int8.onnx"}),
@@ -1834,87 +1860,97 @@ class Cluster(object):
         ...        ]
         ...    )]
         ... )
-        Cluster(id="example_container", type="container", version="1.0", components="[Component(id="e5", type="hugging-face-embedder")]")
-        >>> Cluster(id="example_content", type="content", document_name="doc")
-        Cluster(id="example_content", type="content", version="1.0", document_name="doc")
+        ContainerCluster(id="example_container", version="1.0", components="[Component(id="e5", type="hugging-face-embedder")]")
         """
-        self.id = id
-        self.type = type
-        self.version = version
-        self.nodes = nodes
+        super().__init__(id, version, nodes)
         self.components = components
+
+    def __repr__(self) -> str:
+        base_str = super().__repr__()
+        components = f", components=\"{self.components}\"" if self.components else ""
+        return f"{base_str}{components})"
+
+    def to_xml_string(self, indent=1):
+        root = ET.Element("container")
+        super().to_xml(root)
+
+        # Add default elements in container
+        for child in ["search", "document-api", "document-processing"]:
+            ET.SubElement(root, child)
+
+        # Add potential components
+        if self.components:
+            for comp in self.components:
+                comp.to_xml(root)
+
+        # Temporary workaround to get ElementTree to print closing tags.
+        # Otherwise it prints <search/>, etc.
+        # TODO: Find a permanent solution
+        xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4)
+        for child in ["search", "document-api", "document-processing"]:
+            xml_str = xml_str.replace(f'<{child}/>', f'<{child}></{child}>')
+
+        # Indent XML and remove opening tag
+        xml_lines = xml_str.strip().split("\n")
+        return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
+
+
+class ContentCluster(Cluster):
+    def __init__(self,
+                 id: str,
+                 document_name: str,
+                 version: str = "1.0",
+                 nodes: Optional[Nodes] = None
+                 ) -> None:
+        """
+        Defines the configuration of a content cluster.
+
+        :param document_name: Name of document.
+
+        Example:
+
+        >>> ContentCluster(id="example_content", document_name="doc")
+        ContentCluster(id="example_content", version="1.0", document_name="doc")
+        """
+        super().__init__(id, version, nodes)
         self.document_name = document_name
 
     def __repr__(self) -> str:
-        id = f"id=\"{self.id}\""
-        type = f", type=\"{self.type}\""
-        version = f", version=\"{self.version}\""
-        nodes = f", nodes=\"{self.nodes}\"" if self.nodes else ""
-        components = f", components=\"{self.components}\"" if self.components else ""
+        base_str = super().__repr__()
         document_name = f", document_name=\"{self.document_name}\"" if self.document_name else ""
-        return f"{self.__class__.__name__}({id}{type}{version}{nodes}{components}{document_name})"
+        return f"{base_str}{document_name})"
 
     def to_xml_string(self, indent=1):
-        if self.type == "container":
-            root = ET.Element("container")
-            root.set("id", self.id)
-            root.set("version", self.version)
+        root = ET.Element("content")
+        super().to_xml(root)
 
-            # Add default elements in container
-            for child in ["search", "document-api", "document-processing"]:
-                ET.SubElement(root, child)
-
-            # Add potential components
-            if self.components:
-                for comp in self.components:
-                    comp.to_xml(root)
-
-            if self.nodes:
-                self.nodes.to_xml(root)
-
-            # Temporary workaround to get ElementTree to print closing tags.
-            # Otherwise it prints <search/>, etc.
-            # TODO: Find a permanent solution
-            xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4)
-            for child in ["search", "document-api", "document-processing"]:
-                xml_str = xml_str.replace(f'<{child}/>', f'<{child}></{child}>')
-
-            # Indent XML and remove opening tag
-            xml_lines = xml_str.strip().split("\n")
-            return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
-        elif self.type == "content":
-            root = ET.Element("content")
-            root.set("id", self.id)
-            root.set("version", self.version)
-
-            ET.SubElement(root, "redundancy").text = "1"
-
-            if self.document_name:
-                documents = ET.SubElement(root, "documents")
-                document = ET.SubElement(documents, "document")
-                document.set("type", self.document_name)
-                document.set("mode", "index")
-            else:
-                raise ValueError("Missing parameter 'document_name' for content Cluster")
-
+        if not self.nodes:
+            # Use some sensible defaults if the user doesn't pass a Nodes configuration.
+            # The defaults are the ones generated if the Cluster classes are not used at all.
             nodes = ET.SubElement(root, "nodes")
             node = ET.SubElement(nodes, "node")
             node.set("distribution-key", "0")
             node.set("hostalias", "node1")
 
-            # Temporary workaround for expanding tags.
-            # minidom's toprettyxml collapses empty tags, even if short_empty_elements is false in ET.tostring()
-            # Probably need to pretty print the xml ourselves
-            # TODO Find a more permanent solution
-            xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4)
-            xml_str = xml_str.replace('<document type="test" mode="index"/>', '<document type="test" mode="index"></document>')
-            xml_str = xml_str.replace('<node distribution-key="0" hostalias="node1"/>', '<node distribution-key="0" hostalias="node1"></node>')
+        ET.SubElement(root, "redundancy").text = "1"
 
-            # Indent XML and remove opening tag
-            xml_lines = xml_str.strip().split("\n")
-            return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
-        else:
-            raise ValueError(f"Invalid Cluster type '{self.type}'. Supported types: 'container', 'content'")
+        documents = ET.SubElement(root, "documents")
+        document = ET.SubElement(documents, "document")
+        document.set("type", self.document_name)
+        document.set("mode", "index")
+
+        # Temporary workaround for expanding tags.
+        # minidom's toprettyxml collapses empty tags, even if short_empty_elements is false in ET.tostring()
+        # Probably need to pretty print the xml ourselves
+        # TODO Find a more permanent solution
+        xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4)
+        xml_str = xml_str.replace('<document type="test" mode="index"/>', '<document type="test" mode="index"></document>')
+        xml_str = xml_str.replace('<node distribution-key="0" hostalias="node1"/>', '<node distribution-key="0" hostalias="node1"></node>')
+
+        # Indent XML and remove opening tag
+        xml_lines = xml_str.strip().split("\n")
+        return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
+
 
 class ValidationID(Enum):
     """Collection of IDs that can be used in validation-overrides.xml
