@@ -190,7 +190,7 @@ jobs:
           pytest tests/integration/test_integration_vespa_cloud_vector_search.py -s -v
 
   notebooks-cloud:
-    requires: [integration-cloud]
+    requires: [~pr]
     annotations:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
