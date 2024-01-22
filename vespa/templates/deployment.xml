@@ -1,0 +1,5 @@
+<deployment version="1.0">
+    {% autoescape off %}
+    {{ deployment_config.to_xml_string(1) }}
+    {% endautoescape %}
+</deployment>
