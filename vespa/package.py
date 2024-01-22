@@ -2293,6 +2293,9 @@ class ApplicationPackage(object):
                     self.query_profile_type_to_text,
                 )
 
+            if self.deployment_config:
+                zip_archive.writestr("deployment.xml", self.deployment_to_text)
+
         buffer.seek(0)
         return buffer
 
@@ -2364,6 +2367,10 @@ class ApplicationPackage(object):
         if self.validations:
             with open(os.path.join(root, "validation-overrides.xml"), "w") as f:
                 f.write(self.validations_to_text)
+
+        if self.deployment_config:
+            with open(os.path.join(root, "deployment.xml"), "w") as f:
+                f.write(self.deployment_to_text)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
