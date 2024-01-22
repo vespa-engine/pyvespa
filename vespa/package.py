@@ -2027,6 +2027,37 @@ class Validation(object):
         self.comment = comment
 
 
+class DeploymentConfiguration(object):
+    def __init__(self, environment: str, regions: List[str]):
+        self.environment = environment
+        self.regions = regions
+
+    def deployment_to_text(self):
+        env = Environment(
+            loader=PackageLoader("vespa", "templates"),
+            autoescape=select_autoescape(
+                disabled_extensions=("txt",),
+                default_for_string=True,
+                default=True,
+            ),
+        )
+        env.trim_blocks = True
+        env.lstrip_blocks = True
+        deployment_template = env.get_template("deployment.xml")
+        return deployment_template.render(
+            deployment_config=self  # In order to be able to call to_xml_string from the template
+        )
+
+    def to_xml_string(self, indent=1) -> str:
+        root = ET.Element(self.environment)
+        for region in self.regions:
+            region_xml = ET.SubElement(root, "region")
+            region_xml.text = region
+
+        xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4)
+        xml_lines = xml_str.strip().split("\n")
+        return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
+
 class ApplicationPackage(object):
     def __init__(
         self,
@@ -2042,6 +2073,7 @@ class ApplicationPackage(object):
         components: Optional[List[Component]] = None,
         auth_clients: Optional[List[AuthClient]] = None,
         clusters: Optional[List[Cluster]] = None,
+        deployment_config: Optional[DeploymentConfiguration] = None,
     ) -> None:
         """
         Create an `Application Package <https://docs.vespa.ai/en/application-packages.html>`__.
@@ -2105,6 +2137,7 @@ class ApplicationPackage(object):
         self.components = components
         self.auth_clients = auth_clients
         self.clusters = clusters
+        self.deployment_config = deployment_config
 
     @property
     def schemas(self) -> List[Schema]:
