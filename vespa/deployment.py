@@ -450,7 +450,7 @@ class VespaCloud(VespaDeployment):
         if not disk_folder:
             disk_folder = os.path.join(os.getcwd(), self.application_package.name)
         self.application_package.to_files(disk_folder)
-        
+
         region = self.get_dev_region()
         job = "dev-" + region
         run = self._start_deployment(instance, job, disk_folder, None)
@@ -805,6 +805,10 @@ class VespaCloud(VespaDeployment):
                 "security/clients.pem",
                 self.data_certificate.public_bytes(serialization.Encoding.PEM),
             )
+            if self.application_package.deployment_config:
+                zip_archive.writestr(
+                    "deployment.xml", self.application_package.deployment_to_text
+                )
 
         return buffer
 
