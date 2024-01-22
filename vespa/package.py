@@ -2032,22 +2032,6 @@ class DeploymentConfiguration(object):
         self.environment = environment
         self.regions = regions
 
-    def deployment_to_text(self):
-        env = Environment(
-            loader=PackageLoader("vespa", "templates"),
-            autoescape=select_autoescape(
-                disabled_extensions=("txt",),
-                default_for_string=True,
-                default=True,
-            ),
-        )
-        env.trim_blocks = True
-        env.lstrip_blocks = True
-        deployment_template = env.get_template("deployment.xml")
-        return deployment_template.render(
-            deployment_config=self  # In order to be able to call to_xml_string from the template
-        )
-
     def to_xml_string(self, indent=1) -> str:
         root = ET.Element(self.environment)
         for region in self.regions:
@@ -2247,6 +2231,21 @@ class ApplicationPackage(object):
         env.lstrip_blocks = True
         validations_template = env.get_template("validation-overrides.xml")
         return validations_template.render(validations=self.validations)
+
+    @property
+    def deployment_to_text(self):
+        env = Environment(
+            loader=PackageLoader("vespa", "templates"),
+            autoescape=select_autoescape(
+                disabled_extensions=("txt",),
+                default_for_string=True,
+                default=True,
+            ),
+        )
+        env.trim_blocks = True
+        env.lstrip_blocks = True
+        deployment_template = env.get_template("deployment.xml")
+        return deployment_template.render(deployment_config=self.deployment_config)
 
     @staticmethod
     def _application_package_file_name(disk_folder):
