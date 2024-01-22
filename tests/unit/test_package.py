@@ -25,9 +25,9 @@ from vespa.package import (
     ContainerCluster,
     Parameter,
     ApplicationPackage,
-    AuthClient
+    AuthClient,
+    DeploymentConfiguration
 )
-
 
 class TestField(unittest.TestCase):
     def test_field_name_type(self):
@@ -1413,3 +1413,22 @@ class TestCluster(unittest.TestCase):
             '</services>'
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
+
+
+class TestDeploymentConfiguration(unittest.TestCase):
+    def test_deployment_to_text(self):
+        deploy_config = DeploymentConfiguration(
+            environment="prod",
+            regions=["aws-us-east-1c", "aws-us-west-2a"]
+        )
+
+        expected_result = (
+            '<deployment version="1.0">\n'
+            '    <prod>\n'
+            '        <region>aws-us-east-1c</region>\n'
+            '        <region>aws-us-west-2a</region>\n'
+            '    </prod>\n'
+            '</deployment>'
+        )
+
+        self.assertEqual(expected_result, deploy_config.deployment_to_text())
