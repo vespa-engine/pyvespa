@@ -1422,6 +1422,8 @@ class TestDeploymentConfiguration(unittest.TestCase):
             regions=["aws-us-east-1c", "aws-us-west-2a"]
         )
 
+        app_package = ApplicationPackage(name="test", deployment_config=deploy_config)
+
         expected_result = (
             '<deployment version="1.0">\n'
             '    <prod>\n'
@@ -1431,4 +1433,4 @@ class TestDeploymentConfiguration(unittest.TestCase):
             '</deployment>'
         )
 
-        self.assertEqual(expected_result, deploy_config.deployment_to_text())
+        self.assertEqual(expected_result, app_package.deployment_to_text)
