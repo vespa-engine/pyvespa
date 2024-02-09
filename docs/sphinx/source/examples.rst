@@ -10,3 +10,8 @@ Examples
    examples/turbocharge-rag-with-langchain-and-vespa-streaming-mode-cloud
    examples/lightgbm-with-categorical
    examples/lightgbm-with-categorical-mapping
+   examples/Matryoshka_embeddings_in_Vespa-cloud.ipynb
+   examples/arxiv-search-streaming-dataset-cloud.ipynb
+   examples/chat_with_your_pdfs_using_colbert_langchain_and_Vespa-cloud.ipynb
+   examples/mother-of-all-embedding-models-cloud.ipynb
+   examples/nomic-embeddings-cloud.ipynb
