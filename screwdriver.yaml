@@ -28,7 +28,7 @@ jobs:
           docker system info
           ls -la $SD_DIND_SHARE_PATH
       - install-python: |
-          dnf install -y python38-pip gcc gcc-c++ # gcc required for pytrec_eval
+          dnf install -y python38-pip python38-devel gcc gcc-c++ # gcc et al required for pytrec_eval
           dnf install -y --enablerepo=powertools pandoc
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[dev]
@@ -92,7 +92,7 @@ jobs:
           docker system info
           ls -la $SD_DIND_SHARE_PATH
       - install-python: |
-          dnf install -y python38-pip gcc gcc-c++ # gcc required for pytrec_eval
+          dnf install -y python38-pip python38-devel gcc gcc-c++ # gcc required for pytrec_eval
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[dev]
           python3 -m pip install -r docs/sphinx/source/requirements.txt
@@ -205,7 +205,7 @@ jobs:
           export WORK_DIR=$SD_DIND_SHARE_PATH
           export RESOURCES_DIR=$(pwd)/vespa/resources
       - install-python: |
-          dnf install -y python38-pip gcc gcc-c++ # gcc required for pytrec_eval
+          dnf install -y python38-pip gcc python38-devel gcc-c++ # gcc required for pytrec_eval
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[dev]
           python3 -m pip install -r docs/sphinx/source/requirements.txt
