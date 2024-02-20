@@ -997,7 +997,7 @@ class RankProfileFields(TypedDict, total=False):
     weight: List[Tuple[str, int]]
     rank_type: List[Tuple[str, str]]
     rank_properties: List[Tuple[str, str]]
-    inputs: List[Tuple[str, str, str]]
+    inputs: List[Union[Tuple[str, str], Tuple[str, str, str]]]
 
 
 class RankProfile(object):
