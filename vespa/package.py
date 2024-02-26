@@ -2076,9 +2076,15 @@ class ApplicationPackage(object):
         It will create a default :class:`Schema`, :class:`QueryProfile` and :class:`QueryProfileType` that you can then
         populate with specifics of your application.
         """
-        if not name.isalnum():
+        if not (
+            name[0].isalpha()
+            and name.islower()
+            and len(name) <= 20
+            and all(char.isalnum() or char == "-" for char in name)
+            and "--" not in name
+        ):
             raise ValueError(
-                "Application package name can only contain [a-zA-Z0-9], was '{}'".format(
+                "Application name must start with a letter, must be lowercase, can only contain [a-z0-9] and single dashes (not consecutive), and may contain no more than 20 characters, was '{}'".format(
                     name
                 )
             )
