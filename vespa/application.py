@@ -7,7 +7,7 @@ import asyncio
 import requests
 import traceback
 import concurrent.futures
-from typing import Optional, Dict, List, IO, Iterable, Callable, Tuple,Union
+from typing import Any, Optional, Dict, List, IO, Iterable, Callable, Tuple,Union
 from concurrent.futures import ThreadPoolExecutor, Future
 from queue import Queue, Empty
 import threading
@@ -73,6 +73,7 @@ class Vespa(object):
         vespa_cloud_secret_token: Optional[str] = None,
         output_file: IO = sys.stdout,
         application_package: Optional[ApplicationPackage] = None,
+        **kwargs: Any
     ) -> None:
         """
         Establish a connection with an existing Vespa application.
@@ -105,6 +106,7 @@ class Vespa(object):
         self.key = key
         self.vespa_cloud_secret_token = vespa_cloud_secret_token
         self._application_package = application_package
+        self.kwargs = kwargs
 
         if port is None:
             self.end_point = self.url
@@ -127,7 +129,7 @@ class Vespa(object):
         :return: Instance of Vespa asynchronous layer.
         """
         return VespaAsync(
-            app=self, connections=connections, total_timeout=total_timeout
+            app=self, connections=connections, total_timeout=total_timeout, **self.kwargs
         )
 
     def syncio(
@@ -141,7 +143,7 @@ class Vespa(object):
         :return: Instance of Vespa asynchronous layer.
         """
         return VespaSync(
-            app=self, pool_connections=connections, pool_maxsize=connections
+            app=self, pool_connections=connections, pool_maxsize=connections, **self.kwargs
         )
 
     @staticmethod
@@ -603,7 +605,7 @@ class Vespa(object):
 
 
 class VespaSync(object):
-    def __init__(self, app: Vespa, pool_maxsize: int = 10, pool_connections=10) -> None:
+    def __init__(self, app: Vespa, pool_maxsize: int = 10, pool_connections: int = 10, **kwargs) -> None:
         self.app = app
         if self.app.key:
             self.cert = (self.app.cert, self.app.key)
@@ -613,7 +615,7 @@ class VespaSync(object):
             self.headers = {"Authorization": f"Bearer {self.app.vespa_cloud_secret_token}"}
         self.http_session = None
         self.adapter = HTTPAdapter(
-            max_retries=retry_strategy, pool_maxsize=pool_maxsize, pool_connections=pool_connections
+            max_retries=retry_strategy, pool_maxsize=pool_maxsize, pool_connections=pool_connections, **kwargs
         )
 
     def __enter__(self):
@@ -881,12 +883,13 @@ class VespaSync(object):
 
 class VespaAsync(object):
     def __init__(
-        self, app: Vespa, connections: Optional[int] = 10, total_timeout: int = 180
+        self, app: Vespa, connections: Optional[int] = 10, total_timeout: int = 180, **kwargs
     ) -> None:
         self.app = app
         self.aiohttp_session = None
         self.connections = connections
         self.total_timeout = total_timeout
+        self.kwargs = kwargs
         if self.app.vespa_cloud_secret_token:
             self.headers = {
                 "Authorization": f"Bearer {self.app.vespa_cloud_secret_token}",
@@ -907,7 +910,7 @@ class VespaAsync(object):
         if self.app.cert is not None:
             sslcontext = ssl.create_default_context()
             sslcontext.load_cert_chain(self.app.cert, self.app.key)
-        conn = aiohttp.TCPConnector(ssl=sslcontext, limit=self.connections)
+        conn = aiohttp.TCPConnector(ssl=sslcontext, limit=self.connections, **self.kwargs)
         if self.app.vespa_cloud_secret_token:
             self.aiohttp_session = aiohttp.ClientSession(
                 connector=conn,
