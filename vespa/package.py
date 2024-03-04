@@ -1932,7 +1932,8 @@ class ContentCluster(Cluster):
             node.set("distribution-key", "0")
             node.set("hostalias", "node1")
 
-        ET.SubElement(root, "redundancy").text = "1"
+        #ET.SubElement(root, "redundancy").text = "1"
+        ET.SubElement(root, "min-redundancy").text = "2"
 
         documents = ET.SubElement(root, "documents")
         document = ET.SubElement(documents, "document")

@@ -14,6 +14,7 @@ from typing import Tuple, Union, IO, Optional, List
 
 import docker
 import requests
+from requests_toolbelt.multipart.encoder import MultipartEncoder
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization, hashes
@@ -451,10 +452,16 @@ class VespaCloud(VespaDeployment):
             disk_folder = os.path.join(os.getcwd(), self.application_package.name)
         self.application_package.to_files(disk_folder)
 
-        region = self.get_dev_region()
-        job = "dev-" + region
-        run = self._start_deployment(instance, job, disk_folder, None)
-        self._follow_deployment(instance, job, run)
+        if self.application_package.deployment_config:
+            response = self._start_prod_deployment(disk_folder)
+            return response
+            # region = self.application_package.deployment_config.regions[0]
+            # print(f"{region = }")
+        else:
+            region = self.get_dev_region()
+            job = "dev-" + region
+            run = self._start_deployment(instance, job, disk_folder, None)
+            self._follow_deployment(instance, job, run)
 
         token = os.environ.get(VESPA_CLOUD_SECRET_TOKEN, None)
         if token is None:
@@ -730,6 +737,79 @@ class VespaCloud(VespaDeployment):
                 if authMethod == "token":
                     return endpoint['url']
         raise RuntimeError("No token endpoints found for container cluster " + cluster_name)
+
+    def _start_prod_deployment(self, disk_folder: str):
+        # The submit API is used for prod deployments
+        deploy_path = "/application/v4/tenant/{}/application/{}/submit/".format(
+                self.tenant, self.application
+        )
+
+        # Create app package zip
+        Path(disk_folder).mkdir(parents=True, exist_ok=True)
+        application_package_zip_bytes = self._to_application_zip(disk_folder=disk_folder)
+
+        # Read certs
+        if self.private_cert_file_name:
+            # Means pyvespa generated its own cert/key
+            self._write_private_key_and_cert(
+                self.data_key, self.data_certificate, disk_folder
+            )
+
+        # Create submission
+        # TODO Avoid hardcoding projectId and risk
+        # TODO Consider supporting optional fields
+        submit_options = {
+            "projectId": 1,  
+            "risk": 0,
+            # "repository": "",
+            # "branch": "",
+            # "commit": "",
+            # "description": "",
+            # "authorEmail": "",
+            # "sourceUrl": ""
+        }
+
+        # Vespa expects prod deployments to be submitted as multipart data
+        multipart_data = MultipartEncoder(
+            fields={
+                'submitOptions': ('', json.dumps(submit_options), 'application/json'),
+                'applicationZip': ('application.zip', application_package_zip_bytes, 'application/zip')
+                # TODO Implement test package zip
+            }
+        )
+
+        # Compute content hash, etc 
+        url = "https://" + self.connection.host + ":" + str(self.connection.port) + deploy_path
+        digest = hashes.Hash(hashes.SHA256(), default_backend())
+        digest.update(multipart_data.to_string())  # This moves the buffer position to the end
+        multipart_data._buffer.seek(0)  # Needs to be reset. Otherwise, no data will be sent
+        content_hash = standard_b64encode(digest.finalize()).decode("UTF-8")
+        timestamp = (
+                datetime.utcnow().isoformat() + "Z"
+        )  # Java's Instant.parse requires the neutral time zone appended
+        canonical_message = "POST" + "\n" + url + "\n" + timestamp + "\n" + content_hash
+        signature = self.api_key.sign(
+            canonical_message.encode("UTF-8"), ec.ECDSA(hashes.SHA256())
+        )
+        headers = {
+            "X-Timestamp": timestamp,
+            "X-Content-Hash": content_hash,
+            "X-Key-Id": self.tenant + ":" + self.application + ":" + "default",
+            "X-Key": self.api_public_key_bytes,
+            "X-Authorization": standard_b64encode(signature),
+            "Content-Type": multipart_data.content_type,
+        }
+
+        response = requests.post(url, data=multipart_data, headers=headers)
+
+        message = response.json()["message"]
+        print(message, file=self.output)
+
+        return response
+        
+        # TODO Return run number
+        # run = response.json()["build"]
+        # return run
 
 
     def _start_deployment(self, instance: str, job: str, disk_folder: str,
