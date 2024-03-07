@@ -1900,12 +1900,14 @@ class ContentCluster(Cluster):
                  id: str,
                  document_name: str,
                  version: str = "1.0",
-                 nodes: Optional[Nodes] = None
+                 nodes: Optional[Nodes] = None,
+                 min_redundancy: Optional[str] = "1"
                  ) -> None:
         """
         Defines the configuration of a content cluster.
 
         :param document_name: Name of document.
+        :param min_redundancy: Minimum redundancy of the content cluster. Must be at least 2 for production deployments.
 
         Example:
 
@@ -1914,6 +1916,7 @@ class ContentCluster(Cluster):
         """
         super().__init__(id, version, nodes)
         self.document_name = document_name
+        self.min_redundancy = min_redundancy
 
     def __repr__(self) -> str:
         base_str = super().__repr__()
@@ -1932,8 +1935,7 @@ class ContentCluster(Cluster):
             node.set("distribution-key", "0")
             node.set("hostalias", "node1")
 
-        #ET.SubElement(root, "redundancy").text = "1"
-        ET.SubElement(root, "min-redundancy").text = "2"
+        ET.SubElement(root, "min-redundancy").text = self.min_redundancy
 
         documents = ET.SubElement(root, "documents")
         document = ET.SubElement(documents, "document")
