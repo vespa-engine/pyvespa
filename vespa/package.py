@@ -2086,6 +2086,7 @@ class ApplicationPackage(object):
         :param clusters: List of :class:`Cluster` that contains configurations for content or container clusters.
             If clusters is used, any :class: `Component`s must be configured as part of a cluster.
         :param clients: List of :class:`Client` that contains configurations for client authorization.
+        :param deployment_config: DeploymentConfiguration` that contains configurations for production deployments.
 
         The easiest way to get started is to create a default application package:
 
