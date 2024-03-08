@@ -452,16 +452,10 @@ class VespaCloud(VespaDeployment):
             disk_folder = os.path.join(os.getcwd(), self.application_package.name)
         self.application_package.to_files(disk_folder)
 
-        if self.application_package.deployment_config:
-            response = self._start_prod_deployment(disk_folder)
-            return response
-            # region = self.application_package.deployment_config.regions[0]
-            # print(f"{region = }")
-        else:
-            region = self.get_dev_region()
-            job = "dev-" + region
-            run = self._start_deployment(instance, job, disk_folder, None)
-            self._follow_deployment(instance, job, run)
+        region = self.get_dev_region()
+        job = "dev-" + region
+        run = self._start_deployment(instance, job, disk_folder, None)
+        self._follow_deployment(instance, job, run)
 
         token = os.environ.get(VESPA_CLOUD_SECRET_TOKEN, None)
         if token is None:
@@ -478,6 +472,28 @@ class VespaCloud(VespaDeployment):
         app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
         print("Finished deployment.", file=self.output)
         return app
+
+    def deploy_to_prod(self, instance: Optional[str]="default", disk_folder: Optional[str] = None) -> None:
+        """
+        Deploy the given application package as the given instance in the Vespa Cloud prod environment.
+
+        :param instance: Name of this instance of the application, in the Vespa Cloud.
+        :param disk_folder: Disk folder to save the required Vespa config files. Default to application name
+            folder within user's current working directory.
+        """
+        if not disk_folder:
+            disk_folder = os.path.join(os.getcwd(), self.application_package.name)
+        self.application_package.to_files(disk_folder)
+
+        if self.application_package.deployment_config is None:
+            raise ValueError("'Prod deployment requires a deployment_config.")
+
+        self._start_prod_deployment(disk_folder)
+
+        deploy_url = "https://console.vespa-cloud.com/tenant/{}/application/{}/prod/deployment".format(
+            self.tenant, self.application
+        )
+        print(f"Follow deployment at: {deploy_url}", file=self.output)
 
     def deploy_from_disk(self, instance: str, application_root: Path) -> Vespa:
         """
@@ -738,7 +754,7 @@ class VespaCloud(VespaDeployment):
                     return endpoint['url']
         raise RuntimeError("No token endpoints found for container cluster " + cluster_name)
 
-    def _start_prod_deployment(self, disk_folder: str):
+    def _start_prod_deployment(self, disk_folder: str) -> None:
         # The submit API is used for prod deployments
         deploy_path = "/application/v4/tenant/{}/application/{}/submit/".format(
                 self.tenant, self.application
@@ -804,12 +820,6 @@ class VespaCloud(VespaDeployment):
 
         message = response.json()["message"]
         print(message, file=self.output)
-
-        return response
-        
-        # TODO Return run number
-        # run = response.json()["build"]
-        # return run
 
 
     def _start_deployment(self, instance: str, job: str, disk_folder: str,
