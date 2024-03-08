@@ -1405,7 +1405,7 @@ class TestCluster(unittest.TestCase):
             '        <nodes>\n'
             '            <node distribution-key="0" hostalias="node1"></node>\n'
             '        </nodes>\n'
-            '        <redundancy>1</redundancy>\n'
+            '        <min-redundancy>1</min-redundancy>\n'
             '        <documents>\n'
             '            <document type="test" mode="index"></document>\n'
             '        </documents>\n'
