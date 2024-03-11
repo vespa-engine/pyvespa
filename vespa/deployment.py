@@ -14,6 +14,7 @@ from typing import Tuple, Union, IO, Optional, List
 
 import docker
 import requests
+from requests_toolbelt.multipart.encoder import MultipartEncoder
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization, hashes
@@ -450,7 +451,7 @@ class VespaCloud(VespaDeployment):
         if not disk_folder:
             disk_folder = os.path.join(os.getcwd(), self.application_package.name)
         self.application_package.to_files(disk_folder)
-        
+
         region = self.get_dev_region()
         job = "dev-" + region
         run = self._start_deployment(instance, job, disk_folder, None)
@@ -471,6 +472,28 @@ class VespaCloud(VespaDeployment):
         app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
         print("Finished deployment.", file=self.output)
         return app
+
+    def deploy_to_prod(self, instance: Optional[str]="default", disk_folder: Optional[str] = None) -> None:
+        """
+        Deploy the given application package as the given instance in the Vespa Cloud prod environment.
+
+        :param instance: Name of this instance of the application, in the Vespa Cloud.
+        :param disk_folder: Disk folder to save the required Vespa config files. Default to application name
+            folder within user's current working directory.
+        """
+        if not disk_folder:
+            disk_folder = os.path.join(os.getcwd(), self.application_package.name)
+        self.application_package.to_files(disk_folder)
+
+        if self.application_package.deployment_config is None:
+            raise ValueError("'Prod deployment requires a deployment_config.")
+
+        self._start_prod_deployment(disk_folder)
+
+        deploy_url = "https://console.vespa-cloud.com/tenant/{}/application/{}/prod/deployment".format(
+            self.tenant, self.application
+        )
+        print(f"Follow deployment at: {deploy_url}", file=self.output)
 
     def deploy_from_disk(self, instance: str, application_root: Path) -> Vespa:
         """
@@ -731,6 +754,73 @@ class VespaCloud(VespaDeployment):
                     return endpoint['url']
         raise RuntimeError("No token endpoints found for container cluster " + cluster_name)
 
+    def _start_prod_deployment(self, disk_folder: str) -> None:
+        # The submit API is used for prod deployments
+        deploy_path = "/application/v4/tenant/{}/application/{}/submit/".format(
+                self.tenant, self.application
+        )
+
+        # Create app package zip
+        Path(disk_folder).mkdir(parents=True, exist_ok=True)
+        application_package_zip_bytes = self._to_application_zip(disk_folder=disk_folder)
+
+        # Read certs
+        if self.private_cert_file_name:
+            # Means pyvespa generated its own cert/key
+            self._write_private_key_and_cert(
+                self.data_key, self.data_certificate, disk_folder
+            )
+
+        # Create submission
+        # TODO Avoid hardcoding projectId and risk
+        # TODO Consider supporting optional fields
+        submit_options = {
+            "projectId": 1,  
+            "risk": 0,
+            # "repository": "",
+            # "branch": "",
+            # "commit": "",
+            # "description": "",
+            # "authorEmail": "",
+            # "sourceUrl": ""
+        }
+
+        # Vespa expects prod deployments to be submitted as multipart data
+        multipart_data = MultipartEncoder(
+            fields={
+                'submitOptions': ('', json.dumps(submit_options), 'application/json'),
+                'applicationZip': ('application.zip', application_package_zip_bytes, 'application/zip')
+                # TODO Implement test package zip
+            }
+        )
+
+        # Compute content hash, etc 
+        url = "https://" + self.connection.host + ":" + str(self.connection.port) + deploy_path
+        digest = hashes.Hash(hashes.SHA256(), default_backend())
+        digest.update(multipart_data.to_string())  # This moves the buffer position to the end
+        multipart_data._buffer.seek(0)  # Needs to be reset. Otherwise, no data will be sent
+        content_hash = standard_b64encode(digest.finalize()).decode("UTF-8")
+        timestamp = (
+                datetime.utcnow().isoformat() + "Z"
+        )  # Java's Instant.parse requires the neutral time zone appended
+        canonical_message = "POST" + "\n" + url + "\n" + timestamp + "\n" + content_hash
+        signature = self.api_key.sign(
+            canonical_message.encode("UTF-8"), ec.ECDSA(hashes.SHA256())
+        )
+        headers = {
+            "X-Timestamp": timestamp,
+            "X-Content-Hash": content_hash,
+            "X-Key-Id": self.tenant + ":" + self.application + ":" + "default",
+            "X-Key": self.api_public_key_bytes,
+            "X-Authorization": standard_b64encode(signature),
+            "Content-Type": multipart_data.content_type,
+        }
+
+        response = requests.post(url, data=multipart_data, headers=headers)
+
+        message = response.json()["message"]
+        print(message, file=self.output)
+
 
     def _start_deployment(self, instance: str, job: str, disk_folder: str,
                           application_zip_bytes: Optional[BytesIO] = None) -> int:
@@ -805,6 +895,10 @@ class VespaCloud(VespaDeployment):
                 "security/clients.pem",
                 self.data_certificate.public_bytes(serialization.Encoding.PEM),
             )
+            if self.application_package.deployment_config:
+                zip_archive.writestr(
+                    "deployment.xml", self.application_package.deployment_to_text
+                )
 
         return buffer
 

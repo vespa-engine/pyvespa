@@ -1900,12 +1900,14 @@ class ContentCluster(Cluster):
                  id: str,
                  document_name: str,
                  version: str = "1.0",
-                 nodes: Optional[Nodes] = None
+                 nodes: Optional[Nodes] = None,
+                 min_redundancy: Optional[str] = "1"
                  ) -> None:
         """
         Defines the configuration of a content cluster.
 
         :param document_name: Name of document.
+        :param min_redundancy: Minimum redundancy of the content cluster. Must be at least 2 for production deployments.
 
         Example:
 
@@ -1914,6 +1916,7 @@ class ContentCluster(Cluster):
         """
         super().__init__(id, version, nodes)
         self.document_name = document_name
+        self.min_redundancy = min_redundancy
 
     def __repr__(self) -> str:
         base_str = super().__repr__()
@@ -1932,7 +1935,7 @@ class ContentCluster(Cluster):
             node.set("distribution-key", "0")
             node.set("hostalias", "node1")
 
-        ET.SubElement(root, "redundancy").text = "1"
+        ET.SubElement(root, "min-redundancy").text = self.min_redundancy
 
         documents = ET.SubElement(root, "documents")
         document = ET.SubElement(documents, "document")
@@ -2027,6 +2030,21 @@ class Validation(object):
         self.comment = comment
 
 
+class DeploymentConfiguration(object):
+    def __init__(self, environment: str, regions: List[str]):
+        self.environment = environment
+        self.regions = regions
+
+    def to_xml_string(self, indent=1) -> str:
+        root = ET.Element(self.environment)
+        for region in self.regions:
+            region_xml = ET.SubElement(root, "region")
+            region_xml.text = region
+
+        xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4)
+        xml_lines = xml_str.strip().split("\n")
+        return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
+
 class ApplicationPackage(object):
     def __init__(
         self,
@@ -2042,6 +2060,7 @@ class ApplicationPackage(object):
         components: Optional[List[Component]] = None,
         auth_clients: Optional[List[AuthClient]] = None,
         clusters: Optional[List[Cluster]] = None,
+        deployment_config: Optional[DeploymentConfiguration] = None,
     ) -> None:
         """
         Create an `Application Package <https://docs.vespa.ai/en/application-packages.html>`__.
@@ -2067,6 +2086,7 @@ class ApplicationPackage(object):
         :param clusters: List of :class:`Cluster` that contains configurations for content or container clusters.
             If clusters is used, any :class: `Component`s must be configured as part of a cluster.
         :param clients: List of :class:`Client` that contains configurations for client authorization.
+        :param deployment_config: DeploymentConfiguration` that contains configurations for production deployments.
 
         The easiest way to get started is to create a default application package:
 
@@ -2105,6 +2125,7 @@ class ApplicationPackage(object):
         self.components = components
         self.auth_clients = auth_clients
         self.clusters = clusters
+        self.deployment_config = deployment_config
 
     @property
     def schemas(self) -> List[Schema]:
@@ -2215,6 +2236,21 @@ class ApplicationPackage(object):
         validations_template = env.get_template("validation-overrides.xml")
         return validations_template.render(validations=self.validations)
 
+    @property
+    def deployment_to_text(self):
+        env = Environment(
+            loader=PackageLoader("vespa", "templates"),
+            autoescape=select_autoescape(
+                disabled_extensions=("txt",),
+                default_for_string=True,
+                default=True,
+            ),
+        )
+        env.trim_blocks = True
+        env.lstrip_blocks = True
+        deployment_template = env.get_template("deployment.xml")
+        return deployment_template.render(deployment_config=self.deployment_config)
+
     @staticmethod
     def _application_package_file_name(disk_folder):
         return os.path.join(disk_folder, "application_package.json")
@@ -2260,6 +2296,9 @@ class ApplicationPackage(object):
                     "search/query-profiles/types/root.xml",
                     self.query_profile_type_to_text,
                 )
+
+            if self.deployment_config:
+                zip_archive.writestr("deployment.xml", self.deployment_to_text)
 
         buffer.seek(0)
         return buffer
@@ -2332,6 +2371,10 @@ class ApplicationPackage(object):
         if self.validations:
             with open(os.path.join(root, "validation-overrides.xml"), "w") as f:
                 f.write(self.validations_to_text)
+
+        if self.deployment_config:
+            with open(os.path.join(root, "deployment.xml"), "w") as f:
+                f.write(self.deployment_to_text)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
