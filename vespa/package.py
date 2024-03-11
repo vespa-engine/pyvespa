@@ -2032,6 +2032,13 @@ class Validation(object):
 
 class DeploymentConfiguration(object):
     def __init__(self, environment: str, regions: List[str]):
+        """
+        Create a DeploymentConfiguration, which defines how to generate a deployment.xml file (for use in production deployments).
+
+        :param environment: The environment to deploy to. Currently, only 'prod' is supported.
+        :param regions: List of regions to deploy to, e.g. [us-east-1, us-west-1].
+            See `Vespa documentation <https://cloud.vespa.ai/en/reference/zones.html>`__ for more information.
+        """
         self.environment = environment
         self.regions = regions
 
