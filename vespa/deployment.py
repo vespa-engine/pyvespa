@@ -11,6 +11,7 @@ from pathlib import Path
 from time import sleep, strftime, gmtime
 import random
 from typing import Tuple, Union, IO, Optional, List
+from dataclasses import dataclass, asdict
 
 import docker
 import requests
@@ -27,6 +28,27 @@ CFG_SERVER_START_TIMEOUT = 300
 APP_INIT_TIMEOUT = 300
 DOCKER_TIMEOUT = 600
 
+
+@dataclass
+class SubmitOptions(object):
+    """
+    Submit options for prod deployments in Vespa Cloud.
+
+    See the `Vespa documentation <https://docs.vespa.ai/en/reference/vespa-cli/vespa_prod_deploy.html#options>`__ for more information.
+    """
+    projectId: Optional[int] = 1
+    risk: Optional[int] = 0
+    repository: Optional[str] = None
+    branch: Optional[str] = None
+    commit: Optional[str] = None
+    description: Optional[str] = None
+    authorEmail: Optional[str] = None
+    sourceUrl: Optional[str] = None
+
+    def to_dict(self):
+        """:return: SubmitOptions as a dictionary."""
+        # Omit empty fields. Otherwise, the API might complain about the format.
+        return {k: v for k, v in asdict(self).items() if v is not None}
 
 class VespaDeployment():
     def read_app_package_from_disk(self, application_root: Path) -> bytes:
@@ -473,13 +495,14 @@ class VespaCloud(VespaDeployment):
         print("Finished deployment.", file=self.output)
         return app
 
-    def deploy_to_prod(self, instance: Optional[str]="default", disk_folder: Optional[str] = None) -> None:
+    def deploy_to_prod(self, instance: Optional[str]="default", disk_folder: Optional[str] = None, submit_options: Optional[SubmitOptions]=SubmitOptions()) -> None:
         """
         Deploy the given application package as the given instance in the Vespa Cloud prod environment.
 
         :param instance: Name of this instance of the application, in the Vespa Cloud.
         :param disk_folder: Disk folder to save the required Vespa config files. Default to application name
             folder within user's current working directory.
+        :param submit_options: :class:`SubmitOptions` specifying the options for the deployment.
         """
         if not disk_folder:
             disk_folder = os.path.join(os.getcwd(), self.application_package.name)
@@ -488,7 +511,7 @@ class VespaCloud(VespaDeployment):
         if self.application_package.deployment_config is None:
             raise ValueError("'Prod deployment requires a deployment_config.")
 
-        self._start_prod_deployment(disk_folder)
+        self._start_prod_deployment(disk_folder, submit_options)
 
         deploy_url = "https://console.vespa-cloud.com/tenant/{}/application/{}/prod/deployment".format(
             self.tenant, self.application
@@ -754,7 +777,7 @@ class VespaCloud(VespaDeployment):
                     return endpoint['url']
         raise RuntimeError("No token endpoints found for container cluster " + cluster_name)
 
-    def _start_prod_deployment(self, disk_folder: str) -> None:
+    def _start_prod_deployment(self, disk_folder: str, submit_options: SubmitOptions) -> None:
         # The submit API is used for prod deployments
         deploy_path = "/application/v4/tenant/{}/application/{}/submit/".format(
                 self.tenant, self.application
@@ -771,24 +794,10 @@ class VespaCloud(VespaDeployment):
                 self.data_key, self.data_certificate, disk_folder
             )
 
-        # Create submission
-        # TODO Avoid hardcoding projectId and risk
-        # TODO Consider supporting optional fields
-        submit_options = {
-            "projectId": 1,  
-            "risk": 0,
-            # "repository": "",
-            # "branch": "",
-            # "commit": "",
-            # "description": "",
-            # "authorEmail": "",
-            # "sourceUrl": ""
-        }
-
         # Vespa expects prod deployments to be submitted as multipart data
         multipart_data = MultipartEncoder(
             fields={
-                'submitOptions': ('', json.dumps(submit_options), 'application/json'),
+                'submitOptions': ('', json.dumps(submit_options.to_dict()), 'application/json'),
                 'applicationZip': ('application.zip', application_package_zip_bytes, 'application/zip')
                 # TODO Implement test package zip
             }
