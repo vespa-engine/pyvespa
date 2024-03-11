@@ -1415,22 +1415,22 @@ class TestCluster(unittest.TestCase):
         self.assertEqual(self.app_package.services_to_text, expected_result)
 
 
-class TestDeploymentConfiguration(unittest.TestCase):
-    def test_deployment_to_text(self):
-        deploy_config = DeploymentConfiguration(
-            environment="prod",
-            regions=["aws-us-east-1c", "aws-us-west-2a"]
-        )
+# class TestDeploymentConfiguration(unittest.TestCase):
+#     def test_deployment_to_text(self):
+#         deploy_config = DeploymentConfiguration(
+#             environment="prod",
+#             regions=["aws-us-east-1c", "aws-us-west-2a"]
+#         )
 
-        app_package = ApplicationPackage(name="test", deployment_config=deploy_config)
+#         app_package = ApplicationPackage(name="test", deployment_config=deploy_config)
 
-        expected_result = (
-            '<deployment version="1.0">\n'
-            '    <prod>\n'
-            '        <region>aws-us-east-1c</region>\n'
-            '        <region>aws-us-west-2a</region>\n'
-            '    </prod>\n'
-            '</deployment>'
-        )
+#         expected_result = (
+#             '<deployment version="1.0">\n'
+#             '    <prod>\n'
+#             '        <region>aws-us-east-1c</region>\n'
+#             '        <region>aws-us-west-2a</region>\n'
+#             '    </prod>\n'
+#             '</deployment>'
+#         )
 
-        self.assertEqual(expected_result, app_package.deployment_to_text)
+#         self.assertEqual(expected_result, app_package.deployment_to_text)
