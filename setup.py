@@ -59,7 +59,8 @@ setuptools.setup(
                 "vespa/templates/schema.txt",
                 "vespa/templates/query_profile.xml",
                 "vespa/templates/query_profile_type.xml",
-                "vespa/templates/validation-overrides.xml"
+                "vespa/templates/validation-overrides.xml",
+                "vespa/templates/deployment.xml"
             ],
         )
     ],
