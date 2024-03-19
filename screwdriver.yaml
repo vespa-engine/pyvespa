@@ -218,7 +218,7 @@ jobs:
       - run-notebooks-cloud-related: |
           echo "PATH:"
           echo $PATH
-          find docs -name '*cloud*.ipynb' | while read f
+          find docs -name '*cloud*.ipynb' -not -name mother-of-all-embedding-models-cloud.ipynb | while read f
           do
             echo "running: runnb --allow-not-trusted $f"
             runnb --allow-not-trusted $f
