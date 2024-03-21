@@ -14,3 +14,5 @@ Examples
    examples/chat_with_your_pdfs_using_colbert_langchain_and_Vespa-cloud.ipynb
    examples/mother-of-all-embedding-models-cloud.ipynb
    examples/cohere-binary-vectors-in-vespa-cloud.ipynb  
+   examples/billion-scale-vector-search-with-cohere-embeddings.ipynb
+   examples/multilingual-multi-vector-reps-with-cohere.ipynb 
