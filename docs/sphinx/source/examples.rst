@@ -16,3 +16,4 @@ Examples
    examples/cohere-binary-vectors-in-vespa-cloud.ipynb  
    examples/billion-scale-vector-search-with-cohere-embeddings-cloud.ipynb
    examples/multilingual-multi-vector-reps-with-cohere-cloud.ipynb 
+   examples/mixedbread-binary-embeddings-with-sentence-transformers.ipynb
