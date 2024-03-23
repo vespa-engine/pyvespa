@@ -1306,6 +1306,12 @@ class TestValidAppName(unittest.TestCase):
             ApplicationPackage(name="test_app")
         with pytest.raises(ValueError):
             ApplicationPackage(name="test-app")
+        with pytest.raises(ValueError):
+            ApplicationPackage(name="42testapp")
+        with pytest.raises(ValueError):
+            ApplicationPackage(name="testApp")
+        with pytest.raises(ValueError):
+            ApplicationPackage(name="testapp" + "x" * 20)
 
 
 class TestFieldAlias(unittest.TestCase):
