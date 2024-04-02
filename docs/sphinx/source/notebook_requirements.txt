@@ -7,3 +7,5 @@ runnb
 openai
 ir_datasets
 pytrec_eval
+torch
+numpy
