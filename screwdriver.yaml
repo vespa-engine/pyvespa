@@ -206,7 +206,7 @@ jobs:
           export WORK_DIR=$SD_DIND_SHARE_PATH
           export RESOURCES_DIR=$(pwd)/vespa/resources
       - install-python: |
-          dnf install -y which git-all python38-pip gcc python38-devel gcc-toolset-9-gcc gcc-toolset-9-gcc-c++# gcc9 required for colbert
+          dnf install -y which git-all python38-pip python38-devel gcc-toolset-9-gcc gcc-toolset-9-gcc-c++ # gcc9 required for colbert
           source /opt/rh/gcc-toolset-9/enable # enable gcc9 for colbert
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[dev]
