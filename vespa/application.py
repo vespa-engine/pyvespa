@@ -24,6 +24,10 @@ from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse
 from vespa.package import ApplicationPackage
 
+from aiohttp import ClientSession
+from rich.progress import Progress, BarColumn, TimeRemainingColumn, TransferSpeedColumn
+
+
 retry_strategy = Retry(
     total=3,
     backoff_factor=1,
@@ -515,6 +519,98 @@ class Vespa(object):
                 queue.put(None, block=True)
                 queue.join()
                 consumer_thread.join()
+
+    async def feed_iterable_improved(
+        self,
+        my_iter: Iterable[Dict],
+        schema: Optional[str] = None,
+        namespace: Optional[str] = None,
+        callback: Optional[Callable[[VespaResponse, str], None]] = None,
+        operation_type: Optional[str] = "feed",
+        batch_size: int = 1000,
+        max_concurrent_requests: int = 10,
+        **kwargs,
+    ):
+        if operation_type not in ["feed", "update", "delete"]:
+            raise ValueError(
+                "Invalid operation type. Valid are `feed`, `update` or `delete`."
+            )
+
+        if namespace is None:
+            namespace = schema
+
+        if not schema:
+            try:
+                schema = self._infer_schema_name()
+            except ValueError:
+                raise ValueError(
+                    "Not possible to infer schema name. Specify schema parameter."
+                )
+
+        total_documents = len(my_iter)
+        completed_requests = 0
+
+        async def process_batch(batch):
+            nonlocal completed_requests
+            vespa_format = [
+                {"fields": doc["fields"], "put": doc["id"]} for doc in batch
+            ]
+            endpoint = f"{self.app.end_point}/document/v1/{namespace}/{schema}/docid?create=true"
+
+            async with ClientSession() as session:
+                async with session.post(
+                    endpoint, json=vespa_format, **kwargs
+                ) as response:
+                    response_json = await response.json()
+                    completed_requests += len(batch)
+                    for doc, result in zip(batch, response_json["results"]):
+                        vespa_response = VespaResponse(
+                            json=result,
+                            status_code=response.status,
+                            url=str(response.url),
+                            operation_type=operation_type,
+                        )
+                        if callback is not None:
+                            callback(vespa_response, doc["id"])
+
+        semaphore = asyncio.Semaphore(max_concurrent_requests)
+        batch = []
+
+        async def process_document(doc):
+            batch.append(doc)
+            if len(batch) >= batch_size:
+                async with semaphore:
+                    await process_batch(batch)
+                    batch.clear()
+
+        with Progress(
+            "[progress.description]{task.description}",
+            BarColumn(),
+            "[progress.percentage]{task.percentage:>3.0f}%",
+            TimeRemainingColumn(),
+            TransferSpeedColumn(),
+        ) as progress:
+            task = progress.add_task("Feeding documents", total=total_documents)
+
+            async with VespaAsync(self) as async_app:
+                tasks = []
+                for doc in my_iter:
+                    tasks.append(asyncio.create_task(process_document(doc)))
+
+                while not progress.finished:
+                    await asyncio.sleep(0.1)
+                    progress.update(task, completed=completed_requests)
+
+                await asyncio.gather(*tasks)
+
+                if batch:
+                    async with semaphore:
+                        await process_batch(batch)
+                        progress.update(task, completed=completed_requests)
+
+        print(
+            f"Feeding completed. Total documents: {total_documents}, Completed requests: {completed_requests}"
+        )
 
     def delete_data(
         self,
