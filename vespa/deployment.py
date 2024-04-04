@@ -849,7 +849,7 @@ class VespaCloud(VespaDeployment):
         # TODO Avoid hardcoding projectId and risk
         # TODO Consider supporting optional fields
         submit_options = {
-            "projectId": 1,  
+            "projectId": 1,
             "risk": 0,
             # "repository": "",
             # "branch": "",
@@ -868,7 +868,7 @@ class VespaCloud(VespaDeployment):
             }
         )
 
-        # Compute content hash, etc 
+        # Compute content hash, etc
         url = "https://" + self.connection.host + ":" + str(self.connection.port) + deploy_path
         digest = hashes.Hash(hashes.SHA256(), default_backend())
         digest.update(multipart_data.to_string())  # This moves the buffer position to the end
@@ -894,7 +894,6 @@ class VespaCloud(VespaDeployment):
 
         message = response.json()["message"]
         print(message, file=self.output)
-
 
     def _start_deployment(self, instance: str, job: str, disk_folder: str,
                           application_zip_bytes: Optional[BytesIO] = None) -> int:
