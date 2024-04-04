@@ -14,8 +14,8 @@ setuptools.setup(
     name="pyvespa",
     version=get_target_version(),
     description="Python API for vespa.ai",
-    long_description=open('README.md').read(),
-    long_description_content_type='text/markdown',
+    long_description=open("README.md").read(),
+    long_description_content_type="text/markdown",
     url="https://pyvespa.readthedocs.io/",
     keywords="vespa, search engine, data science",
     author="Thiago G. Martins",
@@ -35,6 +35,7 @@ setuptools.setup(
         "aiohttp",
         "tenacity",
         "typing_extensions",
+        "rich",
     ],
     extras_require={
         "dev": [
@@ -60,7 +61,7 @@ setuptools.setup(
                 "vespa/templates/query_profile.xml",
                 "vespa/templates/query_profile_type.xml",
                 "vespa/templates/validation-overrides.xml",
-                "vespa/templates/deployment.xml"
+                "vespa/templates/deployment.xml",
             ],
         )
     ],
