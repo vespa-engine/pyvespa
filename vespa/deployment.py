@@ -664,6 +664,10 @@ class VespaCloud(VespaDeployment):
     def get_dev_region(self) -> str:
         return self._request("GET", "/zone/v1/environment/dev/default")["name"]
 
+    def get_prod_region(self):
+        # TODO Support multiple regions
+        return self.application_package.deployment_config.regions[0]
+
     def _request(
             self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
     ) -> dict:
@@ -720,13 +724,18 @@ class VespaCloud(VespaDeployment):
 
 
 
-    def get_mtls_endpoint(self, instance: Optional[str]="default", region: Optional[str]=None) -> str:
+    def get_mtls_endpoint(self, instance: Optional[str]="default", region: Optional[str]=None, environment: Optional[str]="dev") -> str:
         if region is None:
-            region = self.get_dev_region()
+            if environment == "dev":
+                region = self.get_dev_region()
+            elif environment == "prod":
+                region = self.get_prod_region()
+            else:
+                raise ValueError("Invalid environment. Must be 'dev' or 'prod'")
         endpoints = self._request(
             "GET",
-            "/application/v4/tenant/{}/application/{}/instance/{}/environment/dev/region/{}".format(
-                self.tenant, self.application, instance, region
+            "/application/v4/tenant/{}/application/{}/instance/{}/environment/{}/region/{}".format(
+                self.tenant, self.application, instance, environment, region
             ),
         )["endpoints"]
         cluster_name = "{}_container".format(self.application_package.name)
@@ -737,13 +746,18 @@ class VespaCloud(VespaDeployment):
                     return endpoint['url']
         raise RuntimeError("No mtls endpoints found for container cluster " + cluster_name)
 
-    def get_token_endpoint(self, instance: Optional[str]="default", region: Optional[str]=None) -> List[dict]:
+    def get_token_endpoint(self, instance: Optional[str]="default", region: Optional[str]=None, environment: Optional[str]="dev") -> List[dict]:
         if region is None:
-            region = self.get_dev_region()
+            if environment == "dev":
+                region = self.get_dev_region()
+            elif environment == "prod":
+                region = self.get_prod_region()
+            else:
+                raise ValueError("Invalid environment. Must be 'dev' or 'prod'")
         endpoints = self._request(
             "GET",
-            "/application/v4/tenant/{}/application/{}/instance/{}/environment/dev/region/{}".format(
-                self.tenant, self.application, instance, region
+            "/application/v4/tenant/{}/application/{}/instance/{}/environment/{}/region/{}".format(
+                self.tenant, self.application, instance, environment, region
             ),
         )["endpoints"]
         cluster_name = "{}_container".format(self.application_package.name)
