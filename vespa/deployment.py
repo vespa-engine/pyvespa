@@ -497,6 +497,8 @@ class VespaCloud(VespaDeployment):
         :param disk_folder: Disk folder to save the required Vespa config files. Default to application name
             folder within user's current working directory.
         """
+        logging.warning("This feature is experimental and may fail in unexpected ways. Expect better support in future releases.")
+
         if not disk_folder:
             disk_folder = os.path.join(os.getcwd(), self.application_package.name)
         self.application_package.to_files(disk_folder)
