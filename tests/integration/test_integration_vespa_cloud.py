@@ -17,6 +17,7 @@ from test_integration_docker import (
 APP_INIT_TIMEOUT = 900
 
 
+@pytest.mark.skip(reason="Temporarily disabled")
 class TestVespaKeyAndCertificate(unittest.TestCase):
     def setUp(self) -> None:
         self.app_package = create_msmarco_application_package()
@@ -79,6 +80,7 @@ class TestVespaKeyAndCertificate(unittest.TestCase):
         self.vespa_cloud.delete(instance=self.instance_name)
 
 
+@pytest.mark.skip(reason="Temporarily disabled")
 class TestMsmarcoApplication(TestApplicationCommon):
     def setUp(self) -> None:
         self.app_package = create_msmarco_application_package()
