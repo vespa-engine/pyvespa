@@ -473,6 +473,22 @@ class VespaCloud(VespaDeployment):
         print("Finished deployment.", file=self.output)
         return app
 
+    def _get_latest_run_id(self, instance) -> int:
+        # The following endpoint returns a dictionary containing information about various builds for a given application.
+        # It sometimes takes a couple of seconds for the actual latest build to show up, but once it does, we can get the latest run id.
+        endpoint = f"/application/v4/tenant/{self.tenant}/application/{self.application}/deployment"
+        res = self._request("GET", endpoint)
+
+        # The different deployment stages might be out of sync, so we need all the ids to determine the latest one
+        run_ids = []
+        for item in res["steps"]:
+            if "runs" in item.keys():  # "id" is only present in steps with "runs" key
+                run_ids.append(item["runs"][0]["id"])  # Index zero to get the latest id
+        if run_ids == []:
+            return -1  # No runs found
+
+        return max(run_ids)
+
     def deploy_to_prod(self, instance: Optional[str]="default", disk_folder: Optional[str] = None) -> None:
         """
         Deploy the given application package as the given instance in the Vespa Cloud prod environment.
@@ -494,6 +510,50 @@ class VespaCloud(VespaDeployment):
             self.tenant, self.application
         )
         print(f"Follow deployment at: {deploy_url}", file=self.output)
+
+        print("Waiting for monitoring...", file=self.output)
+        last_run_id = self._get_latest_run_id(instance)  # This may or may not be updated
+        retry_count = 0
+        max_retries = 5
+        while retry_count < max_retries:
+            run_id = self._get_latest_run_id(instance)
+            if run_id > last_run_id:
+                break  # New run id found, proceed
+            else:
+                retry_count += 1
+                if retry_count == max_retries:
+                    # There is a chance that last_run_id is actually updated already, and there is also a chance that it is not.
+                    # In any case, the deployment will proceed as expected, we just won't be able to monitor it (can still be montiored from web console).
+                    print(f"Could not find a new run id after {max_retries} retries. Proceeding anyway.", file=self.output)
+                    break
+                else:
+                    delay = min(2**retry_count, 8) + random.uniform(0, 1)
+                    sleep(delay)
+
+        # We need to wait for the tests to finish before we can monitor the deployment itself
+        self._follow_deployment(instance, "staging-test", run_id)
+        self._follow_deployment(instance, "system-test", run_id)
+
+        # Like with the run id, it can take a couple of seconds for the job to show up here.
+        # TODO Replace with a more robust solution
+        sleep(10)
+        region = self.get_prod_region()
+        self._follow_deployment(instance, f"production-{region}", run_id)
+
+        token = os.environ.get(VESPA_CLOUD_SECRET_TOKEN, None)
+        if token is None:
+            endpoint_url = self.get_mtls_endpoint(instance=instance, region=region, environment="prod")
+        else:
+            endpoint_url = self.get_token_endpoint(instance=instance, region=region, environment="prod")
+
+        app = Vespa(
+            url=endpoint_url,
+            cert=self.data_cert_path or os.path.join(disk_folder, self.private_cert_file_name),
+            key=self.data_key_path or None,
+            application_package=self.application_package,
+        )
+
+        return app
 
     def deploy_from_disk(self, instance: str, application_root: Path) -> Vespa:
         """
@@ -963,6 +1023,11 @@ class VespaCloud(VespaDeployment):
         else:
             status = update["status"]
             if status == "success":
+                return "success", last
+            if status == "noTests":
+                # We'll proceed as usual for now, as this is allowed.
+                # In the future, we should support tests via Pyvespa properly, though.
+                # TODO Support tests via Pyvespa
                 return "success", last
             elif status in fail_status_message.keys():
                 raise RuntimeError(fail_status_message[status])
