@@ -35,7 +35,7 @@ setuptools.setup(
         "aiohttp",
         "tenacity",
         "typing_extensions",
-        "rich",
+        "tqdm",
     ],
     extras_require={
         "dev": [
