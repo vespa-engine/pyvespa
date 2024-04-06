@@ -23,6 +23,7 @@ from os import environ
 from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse
 from vespa.package import ApplicationPackage
+from tqdm import tqdm
 from tqdm.asyncio import tqdm_asyncio
 
 
@@ -388,6 +389,7 @@ class Vespa(object):
             executor: ThreadPoolExecutor,
             sync_session: VespaSync,
             max_in_flight=2 * max_queue_size,
+            progress=None,
         ):
             in_flight = 0  # Single threaded consumer
             futures: List[Future] = []
@@ -419,6 +421,7 @@ class Vespa(object):
                 future: Future = executor.submit(_submit, doc, sync_session)
                 futures.append(future)
                 in_flight += 1
+                progress.update(1)
                 queue.task_done()  # signal that we have consumed the doc from queue
 
             # make sure callback is called for all pending operations before
@@ -506,17 +509,21 @@ class Vespa(object):
         with VespaSync(
             app=self, pool_maxsize=max_connections, pool_connections=max_connections
         ) as session:
+            print("Starting feed requests")
             queue = Queue(maxsize=max_queue_size)
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                consumer_thread = threading.Thread(
-                    target=_consumer, args=(queue, executor, session, max_queue_size)
-                )
-                consumer_thread.start()
-                for doc in my_iter:
-                    queue.put(doc, block=True)
-                queue.put(None, block=True)
-                queue.join()
-                consumer_thread.join()
+            with tqdm(unit=" Feed requests") as progress:
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    consumer_thread = threading.Thread(
+                        target=_consumer,
+                        args=(queue, executor, session, max_queue_size, progress),
+                    )
+                    consumer_thread.start()
+                    for doc in my_iter:
+                        queue.put(doc, block=True)
+                    queue.put(None, block=True)
+                    queue.join()
+                    consumer_thread.join()
+            print("Feed requests completed")
 
     async def feed_iterable_async(
         self,
@@ -545,26 +552,23 @@ class Vespa(object):
 
         async with VespaAsync(app=self) as session:
             print("Starting feed requests")
-            tasks = []
-            for doc in my_iter:
-                tasks.append(
-                    session.feed_data_point(
-                        schema=schema,
-                        data_id=doc["id"],
-                        fields=doc["fields"],
-                        namespace=namespace,
-                        groupname=doc.get("groupname", None),
-                        **kwargs,
-                    )
+            tasks = [
+                session.feed_data_point(
+                    schema=schema,
+                    data_id=doc["id"],
+                    fields=doc["fields"],
+                    namespace=namespace,
+                    groupname=doc.get("groupname", None),
+                    **kwargs,
                 )
-            results = []
-            for future in tqdm_asyncio.as_completed(
-                tasks, timeout=5, unit="Feed requests"
-            ):
-                result = await future
-                results.append(result)
-            # Wait for all tasks to complete
-            await asyncio.gather(*tasks)
+                for doc in my_iter
+            ]
+
+            # Wrap tasks with tqdm for a progress bar and await their completion
+            results = await tqdm_asyncio.gather(
+                *tasks, unit=" Feed requests", timeout=None
+            )
+
             print("Feed requests completed")
             return results
 
@@ -1150,8 +1154,9 @@ class VespaAsync(object):
         async with self.aiohttp_session.post(
             end_point, json=vespa_format, params=kwargs
         ) as response:
+            json_response = await response.json()
             return VespaResponse(
-                json=response.json(),
+                json=json_response,
                 status_code=response.status,
                 url=str(response.url),
                 operation_type="feed",
@@ -1170,13 +1175,14 @@ class VespaAsync(object):
             id=data_id, schema=schema, namespace=namespace, group=groupname
         )
         end_point = "{}{}".format(self.app.end_point, path)
-        response = await self.aiohttp_session.delete(end_point, params=kwargs)
-        return VespaResponse(
-            json=await response.json(),
-            status_code=response.status,
-            url=str(response.url),
-            operation_type="delete",
-        )
+        async with self.aiohttp_session.delete(end_point, params=kwargs) as response:
+            response_json = await response.json()
+            return VespaResponse(
+                json=await response_json,
+                status_code=response.status,
+                url=str(response.url),
+                operation_type="delete",
+            )
 
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def get_data(
@@ -1191,9 +1197,10 @@ class VespaAsync(object):
             id=data_id, schema=schema, namespace=namespace, group=groupname
         )
         end_point = "{}{}".format(self.app.end_point, path)
-        response = await self.aiohttp_session.get(end_point, params=kwargs)
+        async with self.aiohttp_session.get(end_point, params=kwargs) as response:
+            response_json = await response.json()
         return VespaResponse(
-            json=await response.json(),
+            json=response_json,
             status_code=response.status,
             url=str(response.url),
             operation_type="get",
@@ -1217,12 +1224,13 @@ class VespaAsync(object):
             self.app.end_point, path, str(create).lower()
         )
         vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
-        response = await self.aiohttp_session.put(
+        async with self.aiohttp_session.put(
             end_point, json=vespa_format, params=kwargs
-        )
-        return VespaResponse(
-            json=await response.json(),
-            status_code=response.status,
-            url=str(response.url),
-            operation_type="update",
-        )
+        ) as response:
+            response_json = await response.json()
+            return VespaResponse(
+                json=response_json,
+                status_code=response.status,
+                url=str(response.url),
+                operation_type="update",
+            )
