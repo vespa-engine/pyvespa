@@ -534,6 +534,18 @@ class Vespa(object):
         operation_type: Optional[str] = "feed",
         **kwargs,
     ):
+        """
+        Feed data asynchronously from an Iterable of Dict with the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
+
+        Spawns one coroutine per feed operation.
+
+        :param iter: An iterable of Dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
+        :param schema: The Vespa schema name that we are sending data to.
+        :param namespace: The Vespa document id namespace. If no namespace is provided the schema is used.
+        :param callback: A callback function to be called on each result. Signature `callback(response:VespaResponse, id:str)`
+        :param operation_type: The operation to perform. Default to `feed`. Valid are `feed`, `update` or `delete`.
+        :param kwargs: Additional parameters are passed to the respective operation type specific :func:`_data_point`.
+        """
         if operation_type not in ["feed", "update", "delete"]:
             raise ValueError(
                 "Invalid operation type. Valid are `feed`, `update` or `delete`."
