@@ -504,8 +504,7 @@ class Vespa(object):
             with tqdm(
                 unit=" Requests",
                 total=len(my_iter) if hasattr(my_iter, "len") else None,
-                position=1,
-                leave=True,
+                delay=0.01,  # Small delay to avoid newline in progress bar
             ) as progress:
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
                     consumer_thread = threading.Thread(
