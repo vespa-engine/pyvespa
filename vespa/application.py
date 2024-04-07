@@ -20,7 +20,7 @@ from time import sleep
 from os import environ
 
 from vespa.exceptions import VespaError
-from vespa.io import VespaQueryResponse, VespaResponse
+from vespa.io import VespaQueryResponse, VespaResponse, VespaCallback
 from vespa.package import ApplicationPackage
 from tqdm import tqdm
 from tqdm.asyncio import tqdm as tqdm_asyncio
@@ -348,7 +348,7 @@ class Vespa(object):
         my_iter: Iterable[Dict],
         schema: Optional[str] = None,
         namespace: Optional[str] = None,
-        callback: Optional[Callable[[VespaResponse, str], None]] = None,
+        callback: Optional[Callable[[VespaResponse, str], None]] = VespaCallback,
         operation_type: Optional[str] = "feed",
         max_queue_size: int = 1000,
         max_workers: int = 8,
@@ -502,7 +502,10 @@ class Vespa(object):
             print(f"Preparing {operation_type} requests...")
             queue = Queue(maxsize=max_queue_size)
             with tqdm(
-                unit=" Requests", total=len(my_iter) if hasattr(my_iter, len) else None
+                unit=" Requests",
+                total=len(my_iter) if hasattr(my_iter, "len") else None,
+                position=1,
+                leave=True,
             ) as progress:
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
                     consumer_thread = threading.Thread(
@@ -522,7 +525,7 @@ class Vespa(object):
         my_iter: Iterable[Dict],
         schema: Optional[str] = None,
         namespace: Optional[str] = None,
-        callback: Optional[Callable[[VespaResponse, str], None]] = None,
+        callback: Optional[Callable[[VespaResponse, str], None]] = VespaCallback,
         operation_type: Optional[str] = "feed",
         **kwargs,
     ):
