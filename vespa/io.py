@@ -1,5 +1,5 @@
 import warnings
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Callable
 
 
 class VespaResponse(object):
@@ -78,7 +78,7 @@ class VespaQueryResponse(VespaResponse):
         return self.json
 
 
-class Callback:
+class VespaCallback(Callable):
     def __init__(self, response: VespaResponse, id: str):
         self.response = response
         self.id = id
