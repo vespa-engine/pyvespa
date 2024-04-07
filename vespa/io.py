@@ -1,11 +1,15 @@
 import warnings
 from typing import Optional, Dict, List
 
+
 class VespaResponse(object):
     """
     Class to represent a Vespa HTTP API response.
     """
-    def __init__(self, json:Dict, status_code:int, url:str, operation_type:str) -> None:
+
+    def __init__(
+        self, json: Dict, status_code: int, url: str, operation_type: str
+    ) -> None:
         self.json = json
         self.status_code = status_code
         self.url = url
@@ -27,8 +31,10 @@ class VespaResponse(object):
 
     def is_successfull(self) -> bool:
         """[Deprecated] Use is_successful() instead"""
-        warnings.warn("is_successfull is deprecated, use is_successful() instead.",
-                      DeprecationWarning)
+        warnings.warn(
+            "is_successfull is deprecated, use is_successful() instead.",
+            DeprecationWarning,
+        )
         return self.status_code == 200
 
     def is_successful(self) -> bool:
@@ -39,9 +45,12 @@ class VespaResponse(object):
         """Return json of the response."""
         return self.json
 
+
 class VespaQueryResponse(VespaResponse):
     def __init__(self, json, status_code, url, request_body=None) -> None:
-        super().__init__(json=json, status_code=status_code, url=url, operation_type="query")
+        super().__init__(
+            json=json, status_code=status_code, url=url, operation_type="query"
+        )
         self._request_body = request_body
 
     @property
@@ -58,9 +67,7 @@ class VespaQueryResponse(VespaResponse):
 
     @property
     def number_documents_indexed(self) -> int:
-        return (
-            self.json.get("root", {}).get("coverage", {}).get("documents", 0)
-        )
+        return self.json.get("root", {}).get("coverage", {}).get("documents", 0)
 
     def get_json(self) -> Dict:
         """
@@ -69,3 +76,16 @@ class VespaQueryResponse(VespaResponse):
         :return: JSON object with full response
         """
         return self.json
+
+
+class Callback:
+    def __init__(self, response: VespaResponse, id: str):
+        self.response = response
+        self.id = id
+
+    def __call__(self):
+        if not self.response.is_successful():
+            print(
+                f"Document {self.id} failed to feed with status code {self.response.status_code}, "
+                f"url={self.response.url} response={self.response.json}"
+            )
