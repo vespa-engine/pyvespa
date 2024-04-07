@@ -6,7 +6,6 @@ import aiohttp
 import asyncio
 import requests
 import traceback
-import concurrent.futures
 from typing import Optional, Dict, List, IO, Iterable, Callable, Tuple, Union
 from concurrent.futures import ThreadPoolExecutor, Future
 from queue import Queue, Empty
@@ -24,8 +23,8 @@ from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse
 from vespa.package import ApplicationPackage
 from tqdm import tqdm
-from tqdm.asyncio import tqdm_asyncio
-
+from tqdm.asyncio import tqdm as tqdm_asyncio
+import ujson
 
 retry_strategy = Retry(
     total=3,
@@ -123,6 +122,27 @@ class Vespa(object):
             if token is not None:
                 self.vespa_cloud_secret_token = token
 
+    def validate_operation_type(self, operation_type: str):
+        if operation_type not in ["feed", "update", "delete"]:
+            raise ValueError(
+                "Invalid operation type. Valid are `feed`, `update` or `delete`."
+            )
+
+    def get_namespace(self, namespace: str, schema: str):
+        if namespace is None:
+            return schema
+        return namespace
+
+    def get_schema(self, schema: str):
+        if not schema:
+            try:
+                return self._infer_schema_name()
+            except ValueError:
+                raise ValueError(
+                    "Not possible to infer schema name. Specify schema parameter."
+                )
+        return schema
+
     def asyncio(
         self, connections: Optional[int] = 8, total_timeout: int = 10
     ) -> "VespaAsync":
@@ -148,24 +168,6 @@ class Vespa(object):
         return VespaSync(
             app=self, pool_connections=connections, pool_maxsize=connections
         )
-
-    @staticmethod
-    def _run_coroutine_new_event_loop(loop, coro):
-        asyncio.set_event_loop(loop)
-        return loop.run_until_complete(coro)
-
-    @staticmethod
-    def _check_for_running_loop_and_run_coroutine(coro):
-        try:
-            _ = asyncio.get_running_loop()
-            new_loop = asyncio.new_event_loop()
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(
-                    Vespa._run_coroutine_new_event_loop, new_loop, coro
-                )
-                return future.result()
-        except RuntimeError:
-            return asyncio.run(coro)
 
     def http(self, pool_maxsize: int = 10):
         return VespaSync(
@@ -369,20 +371,8 @@ class Vespa(object):
         :param max_connections: The maximum number of persisted connections to the Vespa endpoint.
         :param kwargs: Additional parameters are passed to the respective operation type specific :func:`_data_point`.
         """
-        if operation_type not in ["feed", "update", "delete"]:
-            raise ValueError(
-                "Invalid operation type. Valid are `feed`, `update` or `delete`."
-            )
-
-        if namespace is None:
-            namespace = schema
-        if not schema:
-            try:
-                schema = self._infer_schema_name()
-            except ValueError:
-                raise ValueError(
-                    "Not possible to infer schema name. Specify schema parameter."
-                )
+        self.validate_operation_type(operation_type)
+        schema = self.get_schema(schema)
 
         def _consumer(
             queue: Queue,
@@ -509,9 +499,11 @@ class Vespa(object):
         with VespaSync(
             app=self, pool_maxsize=max_connections, pool_connections=max_connections
         ) as session:
-            print("Starting feed requests")
+            print(f"Preparing {operation_type} requests...")
             queue = Queue(maxsize=max_queue_size)
-            with tqdm(unit=" Feed requests") as progress:
+            with tqdm(
+                unit=" Requests", total=len(my_iter) if hasattr(my_iter, len) else None
+            ) as progress:
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
                     consumer_thread = threading.Thread(
                         target=_consumer,
@@ -523,7 +515,7 @@ class Vespa(object):
                     queue.put(None, block=True)
                     queue.join()
                     consumer_thread.join()
-            print("Feed requests completed")
+            print("Requests completed")
 
     async def feed_iterable_async(
         self,
@@ -546,42 +538,53 @@ class Vespa(object):
         :param operation_type: The operation to perform. Default to `feed`. Valid are `feed`, `update` or `delete`.
         :param kwargs: Additional parameters are passed to the respective operation type specific :func:`_data_point`.
         """
-        if operation_type not in ["feed", "update", "delete"]:
-            raise ValueError(
-                "Invalid operation type. Valid are `feed`, `update` or `delete`."
-            )
-
-        if namespace is None:
-            namespace = schema
-
-        if not schema:
-            try:
-                schema = self._infer_schema_name()
-            except ValueError:
-                raise ValueError(
-                    "Not possible to infer schema name. Specify schema parameter."
-                )
+        self.validate_operation_type(operation_type)
+        schema = self.get_schema(schema)
 
         async with VespaAsync(app=self) as session:
-            print("Starting feed requests")
-            tasks = [
-                session.feed_data_point(
-                    schema=schema,
-                    data_id=doc["id"],
-                    fields=doc["fields"],
-                    namespace=namespace,
-                    groupname=doc.get("groupname", None),
-                    **kwargs,
-                )
-                for doc in my_iter
-            ]
+            print(f"Preparing {operation_type} requests...")
+            if operation_type == "feed":
+                tasks = [
+                    session.feed_data_point(
+                        schema=schema,
+                        data_id=doc["id"],
+                        fields=doc["fields"],
+                        namespace=namespace,
+                        groupname=doc.get("groupname", None),
+                        **kwargs,
+                    )
+                    for doc in my_iter
+                ]
+            elif operation_type == "update":
+                tasks = [
+                    session.update_data(
+                        schema=schema,
+                        data_id=doc["id"],
+                        fields=doc["fields"],
+                        namespace=namespace,
+                        groupname=doc.get("groupname", None),
+                        **kwargs,
+                    )
+                    for doc in my_iter
+                ]
+            elif operation_type == "delete":
+                tasks = [
+                    session.delete_data(
+                        schema=schema,
+                        data_id=doc["id"],
+                        namespace=namespace,
+                        groupname=doc.get("groupname", None),
+                        **kwargs,
+                    )
+                    for doc in my_iter
+                ]
 
             # Wrap tasks with tqdm for a progress bar and await their completion
             results = await tqdm_asyncio.gather(
-                *tasks, unit=" Feed requests", timeout=None
+                *tasks, unit=" Requests", timeout=None, loop=session.loop
             )
 
-            print("Feed requests completed")
+            print("Requests completed")
             return results
 
     def delete_data(
@@ -1094,6 +1097,9 @@ class VespaAsync(object):
                 "Authorization": f"Bearer {self.app.vespa_cloud_secret_token}",
                 "User-Agent": "pyvespa asyncio client",
             }
+        self.loop = asyncio.set_event_loop(
+            asyncio.new_event_loop()
+        )  # uvloop.new_event_loop())
 
     async def __aenter__(self):
         await self._open_aiohttp_session()
@@ -1112,15 +1118,19 @@ class VespaAsync(object):
         conn = aiohttp.TCPConnector(ssl=sslcontext, limit=self.connections)
         if self.app.vespa_cloud_secret_token:
             self.aiohttp_session = aiohttp.ClientSession(
+                loop=self.loop,
                 connector=conn,
                 timeout=aiohttp.ClientTimeout(total=self.total_timeout),
                 headers=self.headers,
+                json_serialize=ujson.dumps,
             )
         else:
             self.aiohttp_session = aiohttp.ClientSession(
+                loop=self.loop,
                 connector=conn,
                 timeout=aiohttp.ClientTimeout(total=self.total_timeout),
                 headers={"User-Agent": "pyvespa asyncio client"},
+                json_serialize=ujson.dumps,
             )
         return self.aiohttp_session
 
