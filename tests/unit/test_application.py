@@ -12,6 +12,9 @@ from vespa.application import Vespa, raise_for_status
 from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse
 import requests_mock
+from unittest.mock import MagicMock
+from vespa.application import VespaSync, VespaAsync
+import sys
 
 
 class TestVespaRequestsUsage(unittest.TestCase):
@@ -93,12 +96,6 @@ class TestVespaRequestsUsage(unittest.TestCase):
                 content_cluster_name="content",
                 timeout="200s",
             )
-
-
-import unittest
-from unittest.mock import MagicMock
-from vespa.application import VespaSync, VespaAsync
-import sys
 
 
 class TestVespa(unittest.TestCase):
