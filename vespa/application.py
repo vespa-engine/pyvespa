@@ -1204,7 +1204,7 @@ class VespaAsync(object):
         async with self.aiohttp_session.delete(end_point, params=kwargs) as response:
             response_json = await response.json()
             return VespaResponse(
-                json=await response_json,
+                json=response_json,
                 status_code=response.status,
                 url=str(response.url),
                 operation_type="delete",
