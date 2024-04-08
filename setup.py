@@ -36,6 +36,7 @@ setuptools.setup(
         "tenacity",
         "typing_extensions",
         "tqdm",
+        "ujson",
     ],
     extras_require={
         "dev": [
