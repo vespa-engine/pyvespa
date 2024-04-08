@@ -3,11 +3,14 @@
 import os
 import shutil
 import unittest
+import time
+import pytest
 from vespa.application import Vespa, ApplicationPackage
 from vespa.package import Schema, Document, Field, HNSW, RankProfile
 from vespa.deployment import VespaCloud
 from vespa.io import VespaResponse, VespaQueryResponse
-import time
+from vespa.package import ContentCluster, ContainerCluster, Nodes, DeploymentConfiguration
+from pathlib import Path
 
 APP_INIT_TIMEOUT = 900
 
@@ -218,3 +221,38 @@ class TestVectorSearch(unittest.TestCase):
             print(response.get_json())
         shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_cloud.delete()
+
+
+class TestProdDeployment(TestVectorSearch):
+    def setUp(self) -> None:
+        self.app_package = create_vector_ada_application_package()
+        self.app_package.clusters  = [
+            ContentCluster(
+                id="vector_content",
+                nodes=Nodes(count="2"),
+                document_name="vector",
+                min_redundancy="2"
+            ),
+            ContainerCluster(
+                id="vector_container",
+                nodes=Nodes(count="2"),
+            )
+        ]
+        self.app_package.deployment_config = DeploymentConfiguration(
+            environment="prod", regions=["aws-us-east-1c"]
+        )
+
+        self.vespa_cloud = VespaCloud(
+            #tenant="vespa-team",
+            tenant="torstein",
+            application="vector",
+            #key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
+            key_location = Path.home() / ".vespa" / "torstein.api-key.pem",
+            application_package=self.app_package,
+        )
+        #self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.instance_name = "default"
+        self.app = self.vespa_cloud.deploy_to_prod(instance=self.instance_name)  # TODO add disk_folder
+
+    def test_vector_indexing_and_query(self):
+        super().test_vector_indexing_and_query()

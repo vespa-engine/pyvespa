@@ -7,22 +7,17 @@ import pytest
 from requests import HTTPError
 import unittest
 from cryptography.hazmat.primitives import serialization
-from vespa.package import ContentCluster, ContainerCluster, Nodes, DeploymentConfiguration
 from vespa.application import Vespa
 from vespa.deployment import VespaCloud
-from vespa.io import VespaResponse, VespaQueryResponse
 from test_integration_docker import (
     TestApplicationCommon,
     create_msmarco_application_package,
 )
-from test_integration_vespa_cloud_vector_search import create_vector_ada_application_package
 from pathlib import Path
-import time
 
 APP_INIT_TIMEOUT = 900
 
 
-@pytest.mark.skip(reason="Temporarily disabled")
 class TestVespaKeyAndCertificate(unittest.TestCase):
     def setUp(self) -> None:
         self.app_package = create_msmarco_application_package()
@@ -85,7 +80,6 @@ class TestVespaKeyAndCertificate(unittest.TestCase):
         self.vespa_cloud.delete(instance=self.instance_name)
 
 
-@pytest.mark.skip(reason="Temporarily disabled")
 class TestMsmarcoApplication(TestApplicationCommon):
     def setUp(self) -> None:
         self.app_package = create_msmarco_application_package()
@@ -147,123 +141,3 @@ class TestMsmarcoApplication(TestApplicationCommon):
         )
         shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_cloud.delete(instance=self.instance_name)
-
-
-class TestProdDeployment(unittest.TestCase):
-    def setUp(self) -> None:
-        self.app_package = create_vector_ada_application_package()
-        self.app_package.clusters  = [
-            ContentCluster(
-                id="vector_content",
-                nodes=Nodes(count="2"),
-                document_name="vector",
-                min_redundancy="2"
-            ),
-            ContainerCluster(
-                id="vector_container",
-                nodes=Nodes(count="2"),
-            )
-        ]
-        self.app_package.deployment_config = DeploymentConfiguration(
-            environment="prod", regions=["aws-us-east-1c"]
-        )
-
-        self.vespa_cloud = VespaCloud(
-            #tenant="vespa-team",
-            tenant="torstein",
-            application="vector",
-            #key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
-            key_location = Path.home() / ".vespa" / "torstein.api-key.pem",
-            application_package=self.app_package,
-        )
-        #self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
-        self.instance_name = "default"
-        self.app = self.vespa_cloud.deploy_to_prod(instance=self.instance_name)  # TODO add disk_folder
-
-    def test_indexing_and_query(self):
-        print("Waiting for endpoint " + self.app.url)      
-        self.app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
-        self.assertEqual(200, self.app.get_application_status().status_code)
-       
-        from datasets import load_dataset
-        sample_size = 10000
-        # streaming=True pages the data from S3. This is needed to avoid memory issues when loading the dataset.
-        dataset = load_dataset("KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True).take(sample_size)
-        # Map does not page, this allows chaining of maps where the lambda is yielding the next document.
-        pyvespa_feed_format = dataset.map(lambda x: {"id": x["_id"], "fields": {"id": x["_id"], "embedding":x["openai"]}})
-
-        docs = list(pyvespa_feed_format) # we have enough memory to page everything into memory with list()
-        ok = 0
-        callbacks = 0
-        start_time = time.time()
-        def callback(response:VespaResponse, id:str):
-            nonlocal ok
-            nonlocal start_time
-            nonlocal callbacks
-            if response.is_successful():
-                ok +=1
-            callbacks +=1
-
-        start = time.time()
-        self.app.feed_iterable(iter=docs, schema="vector", namespace="benchmark", callback=callback, max_workers=48, max_connections=48, max_queue_size=4000)
-        self.assertEqual(ok, sample_size)
-        duration = time.time() - start
-        docs_per_second = sample_size / duration
-        print("Sync Feed time: " + str(duration) + " seconds,  docs per second: " + str(docs_per_second))
-        
-        with self.app.syncio() as sync_session:
-            response:VespaQueryResponse = sync_session.query(   
-                {
-                    "yql": "select id from sources * where {targetHits:10}nearestNeighbor(embedding,q)",
-                    "input.query(q)": docs[0]["openai"],
-                    'hits' :10
-                }
-            )
-            self.assertEqual(response.get_status_code(), 200)
-            self.assertEqual(len(response.hits), 10)
-
-            response:VespaQueryResponse = sync_session.query(
-                yql="select id from sources * where {targetHits:10}nearestNeighbor(embedding,q)",
-                hits=5,
-                body={
-                    "input.query(q)": docs[0]["openai"]
-                }
-            )
-            self.assertEqual(response.get_status_code(), 200)
-            self.assertEqual(len(response.hits), 5)
-       
-        #check error callbacks 
-        ok = 0
-        callbacks = 0
-        start_time = time.time()
-        dataset = load_dataset("KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True).take(100)
-        feed_with_wrong_field = dataset.map(lambda x: {"id": x["_id"], "fields": {"id": x["_id"], "vector":x["openai"]}})
-        faulty_docs = list(feed_with_wrong_field) 
-        self.app.feed_iterable(iter=faulty_docs, schema="vector", namespace="benchmark", callback=callback, max_workers=48, max_connections=48)
-        self.assertEqual(ok, 0)
-        self.assertEqual(callbacks, 100)
-
-        ok = 0
-        dataset = load_dataset("KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True).take(sample_size)
-        # Run update - assign all docs with a meta field
-        
-        updates = dataset.map(lambda x: {"id": x["_id"], "fields": {"meta":"stuff"}})
-        start_time = time.time()
-        self.app.feed_iterable(iter=updates, schema="vector", namespace="benchmark", callback=callback, operation_type="update")
-        self.assertEqual(ok, sample_size)
-        duration = time.time() - start_time
-        docs_per_second = sample_size / duration
-        print("Sync Update time: " + str(duration) + " seconds,  docs per second: " + str(docs_per_second))
-
-        with self.app.syncio() as sync_session:
-            response:VespaQueryResponse = sync_session.query(
-                yql="select id from sources * where meta contains \"stuff\"",
-                hits=5,
-                timeout="15s"
-            )
-            self.assertEqual(response.get_status_code(), 200)
-            self.assertEqual(len(response.hits), 5)
-            self.assertEqual(response.number_documents_retrieved, sample_size)
-
-    def tearDown(self) -> None:
-        ...
