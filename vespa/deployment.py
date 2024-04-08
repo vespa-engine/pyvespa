@@ -28,7 +28,7 @@ APP_INIT_TIMEOUT = 300
 DOCKER_TIMEOUT = 600
 
 
-class VespaDeployment():
+class VespaDeployment:
     def read_app_package_from_disk(self, application_root: Path) -> bytes:
         """
         Read the contents of an application package on disk into a zip file.
@@ -54,15 +54,15 @@ class VespaDeployment():
 
 class VespaDocker(VespaDeployment):
     def __init__(
-            self,
-            port: int = 8080,
-            container_memory: Union[str, int] = 4 * (1024 ** 3),
-            output_file: IO = sys.stdout,
-            container: Optional[docker.models.containers.Container] = None,
-            container_image: str = "vespaengine/vespa",
-            volumes: Optional[List[str]] = None,
-            cfgsrv_port: int = 19071,
-            debug_port: int = 5005,
+        self,
+        port: int = 8080,
+        container_memory: Union[str, int] = 4 * (1024**3),
+        output_file: IO = sys.stdout,
+        container: Optional[docker.models.containers.Container] = None,
+        container_image: str = "docker.io/vespaengine/vespa",
+        volumes: Optional[List[str]] = None,
+        cfgsrv_port: int = 19071,
+        debug_port: int = 5005,
     ) -> None:
         """
         Manage Docker deployments.
@@ -100,13 +100,13 @@ class VespaDocker(VespaDeployment):
         if not isinstance(other, self.__class__):
             return NotImplemented
         return (
-                self.container_id == other.container_id
-                and self.container_name == other.container_name
-                and self.url == other.url
-                and self.local_port == other.local_port
-                and self.container_memory == other.container_memory
-                and self.container_image.split(":")[0]
-                == other.container_image.split(":")[0]
+            self.container_id == other.container_id
+            and self.container_name == other.container_name
+            and self.url == other.url
+            and self.local_port == other.local_port
+            and self.container_memory == other.container_memory
+            and self.container_image.split(":")[0]
+            == other.container_image.split(":")[0]
         )
 
     def __repr__(self) -> str:
@@ -122,7 +122,7 @@ class VespaDocker(VespaDeployment):
 
     @staticmethod
     def from_container_name_or_id(
-            name_or_id: str, output_file: IO = sys.stdout
+        name_or_id: str, output_file: IO = sys.stdout
     ) -> "VespaDocker":
         """
         Instantiate VespaDocker from a running container.
@@ -142,7 +142,7 @@ class VespaDocker(VespaDeployment):
         )
         container_memory = container.attrs["HostConfig"]["Memory"]
         container_image = container.image.tags[0]  # vespaengine/vespa:latest
-
+        print(f"TODO: Remove image name: {container_image}")
         return VespaDocker(
             port=port,
             container_memory=container_memory,
@@ -152,9 +152,9 @@ class VespaDocker(VespaDeployment):
         )
 
     def deploy(
-            self,
-            application_package: ApplicationPackage,
-            debug: bool = False,
+        self,
+        application_package: ApplicationPackage,
+        debug: bool = False,
     ) -> Vespa:
         """
         Deploy the application package into a Vespa container.
@@ -163,9 +163,13 @@ class VespaDocker(VespaDeployment):
         :param debug: Add the configured debug_port to the docker port mapping.
         :return: a Vespa connection instance.
         """
-        return self._deploy_data(application_package, application_package.to_zip(), debug)
+        return self._deploy_data(
+            application_package, application_package.to_zip(), debug
+        )
 
-    def deploy_from_disk(self, application_name: str, application_root: Path, debug: bool = False) -> Vespa:
+    def deploy_from_disk(
+        self, application_name: str, application_root: Path, debug: bool = False
+    ) -> Vespa:
         """
         Deploy from a directory tree.
         Used when making changes to application package files not supported by pyvespa -
@@ -310,11 +314,11 @@ class VespaDocker(VespaDeployment):
         return app
 
     def _run_vespa_engine_container(
-            self,
-            application_name: str,
-            container_memory: str,
-            volumes: List[str],
-            debug: bool,
+        self,
+        application_name: str,
+        container_memory: str,
+        volumes: List[str],
+        debug: bool,
     ) -> None:
         client = docker.from_env(timeout=DOCKER_TIMEOUT)
         if self.container is None:
@@ -375,14 +379,14 @@ class VespaDocker(VespaDeployment):
 
 class VespaCloud(VespaDeployment):
     def __init__(
-            self,
-            tenant: str,
-            application: str,
-            application_package: ApplicationPackage,
-            key_location: Optional[str] = None,
-            key_content: Optional[str] = None,
-            auth_client_token_id: Optional[str] = None,
-            output_file: IO = sys.stdout,
+        self,
+        tenant: str,
+        application: str,
+        application_package: ApplicationPackage,
+        key_location: Optional[str] = None,
+        key_content: Optional[str] = None,
+        auth_client_token_id: Optional[str] = None,
+        output_file: IO = sys.stdout,
     ) -> None:
         """
         Deploy application to the Vespa Cloud (cloud.vespa.ai)
@@ -409,7 +413,9 @@ class VespaCloud(VespaDeployment):
         )
         self.data_cert_path = None
         self.data_key_path = None
-        self.private_cert_file_name = None  # is set later if using Pyvespa-generated cert/key
+        self.private_cert_file_name = (
+            None  # is set later if using Pyvespa-generated cert/key
+        )
         self.data_key, self.data_certificate = self._load_certificate_pair()
         self.connection = http.client.HTTPSConnection(
             "api.vespa-external.aws.oath.cloud", 4443
@@ -417,19 +423,19 @@ class VespaCloud(VespaDeployment):
         self.output = output_file
         self.auth_client_token_id = auth_client_token_id
         if auth_client_token_id is not None:
-            self.application_package .auth_clients = [
-                AuthClient(id="mtls",
+            self.application_package.auth_clients = [
+                AuthClient(
+                    id="mtls",
                     permissions=["read,write"],
                     parameters=[
                         Parameter("certificate", {"file": "security/clients.pem"})
-                    ]
+                    ],
                 ),
-                AuthClient(id="token",
+                AuthClient(
+                    id="token",
                     permissions=["read,write"],
-                    parameters=[
-                        Parameter("token", {"id": auth_client_token_id}
-                        )
-                ])
+                    parameters=[Parameter("token", {"id": auth_client_token_id})],
+                ),
             ]
 
     def __enter__(self) -> "VespaCloud":
@@ -438,7 +444,9 @@ class VespaCloud(VespaDeployment):
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.close()
 
-    def deploy(self, instance: Optional[str]="default", disk_folder: Optional[str] = None) -> Vespa:
+    def deploy(
+        self, instance: Optional[str] = "default", disk_folder: Optional[str] = None
+    ) -> Vespa:
         """
         Deploy the given application package as the given instance in the Vespa Cloud dev environment.
 
@@ -465,7 +473,8 @@ class VespaCloud(VespaDeployment):
 
         app = Vespa(
             url=endpoint_url,
-            cert=self.data_cert_path or os.path.join(disk_folder, self.private_cert_file_name),
+            cert=self.data_cert_path
+            or os.path.join(disk_folder, self.private_cert_file_name),
             key=self.data_key_path or None,
             application_package=self.application_package,
         )
@@ -473,7 +482,9 @@ class VespaCloud(VespaDeployment):
         print("Finished deployment.", file=self.output)
         return app
 
-    def deploy_to_prod(self, instance: Optional[str]="default", disk_folder: Optional[str] = None) -> None:
+    def deploy_to_prod(
+        self, instance: Optional[str] = "default", disk_folder: Optional[str] = None
+    ) -> None:
         """
         Deploy the given application package as the given instance in the Vespa Cloud prod environment.
 
@@ -519,7 +530,9 @@ class VespaCloud(VespaDeployment):
         disk_folder = os.path.join(os.getcwd(), self.application_package.name)
         region = self.get_dev_region()
         job = "dev-" + region
-        run = self._start_deployment(instance, job, disk_folder, application_zip_bytes=data)
+        run = self._start_deployment(
+            instance, job, disk_folder, application_zip_bytes=data
+        )
         self._follow_deployment(instance, job, run)
         if os.environ.get(VESPA_CLOUD_SECRET_TOKEN) is None:
             endpoint_url = self.get_mtls_endpoint(instance=instance, region=region)
@@ -539,7 +552,7 @@ class VespaCloud(VespaDeployment):
     def close(self) -> None:
         self.connection.close()
 
-    def delete(self, instance: Optional[str]="default") -> None:
+    def delete(self, instance: Optional[str] = "default") -> None:
         """
         Delete the specified instance from the dev environment in the Vespa Cloud.
 
@@ -567,9 +580,8 @@ class VespaCloud(VespaDeployment):
 
     @staticmethod
     def _read_private_key(
-            key_location: Optional[str] = None, key_content: Optional[str] = None
+        key_location: Optional[str] = None, key_content: Optional[str] = None
     ) -> ec.EllipticCurvePrivateKey:
-
         if key_content:
             key_content = bytes(key_content, "ascii")
         elif key_location:
@@ -583,10 +595,12 @@ class VespaCloud(VespaDeployment):
             raise TypeError("Key must be an elliptic curve private key")
         return key
 
-    def _load_certificate_pair(self) -> Tuple[ec.EllipticCurvePrivateKey, x509.Certificate]:
+    def _load_certificate_pair(
+        self,
+    ) -> Tuple[ec.EllipticCurvePrivateKey, x509.Certificate]:
         def _check_dir(path: Path):
-            cert_path = path / 'data-plane-public-cert.pem'
-            key_path = path / 'data-plane-private-key.pem'
+            cert_path = path / "data-plane-public-cert.pem"
+            key_path = path / "data-plane-private-key.pem"
 
             if cert_path.exists() and key_path.exists():
                 return str(cert_path), str(key_path)
@@ -594,14 +608,18 @@ class VespaCloud(VespaDeployment):
                 return None, None
 
         # Try to look in application root first, assuming working directory is the same as application root
-        local_vespa_dir = Path.cwd() / '.vespa'
+        local_vespa_dir = Path.cwd() / ".vespa"
         cert, key = _check_dir(local_vespa_dir)
         if cert and key:
             self.data_cert_path = cert
             self.data_key_path = key
         else:
             # If cert/key not found in application root: look in ~/.vespa/tenant.app.default/
-            home_vespa_dir = Path.home() / '.vespa' / f"{self.tenant}.{self.application_package.name}.default"  # TODO Support other instance names
+            home_vespa_dir = (
+                Path.home()
+                / ".vespa"
+                / f"{self.tenant}.{self.application_package.name}.default"
+            )  # TODO Support other instance names
             cert, key = _check_dir(home_vespa_dir)
             if cert and key:
                 self.data_cert_path = cert
@@ -613,28 +631,31 @@ class VespaCloud(VespaDeployment):
             # Read contents of private key from file
             with open(self.data_key_path, "rb") as key_file:
                 private_key = serialization.load_pem_private_key(
-                    key_file.read(),
-                    password=None,
-                    backend=default_backend()
+                    key_file.read(), password=None, backend=default_backend()
                 )
             # Read contents of public certificate from file
             with open(self.data_cert_path, "rb") as cert_file:
                 cert = x509.load_pem_x509_certificate(
-                    cert_file.read(),
-                    default_backend()
+                    cert_file.read(), default_backend()
                 )
             return private_key, cert
         else:
             # Existing cert/key not found in ~/.vespa; create custom
-            print(f"Certificate and key not found in {local_vespa_dir} or {home_vespa_dir}: Creating new cert/key pair.")
-            print(f"Warning: This behavior is deprecated. Please generate a cert/key pair with 'vespa auth cert'.\n")
+            print(
+                f"Certificate and key not found in {local_vespa_dir} or {home_vespa_dir}: Creating new cert/key pair."
+            )
+            print(
+                "Warning: This behavior is deprecated. Please generate a cert/key pair with 'vespa auth cert'.\n"
+            )
             self.private_cert_file_name = "private_cert.txt"
             return self._create_certificate_pair()
 
     @staticmethod
-    def _create_certificate_pair() -> Tuple[ec.EllipticCurvePrivateKey, x509.Certificate]:
+    def _create_certificate_pair() -> (
+        Tuple[ec.EllipticCurvePrivateKey, x509.Certificate]
+    ):
         key = ec.generate_private_key(ec.SECP384R1, default_backend())
-        name = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, u"localhost")])
+        name = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, "localhost")])
         certificate = (
             x509.CertificateBuilder()
             .subject_name(name)
@@ -648,7 +669,7 @@ class VespaCloud(VespaDeployment):
         return key, certificate
 
     def _write_private_key_and_cert(
-            self, key: ec.EllipticCurvePrivateKey, cert: x509.Certificate, disk_folder: str
+        self, key: ec.EllipticCurvePrivateKey, cert: x509.Certificate, disk_folder: str
     ) -> None:
         cert_file = os.path.join(disk_folder, self.private_cert_file_name)
         with open(cert_file, "w+") as file:
@@ -665,14 +686,14 @@ class VespaCloud(VespaDeployment):
         return self._request("GET", "/zone/v1/environment/dev/default")["name"]
 
     def _request(
-            self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
+        self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
     ) -> dict:
         digest = hashes.Hash(hashes.SHA256(), default_backend())
         body.seek(0)
         digest.update(body.read())
         content_hash = standard_b64encode(digest.finalize()).decode("UTF-8")
         timestamp = (
-                datetime.utcnow().isoformat() + "Z"
+            datetime.utcnow().isoformat() + "Z"
         )  # Java's Instant.parse requires the neutral time zone appended
         url = "https://" + self.connection.host + ":" + str(self.connection.port) + path
 
@@ -718,9 +739,9 @@ class VespaCloud(VespaDeployment):
                     delay = min(2**retry_count, 1) + random.uniform(0, 1)
                     sleep(delay)
 
-
-
-    def get_mtls_endpoint(self, instance: Optional[str]="default", region: Optional[str]=None) -> str:
+    def get_mtls_endpoint(
+        self, instance: Optional[str] = "default", region: Optional[str] = None
+    ) -> str:
         if region is None:
             region = self.get_dev_region()
         endpoints = self._request(
@@ -734,10 +755,14 @@ class VespaCloud(VespaDeployment):
             if endpoint["cluster"] == cluster_name:
                 authMethod = endpoint.get("authMethod", None)
                 if authMethod == "mtls":
-                    return endpoint['url']
-        raise RuntimeError("No mtls endpoints found for container cluster " + cluster_name)
+                    return endpoint["url"]
+        raise RuntimeError(
+            "No mtls endpoints found for container cluster " + cluster_name
+        )
 
-    def get_token_endpoint(self, instance: Optional[str]="default", region: Optional[str]=None) -> List[dict]:
+    def get_token_endpoint(
+        self, instance: Optional[str] = "default", region: Optional[str] = None
+    ) -> List[dict]:
         if region is None:
             region = self.get_dev_region()
         endpoints = self._request(
@@ -751,18 +776,22 @@ class VespaCloud(VespaDeployment):
             if endpoint["cluster"] == cluster_name:
                 authMethod = endpoint.get("authMethod", None)
                 if authMethod == "token":
-                    return endpoint['url']
-        raise RuntimeError("No token endpoints found for container cluster " + cluster_name)
+                    return endpoint["url"]
+        raise RuntimeError(
+            "No token endpoints found for container cluster " + cluster_name
+        )
 
     def _start_prod_deployment(self, disk_folder: str) -> None:
         # The submit API is used for prod deployments
         deploy_path = "/application/v4/tenant/{}/application/{}/submit/".format(
-                self.tenant, self.application
+            self.tenant, self.application
         )
 
         # Create app package zip
         Path(disk_folder).mkdir(parents=True, exist_ok=True)
-        application_package_zip_bytes = self._to_application_zip(disk_folder=disk_folder)
+        application_package_zip_bytes = self._to_application_zip(
+            disk_folder=disk_folder
+        )
 
         # Read certs
         if self.private_cert_file_name:
@@ -775,7 +804,7 @@ class VespaCloud(VespaDeployment):
         # TODO Avoid hardcoding projectId and risk
         # TODO Consider supporting optional fields
         submit_options = {
-            "projectId": 1,  
+            "projectId": 1,
             "risk": 0,
             # "repository": "",
             # "branch": "",
@@ -788,20 +817,34 @@ class VespaCloud(VespaDeployment):
         # Vespa expects prod deployments to be submitted as multipart data
         multipart_data = MultipartEncoder(
             fields={
-                'submitOptions': ('', json.dumps(submit_options), 'application/json'),
-                'applicationZip': ('application.zip', application_package_zip_bytes, 'application/zip')
+                "submitOptions": ("", json.dumps(submit_options), "application/json"),
+                "applicationZip": (
+                    "application.zip",
+                    application_package_zip_bytes,
+                    "application/zip",
+                ),
                 # TODO Implement test package zip
             }
         )
 
-        # Compute content hash, etc 
-        url = "https://" + self.connection.host + ":" + str(self.connection.port) + deploy_path
+        # Compute content hash, etc
+        url = (
+            "https://"
+            + self.connection.host
+            + ":"
+            + str(self.connection.port)
+            + deploy_path
+        )
         digest = hashes.Hash(hashes.SHA256(), default_backend())
-        digest.update(multipart_data.to_string())  # This moves the buffer position to the end
-        multipart_data._buffer.seek(0)  # Needs to be reset. Otherwise, no data will be sent
+        digest.update(
+            multipart_data.to_string()
+        )  # This moves the buffer position to the end
+        multipart_data._buffer.seek(
+            0
+        )  # Needs to be reset. Otherwise, no data will be sent
         content_hash = standard_b64encode(digest.finalize()).decode("UTF-8")
         timestamp = (
-                datetime.utcnow().isoformat() + "Z"
+            datetime.utcnow().isoformat() + "Z"
         )  # Java's Instant.parse requires the neutral time zone appended
         canonical_message = "POST" + "\n" + url + "\n" + timestamp + "\n" + content_hash
         signature = self.api_key.sign(
@@ -821,9 +864,13 @@ class VespaCloud(VespaDeployment):
         message = response.json()["message"]
         print(message, file=self.output)
 
-
-    def _start_deployment(self, instance: str, job: str, disk_folder: str,
-                          application_zip_bytes: Optional[BytesIO] = None) -> int:
+    def _start_deployment(
+        self,
+        instance: str,
+        job: str,
+        disk_folder: str,
+        application_zip_bytes: Optional[BytesIO] = None,
+    ) -> int:
         deploy_path = (
             "/application/v4/tenant/{}/application/{}/instance/{}/deploy/{}".format(
                 self.tenant, self.application, instance, job
@@ -854,7 +901,6 @@ class VespaCloud(VespaDeployment):
     def _to_application_zip(self, disk_folder: str) -> BytesIO:
         buffer = BytesIO()
         with zipfile.ZipFile(buffer, "a") as zip_archive:
-
             for schema in self.application_package.schemas:
                 zip_archive.writestr(
                     "schemas/{}.sd".format(schema.name),
@@ -918,9 +964,8 @@ class VespaCloud(VespaDeployment):
                 raise RuntimeError("Unexpected status: {}".format(status))
 
     def _get_deployment_status(
-            self, instance: str, job: str, run: int, last: int
+        self, instance: str, job: str, run: int, last: int
     ) -> Tuple[str, int]:
-
         update = self._request(
             "GET",
             "/application/v4/tenant/{}/application/{}/instance/{}/job/{}/run/{}?after={}".format(
