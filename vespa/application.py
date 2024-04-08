@@ -354,14 +354,14 @@ class Vespa(object):
         max_workers: int = 8,
         max_connections: int = 16,
         **kwargs,
-    ):
+    ) -> List[VespaResponse]:
         """
         Feed data from an Iterable of Dict with the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
 
         Uses a queue to feed data in parallel with a thread pool. The result of each operation is forwarded
         to the user provided callback function that can process the returned `VespaResponse`.
 
-        :param iter: An iterable of Dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
+        :param my_iter: An iterable of Dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
         :param schema: The Vespa schema name that we are sending data to.
         :param namespace: The Vespa document id namespace. If no namespace is provided the schema is used.
         :param callback: A callback function to be called on each result. Signature `callback(response:VespaResponse, id:str)`
@@ -373,6 +373,7 @@ class Vespa(object):
         """
         self.validate_operation_type(operation_type)
         schema = self.get_schema_name(schema)
+        responses = []
 
         def _consumer(
             queue: Queue,
@@ -476,6 +477,7 @@ class Vespa(object):
             future: Future, callback: Optional[Callable[[VespaResponse, str], None]]
         ):
             id, response = future.result()
+            print(f"Document {id} completed with status code {response.status_code}")
             if isinstance(response, Exception):
                 response = VespaResponse(
                     status_code=599,
@@ -487,6 +489,7 @@ class Vespa(object):
                     url="n/a",
                     operation_type=operation_type,
                 )
+            responses.append(response)
             if callback is not None:
                 try:
                     callback(response, id)
@@ -518,6 +521,7 @@ class Vespa(object):
                     queue.join()
                     consumer_thread.join()
             print("Requests completed")
+            return responses
 
     async def feed_iterable_async(
         self,
@@ -527,7 +531,7 @@ class Vespa(object):
         callback: Optional[Callable[[VespaResponse, str], None]] = VespaCallback,
         operation_type: Optional[str] = "feed",
         **kwargs,
-    ):
+    ) -> List[VespaResponse]:
         """
         Feed data asynchronously from an Iterable of Dict with the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
 
@@ -550,7 +554,7 @@ class Vespa(object):
                     session.feed_data_point(
                         schema=schema,
                         data_id=doc["id"],
-                        fields=doc["fields"],
+                        fields=doc.get("fields", None),
                         namespace=namespace,
                         groupname=doc.get("groupname", None),
                         **kwargs,
@@ -562,7 +566,7 @@ class Vespa(object):
                     session.update_data(
                         schema=schema,
                         data_id=doc["id"],
-                        fields=doc["fields"],
+                        fields=doc.get("fields", None),
                         namespace=namespace,
                         groupname=doc.get("groupname", None),
                         **kwargs,
