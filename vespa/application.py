@@ -533,7 +533,7 @@ class Vespa(object):
 
         Spawns one coroutine per feed operation.
 
-        :param iter: An iterable of Dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
+        :param my_iter: An iterable of Dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
         :param schema: The Vespa schema name that we are sending data to.
         :param namespace: The Vespa document id namespace. If no namespace is provided the schema is used.
         :param callback: A callback function to be called on each result. Signature `callback(response:VespaResponse, id:str)`
