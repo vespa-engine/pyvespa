@@ -133,7 +133,7 @@ class Vespa(object):
             return schema
         return namespace
 
-    def get_schema(self, schema: str):
+    def get_schema_name(self, schema: str = None):
         if not schema:
             try:
                 return self._infer_schema_name()
@@ -372,7 +372,7 @@ class Vespa(object):
         :param kwargs: Additional parameters are passed to the respective operation type specific :func:`_data_point`.
         """
         self.validate_operation_type(operation_type)
-        schema = self.get_schema(schema)
+        schema = self.get_schema_name(schema)
 
         def _consumer(
             queue: Queue,
@@ -541,7 +541,7 @@ class Vespa(object):
         :param kwargs: Additional parameters are passed to the respective operation type specific :func:`_data_point`.
         """
         self.validate_operation_type(operation_type)
-        schema = self.get_schema(schema)
+        schema = self.get_schema_name(schema)
 
         async with VespaAsync(app=self) as session:
             print(f"Preparing {operation_type} requests...")
@@ -793,6 +793,8 @@ class VespaSync(object):
             pool_maxsize=pool_maxsize,
             pool_connections=pool_connections,
         )
+        self.pool_maxsize = pool_maxsize
+        self.pool_connections = pool_connections
 
     def __enter__(self):
         self._open_http_session()
