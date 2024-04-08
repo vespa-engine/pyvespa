@@ -19,8 +19,8 @@ setuptools.setup(
     url="https://pyvespa.readthedocs.io/",
     keywords="vespa, search engine, data science",
     author="Thiago G. Martins",
-    maintainer="Kristian Aune",
-    maintainer_email="kraune@yahooinc.com",
+    maintainer="Thomas Thoresen",
+    maintainer_email="thomas@vespa.ai",
     classifiers=[
         "License :: OSI Approved :: Apache Software License",
     ],
