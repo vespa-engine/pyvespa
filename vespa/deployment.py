@@ -550,7 +550,7 @@ class VespaCloud(VespaDeployment):
         # The different deployment stages might be out of sync, so we need all the ids to determine the latest one
         run_ids = []
         for item in res["steps"]:
-            if "runs" in item.keys():  # "id" is only present in steps with "runs" key
+            if "runs" in item.keys() and len(item["runs"]) > 0:  # "id" is only present in steps with "runs" key
                 run_ids.append(item["runs"][0]["id"])  # Index zero to get the latest id
         if run_ids == []:
             return -1  # No runs found
