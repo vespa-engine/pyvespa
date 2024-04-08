@@ -477,7 +477,6 @@ class Vespa(object):
             future: Future, callback: Optional[Callable[[VespaResponse, str], None]]
         ):
             id, response = future.result()
-            print(f"Document {id} completed with status code {response.status_code}")
             if isinstance(response, Exception):
                 response = VespaResponse(
                     status_code=599,
