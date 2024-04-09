@@ -591,7 +591,7 @@ class TestApplicationCommon(unittest.TestCase):
     def execute_feed_iterable(
         self,
         app,
-        my_iter,
+        iter,
         schema_name,
         operation_type,
     ):
@@ -601,7 +601,7 @@ class TestApplicationCommon(unittest.TestCase):
                 "id": d["id"],
                 "fields": {key: value for key, value in d.items() if key != "id"},
             }
-            for d in my_iter
+            for d in iter
         ]
         for d in converted_iter:
             assert "id" in d, "Each dict in the iterable must contain the 'id' field."
@@ -611,7 +611,7 @@ class TestApplicationCommon(unittest.TestCase):
 
         # Feed data
         responses = app.feed_iterable(
-            my_iter=converted_iter, schema=schema_name, operation_type=operation_type
+            iter=converted_iter, schema=schema_name, operation_type=operation_type
         )
         for response in responses:
             self.assertEqual(response.status_code, 200)
@@ -621,7 +621,7 @@ class TestApplicationCommon(unittest.TestCase):
     async def execute_feed_iterable_async(
         self,
         app,
-        my_iter,
+        iter,
         schema_name,
         operation_type,
     ):
@@ -631,7 +631,7 @@ class TestApplicationCommon(unittest.TestCase):
                 "id": d["id"],
                 "fields": {key: value for key, value in d.items() if key != "id"},
             }
-            for d in my_iter
+            for d in iter
         ]
         for d in converted_iter:
             assert "id" in d, "Each dict in the iterable must contain the 'id' field."
@@ -640,7 +640,7 @@ class TestApplicationCommon(unittest.TestCase):
             ), "Each dict in the iterable must contain the 'fields' key."
         # Feed data
         responses = await app.feed_iterable_async(
-            my_iter=converted_iter, schema=schema_name, operation_type=operation_type
+            iter=converted_iter, schema=schema_name, operation_type=operation_type
         )
         for response in responses:
             self.assertEqual(response.status_code, 200)
@@ -779,7 +779,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
     def test_execute_feed_iterable(self):
         self.execute_feed_iterable(
             app=self.app,
-            my_iter=self.fields_to_send,
+            iter=self.fields_to_send,
             schema_name=self.app_package.name,
             operation_type="feed",
         )
@@ -788,7 +788,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
         asyncio.run(
             self.execute_feed_iterable_async(
                 app=self.app,
-                my_iter=self.fields_to_send,
+                iter=self.fields_to_send,
                 schema_name=self.app_package.name,
                 operation_type="feed",
             )
@@ -890,7 +890,7 @@ class TestQaApplication(TestApplicationCommon):
     def test_execute_feed_iterable(self):
         self.execute_feed_iterable(
             app=self.app,
-            my_iter=self.fields_to_send_sentence,
+            iter=self.fields_to_send_sentence,
             schema_name="sentence",
             operation_type="feed",
         )
@@ -899,7 +899,7 @@ class TestQaApplication(TestApplicationCommon):
         asyncio.run(
             self.execute_feed_iterable_async(
                 app=self.app,
-                my_iter=self.fields_to_send_sentence,
+                iter=self.fields_to_send_sentence,
                 schema_name="sentence",
                 operation_type="feed",
             )

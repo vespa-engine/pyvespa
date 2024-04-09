@@ -345,7 +345,7 @@ class Vespa(object):
 
     def feed_iterable(
         self,
-        my_iter: Iterable[Dict],
+        iter: Iterable[Dict],
         schema: Optional[str] = None,
         namespace: Optional[str] = None,
         callback: Optional[Callable[[VespaResponse, str], None]] = VespaCallback,
@@ -361,7 +361,7 @@ class Vespa(object):
         Uses a queue to feed data in parallel with a thread pool. The result of each operation is forwarded
         to the user provided callback function that can process the returned `VespaResponse`.
 
-        :param my_iter: An iterable of Dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
+        :param iter: An iterable of Dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
         :param schema: The Vespa schema name that we are sending data to.
         :param namespace: The Vespa document id namespace. If no namespace is provided the schema is used.
         :param callback: A callback function to be called on each result. Signature `callback(response:VespaResponse, id:str)`
@@ -505,7 +505,7 @@ class Vespa(object):
             queue = Queue(maxsize=max_queue_size)
             with tqdm(
                 unit=" Requests",
-                total=len(my_iter) if hasattr(my_iter, "len") else None,
+                total=len(iter) if hasattr(iter, "len") else None,
                 delay=0.01,  # Small delay to avoid newline in progress bar
             ) as progress:
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -514,7 +514,7 @@ class Vespa(object):
                         args=(queue, executor, session, max_queue_size, progress),
                     )
                     consumer_thread.start()
-                    for doc in my_iter:
+                    for doc in iter:
                         queue.put(doc, block=True)
                     queue.put(None, block=True)
                     queue.join()
@@ -524,7 +524,7 @@ class Vespa(object):
 
     async def feed_iterable_async(
         self,
-        my_iter: Iterable[Dict],
+        iter: Iterable[Dict],
         schema: Optional[str] = None,
         namespace: Optional[str] = None,
         callback: Optional[Callable[[VespaResponse, str], None]] = VespaCallback,
@@ -536,7 +536,7 @@ class Vespa(object):
 
         Spawns one coroutine per feed operation.
 
-        :param my_iter: An iterable of Dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
+        :param iter: An iterable of Dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
         :param schema: The Vespa schema name that we are sending data to.
         :param namespace: The Vespa document id namespace. If no namespace is provided the schema is used.
         :param callback: A callback function to be called on each result. Signature `callback(response:VespaResponse, id:str)`
@@ -558,7 +558,7 @@ class Vespa(object):
                         groupname=doc.get("groupname", None),
                         **kwargs,
                     )
-                    for doc in my_iter
+                    for doc in iter
                 ]
             elif operation_type == "update":
                 tasks = [
@@ -570,7 +570,7 @@ class Vespa(object):
                         groupname=doc.get("groupname", None),
                         **kwargs,
                     )
-                    for doc in my_iter
+                    for doc in iter
                 ]
             elif operation_type == "delete":
                 tasks = [
@@ -581,7 +581,7 @@ class Vespa(object):
                         groupname=doc.get("groupname", None),
                         **kwargs,
                     )
-                    for doc in my_iter
+                    for doc in iter
                 ]
 
             # Wrap tasks with tqdm for a progress bar and await their completion
