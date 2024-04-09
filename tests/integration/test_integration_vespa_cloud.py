@@ -65,11 +65,12 @@ class TestVespaKeyAndCertificate(unittest.TestCase):
             },
             self.app.get_data(schema="msmarco", data_id="1").json,
         )
-        self.assertEqual(self.app.get_data(schema="msmarco", data_id="1").is_successful(), False)
+        self.assertEqual(
+            self.app.get_data(schema="msmarco", data_id="1").is_successful(), False
+        )
         with pytest.raises(HTTPError):
             self.app.get_data(schema="msmarco", data_id="1", raise_on_not_found=True)
 
-        
     def tearDown(self) -> None:
         self.app.delete_all_docs(
             content_cluster_name="msmarco_content", schema="msmarco"

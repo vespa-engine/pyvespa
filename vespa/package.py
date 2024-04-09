@@ -865,13 +865,14 @@ class Function(object):
             repr(self.args),
         )
 
+
 class FirstPhaseRanking:
     def __init__(
-            self,
-            expression: str,
-            keep_rank_count: Optional[int] = None,
-            rank_score_drop_limit: Optional[float] = None
-        ) -> None:
+        self,
+        expression: str,
+        keep_rank_count: Optional[int] = None,
+        rank_score_drop_limit: Optional[float] = None,
+    ) -> None:
         r"""
         Create a Vespa first phase ranking configuration.
 
@@ -912,8 +913,9 @@ class FirstPhaseRanking:
             self.__class__.__name__,
             repr(self.expression),
             repr(self.keep_rank_count),
-            repr(self.rank_score_drop_limit)
+            repr(self.rank_score_drop_limit),
         )
+
 
 class SecondPhaseRanking(object):
     def __init__(self, expression: str, rerank_count: int = 100) -> None:
@@ -949,6 +951,7 @@ class SecondPhaseRanking(object):
             repr(self.expression),
             repr(self.rerank_count),
         )
+
 
 class GlobalPhaseRanking(object):
     def __init__(self, expression: str, rerank_count: int = 100) -> None:
@@ -1065,7 +1068,7 @@ class RankProfile(object):
         ...     summary_features=["BM25(title)"]
         ... )
         RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None, ['BM25(title)'], None, None, None, None, None, None, None)
-       
+
         >>> RankProfile(
         ...     name="bert",
         ...     first_phase="bm25(title) + bm25(body)",
@@ -1092,27 +1095,27 @@ class RankProfile(object):
         ...     weight = [("title", 200), ("body", 100)]
         ... )
         RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, [('title', 200), ('body', 100)], None, None, None)
-        
+
         >>> RankProfile(
         ...     name = "default",
         ...     first_phase = "nativeRank(title, body)",
         ...     rank_type = [("body", "about")]
         ... )
         RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, [('body', 'about')], None, None)
-        
+
         >>> RankProfile(
         ...     name = "default",
         ...     first_phase = "nativeRank(title, body)",
         ...     rank_properties = [("fieldMatch(title).maxAlternativeSegmentations", "10")]
         ... )
         RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, [('fieldMatch(title).maxAlternativeSegmentations', '10')], None)
-        
+
         >>> RankProfile(
         ...    name = "default",
         ...    first_phase = FirstPhaseRanking(expression="nativeRank(title, body)", keep_rank_count=50)
         ... )
         RankProfile('default', FirstPhaseRanking('nativeRank(title, body)', 50, None), None, None, None, None, None, None, None, None, None, None, None)
-        
+
         """
         self.name = name
         self.first_phase = first_phase
@@ -1229,8 +1232,10 @@ class OnnxModel(object):
             repr(self.outputs),
         )
 
+
 class SchemaConfiguration(TypedDict, total=False):
     stemming: Optional[str]
+
 
 class Schema(object):
     def __init__(
@@ -1592,7 +1597,9 @@ class QueryProfile(object):
 
 
 class ApplicationConfiguration(object):
-    def __init__(self, name: str, value: Union[str, Dict[str, Union[Dict, str]]]) -> str:
+    def __init__(
+        self, name: str, value: Union[str, Dict[str, Union[Dict, str]]]
+    ) -> str:
         """
         Create a Vespa Schema.
 
@@ -1614,12 +1621,14 @@ class ApplicationConfiguration(object):
         self.value = value
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(name=\"{self.name}\")"
+        return f'{self.__class__.__name__}(name="{self.name}")'
 
     def __get_tab(self, n: int = 1) -> str:
         return " " * 4 * n
 
-    def __to_xml_string(self, xml_elements: Dict[str, Union[Dict, str]], level=0) -> str:
+    def __to_xml_string(
+        self, xml_elements: Dict[str, Union[Dict, str]], level=0
+    ) -> str:
         string = "\n"
 
         for tag, value in xml_elements.items():
@@ -1634,16 +1643,21 @@ class ApplicationConfiguration(object):
 
     @property
     def to_text(self) -> str:
-        value = self.__get_tab() + self.__to_xml_string(self.value, level=1) if isinstance(self.value, dict) else self.value
-        return f"<config name=\"{self.name}\">{value}</config>"
+        value = (
+            self.__get_tab() + self.__to_xml_string(self.value, level=1)
+            if isinstance(self.value, dict)
+            else self.value
+        )
+        return f'<config name="{self.name}">{value}</config>'
 
 
 class Parameter(object):
-    def __init__(self,
+    def __init__(
+        self,
         name: str,
         args: Optional[Dict[str, str]] = None,
         children: Optional[Union[str, List["Parameter"]]] = None,
-        ) -> None:
+    ) -> None:
         """
         Create a Vespa Component configuration parameter.
 
@@ -1657,7 +1671,7 @@ class Parameter(object):
 
     def to_xml(self, root) -> ET.Element:
         xml = ET.SubElement(root, self.name)
-        [xml.set(k, v) for k,v in self.args.items()]
+        [xml.set(k, v) for k, v in self.args.items()]
         if self.children:
             if isinstance(self.children, str):
                 xml.text = self.children
@@ -1666,12 +1680,14 @@ class Parameter(object):
                     child.to_xml(xml)
         return xml
 
+
 class AuthClient(object):
-    def __init__(self,
+    def __init__(
+        self,
         id: str,
         permissions: List[str],
         parameters: Optional[List[Parameter]] = None,
-        )-> None:
+    ) -> None:
         self.id = id
         self.permissions = permissions
         self.parameters = parameters
@@ -1683,22 +1699,31 @@ class AuthClient(object):
         if self.parameters:
             for param in self.parameters:
                 param.to_xml(root)
-        xml_lines = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4).strip().split("\n")
-        return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
+        xml_lines = (
+            minidom.parseString(ET.tostring(root))
+            .toprettyxml(indent=" " * 4)
+            .strip()
+            .split("\n")
+        )
+        return "\n".join(
+            [xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]]
+        )
 
     def __repr__(self) -> str:
-        id = f"id=\"{self.id}\""
-        permissions = f", permissions=\"{self.permissions}\"" if self.permissions else ""
+        id = f'id="{self.id}"'
+        permissions = f', permissions="{self.permissions}"' if self.permissions else ""
         return f"{self.__class__.__name__}({id}{permissions})"
 
+
 class Component(object):
-    def __init__(self,
+    def __init__(
+        self,
         id: str,
         cls: Optional[str] = None,
         bundle: Optional[str] = None,
         type: Optional[str] = None,
         parameters: Optional[List[Parameter]] = None,
-        ) -> None:
+    ) -> None:
         """
         Create a Vespa Component.
 
@@ -1729,11 +1754,12 @@ class Component(object):
         self.parameters = parameters
 
     def __repr__(self) -> str:
-        id = f"id=\"{self.id}\""
-        cls = f", class=\"{self.cls}\"" if self.cls else ""
-        bundle = f", bundle=\"{self.bundle}\"" if self.bundle else ""
-        type = f", type=\"{self.type}\"" if self.type else ""
+        id = f'id="{self.id}"'
+        cls = f', class="{self.cls}"' if self.cls else ""
+        bundle = f', bundle="{self.bundle}"' if self.bundle else ""
+        type = f', type="{self.type}"' if self.type else ""
         return f"{self.__class__.__name__}({id}{cls}{bundle}{type})"
+
     def to_xml(self, root) -> ET.Element:
         xml = ET.SubElement(root, "component")
         xml.set("id", self.id)
@@ -1750,20 +1776,28 @@ class Component(object):
         return root
 
     def to_xml_string(self, indent: int = 1) -> str:
-        root = ET.Element("root") # Add temporary root (needed by to_xml())
+        root = ET.Element("root")  # Add temporary root (needed by to_xml())
         self.to_xml(root)
-        root = root.find("component") # Strip away temporary root
+        root = root.find("component")  # Strip away temporary root
 
         # Fix indentation, except for the first line (to fit in template), and filter out xml declaration
-        xml_lines = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4).strip().split("\n")
-        return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
+        xml_lines = (
+            minidom.parseString(ET.tostring(root))
+            .toprettyxml(indent=" " * 4)
+            .strip()
+            .split("\n")
+        )
+        return "\n".join(
+            [xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]]
+        )
 
 
 class Nodes(object):
-    def __init__(self,
-                 count: Optional[str] = "1",
-                 parameters: Optional[List[Parameter]] = None,
-                 ) -> None:
+    def __init__(
+        self,
+        count: Optional[str] = "1",
+        parameters: Optional[List[Parameter]] = None,
+    ) -> None:
         """
         Specify node resources for a content or container cluster as part of a :class: `ContainerCluster` or :class: `ContentCluster`.
 
@@ -1788,7 +1822,7 @@ class Nodes(object):
         self.parameters = parameters
 
     def __repr__(self) -> str:
-        count = f"count=\"{self.count}\""
+        count = f'count="{self.count}"'
         return f"{self.__class__.__name__}({count})"
 
     def to_xml(self, root) -> ET.Element:
@@ -1803,11 +1837,12 @@ class Nodes(object):
 
 
 class Cluster(object):
-    def __init__(self,
-                 id: str,
-                 version: str = "1.0",
-                 nodes: Optional[Nodes] = None,
-                 ) -> None:
+    def __init__(
+        self,
+        id: str,
+        version: str = "1.0",
+        nodes: Optional[Nodes] = None,
+    ) -> None:
         """
         Base class for a cluster configuration. Should not be instantiated directly.
         Use subclasses :class: `ContainerCluster` or :class: `ContentCluster` instead.
@@ -1821,9 +1856,9 @@ class Cluster(object):
         self.nodes = nodes
 
     def __repr__(self) -> str:
-        id = f"id=\"{self.id}\""
-        version = f", version=\"{self.version}\""
-        nodes = f", nodes=\"{self.nodes}\"" if self.nodes else ""
+        id = f'id="{self.id}"'
+        version = f', version="{self.version}"'
+        nodes = f', nodes="{self.nodes}"' if self.nodes else ""
         return f"{self.__class__.__name__}({id}{version}{nodes}"
 
     def to_xml(self, root):
@@ -1836,12 +1871,13 @@ class Cluster(object):
 
 
 class ContainerCluster(Cluster):
-    def __init__(self,
-                 id: str,
-                 version: str = "1.0",
-                 nodes: Optional[Nodes] = None,
-                 components: Optional[List[Component]] = None
-                 ) -> None:
+    def __init__(
+        self,
+        id: str,
+        version: str = "1.0",
+        nodes: Optional[Nodes] = None,
+        components: Optional[List[Component]] = None,
+    ) -> None:
         """
         Defines the configuration of a container cluster.
 
@@ -1867,7 +1903,7 @@ class ContainerCluster(Cluster):
 
     def __repr__(self) -> str:
         base_str = super().__repr__()
-        components = f", components=\"{self.components}\"" if self.components else ""
+        components = f', components="{self.components}"' if self.components else ""
         return f"{base_str}{components})"
 
     def to_xml_string(self, indent=1):
@@ -1888,21 +1924,24 @@ class ContainerCluster(Cluster):
         # TODO: Find a permanent solution
         xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4)
         for child in ["search", "document-api", "document-processing"]:
-            xml_str = xml_str.replace(f'<{child}/>', f'<{child}></{child}>')
+            xml_str = xml_str.replace(f"<{child}/>", f"<{child}></{child}>")
 
         # Indent XML and remove opening tag
         xml_lines = xml_str.strip().split("\n")
-        return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
+        return "\n".join(
+            [xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]]
+        )
 
 
 class ContentCluster(Cluster):
-    def __init__(self,
-                 id: str,
-                 document_name: str,
-                 version: str = "1.0",
-                 nodes: Optional[Nodes] = None,
-                 min_redundancy: Optional[str] = "1"
-                 ) -> None:
+    def __init__(
+        self,
+        id: str,
+        document_name: str,
+        version: str = "1.0",
+        nodes: Optional[Nodes] = None,
+        min_redundancy: Optional[str] = "1",
+    ) -> None:
         """
         Defines the configuration of a content cluster.
 
@@ -1920,7 +1959,9 @@ class ContentCluster(Cluster):
 
     def __repr__(self) -> str:
         base_str = super().__repr__()
-        document_name = f", document_name=\"{self.document_name}\"" if self.document_name else ""
+        document_name = (
+            f', document_name="{self.document_name}"' if self.document_name else ""
+        )
         return f"{base_str}{document_name})"
 
     def to_xml_string(self, indent=1):
@@ -1947,12 +1988,20 @@ class ContentCluster(Cluster):
         # Probably need to pretty print the xml ourselves
         # TODO Find a more permanent solution
         xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4)
-        xml_str = xml_str.replace('<document type="test" mode="index"/>', '<document type="test" mode="index"></document>')
-        xml_str = xml_str.replace('<node distribution-key="0" hostalias="node1"/>', '<node distribution-key="0" hostalias="node1"></node>')
+        xml_str = xml_str.replace(
+            '<document type="test" mode="index"/>',
+            '<document type="test" mode="index"></document>',
+        )
+        xml_str = xml_str.replace(
+            '<node distribution-key="0" hostalias="node1"/>',
+            '<node distribution-key="0" hostalias="node1"></node>',
+        )
 
         # Indent XML and remove opening tag
         xml_lines = xml_str.strip().split("\n")
-        return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
+        return "\n".join(
+            [xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]]
+        )
 
 
 class ValidationID(Enum):
@@ -2006,7 +2055,7 @@ class Validation(object):
         self,
         validation_id: Union[ValidationID, str],
         until: str,
-        comment: Optional[str] = None
+        comment: Optional[str] = None,
     ):
         r"""
         Represents a validation to be overridden on application.
@@ -2056,7 +2105,10 @@ class DeploymentConfiguration(object):
 
         xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4)
         xml_lines = xml_str.strip().split("\n")
-        return "\n".join([xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]])
+        return "\n".join(
+            [xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]]
+        )
+
 
 class ApplicationPackage(object):
     def __init__(
@@ -2109,7 +2161,9 @@ class ApplicationPackage(object):
         It will create a default :class:`Schema`, :class:`QueryProfile` and :class:`QueryProfileType` that you can then
         populate with specifics of your application.
         """
-        if not (name[0].isalpha() and name.islower() and len(name) <= 20 and name.isalnum()):
+        if not (
+            name[0].isalpha() and name.islower() and len(name) <= 20 and name.isalnum()
+        ):
             raise ValueError(
                 "Application package name must start with a letter, must be lowercase, can only contain [a-z0-9], and may contain no more than 20 characters, was '{}'".format(
                     name
@@ -2231,7 +2285,7 @@ class ApplicationPackage(object):
             stateless_model_evaluation=self.stateless_model_evaluation,
             components=self.components,
             auth_clients=self.auth_clients,
-            clusters=self.clusters
+            clusters=self.clusters,
         )
 
     @property
