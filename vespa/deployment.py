@@ -142,7 +142,11 @@ class VespaDocker(VespaDeployment):
         )
         container_memory = container.attrs["HostConfig"]["Memory"]
         container_image = container.image.tags[0]  # vespaengine/vespa:latest
-
+        container_image_split = container_image.split("/")
+        if len(container_image_split) > 2:
+            # Means registry is included, e.g. docker.io/vespaengine/vespa:latest
+            # This causes equality test to fail, so we remove the registry part
+            container_image = "/".join(container_image_split[-2:])
         return VespaDocker(
             port=port,
             container_memory=container_memory,
