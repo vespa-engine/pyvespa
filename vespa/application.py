@@ -7,7 +7,7 @@ import asyncio
 import requests
 import traceback
 import concurrent.futures
-from typing import Optional, Dict, List, IO, Iterable, Callable, Tuple,Union
+from typing import Optional, Dict, List, IO, Iterable, Callable, Tuple, Union
 from concurrent.futures import ThreadPoolExecutor, Future
 from queue import Queue, Empty
 import threading
@@ -27,14 +27,17 @@ from vespa.package import ApplicationPackage
 retry_strategy = Retry(
     total=3,
     backoff_factor=1,
-    raise_on_status=False, # we want to raise and wrap with VespaError instead to get the payload (if any)
+    raise_on_status=False,  # we want to raise and wrap with VespaError instead to get the payload (if any)
     status_forcelist=[429, 500, 502, 503, 504],
     allowed_methods=["POST", "GET", "DELETE", "PUT"],
 )
 
 VESPA_CLOUD_SECRET_TOKEN: str = "VESPA_CLOUD_SECRET_TOKEN"
 
-def raise_for_status(response: Response, raise_on_not_found: Optional[bool]=False) -> None:
+
+def raise_for_status(
+    response: Response, raise_on_not_found: Optional[bool] = False
+) -> None:
     """
     Raises an appropriate error if necessary.
 
@@ -61,6 +64,7 @@ def raise_for_status(response: Response, raise_on_not_found: Optional[bool]=Fals
         if error_message:
             raise VespaError(error_message) from http_error
         raise HTTPError(http_error) from http_error
+
 
 class Vespa(object):
     def __init__(
@@ -114,7 +118,7 @@ class Vespa(object):
         if vespa_cloud_secret_token is None:
             token = environ.get(VESPA_CLOUD_SECRET_TOKEN, None)
             if token is not None:
-                 self.vespa_cloud_secret_token = token
+                self.vespa_cloud_secret_token = token
 
     def asyncio(
         self, connections: Optional[int] = 8, total_timeout: int = 10
@@ -130,9 +134,7 @@ class Vespa(object):
             app=self, connections=connections, total_timeout=total_timeout
         )
 
-    def syncio(
-        self, connections: Optional[int] = 8
-    ) -> "VespaSync":
+    def syncio(self, connections: Optional[int] = 8) -> "VespaSync":
         """
         Access Vespa synchronous connection layer
 
@@ -163,7 +165,9 @@ class Vespa(object):
             return asyncio.run(coro)
 
     def http(self, pool_maxsize: int = 10):
-        return VespaSync(app=self, pool_maxsize=pool_maxsize, pool_connections=pool_maxsize)
+        return VespaSync(
+            app=self, pool_maxsize=pool_maxsize, pool_connections=pool_maxsize
+        )
 
     def __repr__(self) -> str:
         if self.port:
@@ -206,13 +210,15 @@ class Vespa(object):
             if response is not None and response.status_code == 200:
                 print("Application is up!", file=self.output_file)
                 return
-            if response is not None and (response.status_code == 401 or response.status_code == 403):
+            if response is not None and (
+                response.status_code == 401 or response.status_code == 403
+            ):
                 auth_method = "token" if self.vespa_cloud_secret_token else "mtls"
                 raise RuntimeError(
                     "Failued to authenticate client for endpoint {0}, Response code: {1}. Auth Method: {2}".format(
                         self.url, response.status_code, auth_method
                     )
-            )
+                )
             print(
                 "Waiting for application status, {0}/{1} seconds...".format(
                     waited, max_wait
@@ -221,10 +227,12 @@ class Vespa(object):
             )
             sleep(try_interval)
             waited += try_interval
-        
+
         if waited >= max_wait:
             raise RuntimeError(
-                "Could not reach endpoint {0}, waited for {1} seconds.".format(self.url, max_wait)
+                "Could not reach endpoint {0}, waited for {1} seconds.".format(
+                    self.url, max_wait
+                )
             )
 
     def get_application_status(self) -> Optional[Response]:
@@ -236,34 +244,50 @@ class Vespa(object):
         endpoint = "{}/ApplicationStatus".format(self.end_point)
         try:
             if self.vespa_cloud_secret_token:
-                print("Using Token Authentication against endpoint {}".format(endpoint), file=self.output_file)
+                print(
+                    "Using Token Authentication against endpoint {}".format(endpoint),
+                    file=self.output_file,
+                )
                 return requests.get(
                     endpoint,
-                    headers={"Authorization": f"Bearer {self.vespa_cloud_secret_token}"},
+                    headers={
+                        "Authorization": f"Bearer {self.vespa_cloud_secret_token}"
+                    },
                 )
             if self.key:
-                print("Using mTLS (key,cert) Authentication against endpoint {}".format(endpoint), file=self.output_file)
+                print(
+                    "Using mTLS (key,cert) Authentication against endpoint {}".format(
+                        endpoint
+                    ),
+                    file=self.output_file,
+                )
                 return requests.get(endpoint, cert=(self.cert, self.key))
             elif self.cert:
-                print("Using mTLS (cert) Authentication against endpoint {}".format(endpoint), file=self.output_file)
+                print(
+                    "Using mTLS (cert) Authentication against endpoint {}".format(
+                        endpoint
+                    ),
+                    file=self.output_file,
+                )
                 return requests.get(endpoint, cert=self.cert)
             else:
-                print("Using plain http against endpoint {}".format(endpoint), file=self.output_file)
+                print(
+                    "Using plain http against endpoint {}".format(endpoint),
+                    file=self.output_file,
+                )
                 return requests.get(endpoint)
-         
+
         except ConnectionError:
             return None
-
 
     def get_model_endpoint(self, model_id: Optional[str] = None) -> Optional[Response]:
         """Get stateless model evaluation endpoints."""
 
-        with VespaSync(self,pool_connections=1, pool_maxsize=1) as sync_app:
+        with VespaSync(self, pool_connections=1, pool_maxsize=1) as sync_app:
             return sync_app.get_model_endpoint(model_id=model_id)
 
     def query(
-        self,
-        body: Optional[Dict] = None, groupname:str=None, **kwargs
+        self, body: Optional[Dict] = None, groupname: str = None, **kwargs
     ) -> VespaQueryResponse:
         """
         Send a query request to the Vespa application.
@@ -275,15 +299,18 @@ class Vespa(object):
         param kwargs: Extra Vespa Query API parameters.
         :return: The response from the Vespa application.
         """
-        #Use one connection as this is a single query
-        with VespaSync(self,pool_maxsize=1, pool_connections=1) as sync_app:
-            return sync_app.query(
-                body=body, groupname=groupname, **kwargs
-            )
-
+        # Use one connection as this is a single query
+        with VespaSync(self, pool_maxsize=1, pool_connections=1) as sync_app:
+            return sync_app.query(body=body, groupname=groupname, **kwargs)
 
     def feed_data_point(
-        self, schema: str, data_id: str, fields: Dict, namespace: str = None, groupname:str = None, **kwargs
+        self,
+        schema: str,
+        data_id: str,
+        fields: Dict,
+        namespace: str = None,
+        groupname: str = None,
+        **kwargs,
     ) -> VespaResponse:
         """
         Feed a data point to a Vespa app. Will create a new VespaSync with
@@ -294,19 +321,25 @@ class Vespa(object):
         :param data_id: Unique id associated with this data point.
         :param fields: Dict containing all the fields required by the `schema`.
         :param namespace: The namespace that we are sending data to.
-        :param groupname: The groupname that we are sending data 
+        :param groupname: The groupname that we are sending data
         :return: VespaResponse of the HTTP POST request.
         """
         if not namespace:
             namespace = schema
-        # Use low low connection settings to avoid too much overhead for a 
+        # Use low low connection settings to avoid too much overhead for a
         # single data point
-        with VespaSync(app=self, pool_connections=1,pool_maxsize=1) as sync_app:
+        with VespaSync(app=self, pool_connections=1, pool_maxsize=1) as sync_app:
             return sync_app.feed_data_point(
-                schema=schema, data_id=data_id, fields=fields, namespace=namespace, groupname=groupname, **kwargs
+                schema=schema,
+                data_id=data_id,
+                fields=fields,
+                namespace=namespace,
+                groupname=groupname,
+                **kwargs,
             )
-   
-    def feed_iterable(self,
+
+    def feed_iterable(
+        self,
         iter: Iterable[Dict],
         schema: Optional[str] = None,
         namespace: Optional[str] = None,
@@ -315,13 +348,13 @@ class Vespa(object):
         max_queue_size: int = 1000,
         max_workers: int = 8,
         max_connections: int = 16,
-        **kwargs
+        **kwargs,
     ):
         """
         Feed data from an Iterable of Dict with the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
-        
+
         Uses a queue to feed data in parallel with a thread pool. The result of each operation is forwarded
-        to the user provided callback function that can process the returned `VespaResponse`. 
+        to the user provided callback function that can process the returned `VespaResponse`.
 
         :param iter: An iterable of Dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
         :param schema: The Vespa schema name that we are sending data to.
@@ -332,9 +365,11 @@ class Vespa(object):
         :param max_workers: The maximum number of workers in the threadpool executor.
         :param max_connections: The maximum number of persisted connections to the Vespa endpoint.
         :param kwargs: Additional parameters are passed to the respective operation type specific :func:`_data_point`.
-        """        
+        """
         if operation_type not in ["feed", "update", "delete"]:
-            raise ValueError("Invalid operation type. Valid are `feed`, `update` or `delete`.")
+            raise ValueError(
+                "Invalid operation type. Valid are `feed`, `update` or `delete`."
+            )
 
         if namespace is None:
             namespace = schema
@@ -346,18 +381,23 @@ class Vespa(object):
                     "Not possible to infer schema name. Specify schema parameter."
                 )
 
-        def _consumer(queue:Queue, executor:ThreadPoolExecutor, sync_session:VespaSync, max_in_flight=2*max_queue_size):
-            in_flight = 0 # Single threaded consumer
-            futures:List[Future]= []
+        def _consumer(
+            queue: Queue,
+            executor: ThreadPoolExecutor,
+            sync_session: VespaSync,
+            max_in_flight=2 * max_queue_size,
+        ):
+            in_flight = 0  # Single threaded consumer
+            futures: List[Future] = []
             while True:
                 try:
                     doc = queue.get(timeout=5)
                 except Empty:
-                    continue # producer has not produced anything
-                if doc is None: # producer is done
+                    continue  # producer has not produced anything
+                if doc is None:  # producer is done
                     queue.task_done()
-                    break #Break and wait for all futures to complete
-               
+                    break  # Break and wait for all futures to complete
+
                 completed_futures = [future for future in futures if future.done()]
                 for future in completed_futures:
                     futures.remove(future)
@@ -371,76 +411,118 @@ class Vespa(object):
                             futures.remove(future)
                             in_flight -= 1
                             _handle_result_callback(future, callback=callback)
-                    sleep(0.01) # wait a bit for more futures to complete
-                
-                # we can submit a new doc to Vespa        
-                future:Future = executor.submit(_submit, doc, sync_session)
+                    sleep(0.01)  # wait a bit for more futures to complete
+
+                # we can submit a new doc to Vespa
+                future: Future = executor.submit(_submit, doc, sync_session)
                 futures.append(future)
                 in_flight += 1
-                queue.task_done() # signal that we have consumed the doc from queue
-            
-            # make sure callback is called for all pending operations before 
+                queue.task_done()  # signal that we have consumed the doc from queue
+
+            # make sure callback is called for all pending operations before
             # exiting the consumer thread
             for future in futures:
                 _handle_result_callback(future, callback)
-            
-        def _submit(doc:dict, sync_session:VespaSync) -> Tuple[str, Union[VespaResponse, Exception]]:
+
+        def _submit(
+            doc: dict, sync_session: VespaSync
+        ) -> Tuple[str, Union[VespaResponse, Exception]]:
             id = doc.get("id", None)
             if id is None:
-                return id, VespaResponse(status_code=499, 
-                    json={"id":id, "message":"Missing id in input dict"}, 
-                    url="n/a", operation_type=operation_type)
-            fields = doc.get('fields', None)
+                return id, VespaResponse(
+                    status_code=499,
+                    json={"id": id, "message": "Missing id in input dict"},
+                    url="n/a",
+                    operation_type=operation_type,
+                )
+            fields = doc.get("fields", None)
             if fields is None and operation_type != "delete":
-                return id, VespaResponse(status_code=499, 
-                    json={"id":id, "message":"Missing fields in input dict"}, 
-                    url="n/a", operation_type=operation_type)
+                return id, VespaResponse(
+                    status_code=499,
+                    json={"id": id, "message": "Missing fields in input dict"},
+                    url="n/a",
+                    operation_type=operation_type,
+                )
             groupname = doc.get("groupname", None)
             try:
                 if operation_type == "feed":
-                    response:VespaResponse = sync_session.feed_data_point(
-                        schema=schema, namespace=namespace, 
-                        groupname=groupname, data_id=id, fields=fields, **kwargs)
+                    response: VespaResponse = sync_session.feed_data_point(
+                        schema=schema,
+                        namespace=namespace,
+                        groupname=groupname,
+                        data_id=id,
+                        fields=fields,
+                        **kwargs,
+                    )
                     return (id, response)
                 elif operation_type == "update":
-                    response:VespaResponse = sync_session.update_data(
-                        schema=schema, namespace=namespace, 
-                        groupname=groupname, data_id=id, fields=fields, **kwargs)
+                    response: VespaResponse = sync_session.update_data(
+                        schema=schema,
+                        namespace=namespace,
+                        groupname=groupname,
+                        data_id=id,
+                        fields=fields,
+                        **kwargs,
+                    )
                     return (id, response)
                 elif operation_type == "delete":
-                    response:VespaResponse = sync_session.delete_data(
-                        schema=schema, namespace=namespace, data_id=id, groupname=groupname, **kwargs)
+                    response: VespaResponse = sync_session.delete_data(
+                        schema=schema,
+                        namespace=namespace,
+                        data_id=id,
+                        groupname=groupname,
+                        **kwargs,
+                    )
                     return (id, response)
             except Exception as e:
                 return (id, e)
 
-        def _handle_result_callback(future: Future, callback: Optional[Callable[[VespaResponse, str], None]]):
+        def _handle_result_callback(
+            future: Future, callback: Optional[Callable[[VespaResponse, str], None]]
+        ):
             id, response = future.result()
-            if isinstance(response, Exception): 
+            if isinstance(response, Exception):
                 response = VespaResponse(
-                    status_code=599, 
-                    json={"Exception":str(response), "id":id, "message":"Exception during feed_data_point"},
-                    url="n/a", operation_type=operation_type)
-            if callback is not None:    
+                    status_code=599,
+                    json={
+                        "Exception": str(response),
+                        "id": id,
+                        "message": "Exception during feed_data_point",
+                    },
+                    url="n/a",
+                    operation_type=operation_type,
+                )
+            if callback is not None:
                 try:
                     callback(response, id)
                 except Exception as e:
                     print(f"Exception in user callback for id {id}", file=sys.stderr)
-                    traceback.print_exception(type(e), e, e.__traceback__, file=sys.stderr)
-            
-        with VespaSync(app=self,pool_maxsize=max_connections, pool_connections=max_connections) as session:
-            queue = Queue(maxsize=max_queue_size)   
-            with ThreadPoolExecutor(max_workers=max_workers) as executor: 
-                consumer_thread = threading.Thread(target=_consumer, args=(queue, executor, session, max_queue_size))
-                consumer_thread.start()  
+                    traceback.print_exception(
+                        type(e), e, e.__traceback__, file=sys.stderr
+                    )
+
+        with VespaSync(
+            app=self, pool_maxsize=max_connections, pool_connections=max_connections
+        ) as session:
+            queue = Queue(maxsize=max_queue_size)
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                consumer_thread = threading.Thread(
+                    target=_consumer, args=(queue, executor, session, max_queue_size)
+                )
+                consumer_thread.start()
                 for doc in iter:
                     queue.put(doc, block=True)
                 queue.put(None, block=True)
-                queue.join() 
+                queue.join()
                 consumer_thread.join()
 
     def delete_data(
-        self, schema: str, data_id: str, namespace: str = None, groupname:str=None, **kwargs
+        self,
+        schema: str,
+        data_id: str,
+        namespace: str = None,
+        groupname: str = None,
+        **kwargs,
     ) -> VespaResponse:
         """
         Delete a data point from a Vespa app.
@@ -448,19 +530,27 @@ class Vespa(object):
         :param schema: The schema that we are deleting data from.
         :param data_id: Unique id associated with this data point.
         :param namespace: The namespace that we are deleting data from. If no namespace is provided the schema is used.
-        :param groupname: The groupname that we are deleting data from. 
+        :param groupname: The groupname that we are deleting data from.
         :param kwargs: Additional arguments to be passed to the HTTP DELETE request https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters
         :return: Response of the HTTP DELETE request.
         """
-        
+
         with VespaSync(self, pool_connections=1, pool_maxsize=1) as sync_app:
             return sync_app.delete_data(
-                schema=schema, data_id=data_id, namespace=namespace, groupname=groupname, **kwargs
+                schema=schema,
+                data_id=data_id,
+                namespace=namespace,
+                groupname=groupname,
+                **kwargs,
             )
 
-   
     def delete_all_docs(
-        self, content_cluster_name: str, schema: str, namespace: str = None, slices:int = 1, **kwargs
+        self,
+        content_cluster_name: str,
+        schema: str,
+        namespace: str = None,
+        slices: int = 1,
+        **kwargs,
     ) -> Response:
         """
         Delete all documents associated with the schema. This might block for a long time as
@@ -478,12 +568,19 @@ class Vespa(object):
             return sync_app.delete_all_docs(
                 content_cluster_name=content_cluster_name,
                 namespace=namespace,
-                schema=schema, slices=slices,
-                **kwargs
+                schema=schema,
+                slices=slices,
+                **kwargs,
             )
 
     def get_data(
-        self,  schema:str, data_id: str, namespace: str = None, groupname:str=None, raise_on_not_found:Optional[bool]=False, **kwargs
+        self,
+        schema: str,
+        data_id: str,
+        namespace: str = None,
+        groupname: str = None,
+        raise_on_not_found: Optional[bool] = False,
+        **kwargs,
     ) -> VespaResponse:
         """
         Get a data point from a Vespa app.
@@ -498,10 +595,14 @@ class Vespa(object):
         :return: Response of the HTTP GET request.
         """
 
-        with VespaSync(self,pool_connections=1,pool_maxsize=1) as sync_app:
+        with VespaSync(self, pool_connections=1, pool_maxsize=1) as sync_app:
             return sync_app.get_data(
-                schema=schema, data_id=data_id, namespace=namespace, groupname=groupname, 
-                raise_on_not_found=raise_on_not_found, **kwargs
+                schema=schema,
+                data_id=data_id,
+                namespace=namespace,
+                groupname=groupname,
+                raise_on_not_found=raise_on_not_found,
+                **kwargs,
             )
 
     def update_data(
@@ -511,8 +612,8 @@ class Vespa(object):
         fields: Dict,
         create: bool = False,
         namespace: str = None,
-        groupname:str=None,
-        **kwargs
+        groupname: str = None,
+        **kwargs,
     ) -> VespaResponse:
         """
         Update a data point in a Vespa app.
@@ -526,17 +627,16 @@ class Vespa(object):
         :param kwargs: Additional arguments to be passed to the HTTP PUT request. https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters
         :return: Response of the HTTP PUT request.
         """
-        
 
-        with VespaSync(self,pool_connections=1,pool_maxsize=1) as sync_app:
+        with VespaSync(self, pool_connections=1, pool_maxsize=1) as sync_app:
             return sync_app.update_data(
                 schema=schema,
                 data_id=data_id,
                 fields=fields,
                 create=create,
-                namespace=namespace, 
+                namespace=namespace,
                 groupname=groupname,
-                **kwargs
+                **kwargs,
             )
 
     @property
@@ -574,12 +674,13 @@ class Vespa(object):
             )
 
     def get_document_v1_path(
-        self, 
-        id:str, 
-        schema:Optional[str]=None, 
-        namespace:Optional[str]=None,
-        group:Optional[str]=None, 
-        number:Optional[str] = None) -> str:
+        self,
+        id: str,
+        schema: Optional[str] = None,
+        namespace: Optional[str] = None,
+        group: Optional[str] = None,
+        number: Optional[str] = None,
+    ) -> str:
         """
         Convert to document v1 path
 
@@ -610,10 +711,14 @@ class VespaSync(object):
         else:
             self.cert = self.app.cert
         if self.app.vespa_cloud_secret_token:
-            self.headers = {"Authorization": f"Bearer {self.app.vespa_cloud_secret_token}"}
+            self.headers = {
+                "Authorization": f"Bearer {self.app.vespa_cloud_secret_token}"
+            }
         self.http_session = None
         self.adapter = HTTPAdapter(
-            max_retries=retry_strategy, pool_maxsize=pool_maxsize, pool_connections=pool_connections
+            max_retries=retry_strategy,
+            pool_maxsize=pool_maxsize,
+            pool_connections=pool_connections,
         )
 
     def __enter__(self):
@@ -681,7 +786,13 @@ class VespaSync(object):
         return response
 
     def feed_data_point(
-        self, schema: str, data_id: str, fields: Dict, namespace: str = None, groupname:str=None, **kwargs
+        self,
+        schema: str,
+        data_id: str,
+        fields: Dict,
+        namespace: str = None,
+        groupname: str = None,
+        **kwargs,
     ) -> VespaResponse:
         """
         Feed a data point to a Vespa app.
@@ -696,10 +807,10 @@ class VespaSync(object):
         :raises HTTPError: if one occurred
         """
 
-        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace, group=groupname)
-        end_point = "{}{}".format(
-            self.app.end_point, path
+        path = self.app.get_document_v1_path(
+            id=data_id, schema=schema, namespace=namespace, group=groupname
         )
+        end_point = "{}{}".format(self.app.end_point, path)
         vespa_format = {"fields": fields}
         response = self.http_session.post(end_point, json=vespa_format, params=kwargs)
         raise_for_status(response)
@@ -711,10 +822,7 @@ class VespaSync(object):
         )
 
     def query(
-        self,
-        body: Optional[Dict] = None, 
-        groupname:str=None,
-        **kwargs
+        self, body: Optional[Dict] = None, groupname: str = None, **kwargs
     ) -> VespaQueryResponse:
         """
         Send a query request to the Vespa application.
@@ -730,15 +838,23 @@ class VespaSync(object):
 
         if groupname:
             kwargs["streaming.groupname"] = groupname
-        response = self.http_session.post(self.app.search_end_point, json=body, params=kwargs)
+        response = self.http_session.post(
+            self.app.search_end_point, json=body, params=kwargs
+        )
         raise_for_status(response)
         return VespaQueryResponse(
-            json=response.json(), status_code=response.status_code, url=str(response.url)
+            json=response.json(),
+            status_code=response.status_code,
+            url=str(response.url),
         )
 
     def delete_data(
-        self, schema: str, data_id: str, namespace: str = None, groupname:str=None,
-        **kwargs
+        self,
+        schema: str,
+        data_id: str,
+        namespace: str = None,
+        groupname: str = None,
+        **kwargs,
     ) -> VespaResponse:
         """
         Delete a data point from a Vespa app.
@@ -750,11 +866,11 @@ class VespaSync(object):
         :return: Response of the HTTP DELETE request.
         :raises HTTPError: if one occurred
         """
-        
-        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace, group=groupname)
-        end_point = "{}{}".format(
-            self.app.end_point, path
+
+        path = self.app.get_document_v1_path(
+            id=data_id, schema=schema, namespace=namespace, group=groupname
         )
+        end_point = "{}{}".format(self.app.end_point, path)
         response = self.http_session.delete(end_point, params=kwargs)
         raise_for_status(response)
         return VespaResponse(
@@ -765,7 +881,12 @@ class VespaSync(object):
         )
 
     def delete_all_docs(
-        self, content_cluster_name: str, schema: str, namespace: str = None, slices:int=1,**kwargs
+        self,
+        content_cluster_name: str,
+        schema: str,
+        namespace: str = None,
+        slices: int = 1,
+        **kwargs,
     ) -> None:
         """
         Delete all documents associated with the schema.
@@ -783,7 +904,12 @@ class VespaSync(object):
 
         def delete_slice(slice_id):
             end_point = "{}/document/v1/{}/{}/docid/?cluster={}&selection=true&slices={}&sliceId={}".format(
-                self.app.end_point, namespace, schema, content_cluster_name, slices, slice_id
+                self.app.end_point,
+                namespace,
+                schema,
+                content_cluster_name,
+                slices,
+                slice_id,
             )
             request_endpoint = end_point
             count = 0
@@ -803,16 +929,22 @@ class VespaSync(object):
                     errors += 1
                     error_rate = errors / count
                     if error_rate > 0.1:
-                        raise Exception("Too many errors for slice delete requests") from e
+                        raise Exception(
+                            "Too many errors for slice delete requests"
+                        ) from e
                     sleep(1)
 
         with ThreadPoolExecutor(max_workers=slices) as executor:
             executor.map(delete_slice, range(slices))
 
-
     def get_data(
-        self, schema: str, data_id: str, namespace: str = None, groupname:str = None, 
-        raise_on_not_found: Optional[bool]=False, **kwargs
+        self,
+        schema: str,
+        data_id: str,
+        namespace: str = None,
+        groupname: str = None,
+        raise_on_not_found: Optional[bool] = False,
+        **kwargs,
     ) -> VespaResponse:
         """
         Get a data point from a Vespa app.
@@ -826,13 +958,13 @@ class VespaSync(object):
         :return: Response of the HTTP GET request.
         :raises HTTPError: if one occurred
         """
-        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace, group=groupname)
-        end_point = "{}{}".format(
-            self.app.end_point, path
+        path = self.app.get_document_v1_path(
+            id=data_id, schema=schema, namespace=namespace, group=groupname
         )
-        
+        end_point = "{}{}".format(self.app.end_point, path)
+
         response = self.http_session.get(end_point, params=kwargs)
-        raise_for_status(response, raise_on_not_found=raise_on_not_found) 
+        raise_for_status(response, raise_on_not_found=raise_on_not_found)
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -847,8 +979,8 @@ class VespaSync(object):
         fields: Dict,
         create: bool = False,
         namespace: str = None,
-        groupname:str = None,
-        **kwargs
+        groupname: str = None,
+        **kwargs,
     ) -> VespaResponse:
         """
         Update a data point in a Vespa app.
@@ -863,8 +995,10 @@ class VespaSync(object):
         :return: Response of the HTTP PUT request.
         :raises HTTPError: if one occurred
         """
-        
-        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace, group=groupname)
+
+        path = self.app.get_document_v1_path(
+            id=data_id, schema=schema, namespace=namespace, group=groupname
+        )
         end_point = "{}{}?create={}".format(
             self.app.end_point, path, str(create).lower()
         )
@@ -916,8 +1050,9 @@ class VespaAsync(object):
             )
         else:
             self.aiohttp_session = aiohttp.ClientSession(
-                connector=conn, timeout=aiohttp.ClientTimeout(total=self.total_timeout),
-                headers={"User-Agent": "pyvespa asyncio client"}
+                connector=conn,
+                timeout=aiohttp.ClientTimeout(total=self.total_timeout),
+                headers={"User-Agent": "pyvespa asyncio client"},
             )
         return self.aiohttp_session
 
@@ -934,29 +1069,35 @@ class VespaAsync(object):
 
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def query(
-        self,
-        body: Optional[Dict] = None, 
-        groupname:str = None,
-        **kwargs
+        self, body: Optional[Dict] = None, groupname: str = None, **kwargs
     ) -> VespaQueryResponse:
         if groupname:
             kwargs["streaming.groupname"] = groupname
-        r = await self.aiohttp_session.post(self.app.search_end_point, json=body, params=kwargs)
+        r = await self.aiohttp_session.post(
+            self.app.search_end_point, json=body, params=kwargs
+        )
         return VespaQueryResponse(
             json=await r.json(), status_code=r.status, url=str(r.url)
         )
 
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def feed_data_point(
-        self, schema: str, data_id: str, fields: Dict, namespace: str = None, groupname:str=None, **kwargs
+        self,
+        schema: str,
+        data_id: str,
+        fields: Dict,
+        namespace: str = None,
+        groupname: str = None,
+        **kwargs,
     ) -> VespaResponse:
-        
-        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace, group=groupname)
-        end_point = "{}{}".format(
-            self.app.end_point, path
+        path = self.app.get_document_v1_path(
+            id=data_id, schema=schema, namespace=namespace, group=groupname
         )
+        end_point = "{}{}".format(self.app.end_point, path)
         vespa_format = {"fields": fields}
-        response = await self.aiohttp_session.post(end_point, json=vespa_format, params=kwargs)
+        response = await self.aiohttp_session.post(
+            end_point, json=vespa_format, params=kwargs
+        )
         return VespaResponse(
             json=await response.json(),
             status_code=response.status,
@@ -966,12 +1107,17 @@ class VespaAsync(object):
 
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def delete_data(
-        self, schema: str, data_id: str, namespace: str = None, groupname:str=None, **kwargs
+        self,
+        schema: str,
+        data_id: str,
+        namespace: str = None,
+        groupname: str = None,
+        **kwargs,
     ) -> VespaResponse:
-        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace, group=groupname)
-        end_point = "{}{}".format(
-            self.app.end_point, path
+        path = self.app.get_document_v1_path(
+            id=data_id, schema=schema, namespace=namespace, group=groupname
         )
+        end_point = "{}{}".format(self.app.end_point, path)
         response = await self.aiohttp_session.delete(end_point, params=kwargs)
         return VespaResponse(
             json=await response.json(),
@@ -982,12 +1128,17 @@ class VespaAsync(object):
 
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def get_data(
-        self, schema: str, data_id: str, namespace: str = None, groupname:str=None, **kwargs
+        self,
+        schema: str,
+        data_id: str,
+        namespace: str = None,
+        groupname: str = None,
+        **kwargs,
     ) -> VespaResponse:
-        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace, group=groupname)
-        end_point = "{}{}".format(
-            self.app.end_point, path
+        path = self.app.get_document_v1_path(
+            id=data_id, schema=schema, namespace=namespace, group=groupname
         )
+        end_point = "{}{}".format(self.app.end_point, path)
         response = await self.aiohttp_session.get(end_point, params=kwargs)
         return VespaResponse(
             json=await response.json(),
@@ -1004,15 +1155,19 @@ class VespaAsync(object):
         fields: Dict,
         create: bool = False,
         namespace: str = None,
-        groupname:str=None,
-        **kwargs
+        groupname: str = None,
+        **kwargs,
     ) -> VespaResponse:
-        path = self.app.get_document_v1_path(id=data_id, schema=schema, namespace=namespace, group=groupname)
+        path = self.app.get_document_v1_path(
+            id=data_id, schema=schema, namespace=namespace, group=groupname
+        )
         end_point = "{}{}?create={}".format(
             self.app.end_point, path, str(create).lower()
         )
         vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
-        response = await self.aiohttp_session.put(end_point, json=vespa_format, params=kwargs)
+        response = await self.aiohttp_session.put(
+            end_point, json=vespa_format, params=kwargs
+        )
         return VespaResponse(
             json=await response.json(),
             status_code=response.status,

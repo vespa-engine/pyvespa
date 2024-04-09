@@ -26,8 +26,9 @@ from vespa.package import (
     Parameter,
     ApplicationPackage,
     AuthClient,
-    DeploymentConfiguration
+    DeploymentConfiguration,
 )
+
 
 class TestField(unittest.TestCase):
     def test_field_name_type(self):
@@ -261,20 +262,31 @@ class TestRankProfile(unittest.TestCase):
         )
 
     def test_rank_profile_inputs(self):
-        rank_profile = RankProfile(name="bm25", first_phase="bm25(title) + bm25(body)",
-                                   inputs=[("query(image_query_embedding)", "tensor<float>(d0[512])")])
+        rank_profile = RankProfile(
+            name="bm25",
+            first_phase="bm25(title) + bm25(body)",
+            inputs=[("query(image_query_embedding)", "tensor<float>(d0[512])")],
+        )
         self.assertEqual(rank_profile.inputs[0][0], "query(image_query_embedding)")
         self.assertEqual(rank_profile.inputs[0][1], "tensor<float>(d0[512])")
 
-        rank_profile = RankProfile(name="bm25", first_phase="bm25(title) + bm25(body)",
-                                   inputs=[("query(image_query_embedding)", "tensor<float>(d0[512])", "0")])
+        rank_profile = RankProfile(
+            name="bm25",
+            first_phase="bm25(title) + bm25(body)",
+            inputs=[("query(image_query_embedding)", "tensor<float>(d0[512])", "0")],
+        )
         self.assertEqual(rank_profile.inputs[0][0], "query(image_query_embedding)")
         self.assertEqual(rank_profile.inputs[0][1], "tensor<float>(d0[512])")
         self.assertEqual(rank_profile.inputs[0][2], "0")
 
-        rank_profile = RankProfile(name="bm25", first_phase="bm25(title) + bm25(body)",
-                                   inputs=[("query(image_query_embedding)", "tensor<float>(d0[512])"),
-                                           ("query(image_query_embedding2)", "tensor<float>(d1[512])")])
+        rank_profile = RankProfile(
+            name="bm25",
+            first_phase="bm25(title) + bm25(body)",
+            inputs=[
+                ("query(image_query_embedding)", "tensor<float>(d0[512])"),
+                ("query(image_query_embedding2)", "tensor<float>(d1[512])"),
+            ],
+        )
         self.assertEqual(rank_profile.inputs[0][0], "query(image_query_embedding)")
         self.assertEqual(rank_profile.inputs[1][0], "query(image_query_embedding2)")
 
@@ -694,7 +706,7 @@ class TestApplicationPackage(unittest.TestCase):
             "        <document-processing></document-processing>\n"
             "    </container>\n"
             '    <content id="testapp_content" version="1.0">\n'
-            '        <redundancy>1</redundancy>\n'
+            "        <redundancy>1</redundancy>\n"
             "        <documents>\n"
             '            <document type="msmarco" mode="index"></document>\n'
             "        </documents>\n"
@@ -725,6 +737,7 @@ class TestApplicationPackage(unittest.TestCase):
         )
         self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)
 
+
 class TestApplicationPackageStreaming(unittest.TestCase):
     def setUp(self) -> None:
         self.mail = Schema(
@@ -735,7 +748,8 @@ class TestApplicationPackageStreaming(unittest.TestCase):
                     Field(
                         name="title", type="string", indexing=["attribute", "summary"]
                     )
-                ])
+                ]
+            ),
         )
         self.calendar = Schema(
             name="calendar",
@@ -745,7 +759,8 @@ class TestApplicationPackageStreaming(unittest.TestCase):
                     Field(
                         name="title", type="string", indexing=["attribute", "summary"]
                     )
-                ])
+                ]
+            ),
         )
         self.event = Schema(
             name="event",
@@ -755,11 +770,12 @@ class TestApplicationPackageStreaming(unittest.TestCase):
                     Field(
                         name="title", type="string", indexing=["attribute", "summary"]
                     )
-                ])
+                ]
+            ),
         )
         self.app_package = ApplicationPackage(
-            name="testapp",
-            schema=[self.mail, self.calendar, self.event])
+            name="testapp", schema=[self.mail, self.calendar, self.event]
+        )
 
     def test_generated_services_uses_mode_streaming(self):
         expected_result = (
@@ -771,7 +787,7 @@ class TestApplicationPackageStreaming(unittest.TestCase):
             "        <document-processing></document-processing>\n"
             "    </container>\n"
             '    <content id="testapp_content" version="1.0">\n'
-            '        <redundancy>1</redundancy>\n'
+            "        <redundancy>1</redundancy>\n"
             "        <documents>\n"
             '            <document type="mail" mode="streaming"></document>\n'
             '            <document type="calendar" mode="streaming"></document>\n'
@@ -786,6 +802,7 @@ class TestApplicationPackageStreaming(unittest.TestCase):
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
 
+
 class TestSchemaInheritance(unittest.TestCase):
     def setUp(self) -> None:
         self.news_schema = Schema(
@@ -796,7 +813,7 @@ class TestSchemaInheritance(unittest.TestCase):
                         name="news_id", type="string", indexing=["attribute", "summary"]
                     )
                 ]
-            )
+            ),
         )
         self.mail = Schema(
             name="mail",
@@ -807,7 +824,7 @@ class TestSchemaInheritance(unittest.TestCase):
                     Field(
                         name="mail_id", type="string", indexing=["attribute", "summary"]
                     ),
-                ]
+                ],
             ),
         )
 
@@ -815,6 +832,7 @@ class TestSchemaInheritance(unittest.TestCase):
             name="testapp",
             schema=[self.news_schema, self.mail],
         )
+
     def test_schema_to_text(self):
         expected_mail_result = (
             "schema mail inherits news {\n"
@@ -825,7 +843,10 @@ class TestSchemaInheritance(unittest.TestCase):
             "    }\n"
             "}"
         )
-        self.assertEqual(self.app_package.get_schema(name="mail").schema_to_text, expected_mail_result)
+        self.assertEqual(
+            self.app_package.get_schema(name="mail").schema_to_text,
+            expected_mail_result,
+        )
 
 
 class TestApplicationPackageMultipleSchema(unittest.TestCase):
@@ -880,7 +901,6 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
             name="testapp",
             schema=[self.news_schema, self.user_schema, self.category_ctr_schema],
         )
-
 
     def test_get_schema(self):
         self.assertEqual(self.app_package.get_schema(name="news"), self.news_schema)
@@ -946,7 +966,7 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
             "        <document-processing></document-processing>\n"
             "    </container>\n"
             '    <content id="testapp_content" version="1.0">\n'
-            '        <redundancy>1</redundancy>\n'
+            "        <redundancy>1</redundancy>\n"
             "        <documents>\n"
             '            <document type="news" mode="index"></document>\n'
             '            <document type="user" mode="index"></document>\n'
@@ -995,9 +1015,14 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
                 name="embedding",
                 type="tensor<bfloat16>(x[384])",
                 is_document_field=False,
-                indexing=["(input title || \"\") . \" \" . (input body || \"\")", "embed embedder", "attribute", "index"],
-                index="hnsw"
-            )
+                indexing=[
+                    '(input title || "") . " " . (input body || "")',
+                    "embed embedder",
+                    "attribute",
+                    "index",
+                ],
+                index="hnsw",
+            ),
         )
         self.app_package.schema.add_field_set(
             FieldSet(name="default", fields=["title", "body"])
@@ -1010,7 +1035,9 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
                 name="bm25",
                 first_phase="bm25(title) + bm25(body)",
                 inherits="default",
-                global_phase=GlobalPhaseRanking(rerank_count=10, expression="bm25(title)")
+                global_phase=GlobalPhaseRanking(
+                    rerank_count=10, expression="bm25(title)"
+                ),
             )
         )
         self.app_package.query_profile_type.add_fields(
@@ -1055,7 +1082,7 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
             "        }\n"
             "    }\n"
             "    field embedding type tensor<bfloat16>(x[384]) {\n"
-            "        indexing: (input title || \"\") . \" \" . (input body || \"\") | embed embedder | attribute | index\n"
+            '        indexing: (input title || "") . " " . (input body || "") | embed embedder | attribute | index\n'
             "        index: hnsw\n"
             "    }\n"
             "    fieldset default {\n"
@@ -1095,7 +1122,7 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
             "        <document-processing></document-processing>\n"
             "    </container>\n"
             '    <content id="testapp_content" version="1.0">\n'
-            '        <redundancy>1</redundancy>\n'
+            "        <redundancy>1</redundancy>\n"
             "        <documents>\n"
             '            <document type="testapp" mode="index"></document>\n'
             "        </documents>\n"
@@ -1183,7 +1210,7 @@ class TestSimplifiedApplicationPackageWithMultipleSchemas(unittest.TestCase):
             "        <document-processing></document-processing>\n"
             "    </container>\n"
             '    <content id="news_content" version="1.0">\n'
-            '        <redundancy>1</redundancy>\n'
+            "        <redundancy>1</redundancy>\n"
             "        <documents>\n"
             '            <document type="news" mode="index"></document>\n'
             '            <document type="user" mode="index"></document>\n'
@@ -1199,21 +1226,32 @@ class TestSimplifiedApplicationPackageWithMultipleSchemas(unittest.TestCase):
 
 class TestComponentSetup(unittest.TestCase):
     def setUp(self) -> None:
-        components = [Component(id="my-component", bundle="my-bundle"),
-                      Component(id="hf-embedder", type="hugging-face-embedder",
-                                parameters=[
-                                    Parameter("transformer-model", {"path": "my-models/model.onnx"}),
-                                    Parameter("tokenizer-model", {"path": "my-models/tokenizer.json"}),
-                                ]),
-                      Component(id="my-custom-component", cls="com.example.MyCustomEmbedder",
-                                parameters=[
-                                    Parameter("config", {"name": "com.example.my-embedder"}, [
-                                        Parameter("model", {"model-id": "minilm-l6-v2"}),
-                                        Parameter("vocab", {"path": "files/vocab.txt"}),
-                                        Parameter("myValue", {}, "foo"),
-                                    ]),
-                                ])
-                      ]
+        components = [
+            Component(id="my-component", bundle="my-bundle"),
+            Component(
+                id="hf-embedder",
+                type="hugging-face-embedder",
+                parameters=[
+                    Parameter("transformer-model", {"path": "my-models/model.onnx"}),
+                    Parameter("tokenizer-model", {"path": "my-models/tokenizer.json"}),
+                ],
+            ),
+            Component(
+                id="my-custom-component",
+                cls="com.example.MyCustomEmbedder",
+                parameters=[
+                    Parameter(
+                        "config",
+                        {"name": "com.example.my-embedder"},
+                        [
+                            Parameter("model", {"model-id": "minilm-l6-v2"}),
+                            Parameter("vocab", {"path": "files/vocab.txt"}),
+                            Parameter("myValue", {}, "foo"),
+                        ],
+                    ),
+                ],
+            ),
+        ]
         self.app_package = ApplicationPackage(name="content", components=components)
 
     def test_services_to_text(self):
@@ -1228,17 +1266,17 @@ class TestComponentSetup(unittest.TestCase):
             '        <component id="hf-embedder" type="hugging-face-embedder">\n'
             '            <transformer-model path="my-models/model.onnx"/>\n'
             '            <tokenizer-model path="my-models/tokenizer.json"/>\n'
-            '        </component>\n'
+            "        </component>\n"
             '        <component id="my-custom-component" class="com.example.MyCustomEmbedder">\n'
             '            <config name="com.example.my-embedder">\n'
             '                <model model-id="minilm-l6-v2"/>\n'
             '                <vocab path="files/vocab.txt"/>\n'
-            '                <myValue>foo</myValue>\n'
-            '            </config>\n'
-            '        </component>\n'
+            "                <myValue>foo</myValue>\n"
+            "            </config>\n"
+            "        </component>\n"
             "    </container>\n"
             '    <content id="content_content" version="1.0">\n'
-            '        <redundancy>1</redundancy>\n'
+            "        <redundancy>1</redundancy>\n"
             "        <documents>\n"
             '            <document type="content" mode="index"></document>\n'
             "        </documents>\n"
@@ -1250,19 +1288,20 @@ class TestComponentSetup(unittest.TestCase):
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
 
+
 class TestClientTokenSetup(unittest.TestCase):
     def setUp(self) -> None:
         clients = [
-            AuthClient(id="mtls",
+            AuthClient(
+                id="mtls",
                 permissions=["read"],
-                parameters=[
-                Parameter("certificate", {"file": "security/clients.pem"})
-            ]),
-            AuthClient(id="token",
+                parameters=[Parameter("certificate", {"file": "security/clients.pem"})],
+            ),
+            AuthClient(
+                id="token",
                 permissions=["read"],
-                parameters=[
-                Parameter("token", {"id": "accessToken"})
-            ])
+                parameters=[Parameter("token", {"id": "accessToken"})],
+            ),
         ]
         self.app_package = ApplicationPackage(name="content", auth_clients=clients)
 
@@ -1275,17 +1314,17 @@ class TestClientTokenSetup(unittest.TestCase):
             "        <search></search>\n"
             "        <document-api></document-api>\n"
             "        <document-processing></document-processing>\n"
-            '        <clients>\n'
+            "        <clients>\n"
             '            <client id="mtls" permissions="read">\n'
             '                <certificate file="security/clients.pem"/>\n'
-            '            </client>\n'
+            "            </client>\n"
             '            <client id="token" permissions="read">\n'
             '                <token id="accessToken"/>\n'
-            '            </client>\n'
-            '        </clients>\n'
+            "            </client>\n"
+            "        </clients>\n"
             "    </container>\n"
             '    <content id="content_content" version="1.0">\n'
-            '        <redundancy>1</redundancy>\n'
+            "        <redundancy>1</redundancy>\n"
             "        <documents>\n"
             '            <document type="content" mode="index"></document>\n'
             "        </documents>\n"
@@ -1293,11 +1332,10 @@ class TestClientTokenSetup(unittest.TestCase):
             '            <node distribution-key="0" hostalias="node1"></node>\n'
             "        </nodes>\n"
             "    </content>\n"
-            "</services>")
-
+            "</services>"
+        )
 
         self.assertEqual(self.app_package.services_to_text, expected_result)
-
 
 
 class TestValidAppName(unittest.TestCase):
@@ -1333,7 +1371,7 @@ class TestFieldAlias(unittest.TestCase):
                             "second_alias",
                             "third_alias",
                         ],
-                    )
+                    ),
                 ]
             ),
         )
@@ -1367,24 +1405,34 @@ class TestFieldAlias(unittest.TestCase):
 class TestCluster(unittest.TestCase):
     def setUp(self) -> None:
         clusters = [
-            ContainerCluster(id="test_container",
-                    nodes=Nodes(
-                        count="1",
+            ContainerCluster(
+                id="test_container",
+                nodes=Nodes(
+                    count="1",
+                    parameters=[
+                        Parameter(
+                            "resources",
+                            {"vcpu": "4.0", "memory": "16Gb", "disk": "125Gb"},
+                            [Parameter("gpu", {"count": "1", "memory": "16Gb"})],
+                        ),
+                    ],
+                ),
+                components=[
+                    Component(
+                        id="e5",
+                        type="hugging-face-embedder",
                         parameters=[
-                            Parameter("resources", {"vcpu": "4.0", "memory": "16Gb", "disk": "125Gb"},
-                                      [Parameter("gpu", {"count": "1", "memory": "16Gb"})]),
-                        ]
-                    ),
-                    components=[Component(id="e5", type="hugging-face-embedder",
-                                          parameters=[
-                                              Parameter("transformer-model", {
-                                                  "path": "model/model.onnx"}),
-                                              Parameter("tokenizer-model", {
-                                                  "path": "model/tokenizer.json"})
-                                          ])
-                                ]
-                    ),
-            ContentCluster(id="test_content", document_name="test")
+                            Parameter(
+                                "transformer-model", {"path": "model/model.onnx"}
+                            ),
+                            Parameter(
+                                "tokenizer-model", {"path": "model/tokenizer.json"}
+                            ),
+                        ],
+                    )
+                ],
+            ),
+            ContentCluster(id="test_content", document_name="test"),
         ]
 
         self.app_package = ApplicationPackage(name="test", clusters=clusters)
@@ -1397,26 +1445,26 @@ class TestCluster(unittest.TestCase):
             '        <nodes count="1">\n'
             '            <resources vcpu="4.0" memory="16Gb" disk="125Gb">\n'
             '                <gpu count="1" memory="16Gb"/>\n'
-            '            </resources>\n'
-            '        </nodes>\n'
-            '        <search></search>\n'
-            '        <document-api></document-api>\n'
-            '        <document-processing></document-processing>\n'
+            "            </resources>\n"
+            "        </nodes>\n"
+            "        <search></search>\n"
+            "        <document-api></document-api>\n"
+            "        <document-processing></document-processing>\n"
             '        <component id="e5" type="hugging-face-embedder">\n'
             '            <transformer-model path="model/model.onnx"/>\n'
             '            <tokenizer-model path="model/tokenizer.json"/>\n'
-            '        </component>\n'
-            '    </container>\n'
+            "        </component>\n"
+            "    </container>\n"
             '    <content id="test_content" version="1.0">\n'
-            '        <nodes>\n'
+            "        <nodes>\n"
             '            <node distribution-key="0" hostalias="node1"></node>\n'
-            '        </nodes>\n'
-            '        <min-redundancy>1</min-redundancy>\n'
-            '        <documents>\n'
+            "        </nodes>\n"
+            "        <min-redundancy>1</min-redundancy>\n"
+            "        <documents>\n"
             '            <document type="test" mode="index"></document>\n'
-            '        </documents>\n'
-            '    </content>\n'
-            '</services>'
+            "        </documents>\n"
+            "    </content>\n"
+            "</services>"
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
 
@@ -1424,19 +1472,18 @@ class TestCluster(unittest.TestCase):
 class TestDeploymentConfiguration(unittest.TestCase):
     def test_deployment_to_text(self):
         deploy_config = DeploymentConfiguration(
-            environment="prod",
-            regions=["aws-us-east-1c", "aws-us-west-2a"]
+            environment="prod", regions=["aws-us-east-1c", "aws-us-west-2a"]
         )
 
         app_package = ApplicationPackage(name="test", deployment_config=deploy_config)
 
         expected_result = (
             '<deployment version="1.0">\n'
-            '    <prod>\n'
-            '        <region>aws-us-east-1c</region>\n'
-            '        <region>aws-us-west-2a</region>\n'
-            '    </prod>\n'
-            '</deployment>'
+            "    <prod>\n"
+            "        <region>aws-us-east-1c</region>\n"
+            "        <region>aws-us-west-2a</region>\n"
+            "    </prod>\n"
+            "</deployment>"
         )
 
         self.assertEqual(expected_result, app_package.deployment_to_text)

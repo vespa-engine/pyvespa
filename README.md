@@ -25,9 +25,15 @@ Code licensed under the Apache 2.0 license. See [LICENSE](LICENSE) for terms.
 
 
 ## Development environment
-Check [screwdriver.yaml](screwdriver.yaml) to see which packages and environment variables
-need to be set to run unit and integration tests.
+To install editable version of the library with dev dependencies, run the following command from the root directory of the repository:
 
+```python
+pip install -e .[]
+```
+
+Note that this will enforce linting and formatting with [Ruff](https://github.com/astral-sh/ruff), which also will be triggered by a [pre-commit](https://pre-commit.com/)-hook.
+
+This means that you may get an error message when trying to commit changes if the code does not pass the linting and formatting checks. The errors are detailed in the output, and you can optionally run manually with `ruff` CLI-tool.
 
 ## Releases
 Find releases and release notes on [GitHub](https://github.com/vespa-engine/pyvespa/releases).

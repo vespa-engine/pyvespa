@@ -16,22 +16,23 @@ from test_integration_docker import (
 
 APP_INIT_TIMEOUT = 900
 
+
 class TestTokenBasedAuth(unittest.TestCase):
     def setUp(self) -> None:
         self.clients = [
-            AuthClient(id="mtls",
+            AuthClient(
+                id="mtls",
                 permissions=["read", "write"],
-                parameters=[
-                Parameter("certificate", {"file": "security/clients.pem"})
-            ]),
-            AuthClient(id="token",
+                parameters=[Parameter("certificate", {"file": "security/clients.pem"})],
+            ),
+            AuthClient(
+                id="token",
                 permissions=["read", "write"],
-                parameters=[
-                Parameter("token", {"id": "pyvespa_integration_msmarco"})
-            ])
+                parameters=[Parameter("token", {"id": "pyvespa_integration_msmarco"})],
+            ),
         ]
         self.app_package = create_msmarco_application_package(auth_clients=self.clients)
-        
+
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
             application="pyvespa-integration",
@@ -43,12 +44,12 @@ class TestTokenBasedAuth(unittest.TestCase):
         self.app: Vespa = self.vespa_cloud.deploy(
             instance=self.instance_name, disk_folder=self.disk_folder
         )
-        print("Endpoint used " + self.app.url) 
+        print("Endpoint used " + self.app.url)
 
     def test_right_endpoint_used_with_token(self):
         # The secrect token is set in env variable.
-        # The token is used to access the application status endpoint.  
-        print("Endpoint used " + self.app.url)      
+        # The token is used to access the application status endpoint.
+        print("Endpoint used " + self.app.url)
         self.app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
         self.assertDictEqual(
             {
@@ -57,10 +58,11 @@ class TestTokenBasedAuth(unittest.TestCase):
             },
             self.app.get_data(schema="msmarco", data_id="1").json,
         )
-        self.assertEqual(self.app.get_data(schema="msmarco", data_id="1").is_successful(), False)
+        self.assertEqual(
+            self.app.get_data(schema="msmarco", data_id="1").is_successful(), False
+        )
         with pytest.raises(HTTPError):
-            self.app.get_data(schema="msmarco", data_id="1",raise_on_not_found=True)
-        
+            self.app.get_data(schema="msmarco", data_id="1", raise_on_not_found=True)
 
     def tearDown(self) -> None:
         self.app.delete_all_docs(
@@ -72,20 +74,19 @@ class TestTokenBasedAuth(unittest.TestCase):
 
 class TestMsmarcoApplicationWithTokenAuth(TestApplicationCommon):
     def setUp(self) -> None:
-        
         self.clients = [
-            AuthClient(id="mtls",
+            AuthClient(
+                id="mtls",
                 permissions=["read"],
-                parameters=[
-                Parameter("certificate", {"file": "security/clients.pem"})
-            ]),
-            AuthClient(id="token",
+                parameters=[Parameter("certificate", {"file": "security/clients.pem"})],
+            ),
+            AuthClient(
+                id="token",
                 permissions=["read", "write"],
-                parameters=[
-                Parameter("token", {"id": "pyvespa_integration_msmarco"})
-            ])
+                parameters=[Parameter("token", {"id": "pyvespa_integration_msmarco"})],
+            ),
         ]
-        
+
         self.app_package = create_msmarco_application_package(auth_clients=self.clients)
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
