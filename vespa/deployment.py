@@ -59,7 +59,7 @@ class VespaDocker(VespaDeployment):
         container_memory: Union[str, int] = 4 * (1024**3),
         output_file: IO = sys.stdout,
         container: Optional[docker.models.containers.Container] = None,
-        container_image: str = "docker.io/vespaengine/vespa",
+        container_image: str = "vespaengine/vespa",
         volumes: Optional[List[str]] = None,
         cfgsrv_port: int = 19071,
         debug_port: int = 5005,
@@ -142,7 +142,10 @@ class VespaDocker(VespaDeployment):
         )
         container_memory = container.attrs["HostConfig"]["Memory"]
         container_image = container.image.tags[0]  # vespaengine/vespa:latest
-        print(f"TODO: Remove image name: {container_image}")
+        # Get the container image on canonical form, e.g vespaengine/vespa, not docker.io/vespaengine/vespa to avoid comparison tests to fail
+        image_parts = container_image.split("/")
+        if len(image_parts) > 2:
+            container_image = "/".join(image_parts[-2:])
         return VespaDocker(
             port=port,
             container_memory=container_memory,
@@ -482,7 +485,6 @@ class VespaCloud(VespaDeployment):
         print("Finished deployment.", file=self.output)
         return app
 
-
     def _get_latest_run_id(self, instance) -> int:
         # The following endpoint returns a dictionary containing information about various builds for a given application.
         # It sometimes takes a couple of seconds for the actual latest build to show up, but once it does, we can get the latest run id.
@@ -499,7 +501,9 @@ class VespaCloud(VespaDeployment):
 
         return max(run_ids)
 
-    def deploy_to_prod(self, instance: Optional[str]="default", disk_folder: Optional[str] = None) -> None:
+    def deploy_to_prod(
+        self, instance: Optional[str] = "default", disk_folder: Optional[str] = None
+    ) -> None:
         """
         Deploy the given application package as the given instance in the Vespa Cloud prod environment.
 
@@ -507,7 +511,9 @@ class VespaCloud(VespaDeployment):
         :param disk_folder: Disk folder to save the required Vespa config files. Default to application name
             folder within user's current working directory.
         """
-        logging.warning("This feature is experimental and may fail in unexpected ways. Expect better support in future releases.")
+        logging.warning(
+            "This feature is experimental and may fail in unexpected ways. Expect better support in future releases."
+        )
 
         if not disk_folder:
             disk_folder = os.path.join(os.getcwd(), self.application_package.name)
@@ -524,7 +530,9 @@ class VespaCloud(VespaDeployment):
         print(f"Follow deployment at: {deploy_url}", file=self.output)
 
         print("Waiting for monitoring...", file=self.output)
-        last_run_id = self._get_latest_run_id(instance)  # This may or may not be updated
+        last_run_id = self._get_latest_run_id(
+            instance
+        )  # This may or may not be updated
         retry_count = 0
         max_retries = 5
         while retry_count < max_retries:
@@ -536,7 +544,10 @@ class VespaCloud(VespaDeployment):
                 if retry_count == max_retries:
                     # There is a chance that last_run_id is actually updated already, and there is also a chance that it is not.
                     # In any case, the deployment will proceed as expected, we just won't be able to monitor it (can still be montiored from web console).
-                    print(f"Could not find a new run id after {max_retries} retries. Proceeding anyway.", file=self.output)
+                    print(
+                        f"Could not find a new run id after {max_retries} retries. Proceeding anyway.",
+                        file=self.output,
+                    )
                     break
                 else:
                     delay = min(2**retry_count, 8) + random.uniform(0, 1)
@@ -554,13 +565,18 @@ class VespaCloud(VespaDeployment):
 
         token = os.environ.get(VESPA_CLOUD_SECRET_TOKEN, None)
         if token is None:
-            endpoint_url = self.get_mtls_endpoint(instance=instance, region=region, environment="prod")
+            endpoint_url = self.get_mtls_endpoint(
+                instance=instance, region=region, environment="prod"
+            )
         else:
-            endpoint_url = self.get_token_endpoint(instance=instance, region=region, environment="prod")
+            endpoint_url = self.get_token_endpoint(
+                instance=instance, region=region, environment="prod"
+            )
 
         app = Vespa(
             url=endpoint_url,
-            cert=self.data_cert_path or os.path.join(disk_folder, self.private_cert_file_name),
+            cert=self.data_cert_path
+            or os.path.join(disk_folder, self.private_cert_file_name),
             key=self.data_key_path or None,
             application_package=self.application_package,
         )
@@ -804,9 +820,12 @@ class VespaCloud(VespaDeployment):
                     delay = min(2**retry_count, 1) + random.uniform(0, 1)
                     sleep(delay)
 
-
-
-    def get_mtls_endpoint(self, instance: Optional[str]="default", region: Optional[str]=None, environment: Optional[str]="dev") -> str:
+    def get_mtls_endpoint(
+        self,
+        instance: Optional[str] = "default",
+        region: Optional[str] = None,
+        environment: Optional[str] = "dev",
+    ) -> str:
         if region is None:
             if environment == "dev":
                 region = self.get_dev_region()
@@ -830,8 +849,12 @@ class VespaCloud(VespaDeployment):
             "No mtls endpoints found for container cluster " + cluster_name
         )
 
-
-    def get_token_endpoint(self, instance: Optional[str]="default", region: Optional[str]=None, environment: Optional[str]="dev") -> List[dict]:
+    def get_token_endpoint(
+        self,
+        instance: Optional[str] = "default",
+        region: Optional[str] = None,
+        environment: Optional[str] = "dev",
+    ) -> List[dict]:
         if region is None:
             if environment == "dev":
                 region = self.get_dev_region()
@@ -902,7 +925,13 @@ class VespaCloud(VespaDeployment):
         )
 
         # Compute content hash, etc
-        url = "https://" + self.connection.host + ":" + str(self.connection.port) + deploy_path
+        url = (
+            "https://"
+            + self.connection.host
+            + ":"
+            + str(self.connection.port)
+            + deploy_path
+        )
         digest = hashes.Hash(hashes.SHA256(), default_backend())
         digest.update(
             multipart_data.to_string()
@@ -932,8 +961,13 @@ class VespaCloud(VespaDeployment):
         message = response.json()["message"]
         print(message, file=self.output)
 
-    def _start_deployment(self, instance: str, job: str, disk_folder: str,
-                          application_zip_bytes: Optional[BytesIO] = None) -> int:
+    def _start_deployment(
+        self,
+        instance: str,
+        job: str,
+        disk_folder: str,
+        application_zip_bytes: Optional[BytesIO] = None,
+    ) -> int:
         deploy_path = (
             "/application/v4/tenant/{}/application/{}/instance/{}/deploy/{}".format(
                 self.tenant, self.application, instance, job
