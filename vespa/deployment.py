@@ -74,9 +74,8 @@ class VespaDocker(VespaDeployment):
         >>> from vespa.deployment import VespaDocker
         >>> vespa_docker = VespaDocker(port=8080)
         ... # or initialize from a running container:
-        >>> vespa_docker = VespaDocker.from_container_name_or_id("my_container")
         >>> vespa_docker
-        VespaDocker('http://localhost', 8080, 'my_container', 'container_id', 4294967296, 'vespaengine/vespa')
+        VespaDocker('http://localhost', 8080, None, None, 4294967296, 'vespaengine/vespa')
 
         **Note**:
 
