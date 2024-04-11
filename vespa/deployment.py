@@ -67,13 +67,29 @@ class VespaDocker(VespaDeployment):
         """
         Manage Docker deployments.
 
-        :param port: Container port.
-        :param cfgsrv_port: Config Server port.
-        :param debug_port: Port to connect to, to debug the vespa container.
+        Make sure to start the Docker daemon before instantiating this class.
+
+        Example:
+
+        >>> from vespa.deployment import VespaDocker
+        >>> vespa_docker = VespaDocker(port=8080)
+        ... # or initialize from a running container:
+        >>> vespa_docker
+        VespaDocker('http://localhost', 8080, None, None, 4294967296, 'vespaengine/vespa')
+
+        **Note**:
+
+        It is **NOT** possible to refer to Volume Mounts in your Application Package.
+        This means that for example .onnx-model files that is part of the Application Package **must** be on your host machine, so
+        that it can be uploaded as part of the Application Package to the Vespa container.
+
+        :param port: Container port. Default is 8080.
+        :param cfgsrv_port: Vespa Config Server port. Default is 19071.
+        :param debug_port: Port to connect to, to debug the vespa container. Default is 5005.
         :param output_file: Output file to write output messages.
-        :param container_memory: Docker container memory available to the application.
+        :param container_memory: Docker container memory available to the application in bytes. Default is 4GB.
         :param container: Used when instantiating VespaDocker from a running container.
-        :param volumes: A list of strings which each one of its elements specifies a mount volume. For example: `['/home/user1/:/mnt/vol2','/var/www:/mnt/vol1']`.
+        :param volumes: A list of strings which each one of its elements specifies a mount volume. For example: `['/home/user1/:/mnt/vol2','/var/www:/mnt/vol1']`. NB! The Application Package can NOT refer to Volume Mount paths. See note above.
         :param container_image: Docker container image.
         """
         self.container = container
