@@ -1107,6 +1107,10 @@ class VespaCloud(VespaDeployment):
                 zip_archive.writestr(
                     "deployment.xml", self.application_package.deployment_to_text
                 )
+            if self.application_package.validations:
+                zip_archive.writestr(
+                    "validation-overrides.xml", self.application_package.validations_to_text
+                )
 
         return buffer
 
