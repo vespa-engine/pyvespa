@@ -620,7 +620,7 @@ class VespaCloud(VespaDeployment):
 
         # Like with the run id, it can take a couple of seconds for the job to show up here.
         # TODO Replace with a more robust solution
-        sleep(10)
+        sleep(20)
         region = self.get_prod_region()
         self._follow_deployment(instance, f"production-{region}", run_id)
 
