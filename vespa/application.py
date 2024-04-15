@@ -978,17 +978,24 @@ class VespaSync(object):
         data_id: str,
         fields: Dict,
         create: bool = False,
+        assign: bool = True,
         namespace: str = None,
         groupname: str = None,
+        update_operation: Optional[Dict] = None,
         **kwargs,
     ) -> VespaResponse:
         """
         Update a data point in a Vespa app.
 
+        Example usage:
+        TODO: Add example usage
+
         :param schema: The schema that we are updating data.
         :param data_id: Unique id associated with this data point.
         :param fields: Dict containing all the fields you want to update.
         :param create: If true, updates to non-existent documents will create an empty document to update
+        :param assign: If true, the assumes an assignment operation. If set to false, update_operation needs to be set.
+        :param update_operation: The operation to perform (in same format as the content of the 'fields'-property (see https://docs.vespa.ai/en/reference/document-json-format.html). If assign is set to false, this parameter is required.
         :param namespace: The namespace that we are updating data.
         :param groupname: The groupname used to update data
         :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)
@@ -1002,7 +1009,14 @@ class VespaSync(object):
         end_point = "{}{}?create={}".format(
             self.app.end_point, path, str(create).lower()
         )
-        vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
+        if assign:
+            vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
+        else:
+            if update_operation is None:
+                raise ValueError(
+                    "update_operation is required when assign is set to False"
+                )
+            vespa_format = {"fields": update_operation}
         response = self.http_session.put(end_point, json=vespa_format, params=kwargs)
         raise_for_status(response)
         return VespaResponse(
