@@ -6,7 +6,7 @@ import os
 import asyncio
 import json
 
-from typing import List
+from typing import List, Dict, Optional
 from vespa.io import VespaResponse
 
 from vespa.package import (
@@ -21,6 +21,7 @@ from vespa.package import (
     QueryProfileType,
     QueryTypeField,
     AuthClient,
+    Struct,
 )
 from vespa.deployment import VespaDocker
 from vespa.application import VespaSync
@@ -264,6 +265,7 @@ class TestApplicationCommon(unittest.TestCase):
         fields_to_send,
         field_to_update,
         expected_fields_from_get_operation,
+        expected_fields_after_update: Optional[Dict] = None,
     ):
         """
         Feed, get, update and delete data to/from the application
@@ -274,13 +276,13 @@ class TestApplicationCommon(unittest.TestCase):
         :param field_to_update: Dict where keys are field names and values are field values.
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
             There are cases where fields returned from Vespa are different from inputs, e.g. when dealing with Tensors.
+        :param expected_fields_after_update: Dict containing fields as returned by Vespa get operation after update. If None, will be inferred by performing `expected_fields_from_get_operation.update(field_to_update)`
         :return:
         """
         assert "id" in fields_to_send, "fields_to_send must contain 'id' field."
         #
         # Get data that does not exist
         #
-
         response: VespaResponse = app.get_data(
             schema=schema_name, data_id=fields_to_send["id"]
         )
@@ -290,11 +292,16 @@ class TestApplicationCommon(unittest.TestCase):
         #
         # Feed a data point
         #
+        print(fields_to_send)
+        print(schema_name)
+        print(fields_to_send["id"])
         response = app.feed_data_point(
             schema=schema_name,
             data_id=fields_to_send["id"],
             fields=fields_to_send,
         )
+        print(response.json)
+
         self.assertEqual(
             response.json["id"],
             "id:{}:{}::{}".format(schema_name, schema_name, fields_to_send["id"]),
@@ -334,8 +341,13 @@ class TestApplicationCommon(unittest.TestCase):
         #
         response = app.get_data(schema=schema_name, data_id=field_to_update["id"])
         self.assertEqual(response.status_code, 200)
-        expected_result = {k: v for k, v in expected_fields_from_get_operation.items()}
-        expected_result.update(field_to_update)
+        if expected_fields_after_update is None:
+            expected_result = {
+                k: v for k, v in expected_fields_from_get_operation.items()
+            }
+            expected_result.update(field_to_update)
+        else:
+            expected_result = expected_fields_after_update
         self.assertDictEqual(
             response.json,
             {
@@ -936,6 +948,152 @@ class TestStreamingApplication(unittest.TestCase):
                 "id": "id:test:mail:g=b@hotmail.com:1",
                 "fields": {"body": "this is a body", "title": "this is a new foo"},
             },
+        )
+
+    def tearDown(self) -> None:
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
+        self.vespa_docker.container.remove()
+
+
+def create_update_application_package() -> ApplicationPackage:
+    document = Document(
+        structs=[
+            Struct(
+                name="person",
+                fields=[
+                    Field(name="first_name", type="string"),
+                    Field(name="last_name", type="string"),
+                ],
+            )
+        ],
+        fields=[
+            Field(name="id", type="string", indexing=["attribute", "summary"]),
+            Field(name="title", type="string", indexing=["index", "summary"]),
+            Field(name="tensorfield", type="tensor<int8>(x[10])", indexing=["summary"]),
+            Field(name="contact", type="person", indexing=["summary"]),
+        ],
+    )
+    schema = Schema(
+        name="testupdates",
+        document=document,
+        fieldsets=[
+            FieldSet(name="default", fields=["title", "tensorfield", "contact"])
+        ],
+        rank_profiles=[RankProfile(name="default", first_phase="nativeRank(title)")],
+    )
+    return ApplicationPackage(name="testupdates", schema=[schema])
+
+
+class TestUpdateApplication(TestApplicationCommon):
+    """Tests"""
+
+    def setUp(self) -> None:
+        self.app_package = create_update_application_package()
+        self.schema_name = self.app_package.name
+        print(self.app_package.schema.schema_to_text)
+        self.vespa_docker = VespaDocker(port=8089)
+        self.app = self.vespa_docker.deploy(application_package=self.app_package)
+        self.fields_to_send = [
+            {
+                "id": "1",
+                "title": "this is a title",
+                "tensorfield": {
+                    "x": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                },
+                "contact": {"first_name": "John", "last_name": "Doe"},
+            },
+            {
+                "id": "2",
+                "title": "this is another title",
+                "tensorfield": {
+                    "x": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                },
+                "contact": {"first_name": "Jane", "last_name": "Doe"},
+            },
+        ]
+        self.expected_fields_from_get_operation = [
+            {
+                "id": "1",
+                "title": "this is a title",
+                "tensorfield": {
+                    "type": "tensor<int8>(x[10])",
+                    "values": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                },
+                "contact": {"first_name": "John", "last_name": "Doe"},
+            },
+            {
+                "id": "2",
+                "title": "this is another title",
+                "tensorfield": {
+                    "type": "tensor<int8>(x[10])",
+                    "values": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                },
+                "contact": {"first_name": "Jane", "last_name": "Doe"},
+            },
+        ]
+
+        self.fields_to_update = [
+            {
+                "id": "1",
+                "title": "this is an updated title",
+            },
+            {
+                "id": "2",
+                "tensorfield": {
+                    "cells": [
+                        {"address": {"x": 0}, "value": 42},
+                        {"address": {"x": 9}, "value": 42},
+                    ]
+                },
+            },
+        ]
+
+        self.expected_fields_after_update = [
+            {
+                "id": "1",
+                "title": "this is an updated title",
+                "tensorfield": {
+                    "type": "tensor<int8>(x[10])",
+                    "values": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                },
+                "contact": {"first_name": "John", "last_name": "Doe"},
+            },
+            {
+                "id": "2",
+                "title": "this is another title",
+                "tensorfield": {
+                    "type": "tensor<int8>(x[10])",
+                    "values": [42, 0, 0, 0, 0, 0, 0, 0, 42],
+                },
+                "contact": {"first_name": "Jane", "last_name": "Doe"},
+            },
+        ]
+
+        self.vespa_docker = VespaDocker(port=8089)
+        self.app = self.vespa_docker.deploy(application_package=self.app_package)
+
+    def test_execute_data_operations(self):
+        self.execute_data_operations(
+            app=self.app,
+            schema_name=self.schema_name,
+            fields_to_send=self.fields_to_send[0],
+            field_to_update=self.fields_to_update[0],
+            expected_fields_from_get_operation=self.expected_fields_from_get_operation[
+                0
+            ],
+            expected_fields_after_update=self.expected_fields_after_update[0],
+        )
+
+    def test_perform_tensor_update(self):
+        self.execute_data_operations(
+            app=self.app,
+            schema_name=self.schema_name,
+            fields_to_send=self.fields_to_send[1],
+            field_to_update=self.fields_to_update[1],
+            expected_fields_from_get_operation=self.expected_fields_from_get_operation[
+                1
+            ],
+            expected_fields_after_update=self.expected_fields_after_update[1],
         )
 
     def tearDown(self) -> None:
