@@ -23,10 +23,6 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from vespa.application import Vespa, VESPA_CLOUD_SECRET_TOKEN
 from vespa.package import ApplicationPackage, AuthClient, Parameter
 
-CFG_SERVER_START_TIMEOUT = 300
-APP_INIT_TIMEOUT = 300
-DOCKER_TIMEOUT = 600
-
 
 class VespaDeployment:
     def read_app_package_from_disk(self, application_root: Path) -> bytes:
@@ -174,21 +170,38 @@ class VespaDocker(VespaDeployment):
     def deploy(
         self,
         application_package: ApplicationPackage,
+        max_wait_configserver: int = 60,
+        max_wait_deployment: int = 300,
+        max_wait_docker: int = 300,
         debug: bool = False,
     ) -> Vespa:
         """
         Deploy the application package into a Vespa container.
 
         :param application_package: ApplicationPackage to be deployed.
+        :param max_wait_configserver: Seconds to wait for the config server to start.
+        :param max_wait_deployment: Seconds to wait for the deployment.
+        :param max_wait_docker: Seconds to wait for the docker container to start.
         :param debug: Add the configured debug_port to the docker port mapping.
         :return: a Vespa connection instance.
         """
         return self._deploy_data(
-            application_package, application_package.to_zip(), debug
+            application_package,
+            application_package.to_zip(),
+            max_wait_configserver=max_wait_configserver,
+            max_wait_application=max_wait_deployment,
+            docker_timeout=max_wait_docker,
+            debug=debug,
         )
 
     def deploy_from_disk(
-        self, application_name: str, application_root: Path, debug: bool = False
+        self,
+        application_name: str,
+        application_root: Path,
+        max_wait_configserver: int = 60,
+        max_wait_application: int = 300,
+        docker_timeout: int = 300,
+        debug: bool = False,
     ) -> Vespa:
         """
         Deploy from a directory tree.
@@ -201,7 +214,14 @@ class VespaDocker(VespaDeployment):
         :return: a Vespa connection instance.
         """
         data = self.read_app_package_from_disk(application_root)
-        return self._deploy_data(ApplicationPackage(name=application_name), data, debug)
+        return self._deploy_data(
+            ApplicationPackage(name=application_name),
+            data,
+            debug,
+            max_wait_application=max_wait_application,
+            max_wait_configserver=max_wait_configserver,
+            docker_timeout=docker_timeout,
+        )
 
     def wait_for_config_server_start(self, max_wait: int) -> None:
         """
@@ -228,9 +248,11 @@ class VespaDocker(VespaDeployment):
                 "Config server did not start, waited for {0} seconds.".format(max_wait)
             )
 
-    def start_services(self) -> None:
+    def start_services(self, max_wait: int = 120) -> None:
         """
         Start Vespa services inside the docker image, first waiting for the Config Server, then for other services.
+
+        :param max_wait: Seconds to wait for the application endpoint
 
         :raises RuntimeError: if a container has not been set
         :return: None
@@ -251,7 +273,7 @@ class VespaDocker(VespaDeployment):
                 url=self.url,
                 port=self.local_port,
             )
-            app.wait_for_application_up(max_wait=1000000)  # wait indefinitely...
+            app.wait_for_application_up(max_wait=max_wait)
             for line in start_services.output.decode("utf-8").split("\n"):
                 print(line, file=self.output)
         else:
@@ -295,11 +317,22 @@ class VespaDocker(VespaDeployment):
         logging.debug("Dumping vespa.log:")
         logging.debug(log_dump.output.decode("utf-8"))
 
-    def _deploy_data(self, application: ApplicationPackage, data, debug: bool) -> Vespa:
+    def _deploy_data(
+        self,
+        application: ApplicationPackage,
+        data,
+        debug: bool,
+        max_wait_configserver: int,
+        max_wait_application: int,
+        docker_timeout: int,
+    ) -> Vespa:
         """
         Deploys an Application Package as zipped data
 
         :param application: Application package
+        :param max_wait_configserver: Seconds to wait for the config server to start
+        :param max_wait_application: Seconds to wait for the application deployment
+
         :raises RuntimeError: Exception if deployment fails
         :return: A Vespa connection instance
         """
@@ -308,8 +341,9 @@ class VespaDocker(VespaDeployment):
             container_memory=self.container_memory,
             volumes=self.volumes,
             debug=debug,
+            docker_timeout=docker_timeout,
         )
-        self.wait_for_config_server_start(max_wait=CFG_SERVER_START_TIMEOUT)
+        self.wait_for_config_server_start(max_wait=max_wait_configserver)
 
         r = requests.post(
             "http://localhost:{}/application/v2/tenant/default/prepareandactivate".format(
@@ -328,7 +362,7 @@ class VespaDocker(VespaDeployment):
             )
 
         app = Vespa(url=self.url, port=self.local_port, application_package=application)
-        app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
+        app.wait_for_application_up(max_wait=max_wait_application)
 
         print("Finished deployment.", file=self.output)
         return app
@@ -339,8 +373,9 @@ class VespaDocker(VespaDeployment):
         container_memory: str,
         volumes: List[str],
         debug: bool,
+        docker_timeout: int,
     ) -> None:
-        client = docker.from_env(timeout=DOCKER_TIMEOUT)
+        client = docker.from_env(timeout=docker_timeout)
         if self.container is None:
             try:
                 logging.debug("Try Docker container restart")
@@ -465,7 +500,10 @@ class VespaCloud(VespaDeployment):
         self.close()
 
     def deploy(
-        self, instance: Optional[str] = "default", disk_folder: Optional[str] = None
+        self,
+        instance: Optional[str] = "default",
+        disk_folder: Optional[str] = None,
+        max_wait: int = 300,
     ) -> Vespa:
         """
         Deploy the given application package as the given instance in the Vespa Cloud dev environment.
@@ -473,6 +511,7 @@ class VespaCloud(VespaDeployment):
         :param instance: Name of this instance of the application, in the Vespa Cloud.
         :param disk_folder: Disk folder to save the required Vespa config files. Default to application name
             folder within user's current working directory.
+        :param max_wait: Seconds to wait for the deployment.
 
         :return: a Vespa connection instance.
         """
@@ -498,7 +537,7 @@ class VespaCloud(VespaDeployment):
             key=self.data_key_path or None,
             application_package=self.application_package,
         )
-        app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
+        app.wait_for_application_up(max_wait=max_wait)
         print("Finished deployment.", file=self.output)
         return app
 
@@ -519,7 +558,10 @@ class VespaCloud(VespaDeployment):
         return max(run_ids)
 
     def deploy_to_prod(
-        self, instance: Optional[str] = "default", disk_folder: Optional[str] = None
+        self,
+        instance: Optional[str] = "default",
+        disk_folder: Optional[str] = None,
+        max_wait: int = 300,
     ) -> None:
         """
         Deploy the given application package as the given instance in the Vespa Cloud prod environment.
@@ -527,6 +569,7 @@ class VespaCloud(VespaDeployment):
         :param instance: Name of this instance of the application, in the Vespa Cloud.
         :param disk_folder: Disk folder to save the required Vespa config files. Default to application name
             folder within user's current working directory.
+        :param max_wait: Seconds to wait for the deployment.
         """
         logging.warning(
             "This feature is experimental and may fail in unexpected ways. Expect better support in future releases."
@@ -550,6 +593,7 @@ class VespaCloud(VespaDeployment):
         last_run_id = self._get_latest_run_id(
             instance
         )  # This may or may not be updated
+        # TODO: We should probably use tenacity for this.
         retry_count = 0
         max_retries = 5
         while retry_count < max_retries:
@@ -600,7 +644,9 @@ class VespaCloud(VespaDeployment):
 
         return app
 
-    def deploy_from_disk(self, instance: str, application_root: Path) -> Vespa:
+    def deploy_from_disk(
+        self, instance: str, application_root: Path, max_wait: int = 300
+    ) -> Vespa:
         """
         Deploy from a directory tree.
         Used when making changes to application package files not supported by pyvespa.
@@ -608,6 +654,7 @@ class VespaCloud(VespaDeployment):
 
         :param instance: Name of the instance where the application is to be run
         :param application_root: Application package directory root
+        :param max_wait: Seconds to wait for the deployment.
         :return: a Vespa connection instance.
         """
 
@@ -638,7 +685,7 @@ class VespaCloud(VespaDeployment):
             key=self.data_key_path,
             application_package=self.application_package,
         )
-        app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
+        app.wait_for_application_up(max_wait=max_wait)
         print("Finished deployment.", file=self.output)
 
         return app
@@ -810,6 +857,7 @@ class VespaCloud(VespaDeployment):
         }
 
         body.seek(0)
+        # TODO: We should probably use tenacity for this.
         retry_count = 0
         max_retries = 3
         while retry_count < max_retries:
