@@ -1010,7 +1010,8 @@ class VespaSync(object):
         if auto_assign:
             vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
         else:
-            vespa_format = {"fields": fields}
+            # Can not send 'id' in fields for partial update
+            vespa_format = {"fields": {k: v for k, v in fields.items() if k != "id"}}
         response = self.http_session.put(end_point, json=vespa_format, params=kwargs)
         raise_for_status(response)
         return VespaResponse(
@@ -1162,6 +1163,7 @@ class VespaAsync(object):
         data_id: str,
         fields: Dict,
         create: bool = False,
+        auto_assign: bool = True,
         namespace: str = None,
         groupname: str = None,
         **kwargs,
@@ -1172,7 +1174,11 @@ class VespaAsync(object):
         end_point = "{}{}?create={}".format(
             self.app.end_point, path, str(create).lower()
         )
-        vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
+        if auto_assign:
+            vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
+        else:
+            # Can not send 'id' in fields for partial update
+            vespa_format = {"fields": {k: v for k, v in fields.items() if k != "id"}}
         response = await self.aiohttp_session.put(
             end_point, json=vespa_format, params=kwargs
         )

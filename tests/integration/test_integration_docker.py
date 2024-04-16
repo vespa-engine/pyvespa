@@ -266,6 +266,7 @@ class TestApplicationCommon(unittest.TestCase):
         field_to_update,
         expected_fields_from_get_operation,
         expected_fields_after_update: Optional[Dict] = None,
+        **kwargs,
     ):
         """
         Feed, get, update and delete data to/from the application
@@ -277,6 +278,7 @@ class TestApplicationCommon(unittest.TestCase):
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
             There are cases where fields returned from Vespa are different from inputs, e.g. when dealing with Tensors.
         :param expected_fields_after_update: Dict containing fields as returned by Vespa get operation after update. If None, will be inferred by performing `expected_fields_from_get_operation.update(field_to_update)`
+        :param kwargs: Additional parameters to be passed to the get/update/delete operations
         :return:
         """
         assert "id" in fields_to_send, "fields_to_send must contain 'id' field."
@@ -284,7 +286,7 @@ class TestApplicationCommon(unittest.TestCase):
         # Get data that does not exist
         #
         response: VespaResponse = app.get_data(
-            schema=schema_name, data_id=fields_to_send["id"]
+            schema=schema_name, data_id=fields_to_send["id"], **kwargs
         )
         self.assertEqual(response.status_code, 404)
         self.assertFalse(response.is_successful())
@@ -292,11 +294,11 @@ class TestApplicationCommon(unittest.TestCase):
         #
         # Feed a data point
         #
-
         response = app.feed_data_point(
             schema=schema_name,
             data_id=fields_to_send["id"],
             fields=fields_to_send,
+            **kwargs,
         )
 
         self.assertEqual(
@@ -306,7 +308,9 @@ class TestApplicationCommon(unittest.TestCase):
         #
         # Get data that exist
         #
-        response = app.get_data(schema=schema_name, data_id=fields_to_send["id"])
+        response = app.get_data(
+            schema=schema_name, data_id=fields_to_send["id"], **kwargs
+        )
         self.assertEqual(response.status_code, 200)
         self.assertDictEqual(
             response.json,
@@ -328,6 +332,7 @@ class TestApplicationCommon(unittest.TestCase):
             schema=schema_name,
             data_id=field_to_update["id"],
             fields=field_to_update,
+            **kwargs,
         )
         self.assertEqual(
             response.json["id"],
@@ -336,7 +341,9 @@ class TestApplicationCommon(unittest.TestCase):
         #
         # Get the updated data point
         #
-        response = app.get_data(schema=schema_name, data_id=field_to_update["id"])
+        response = app.get_data(
+            schema=schema_name, data_id=field_to_update["id"], **kwargs
+        )
         self.assertEqual(response.status_code, 200)
         if expected_fields_after_update is None:
             expected_result = {
@@ -361,7 +368,9 @@ class TestApplicationCommon(unittest.TestCase):
         #
         # Delete a data point
         #
-        response = app.delete_data(schema=schema_name, data_id=fields_to_send["id"])
+        response = app.delete_data(
+            schema=schema_name, data_id=fields_to_send["id"], **kwargs
+        )
         self.assertEqual(
             response.json["id"],
             "id:{}:{}::{}".format(schema_name, schema_name, fields_to_send["id"]),
@@ -369,10 +378,13 @@ class TestApplicationCommon(unittest.TestCase):
         #
         # Deleted data should be gone
         response: VespaResponse = app.get_data(
-            schema=schema_name, data_id=fields_to_send["id"]
+            schema=schema_name, data_id=fields_to_send["id"], **kwargs
         )
         self.assertFalse(response.is_successful())
-
+        # Check if auto_assign is in kwargs and return if it is False
+        # The remainding tests does not make sense (and will not work) for partial updates.
+        if "auto_assign" in kwargs and not kwargs["auto_assign"]:
+            return
         #
         # Update a non-existent data point
         #
@@ -381,6 +393,7 @@ class TestApplicationCommon(unittest.TestCase):
             data_id=field_to_update["id"],
             fields=field_to_update,
             create=True,
+            **kwargs,
         )
         self.assertEqual(
             response.json["id"],
@@ -389,7 +402,9 @@ class TestApplicationCommon(unittest.TestCase):
         #
         # Get the updated data point
         #
-        response = app.get_data(schema=schema_name, data_id=fields_to_send["id"])
+        response = app.get_data(
+            schema=schema_name, data_id=fields_to_send["id"], **kwargs
+        )
         self.assertEqual(response.status_code, 200)
         if expected_fields_after_update is None:
             expected_fields = field_to_update
@@ -399,8 +414,6 @@ class TestApplicationCommon(unittest.TestCase):
                 for k, v in expected_fields_after_update.items()
                 if k in field_to_update
             }
-        print(response.json)
-        print(expected_fields)
         self.assertDictEqual(
             response.json,
             {
@@ -418,7 +431,7 @@ class TestApplicationCommon(unittest.TestCase):
         #
         with VespaSync(app=app) as sync_app:
             response = sync_app.delete_data(
-                schema=schema_name, data_id=field_to_update["id"]
+                schema=schema_name, data_id=field_to_update["id"], **kwargs
             )
         self.assertEqual(
             response.json["id"],
@@ -433,6 +446,7 @@ class TestApplicationCommon(unittest.TestCase):
                 data_id=fields_to_send["id"],
                 fields=fields_to_send,
                 tracelevel=9,
+                **kwargs,
             )
         self.assertEqual(
             response.json["id"],
@@ -448,6 +462,7 @@ class TestApplicationCommon(unittest.TestCase):
         fields_to_send,
         field_to_update,
         expected_fields_from_get_operation,
+        expected_fields_after_update: Optional[Dict] = None,
     ):
         """
         Async feed, get, update and delete data to/from the application
@@ -544,16 +559,26 @@ class TestApplicationCommon(unittest.TestCase):
             #
             # Get the updated data point
             #
+            print("Get")
             response = await async_app.get_data(
                 schema=schema_name, data_id=field_to_update["id"]
             )
+            print(response.json)
             self.assertEqual(response.status_code, 200)
             result = response.json
-            expected_result = {
-                k: v for k, v in expected_fields_from_get_operation[0].items()
-            }
-            expected_result.update(field_to_update)
-
+            if expected_fields_after_update is None:
+                expected_result = {
+                    k: v for k, v in expected_fields_from_get_operation[0].items()
+                }
+                expected_result.update(field_to_update)
+            else:
+                expected_result = {
+                    k: v
+                    for k, v in expected_fields_after_update.items()
+                    if k in field_to_update
+                }
+            print(result)
+            print(expected_result)
             self.assertDictEqual(
                 result,
                 {
@@ -1001,7 +1026,6 @@ class TestUpdateApplication(TestApplicationCommon):
     def setUp(self) -> None:
         self.app_package = create_update_application_package()
         self.schema_name = self.app_package.name
-        print(self.app_package.schema.schema_to_text)
         self.vespa_docker = VespaDocker(port=8089)
         self.app = self.vespa_docker.deploy(application_package=self.app_package)
         self.fields_to_send = [
@@ -1136,6 +1160,18 @@ class TestUpdateApplication(TestApplicationCommon):
             expected_fields_after_update=self.expected_fields_after_update[0],
         )
 
+    # def test_execute_async_data_operations(self):
+    #     asyncio.run(
+    #         self.execute_async_data_operations(
+    #             app=self.app,
+    #             schema_name=self.schema_name,
+    #             fields_to_send=self.fields_to_send,
+    #             field_to_update=self.fields_to_update[0],
+    #             expected_fields_from_get_operation=self.expected_fields_from_get_operation,
+    #             expected_fields_after_update=self.expected_fields_after_update[0],
+    #         )
+    #     )
+
     def test_perform_tensor_update(self):
         self.execute_data_operations(
             app=self.app,
@@ -1146,6 +1182,19 @@ class TestUpdateApplication(TestApplicationCommon):
                 1
             ],
             expected_fields_after_update=self.expected_fields_after_update[1],
+        )
+
+    def test_perform_increment_update(self):
+        self.execute_data_operations(
+            app=self.app,
+            schema_name=self.schema_name,
+            fields_to_send=self.fields_to_send[2],
+            field_to_update=self.fields_to_update[2],
+            expected_fields_from_get_operation=self.expected_fields_from_get_operation[
+                2
+            ],
+            expected_fields_after_update=self.expected_fields_after_update[2],
+            auto_assign=False,  #
         )
 
     def tearDown(self) -> None:
