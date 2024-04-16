@@ -315,7 +315,7 @@ class Vespa(object):
         """
         Feed a data point to a Vespa app. Will create a new VespaSync with
         connection overhead.
-        ``` with VespaSync(app) as sync_app: sync_app.feed_data_point(...) ```
+        >>> with VespaSync(app) as sync_app: sync_app.feed_data_point(...)  # doctest: +SKIP
 
         :param schema: The schema that we are sending data to.
         :param data_id: Unique id associated with this data point.
@@ -987,13 +987,17 @@ class VespaSync(object):
         Update a data point in a Vespa app.
 
         Example usage:
-        TODO: Add example usage
+        >>> fields = {"mystringfield": "value1", "myintfield": 42}  # doctest: +SKIP
+        >>> response = vespa.update_data(schema="schema_name", data_id="id1", fields=fields)  # doctest: +SKIP
+        >>> # or, with partial update, setting auto_assign=False # doctest: +SKIP
+        >>> fields = {"myintfield": {"increment": 1}} # doctest: +SKIP
+        >>> response = vespa.update_data(schema="schema_name", data_id="id1", fields=fields, auto_assign=False) # doctest: +SKIP
 
         :param schema: The schema that we are updating data.
         :param data_id: Unique id associated with this data point.
         :param fields: Dict containing all the fields you want to update.
         :param create: If true, updates to non-existent documents will create an empty document to update
-        :param auto_assign: Assumes an assignment operation. If set to false, the fields parameter should be a dictionary including the update operation.
+        :param auto_assign: Assumes `fields`-parameter is an assignment operation. (https://docs.vespa.ai/en/reference/document-json-format.html#assign). If set to false, the fields parameter should be a dictionary including the update operation.
         :param namespace: The namespace that we are updating data.
         :param groupname: The groupname used to update data
         :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)

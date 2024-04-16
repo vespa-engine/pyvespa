@@ -559,11 +559,9 @@ class TestApplicationCommon(unittest.TestCase):
             #
             # Get the updated data point
             #
-            print("Get")
             response = await async_app.get_data(
                 schema=schema_name, data_id=field_to_update["id"]
             )
-            print(response.json)
             self.assertEqual(response.status_code, 200)
             result = response.json
             if expected_fields_after_update is None:
@@ -1160,17 +1158,17 @@ class TestUpdateApplication(TestApplicationCommon):
             expected_fields_after_update=self.expected_fields_after_update[0],
         )
 
-    # def test_execute_async_data_operations(self):
-    #     asyncio.run(
-    #         self.execute_async_data_operations(
-    #             app=self.app,
-    #             schema_name=self.schema_name,
-    #             fields_to_send=self.fields_to_send,
-    #             field_to_update=self.fields_to_update[0],
-    #             expected_fields_from_get_operation=self.expected_fields_from_get_operation,
-    #             expected_fields_after_update=self.expected_fields_after_update[0],
-    #         )
-    #     )
+    def test_execute_async_data_operations(self):
+        asyncio.run(
+            self.execute_async_data_operations(
+                app=self.app,
+                schema_name=self.schema_name,
+                fields_to_send=self.fields_to_send,
+                field_to_update=self.fields_to_update[0],
+                expected_fields_from_get_operation=self.expected_fields_from_get_operation,
+                expected_fields_after_update=self.expected_fields_after_update[0],
+            )
+        )
 
     def test_perform_tensor_update(self):
         self.execute_data_operations(
