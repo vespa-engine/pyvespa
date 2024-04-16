@@ -292,15 +292,12 @@ class TestApplicationCommon(unittest.TestCase):
         #
         # Feed a data point
         #
-        print(fields_to_send)
-        print(schema_name)
-        print(fields_to_send["id"])
+
         response = app.feed_data_point(
             schema=schema_name,
             data_id=fields_to_send["id"],
             fields=fields_to_send,
         )
-        print(response.json)
 
         self.assertEqual(
             response.json["id"],
@@ -348,6 +345,7 @@ class TestApplicationCommon(unittest.TestCase):
             expected_result.update(field_to_update)
         else:
             expected_result = expected_fields_after_update
+
         self.assertDictEqual(
             response.json,
             {
@@ -393,10 +391,20 @@ class TestApplicationCommon(unittest.TestCase):
         #
         response = app.get_data(schema=schema_name, data_id=fields_to_send["id"])
         self.assertEqual(response.status_code, 200)
+        if expected_fields_after_update is None:
+            expected_fields = field_to_update
+        else:
+            expected_fields = {
+                k: v
+                for k, v in expected_fields_after_update.items()
+                if k in field_to_update
+            }
+        print(response.json)
+        print(expected_fields)
         self.assertDictEqual(
             response.json,
             {
-                "fields": field_to_update,
+                "fields": expected_fields,
                 "id": "id:{}:{}::{}".format(
                     schema_name, schema_name, field_to_update["id"]
                 ),
@@ -969,6 +977,7 @@ def create_update_application_package() -> ApplicationPackage:
         fields=[
             Field(name="id", type="string", indexing=["attribute", "summary"]),
             Field(name="title", type="string", indexing=["index", "summary"]),
+            Field(name="price", type="int", indexing=["summary", "attribute"]),
             Field(name="tensorfield", type="tensor<int8>(x[10])", indexing=["summary"]),
             Field(name="contact", type="person", indexing=["summary"]),
         ],
@@ -977,7 +986,9 @@ def create_update_application_package() -> ApplicationPackage:
         name="testupdates",
         document=document,
         fieldsets=[
-            FieldSet(name="default", fields=["title", "tensorfield", "contact"])
+            FieldSet(
+                name="default", fields=["title", "tensorfield", "contact", "price"]
+            )
         ],
         rank_profiles=[RankProfile(name="default", first_phase="nativeRank(title)")],
     )
@@ -1001,6 +1012,7 @@ class TestUpdateApplication(TestApplicationCommon):
                     "x": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
                 },
                 "contact": {"first_name": "John", "last_name": "Doe"},
+                "price": 100,
             },
             {
                 "id": "2",
@@ -1009,6 +1021,16 @@ class TestUpdateApplication(TestApplicationCommon):
                     "x": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
                 },
                 "contact": {"first_name": "Jane", "last_name": "Doe"},
+                "price": 200,
+            },
+            {
+                "id": "3",
+                "title": "this is the third title",
+                "tensorfield": {
+                    "x": [21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
+                },
+                "contact": {"first_name": "Paul", "last_name": "Doe"},
+                "price": 300,
             },
         ]
         self.expected_fields_from_get_operation = [
@@ -1020,6 +1042,7 @@ class TestUpdateApplication(TestApplicationCommon):
                     "values": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
                 },
                 "contact": {"first_name": "John", "last_name": "Doe"},
+                "price": 100,
             },
             {
                 "id": "2",
@@ -1029,6 +1052,17 @@ class TestUpdateApplication(TestApplicationCommon):
                     "values": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
                 },
                 "contact": {"first_name": "Jane", "last_name": "Doe"},
+                "price": 200,
+            },
+            {
+                "id": "3",
+                "title": "this is the third title",
+                "tensorfield": {
+                    "type": "tensor<int8>(x[10])",
+                    "values": [21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
+                },
+                "contact": {"first_name": "Paul", "last_name": "Doe"},
+                "price": 300,
             },
         ]
 
@@ -1046,6 +1080,12 @@ class TestUpdateApplication(TestApplicationCommon):
                     ]
                 },
             },
+            {
+                "id": "3",
+                "price": {
+                    "increment": 1000,
+                },
+            },
         ]
 
         self.expected_fields_after_update = [
@@ -1057,15 +1097,27 @@ class TestUpdateApplication(TestApplicationCommon):
                     "values": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
                 },
                 "contact": {"first_name": "John", "last_name": "Doe"},
+                "price": 100,
             },
             {
                 "id": "2",
                 "title": "this is another title",
                 "tensorfield": {
                     "type": "tensor<int8>(x[10])",
-                    "values": [42, 0, 0, 0, 0, 0, 0, 0, 42],
+                    "values": [42, 0, 0, 0, 0, 0, 0, 0, 0, 42],
                 },
                 "contact": {"first_name": "Jane", "last_name": "Doe"},
+                "price": 200,
+            },
+            {
+                "id": "3",
+                "title": "this is the third title",
+                "tensorfield": {
+                    "type": "tensor<int8>(x[10])",
+                    "values": [21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
+                },
+                "contact": {"first_name": "Paul", "last_name": "Doe"},
+                "price": 1300,
             },
         ]
 
