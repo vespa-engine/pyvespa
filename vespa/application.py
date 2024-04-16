@@ -989,7 +989,7 @@ class VespaSync(object):
         Example usage:
         >>> fields = {"mystringfield": "value1", "myintfield": 42}  # doctest: +SKIP
         >>> response = vespa.update_data(schema="schema_name", data_id="id1", fields=fields)  # doctest: +SKIP
-        >>> # or, with partial update, setting auto_assign=False # doctest: +SKIP
+        or, with partial update, setting auto_assign=False
         >>> fields = {"myintfield": {"increment": 1}} # doctest: +SKIP
         >>> response = vespa.update_data(schema="schema_name", data_id="id1", fields=fields, auto_assign=False) # doctest: +SKIP
 
