@@ -19,3 +19,4 @@ Examples
    examples/mixedbread-binary-embeddings-with-sentence-transformers-cloud.ipynb
    examples/colbert_standalone_Vespa-cloud.ipynb
    examples/colbert_standalone_long_context_Vespa-cloud.ipynb
+   examples/feed_performance.ipynb
