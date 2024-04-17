@@ -315,7 +315,7 @@ class Vespa(object):
         """
         Feed a data point to a Vespa app. Will create a new VespaSync with
         connection overhead.
-        ``` with VespaSync(app) as sync_app: sync_app.feed_data_point(...) ```
+        >>> with VespaSync(app) as sync_app: sync_app.feed_data_point(...)  # doctest: +SKIP
 
         :param schema: The schema that we are sending data to.
         :param data_id: Unique id associated with this data point.
@@ -978,6 +978,7 @@ class VespaSync(object):
         data_id: str,
         fields: Dict,
         create: bool = False,
+        auto_assign: bool = True,
         namespace: str = None,
         groupname: str = None,
         **kwargs,
@@ -985,10 +986,18 @@ class VespaSync(object):
         """
         Update a data point in a Vespa app.
 
+        Example usage:
+        >>> fields = {"mystringfield": "value1", "myintfield": 42}  # doctest: +SKIP
+        >>> response = vespa.update_data(schema="schema_name", data_id="id1", fields=fields)  # doctest: +SKIP
+        or, with partial update, setting auto_assign=False
+        >>> fields = {"myintfield": {"increment": 1}} # doctest: +SKIP
+        >>> response = vespa.update_data(schema="schema_name", data_id="id1", fields=fields, auto_assign=False) # doctest: +SKIP
+
         :param schema: The schema that we are updating data.
         :param data_id: Unique id associated with this data point.
         :param fields: Dict containing all the fields you want to update.
         :param create: If true, updates to non-existent documents will create an empty document to update
+        :param auto_assign: Assumes `fields`-parameter is an assignment operation. (https://docs.vespa.ai/en/reference/document-json-format.html#assign). If set to false, the fields parameter should be a dictionary including the update operation.
         :param namespace: The namespace that we are updating data.
         :param groupname: The groupname used to update data
         :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)
@@ -1002,7 +1011,11 @@ class VespaSync(object):
         end_point = "{}{}?create={}".format(
             self.app.end_point, path, str(create).lower()
         )
-        vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
+        if auto_assign:
+            vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
+        else:
+            # Can not send 'id' in fields for partial update
+            vespa_format = {"fields": {k: v for k, v in fields.items() if k != "id"}}
         response = self.http_session.put(end_point, json=vespa_format, params=kwargs)
         raise_for_status(response)
         return VespaResponse(
@@ -1154,6 +1167,7 @@ class VespaAsync(object):
         data_id: str,
         fields: Dict,
         create: bool = False,
+        auto_assign: bool = True,
         namespace: str = None,
         groupname: str = None,
         **kwargs,
@@ -1164,7 +1178,11 @@ class VespaAsync(object):
         end_point = "{}{}?create={}".format(
             self.app.end_point, path, str(create).lower()
         )
-        vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
+        if auto_assign:
+            vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
+        else:
+            # Can not send 'id' in fields for partial update
+            vespa_format = {"fields": {k: v for k, v in fields.items() if k != "id"}}
         response = await self.aiohttp_session.put(
             end_point, json=vespa_format, params=kwargs
         )

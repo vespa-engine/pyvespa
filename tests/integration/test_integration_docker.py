@@ -6,7 +6,7 @@ import os
 import asyncio
 import json
 
-from typing import List
+from typing import List, Dict, Optional
 from vespa.io import VespaResponse
 
 from vespa.package import (
@@ -21,6 +21,7 @@ from vespa.package import (
     QueryProfileType,
     QueryTypeField,
     AuthClient,
+    Struct,
 )
 from vespa.deployment import VespaDocker
 from vespa.application import VespaSync
@@ -257,6 +258,9 @@ class TestDockerCommon(unittest.TestCase):
 
 
 class TestApplicationCommon(unittest.TestCase):
+    # Set maxDiff to None to see full diff
+    maxDiff = None
+
     def execute_data_operations(
         self,
         app,
@@ -264,6 +268,8 @@ class TestApplicationCommon(unittest.TestCase):
         fields_to_send,
         field_to_update,
         expected_fields_from_get_operation,
+        expected_fields_after_update: Optional[Dict] = None,
+        **kwargs,
     ):
         """
         Feed, get, update and delete data to/from the application
@@ -274,15 +280,16 @@ class TestApplicationCommon(unittest.TestCase):
         :param field_to_update: Dict where keys are field names and values are field values.
         :param expected_fields_from_get_operation: Dict containing fields as returned by Vespa get operation.
             There are cases where fields returned from Vespa are different from inputs, e.g. when dealing with Tensors.
+        :param expected_fields_after_update: Dict containing fields as returned by Vespa get operation after update. If None, will be inferred by performing `expected_fields_from_get_operation.update(field_to_update)`
+        :param kwargs: Additional parameters to be passed to the get/update/delete operations
         :return:
         """
         assert "id" in fields_to_send, "fields_to_send must contain 'id' field."
         #
         # Get data that does not exist
         #
-
         response: VespaResponse = app.get_data(
-            schema=schema_name, data_id=fields_to_send["id"]
+            schema=schema_name, data_id=fields_to_send["id"], **kwargs
         )
         self.assertEqual(response.status_code, 404)
         self.assertFalse(response.is_successful())
@@ -294,7 +301,9 @@ class TestApplicationCommon(unittest.TestCase):
             schema=schema_name,
             data_id=fields_to_send["id"],
             fields=fields_to_send,
+            **kwargs,
         )
+
         self.assertEqual(
             response.json["id"],
             "id:{}:{}::{}".format(schema_name, schema_name, fields_to_send["id"]),
@@ -302,7 +311,9 @@ class TestApplicationCommon(unittest.TestCase):
         #
         # Get data that exist
         #
-        response = app.get_data(schema=schema_name, data_id=fields_to_send["id"])
+        response = app.get_data(
+            schema=schema_name, data_id=fields_to_send["id"], **kwargs
+        )
         self.assertEqual(response.status_code, 200)
         self.assertDictEqual(
             response.json,
@@ -324,6 +335,7 @@ class TestApplicationCommon(unittest.TestCase):
             schema=schema_name,
             data_id=field_to_update["id"],
             fields=field_to_update,
+            **kwargs,
         )
         self.assertEqual(
             response.json["id"],
@@ -332,10 +344,18 @@ class TestApplicationCommon(unittest.TestCase):
         #
         # Get the updated data point
         #
-        response = app.get_data(schema=schema_name, data_id=field_to_update["id"])
+        response = app.get_data(
+            schema=schema_name, data_id=field_to_update["id"], **kwargs
+        )
         self.assertEqual(response.status_code, 200)
-        expected_result = {k: v for k, v in expected_fields_from_get_operation.items()}
-        expected_result.update(field_to_update)
+        if expected_fields_after_update is None:
+            expected_result = {
+                k: v for k, v in expected_fields_from_get_operation.items()
+            }
+            expected_result.update(field_to_update)
+        else:
+            expected_result = expected_fields_after_update
+
         self.assertDictEqual(
             response.json,
             {
@@ -351,7 +371,9 @@ class TestApplicationCommon(unittest.TestCase):
         #
         # Delete a data point
         #
-        response = app.delete_data(schema=schema_name, data_id=fields_to_send["id"])
+        response = app.delete_data(
+            schema=schema_name, data_id=fields_to_send["id"], **kwargs
+        )
         self.assertEqual(
             response.json["id"],
             "id:{}:{}::{}".format(schema_name, schema_name, fields_to_send["id"]),
@@ -359,10 +381,13 @@ class TestApplicationCommon(unittest.TestCase):
         #
         # Deleted data should be gone
         response: VespaResponse = app.get_data(
-            schema=schema_name, data_id=fields_to_send["id"]
+            schema=schema_name, data_id=fields_to_send["id"], **kwargs
         )
         self.assertFalse(response.is_successful())
-
+        # Check if auto_assign is in kwargs and return if it is False
+        # The remainding tests does not make sense (and will not work) for partial updates.
+        if "auto_assign" in kwargs and not kwargs["auto_assign"]:
+            return
         #
         # Update a non-existent data point
         #
@@ -371,6 +396,7 @@ class TestApplicationCommon(unittest.TestCase):
             data_id=field_to_update["id"],
             fields=field_to_update,
             create=True,
+            **kwargs,
         )
         self.assertEqual(
             response.json["id"],
@@ -379,12 +405,22 @@ class TestApplicationCommon(unittest.TestCase):
         #
         # Get the updated data point
         #
-        response = app.get_data(schema=schema_name, data_id=fields_to_send["id"])
+        response = app.get_data(
+            schema=schema_name, data_id=fields_to_send["id"], **kwargs
+        )
         self.assertEqual(response.status_code, 200)
+        if expected_fields_after_update is None:
+            expected_fields = field_to_update
+        else:
+            expected_fields = {
+                k: v
+                for k, v in expected_fields_after_update.items()
+                if k in field_to_update
+            }
         self.assertDictEqual(
             response.json,
             {
-                "fields": field_to_update,
+                "fields": expected_fields,
                 "id": "id:{}:{}::{}".format(
                     schema_name, schema_name, field_to_update["id"]
                 ),
@@ -398,7 +434,7 @@ class TestApplicationCommon(unittest.TestCase):
         #
         with VespaSync(app=app) as sync_app:
             response = sync_app.delete_data(
-                schema=schema_name, data_id=field_to_update["id"]
+                schema=schema_name, data_id=field_to_update["id"], **kwargs
             )
         self.assertEqual(
             response.json["id"],
@@ -413,6 +449,7 @@ class TestApplicationCommon(unittest.TestCase):
                 data_id=fields_to_send["id"],
                 fields=fields_to_send,
                 tracelevel=9,
+                **kwargs,
             )
         self.assertEqual(
             response.json["id"],
@@ -428,6 +465,7 @@ class TestApplicationCommon(unittest.TestCase):
         fields_to_send,
         field_to_update,
         expected_fields_from_get_operation,
+        expected_fields_after_update: Optional[Dict] = None,
     ):
         """
         Async feed, get, update and delete data to/from the application
@@ -529,11 +567,17 @@ class TestApplicationCommon(unittest.TestCase):
             )
             self.assertEqual(response.status_code, 200)
             result = response.json
-            expected_result = {
-                k: v for k, v in expected_fields_from_get_operation[0].items()
-            }
-            expected_result.update(field_to_update)
-
+            if expected_fields_after_update is None:
+                expected_result = {
+                    k: v for k, v in expected_fields_from_get_operation[0].items()
+                }
+                expected_result.update(field_to_update)
+            else:
+                expected_result = {
+                    k: v
+                    for k, v in expected_fields_after_update.items()
+                    if k in field_to_update
+                }
             self.assertDictEqual(
                 result,
                 {
@@ -591,6 +635,165 @@ class TestApplicationCommon(unittest.TestCase):
             for query in queries:
                 self.assertEqual(query.result().status_code, 200)
                 self.assertEqual(query.result().is_successful(), True)
+
+    def execute_sync_partial_updates(self, app, schema_name):
+        """
+        Sync feed, get, update and delete data to/from the application.
+        """
+        with app.syncio(connections=8) as sync_app:
+            # Feed data points
+            for data in self.fields_to_send:
+                response = sync_app.feed_data_point(
+                    schema=schema_name, data_id=data["id"], fields=data
+                )
+                assert (
+                    response.status_code == 200
+                )  # Assuming you want to verify each operation immediately
+
+            # Get and check initial data
+            responses = []
+            for data in self.fields_to_send:
+                response = sync_app.get_data(schema=schema_name, data_id=data["id"])
+                responses.append(response)
+            for response, expected in zip(
+                responses, self.expected_fields_from_get_operation
+            ):
+                assert response.status_code == 200
+                assert response.json["fields"] == expected
+
+            # Update data points
+            update_responses = []
+            for update in self.fields_to_update:
+                response = sync_app.update_data(
+                    schema=schema_name,
+                    data_id=update["id"],
+                    fields={k: v for k, v in update.items() if k != "auto_assign"},
+                    auto_assign=update.get("auto_assign", True),
+                )
+                update_responses.append(response)
+            for response in update_responses:
+                assert response.status_code == 200
+
+            # Verify updated data
+            updated_responses = []
+            for update in self.fields_to_update:
+                response = sync_app.get_data(schema=schema_name, data_id=update["id"])
+                updated_responses.append(response)
+            for response, expected in zip(
+                updated_responses, self.expected_fields_after_update
+            ):
+                assert response.status_code == 200
+                assert response.json["fields"] == expected
+
+            # Delete data points
+            delete_responses = []
+            for data in self.fields_to_send:
+                response = sync_app.delete_data(schema=schema_name, data_id=data["id"])
+                delete_responses.append(response)
+            for response in delete_responses:
+                assert (
+                    response.status_code == 200
+                )  # Check specific expected response code for deletion
+
+            # Check deletion
+            deletion_checks = []
+            for data in self.fields_to_send:
+                response = sync_app.get_data(schema=schema_name, data_id=data["id"])
+                deletion_checks.append(response)
+            for check in deletion_checks:
+                assert (
+                    check.status_code == 404
+                )  # Verify that the data is indeed deleted
+
+    async def execute_async_partial_updates(self, app, schema_name):
+        """
+        Async feed, get, update and delete data to/from the application.
+
+        """
+
+        async with app.asyncio(connections=12, total_timeout=50) as async_app:
+            # Feed data points
+            feed_tasks = [
+                asyncio.create_task(
+                    async_app.feed_data_point(
+                        schema=schema_name, data_id=data["id"], fields=data
+                    )
+                )
+                for data in self.fields_to_send
+            ]
+            await asyncio.gather(*feed_tasks)
+
+            # Get and check initial data
+            get_tasks = [
+                asyncio.create_task(
+                    async_app.get_data(schema=schema_name, data_id=data["id"])
+                )
+                for data in self.fields_to_send
+            ]
+            responses = await asyncio.gather(*get_tasks)
+            for response, expected in zip(
+                responses, self.expected_fields_from_get_operation
+            ):
+                assert response.status_code == 200
+                assert response.json["fields"] == expected
+
+            # Update data points
+            update_tasks = [
+                asyncio.create_task(
+                    async_app.update_data(
+                        schema=schema_name,
+                        data_id=update["id"],
+                        fields={k: v for k, v in update.items() if k != "auto_assign"},
+                        auto_assign=update.get("auto_assign", True),
+                    )
+                )
+                for update in self.fields_to_update
+            ]
+            await asyncio.gather(*update_tasks)
+            # Check update responses
+            update_responses = await asyncio.gather(*update_tasks)
+            for response in update_responses:
+                assert response.status_code == 200
+
+            # Verify updated data
+            check_updated_tasks = [
+                asyncio.create_task(
+                    async_app.get_data(schema=schema_name, data_id=update["id"])
+                )
+                for update in self.fields_to_update
+            ]
+            updated_responses = await asyncio.gather(*check_updated_tasks)
+            for response, expected in zip(
+                updated_responses, self.expected_fields_after_update
+            ):
+                assert response.status_code == 200
+                assert response.json["fields"] == expected
+
+            # Delete data points
+            delete_tasks = [
+                asyncio.create_task(
+                    async_app.delete_data(schema=schema_name, data_id=data["id"])
+                )
+                for data in self.fields_to_send
+            ]
+            delete_responses = await asyncio.gather(*delete_tasks)
+            for response in delete_responses:
+                assert (
+                    response.status_code == 200
+                )  # Check specific expected response code for deletion
+
+            # Check deletion
+            check_deletion_tasks = [
+                asyncio.create_task(
+                    async_app.get_data(schema=schema_name, data_id=data["id"])
+                )
+                for data in self.fields_to_send
+            ]
+            deletion_checks = await asyncio.gather(*check_deletion_tasks)
+            for check in deletion_checks:
+                assert (
+                    check.status_code == 404
+                )  # Verify that the data is indeed deleted
 
     def get_model_endpoints_when_no_model_is_available(
         self, app, expected_model_endpoint
@@ -936,6 +1139,182 @@ class TestStreamingApplication(unittest.TestCase):
                 "id": "id:test:mail:g=b@hotmail.com:1",
                 "fields": {"body": "this is a body", "title": "this is a new foo"},
             },
+        )
+
+    def tearDown(self) -> None:
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
+        self.vespa_docker.container.remove()
+
+
+def create_update_application_package() -> ApplicationPackage:
+    document = Document(
+        structs=[
+            Struct(
+                name="person",
+                fields=[
+                    Field(name="first_name", type="string"),
+                    Field(name="last_name", type="string"),
+                ],
+            )
+        ],
+        fields=[
+            Field(name="id", type="string", indexing=["attribute", "summary"]),
+            Field(name="title", type="string", indexing=["index", "summary"]),
+            Field(name="price", type="int", indexing=["summary", "attribute"]),
+            Field(name="tensorfield", type="tensor<int8>(x[10])", indexing=["summary"]),
+            Field(name="contact", type="person", indexing=["summary"]),
+        ],
+    )
+    schema = Schema(
+        name="testupdates",
+        document=document,
+        fieldsets=[
+            FieldSet(
+                name="default", fields=["title", "tensorfield", "contact", "price"]
+            )
+        ],
+        rank_profiles=[RankProfile(name="default", first_phase="nativeRank(title)")],
+    )
+    return ApplicationPackage(name="testupdates", schema=[schema])
+
+
+class TestUpdateApplication(TestApplicationCommon):
+    """Tests"""
+
+    def setUp(self) -> None:
+        self.app_package = create_update_application_package()
+        self.schema_name = self.app_package.name
+        self.vespa_docker = VespaDocker(port=8089)
+        self.app = self.vespa_docker.deploy(application_package=self.app_package)
+        self.fields_to_send = [
+            {
+                "id": "1",
+                "title": "this is a title",
+                "tensorfield": {
+                    "x": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                },
+                "contact": {"first_name": "John", "last_name": "Doe"},
+                "price": 100,
+            },
+            {
+                "id": "2",
+                "title": "this is another title",
+                "tensorfield": {
+                    "x": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                },
+                "contact": {"first_name": "Jane", "last_name": "Doe"},
+                "price": 200,
+            },
+            {
+                "id": "3",
+                "title": "this is the third title",
+                "tensorfield": {
+                    "x": [21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
+                },
+                "contact": {"first_name": "Paul", "last_name": "Doe"},
+                "price": 300,
+            },
+        ]
+        self.expected_fields_from_get_operation = [
+            {
+                "id": "1",
+                "title": "this is a title",
+                "tensorfield": {
+                    "type": "tensor<int8>(x[10])",
+                    "values": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                },
+                "contact": {"first_name": "John", "last_name": "Doe"},
+                "price": 100,
+            },
+            {
+                "id": "2",
+                "title": "this is another title",
+                "tensorfield": {
+                    "type": "tensor<int8>(x[10])",
+                    "values": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                },
+                "contact": {"first_name": "Jane", "last_name": "Doe"},
+                "price": 200,
+            },
+            {
+                "id": "3",
+                "title": "this is the third title",
+                "tensorfield": {
+                    "type": "tensor<int8>(x[10])",
+                    "values": [21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
+                },
+                "contact": {"first_name": "Paul", "last_name": "Doe"},
+                "price": 300,
+            },
+        ]
+
+        self.fields_to_update = [
+            {
+                "id": "1",
+                "title": "this is an updated title",
+            },
+            {
+                "id": "2",
+                "tensorfield": {
+                    "cells": [
+                        {"address": {"x": 0}, "value": 42},
+                        {"address": {"x": 9}, "value": 42},
+                    ]
+                },
+            },
+            {
+                "id": "3",
+                "auto_assign": False,
+                "price": {
+                    "increment": 1000,
+                },
+            },
+        ]
+
+        self.expected_fields_after_update = [
+            {
+                "id": "1",
+                "title": "this is an updated title",
+                "tensorfield": {
+                    "type": "tensor<int8>(x[10])",
+                    "values": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                },
+                "contact": {"first_name": "John", "last_name": "Doe"},
+                "price": 100,
+            },
+            {
+                "id": "2",
+                "title": "this is another title",
+                "tensorfield": {
+                    "type": "tensor<int8>(x[10])",
+                    "values": [42, 0, 0, 0, 0, 0, 0, 0, 0, 42],
+                },
+                "contact": {"first_name": "Jane", "last_name": "Doe"},
+                "price": 200,
+            },
+            {
+                "id": "3",
+                "title": "this is the third title",
+                "tensorfield": {
+                    "type": "tensor<int8>(x[10])",
+                    "values": [21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
+                },
+                "contact": {"first_name": "Paul", "last_name": "Doe"},
+                "price": 1300,
+            },
+        ]
+
+        self.vespa_docker = VespaDocker(port=8089)
+        self.app = self.vespa_docker.deploy(application_package=self.app_package)
+
+    def test_execute_sync_data_operations(self):
+        self.execute_sync_partial_updates(app=self.app, schema_name=self.schema_name)
+
+    def test_execute_async_data_operations(self):
+        asyncio.run(
+            self.execute_async_partial_updates(
+                app=self.app, schema_name=self.schema_name
+            )
         )
 
     def tearDown(self) -> None:
