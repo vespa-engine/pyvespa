@@ -636,6 +636,75 @@ class TestApplicationCommon(unittest.TestCase):
                 self.assertEqual(query.result().status_code, 200)
                 self.assertEqual(query.result().is_successful(), True)
 
+    def execute_sync_partial_updates(self, app, schema_name):
+        """
+        Sync feed, get, update and delete data to/from the application.
+        """
+        with app.syncio(connections=8) as sync_app:
+            # Feed data points
+            for data in self.fields_to_send:
+                response = sync_app.feed_data_point(
+                    schema=schema_name, data_id=data["id"], fields=data
+                )
+                assert (
+                    response.status_code == 200
+                )  # Assuming you want to verify each operation immediately
+
+            # Get and check initial data
+            responses = []
+            for data in self.fields_to_send:
+                response = sync_app.get_data(schema=schema_name, data_id=data["id"])
+                responses.append(response)
+            for response, expected in zip(
+                responses, self.expected_fields_from_get_operation
+            ):
+                assert response.status_code == 200
+                assert response.json["fields"] == expected
+
+            # Update data points
+            update_responses = []
+            for update in self.fields_to_update:
+                response = sync_app.update_data(
+                    schema=schema_name,
+                    data_id=update["id"],
+                    fields={k: v for k, v in update.items() if k != "auto_assign"},
+                    auto_assign=update.get("auto_assign", True),
+                )
+                update_responses.append(response)
+            for response in update_responses:
+                assert response.status_code == 200
+
+            # Verify updated data
+            updated_responses = []
+            for update in self.fields_to_update:
+                response = sync_app.get_data(schema=schema_name, data_id=update["id"])
+                updated_responses.append(response)
+            for response, expected in zip(
+                updated_responses, self.expected_fields_after_update
+            ):
+                assert response.status_code == 200
+                assert response.json["fields"] == expected
+
+            # Delete data points
+            delete_responses = []
+            for data in self.fields_to_send:
+                response = sync_app.delete_data(schema=schema_name, data_id=data["id"])
+                delete_responses.append(response)
+            for response in delete_responses:
+                assert (
+                    response.status_code == 200
+                )  # Check specific expected response code for deletion
+
+            # Check deletion
+            deletion_checks = []
+            for data in self.fields_to_send:
+                response = sync_app.get_data(schema=schema_name, data_id=data["id"])
+                deletion_checks.append(response)
+            for check in deletion_checks:
+                assert (
+                    check.status_code == 404
+                )  # Verify that the data is indeed deleted
+
     async def execute_async_partial_updates(self, app, schema_name):
         """
         Async feed, get, update and delete data to/from the application.
@@ -1238,48 +1307,14 @@ class TestUpdateApplication(TestApplicationCommon):
         self.vespa_docker = VespaDocker(port=8089)
         self.app = self.vespa_docker.deploy(application_package=self.app_package)
 
-    def test_execute_data_operations(self):
-        self.execute_data_operations(
-            app=self.app,
-            schema_name=self.schema_name,
-            fields_to_send=self.fields_to_send[0],
-            field_to_update=self.fields_to_update[0],
-            expected_fields_from_get_operation=self.expected_fields_from_get_operation[
-                0
-            ],
-            expected_fields_after_update=self.expected_fields_after_update[0],
-        )
+    def test_execute_sync_data_operations(self):
+        self.execute_sync_partial_updates(app=self.app, schema_name=self.schema_name)
 
     def test_execute_async_data_operations(self):
         asyncio.run(
             self.execute_async_partial_updates(
                 app=self.app, schema_name=self.schema_name
             )
-        )
-
-    def test_perform_tensor_update(self):
-        self.execute_data_operations(
-            app=self.app,
-            schema_name=self.schema_name,
-            fields_to_send=self.fields_to_send[1],
-            field_to_update=self.fields_to_update[1],
-            expected_fields_from_get_operation=self.expected_fields_from_get_operation[
-                1
-            ],
-            expected_fields_after_update=self.expected_fields_after_update[1],
-        )
-
-    def test_perform_increment_update(self):
-        self.execute_data_operations(
-            app=self.app,
-            schema_name=self.schema_name,
-            fields_to_send=self.fields_to_send[2],
-            field_to_update=self.fields_to_update[2],
-            expected_fields_from_get_operation=self.expected_fields_from_get_operation[
-                2
-            ],
-            expected_fields_after_update=self.expected_fields_after_update[2],
-            auto_assign=False,  #
         )
 
     def tearDown(self) -> None:
