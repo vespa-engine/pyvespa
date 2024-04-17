@@ -258,6 +258,9 @@ class TestDockerCommon(unittest.TestCase):
 
 
 class TestApplicationCommon(unittest.TestCase):
+    # Set maxDiff to None to see full diff
+    maxDiff = None
+
     def execute_data_operations(
         self,
         app,
@@ -575,8 +578,6 @@ class TestApplicationCommon(unittest.TestCase):
                     for k, v in expected_fields_after_update.items()
                     if k in field_to_update
                 }
-            print(result)
-            print(expected_result)
             self.assertDictEqual(
                 result,
                 {
@@ -634,6 +635,96 @@ class TestApplicationCommon(unittest.TestCase):
             for query in queries:
                 self.assertEqual(query.result().status_code, 200)
                 self.assertEqual(query.result().is_successful(), True)
+
+    async def execute_async_partial_updates(self, app, schema_name):
+        """
+        Async feed, get, update and delete data to/from the application.
+
+        """
+
+        async with app.asyncio(connections=12, total_timeout=50) as async_app:
+            # Feed data points
+            feed_tasks = [
+                asyncio.create_task(
+                    async_app.feed_data_point(
+                        schema=schema_name, data_id=data["id"], fields=data
+                    )
+                )
+                for data in self.fields_to_send
+            ]
+            await asyncio.gather(*feed_tasks)
+
+            # Get and check initial data
+            get_tasks = [
+                asyncio.create_task(
+                    async_app.get_data(schema=schema_name, data_id=data["id"])
+                )
+                for data in self.fields_to_send
+            ]
+            responses = await asyncio.gather(*get_tasks)
+            for response, expected in zip(
+                responses, self.expected_fields_from_get_operation
+            ):
+                assert response.status_code == 200
+                assert response.json["fields"] == expected
+
+            # Update data points
+            update_tasks = [
+                asyncio.create_task(
+                    async_app.update_data(
+                        schema=schema_name,
+                        data_id=update["id"],
+                        fields={k: v for k, v in update.items() if k != "auto_assign"},
+                        auto_assign=update.get("auto_assign", True),
+                    )
+                )
+                for update in self.fields_to_update
+            ]
+            await asyncio.gather(*update_tasks)
+            # Check update responses
+            update_responses = await asyncio.gather(*update_tasks)
+            for response in update_responses:
+                assert response.status_code == 200
+
+            # Verify updated data
+            check_updated_tasks = [
+                asyncio.create_task(
+                    async_app.get_data(schema=schema_name, data_id=update["id"])
+                )
+                for update in self.fields_to_update
+            ]
+            updated_responses = await asyncio.gather(*check_updated_tasks)
+            for response, expected in zip(
+                updated_responses, self.expected_fields_after_update
+            ):
+                assert response.status_code == 200
+                assert response.json["fields"] == expected
+
+            # Delete data points
+            delete_tasks = [
+                asyncio.create_task(
+                    async_app.delete_data(schema=schema_name, data_id=data["id"])
+                )
+                for data in self.fields_to_send
+            ]
+            delete_responses = await asyncio.gather(*delete_tasks)
+            for response in delete_responses:
+                assert (
+                    response.status_code == 200
+                )  # Check specific expected response code for deletion
+
+            # Check deletion
+            check_deletion_tasks = [
+                asyncio.create_task(
+                    async_app.get_data(schema=schema_name, data_id=data["id"])
+                )
+                for data in self.fields_to_send
+            ]
+            deletion_checks = await asyncio.gather(*check_deletion_tasks)
+            for check in deletion_checks:
+                assert (
+                    check.status_code == 404
+                )  # Verify that the data is indeed deleted
 
     def get_model_endpoints_when_no_model_is_available(
         self, app, expected_model_endpoint
@@ -1104,6 +1195,7 @@ class TestUpdateApplication(TestApplicationCommon):
             },
             {
                 "id": "3",
+                "auto_assign": False,
                 "price": {
                     "increment": 1000,
                 },
@@ -1160,13 +1252,8 @@ class TestUpdateApplication(TestApplicationCommon):
 
     def test_execute_async_data_operations(self):
         asyncio.run(
-            self.execute_async_data_operations(
-                app=self.app,
-                schema_name=self.schema_name,
-                fields_to_send=self.fields_to_send,
-                field_to_update=self.fields_to_update[0],
-                expected_fields_from_get_operation=self.expected_fields_from_get_operation,
-                expected_fields_after_update=self.expected_fields_after_update[0],
+            self.execute_async_partial_updates(
+                app=self.app, schema_name=self.schema_name
             )
         )
 
