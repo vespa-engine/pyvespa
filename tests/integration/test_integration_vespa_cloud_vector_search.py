@@ -4,13 +4,11 @@ import os
 import shutil
 import unittest
 import time
-import pytest
 from vespa.application import Vespa, ApplicationPackage
 from vespa.package import Schema, Document, Field, HNSW, RankProfile
 from vespa.deployment import VespaCloud
 from vespa.io import VespaResponse, VespaQueryResponse
 from vespa.package import ContentCluster, ContainerCluster, Nodes, DeploymentConfiguration, EmptyDeploymentConfiguration, Validation, ValidationID
-from pathlib import Path
 from datetime import datetime, timedelta
 
 APP_INIT_TIMEOUT = 900
