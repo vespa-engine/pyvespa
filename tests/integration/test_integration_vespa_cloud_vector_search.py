@@ -244,14 +244,11 @@ class TestProdDeployment(TestVectorSearch):
         )
 
         self.vespa_cloud = VespaCloud(
-            #tenant="vespa-team",
-            tenant="torstein",
-            application="vector",
-            #key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
-            key_location = Path.home() / ".vespa" / "torstein.api-key.pem",
+            tenant="vespa-team",
+            application="pyvespa-int-vsearch-prod",
+            key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
         )
-        os.environ["WORK_DIR"] = os.path.join(os.getcwd(), self.app_package.name) # TODO Remove 
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
         self.instance_name = "default"
         self.app = self.vespa_cloud.deploy_to_prod(instance=self.instance_name, disk_folder=self.disk_folder)  
