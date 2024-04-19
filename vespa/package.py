@@ -2110,6 +2110,18 @@ class DeploymentConfiguration(object):
         )
 
 
+
+class EmptyDeploymentConfiguration(DeploymentConfiguration):
+    def __init__(self):
+        """
+        Create an EmptyDeploymentConfiguration, which creates an empty deployment.xml, used to delete production deployments.
+        """
+        super().__init__("", [])
+
+    def to_xml_string(self, indent=1) -> str:  # Indent is unused, but included for compatibility
+        return ""
+
+
 class ApplicationPackage(object):
     def __init__(
         self,

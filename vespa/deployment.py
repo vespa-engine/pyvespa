@@ -550,7 +550,7 @@ class VespaCloud(VespaDeployment):
         # The different deployment stages might be out of sync, so we need all the ids to determine the latest one
         run_ids = []
         for item in res["steps"]:
-            if "runs" in item.keys():  # "id" is only present in steps with "runs" key
+            if "runs" in item.keys() and len(item["runs"]) > 0:  # "id" is only present in steps with "runs" key
                 run_ids.append(item["runs"][0]["id"])  # Index zero to get the latest id
         if run_ids == []:
             return -1  # No runs found
@@ -620,7 +620,7 @@ class VespaCloud(VespaDeployment):
 
         # Like with the run id, it can take a couple of seconds for the job to show up here.
         # TODO Replace with a more robust solution
-        sleep(10)
+        sleep(20)
         region = self.get_prod_region()
         self._follow_deployment(instance, f"production-{region}", run_id)
 
@@ -1106,6 +1106,10 @@ class VespaCloud(VespaDeployment):
             if self.application_package.deployment_config:
                 zip_archive.writestr(
                     "deployment.xml", self.application_package.deployment_to_text
+                )
+            if self.application_package.validations:
+                zip_archive.writestr(
+                    "validation-overrides.xml", self.application_package.validations_to_text
                 )
 
         return buffer

@@ -13,6 +13,7 @@ from test_integration_docker import (
     TestApplicationCommon,
     create_msmarco_application_package,
 )
+from pathlib import Path
 
 APP_INIT_TIMEOUT = 900
 

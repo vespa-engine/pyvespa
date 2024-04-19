@@ -3,11 +3,13 @@
 import os
 import shutil
 import unittest
+import time
 from vespa.application import Vespa, ApplicationPackage
 from vespa.package import Schema, Document, Field, HNSW, RankProfile
 from vespa.deployment import VespaCloud
 from vespa.io import VespaResponse, VespaQueryResponse
-import time
+from vespa.package import ContentCluster, ContainerCluster, Nodes, DeploymentConfiguration, EmptyDeploymentConfiguration, Validation, ValidationID
+from datetime import datetime, timedelta
 
 APP_INIT_TIMEOUT = 900
 
@@ -218,3 +220,64 @@ class TestVectorSearch(unittest.TestCase):
             print(response.get_json())
         shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_cloud.delete()
+
+
+class TestProdDeployment(TestVectorSearch):
+    def setUp(self) -> None:
+        self.app_package = create_vector_ada_application_package()
+        self.app_package.clusters  = [
+            ContentCluster(
+                id="vector_content",
+                nodes=Nodes(count="2"),
+                document_name="vector",
+                min_redundancy="2"
+            ),
+            ContainerCluster(
+                id="vector_container",
+                nodes=Nodes(count="2"),
+            )
+        ]
+        self.app_package.deployment_config = DeploymentConfiguration(
+            environment="prod", regions=["aws-us-east-1c"]
+        )
+
+        self.vespa_cloud = VespaCloud(
+            tenant="vespa-team",
+            application="pyvespa-int-vsearch-prod",
+            key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
+            application_package=self.app_package,
+        )
+        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.instance_name = "default"
+        self.app = self.vespa_cloud.deploy_to_prod(instance=self.instance_name, disk_folder=self.disk_folder)  
+
+    def test_vector_indexing_and_query(self):
+        super().test_vector_indexing_and_query()
+
+    def tearDown(self) -> None:
+        self.app.delete_all_docs(
+            content_cluster_name="vector_content", schema="vector",namespace="benchmark"
+        )
+        time.sleep(5)
+        with self.app.syncio() as sync_session:
+            response:VespaResponse = sync_session.query(   
+                {
+                    "yql": "select id from sources * where true",
+                    'hits' :10
+                }
+            )
+            self.assertEqual(response.get_status_code(), 200)
+            self.assertEqual(len(response.hits), 0)
+            print(response.get_json())
+
+        # Deployment is deleted by deploying with an empty deployment.xml file.
+        self.app_package.deployment_config = EmptyDeploymentConfiguration()
+
+        # Vespa won't push the deleted deployment.xml file unless we add a validation override
+        tomorrow = datetime.now() + timedelta(days=1)
+        formatted_date = tomorrow.strftime('%Y-%m-%d') 
+        self.app_package.validations = [Validation(ValidationID("deployment-removal"), formatted_date)]
+
+        # This will delete the deployment
+        self.vespa_cloud._start_prod_deployment(self.disk_folder)
+        shutil.rmtree(self.disk_folder, ignore_errors=True)
