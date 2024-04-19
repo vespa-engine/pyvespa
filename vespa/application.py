@@ -19,6 +19,7 @@ from urllib3.util import Retry
 from tenacity import retry, wait_exponential, stop_after_attempt
 from time import sleep
 from os import environ
+from urllib.parse import quote
 
 from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse
@@ -691,6 +692,8 @@ class Vespa(object):
         :param number: The number of the document
         :return: The path to the document v1 endpoint
         """
+        # Make sure `id` is properly quoted, e.g. myid#123 -> myid%23123
+        id = quote(str(id))
         if not schema:
             print("schema is not provided. Attempting to infer schema name.")
             schema = self._infer_schema_name()

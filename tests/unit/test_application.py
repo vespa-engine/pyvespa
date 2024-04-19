@@ -142,9 +142,9 @@ class TestVespa(unittest.TestCase):
 
         self.assertEqual(
             vespa.get_document_v1_path(
-                id="#1", schema="foo", namespace="bar", group="ab"
+                id="mydoc#1", schema="foo", namespace="bar", group="ab"
             ),
-            "/document/v1/bar/foo/group/ab/#1",
+            "/document/v1/bar/foo/group/ab/mydoc%231",
         )
 
     def test_query_token(self):
