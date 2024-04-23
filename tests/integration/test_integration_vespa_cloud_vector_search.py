@@ -246,6 +246,7 @@ class TestProdDeployment(TestVectorSearch):
             application="pyvespa-int-prod",
             key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
+            auth_client_token_id="pyvespa_integration_msmarco",
         )
         self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
         self.instance_name = "default"
