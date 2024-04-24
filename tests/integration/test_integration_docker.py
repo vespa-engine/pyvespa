@@ -8,7 +8,7 @@ import json
 
 from typing import List, Dict, Optional
 from vespa.io import VespaResponse
-
+from vespa.resources import get_resource_path
 from vespa.package import (
     HNSW,
     Document,
@@ -29,6 +29,7 @@ from vespa.exceptions import VespaError
 
 
 CONTAINER_STOP_TIMEOUT = 10
+RESOURCES_DIR = get_resource_path()
 
 
 def create_msmarco_application_package(auth_clients: List[AuthClient] = None):
@@ -944,7 +945,7 @@ class TestQaApplication(TestApplicationCommon):
         self.vespa_docker = VespaDocker(port=8089)
         self.app = self.vespa_docker.deploy(application_package=self.app_package)
         with open(
-            os.path.join(os.environ["RESOURCES_DIR"], "qa_sample_sentence_data.json"),
+            os.path.join(RESOURCES_DIR, "qa_sample_sentence_data.json"),
             "r",
         ) as f:
             sample_sentence_data = json.load(f)
@@ -965,7 +966,7 @@ class TestQaApplication(TestApplicationCommon):
                 expected_d.update({"questions": d["questions"]})
             self.expected_fields_from_sentence_get_operation.append(expected_d)
         with open(
-            os.path.join(os.environ["RESOURCES_DIR"], "qa_sample_context_data.json"),
+            os.path.join(RESOURCES_DIR, "qa_sample_context_data.json"),
             "r",
         ) as f:
             sample_context_data = json.load(f)
