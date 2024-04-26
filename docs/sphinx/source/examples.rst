@@ -20,3 +20,5 @@ Examples
    examples/colbert_standalone_Vespa-cloud.ipynb
    examples/colbert_standalone_long_context_Vespa-cloud.ipynb
    examples/feed_performance.ipynb
+   examples/cross-encoders-for-global-reranking.ipynb
+   examples/evaluating-with-snowflake-arctic-embed.ipynb
