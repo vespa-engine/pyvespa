@@ -1,0 +1,2 @@
+# Include all files in go_binaries folder
+recursive-include vespacli/go-binaries/ *

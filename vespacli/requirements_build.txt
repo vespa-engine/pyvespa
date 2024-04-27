@@ -1,0 +1,5 @@
+setuptools==69.0.3
+build==1.0.3
+twine==4.0.1
+toml==0.10.2
+requests==2.26.0

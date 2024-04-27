@@ -1,0 +1,82 @@
+name: Release and upload PyPI
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - v*.*.* # Push events to matching v*.*.* tags
+
+jobs:
+  prepare-binaries:
+    runs-on: ubuntu-latest
+    env:
+      MY_GITHUB_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+    outputs:
+      asset-path: ${{ steps.set-bin-path.outputs.asset-path }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Download latest binaries
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements_build.txt
+          pip install -e .
+
+      - name: Get current version, set as variable and download binaries
+        id: get_current_version
+        run: |
+          version=$(python -c "import vespacli; print(vespacli.__version__)")
+          echo "Current version is $version"
+          echo "version=$version" >> $GITHUB_ENV
+          python utils/download_binaries.py --version $version
+      
+      - name: Upload binaries as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: vespacli/go-binaries
+
+  build-and-release:
+    needs: [prepare-binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements_build.txt
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: vespacli/go-binaries
+
+      - name: Set permissions on all files in go-binaries
+        run: |
+          chmod -R +x vespacli/go-binaries/*
+
+      - name: Build
+        run: |
+          python -m build
+      
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || env.version }}
+
+      - name: Upload to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_PROD }}
+        run: twine upload dist/* --non-interactive

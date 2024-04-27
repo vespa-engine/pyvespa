@@ -1,0 +1,67 @@
+name: Cross-Platform build and test
+
+on:
+  schedule:
+    - cron: "0 0 * * 0" # Run once a week
+
+jobs:
+  prepare-binaries:
+    runs-on: ubuntu-latest
+    env:
+      MY_GITHUB_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+    outputs:
+      asset-path: ${{ steps.set-bin-path.outputs.asset-path }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Download latest binaries
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements_build.txt
+          pip install -e .
+          python utils/download_binaries.py --version current 
+
+      - name: Upload binaries as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: vespacli/go-binaries
+
+  build-and-test:
+    needs: prepare-binaries
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-12, macos-14]
+        python-version: ["3.10", "3.11"] # Update or modify Python versions as needed
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: vespacli/go-binaries
+
+      - name: Set permissions on all files in go-binaries
+        run: |
+          chmod -R +x vespacli/go-binaries/*
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[test] requests
+
+      - name: Verify installation
+        run: |
+          vespa version
