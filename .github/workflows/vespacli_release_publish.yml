@@ -1,5 +1,10 @@
 name: Release and upload PyPI
 
+defaults:
+  run:
+    working-directory: ./vespacli
+
+
 on:
   workflow_dispatch:
   push:
@@ -78,5 +83,5 @@ jobs:
       - name: Upload to PyPI
         env:
           TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_PROD }}
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_TEST }}
         run: twine upload dist/* --non-interactive

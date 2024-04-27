@@ -1,5 +1,9 @@
 name: Cross-Platform build and test
 
+defaults:
+  run:
+    working-directory: ./vespacli
+
 on:
   schedule:
     - cron: "0 0 * * 0" # Run once a week
