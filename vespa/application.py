@@ -26,10 +26,10 @@ from vespa.io import VespaQueryResponse, VespaResponse
 from vespa.package import ApplicationPackage
 
 retry_strategy = Retry(
-    total=3,
+    total=3,                # should be an unbounded amount of retrires for 429
     backoff_factor=1,
     raise_on_status=False,  # we want to raise and wrap with VespaError instead to get the payload (if any)
-    status_forcelist=[429, 500, 502, 503, 504],
+    status_forcelist=[429, 503],
     allowed_methods=["POST", "GET", "DELETE", "PUT"],
 )
 
