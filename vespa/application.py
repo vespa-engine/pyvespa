@@ -1083,6 +1083,20 @@ class VespaAsync(object):
         await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
         return [result for result in map(lambda task: task.result(), tasks)]
 
+    @staticmethod
+    def retry_docv1(state):
+        return state.outcome.failed or state.outcome.result().status >= 400
+
+    @staticmethod
+    def stop_docv1(state):
+        if state.outcome.failed or state.outcome.result().status == 503: return state.attempt_number >= 3
+        return state.outcome.result().status != 429
+
+    @staticmethod
+    def callback_docv1(state):
+        if state.outcome.failed: raise state.outcome.exception()
+        return state.outcome.result()
+
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def query(
         self, body: Optional[Dict] = None, groupname: str = None, **kwargs
@@ -1096,7 +1110,7 @@ class VespaAsync(object):
             json=await r.json(), status_code=r.status, url=str(r.url)
         )
 
-    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
+    @retry(wait=wait_exponential(multiplier=1), retry=retry_docv1, stop=stop_docv1, retry_error_callback=callback_docv1)
     async def feed_data_point(
         self,
         schema: str,
@@ -1121,7 +1135,7 @@ class VespaAsync(object):
             operation_type="feed",
         )
 
-    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
+    @retry(wait=wait_exponential(multiplier=1), retry=retry_docv1, stop=stop_docv1, retry_error_callback=callback_docv1)
     async def delete_data(
         self,
         schema: str,
@@ -1142,7 +1156,7 @@ class VespaAsync(object):
             operation_type="delete",
         )
 
-    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
+    @retry(wait=wait_exponential(multiplier=1), retry=retry_docv1, stop=stop_docv1, retry_error_callback=callback_docv1)
     async def get_data(
         self,
         schema: str,
@@ -1163,7 +1177,7 @@ class VespaAsync(object):
             operation_type="get",
         )
 
-    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
+    @retry(wait=wait_exponential(multiplier=1), retry=retry_docv1, stop=stop_docv1, retry_error_callback=callback_docv1)
     async def update_data(
         self,
         schema: str,
