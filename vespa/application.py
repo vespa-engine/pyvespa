@@ -16,7 +16,7 @@ from requests.models import Response
 from requests.exceptions import ConnectionError, HTTPError, JSONDecodeError
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
-from tenacity import retry, wait_exponential, stop_after_attempt, retry_base, stop_base
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_base, stop_base, RetryCallState
 from time import sleep
 from os import environ
 from urllib.parse import quote
