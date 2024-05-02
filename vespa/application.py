@@ -66,6 +66,16 @@ def raise_for_status(
             raise VespaError(error_message) from http_error
         raise HTTPError(http_error) from http_error
 
+def retry_docv1(state):
+    return state.outcome.failed or state.outcome.result().status >= 400
+
+def stop_docv1(state):
+    if state.outcome.failed or state.outcome.result().status == 503: return state.attempt_number >= 3
+    return state.outcome.result().status != 429
+
+def callback_docv1(state):
+    if state.outcome.failed: raise state.outcome.exception()
+    return state.outcome.result()
 
 class Vespa(object):
     def __init__(
@@ -1082,20 +1092,6 @@ class VespaAsync(object):
         tasks = [asyncio.create_task(f(*arg, **kwargs)) for arg in args]
         await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
         return [result for result in map(lambda task: task.result(), tasks)]
-
-    @staticmethod
-    def retry_docv1(state):
-        return state.outcome.failed or state.outcome.result().status >= 400
-
-    @staticmethod
-    def stop_docv1(state):
-        if state.outcome.failed or state.outcome.result().status == 503: return state.attempt_number >= 3
-        return state.outcome.result().status != 429
-
-    @staticmethod
-    def callback_docv1(state):
-        if state.outcome.failed: raise state.outcome.exception()
-        return state.outcome.result()
 
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def query(
