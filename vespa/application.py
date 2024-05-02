@@ -16,7 +16,7 @@ from requests.models import Response
 from requests.exceptions import ConnectionError, HTTPError, JSONDecodeError
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
-from tenacity import retry, wait_exponential, stop_after_attempt
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_base, stop_base
 from time import sleep
 from os import environ
 from urllib.parse import quote
@@ -66,12 +66,18 @@ def raise_for_status(
             raise VespaError(error_message) from http_error
         raise HTTPError(http_error) from http_error
 
-def retry_docv1(state):
-    return state.outcome.failed or state.outcome.result().status >= 400
+class _retry_docv1(retry_base):
+    def __call__(self, state: RetryCallState) -> bool:
+        return state.outcome.failed or state.outcome.result().status >= 400
 
-def stop_docv1(state):
-    if state.outcome.failed or state.outcome.result().status == 503: return state.attempt_number >= 3
-    return state.outcome.result().status != 429
+retry_docv1 = _retry_docv1()
+
+class _stop_docv1(stop_base):
+    def __call__(self, state: RetryCallState) -> bool:
+        if state.outcome.failed or state.outcome.result().status == 503: return state.attempt_number >= 3
+        return state.outcome.result().status != 429
+
+stop_docv1 = _stop_docv1()
 
 def callback_docv1(state):
     if state.outcome.failed: raise state.outcome.exception()
