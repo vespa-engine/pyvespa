@@ -16,7 +16,7 @@ from requests.models import Response
 from requests.exceptions import ConnectionError, HTTPError, JSONDecodeError
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
-from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_result, retry_if_exception, retry_any, RetryCallState
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_result, retry_if_exception, retry_any, stop_any, RetryCallState
 from time import sleep
 from os import environ
 from urllib.parse import quote
@@ -1084,11 +1084,6 @@ class VespaAsync(object):
         return [result for result in map(lambda task: task.result(), tasks)]
 
     @staticmethod
-    def stop_docv1(state: RetryCallState) -> bool:
-        if state.outcome.failed or state.outcome.result().get_status_code() == 503: return state.attempt_number >= 3
-        return state.outcome.result().get_status_code() != 429
-
-    @staticmethod
     def callback_docv1(state: RetryCallState) -> VespaResponse:
         if state.outcome.failed: raise state.outcome.exception()
         return state.outcome.result()
@@ -1106,7 +1101,8 @@ class VespaAsync(object):
             json=await r.json(), status_code=r.status, url=str(r.url)
         )
 
-    @retry(wait=wait_exponential(multiplier=1), retry=retry_any(retry_if_exception(lambda x: True), retry_if_result(lambda x: x.get_status_code() >= 400)), stop=stop_docv1, retry_error_callback=callback_docv1)
+    @retry(wait=wait_exponential(multiplier=1), retry=retry_any(retry_if_exception(lambda x: True), retry_if_result(lambda x: x.get_status_code() == 503)), stop=stop_after_attempt(3), retry_error_callback=callback_docv1)
+    @retry(wait=wait_exponential(multiplier=1), retry=retry_if_result(lambda x: x.get_status_code() == 429))
     async def feed_data_point(
         self,
         schema: str,
@@ -1131,7 +1127,8 @@ class VespaAsync(object):
             operation_type="feed",
         )
 
-    @retry(wait=wait_exponential(multiplier=1), retry=retry_any(retry_if_exception(lambda x: True), retry_if_result(lambda x: x.get_status_code() >= 400)), stop=stop_docv1, retry_error_callback=callback_docv1)
+    @retry(wait=wait_exponential(multiplier=1), retry=retry_any(retry_if_exception(lambda x: True), retry_if_result(lambda x: x.get_status_code() == 503)), stop=stop_after_attempt(3), retry_error_callback=callback_docv1)
+    @retry(wait=wait_exponential(multiplier=1), retry=retry_if_result(lambda x: x.get_status_code() == 429))
     async def delete_data(
         self,
         schema: str,
@@ -1152,7 +1149,8 @@ class VespaAsync(object):
             operation_type="delete",
         )
 
-    @retry(wait=wait_exponential(multiplier=1), retry=retry_any(retry_if_exception(lambda x: True), retry_if_result(lambda x: x.get_status_code() >= 400)), stop=stop_docv1, retry_error_callback=callback_docv1)
+    @retry(wait=wait_exponential(multiplier=1), retry=retry_any(retry_if_exception(lambda x: True), retry_if_result(lambda x: x.get_status_code() == 503)), stop=stop_after_attempt(3), retry_error_callback=callback_docv1)
+    @retry(wait=wait_exponential(multiplier=1), retry=retry_if_result(lambda x: x.get_status_code() == 429))
     async def get_data(
         self,
         schema: str,
@@ -1173,7 +1171,8 @@ class VespaAsync(object):
             operation_type="get",
         )
 
-    @retry(wait=wait_exponential(multiplier=1), retry=retry_any(retry_if_exception(lambda x: True), retry_if_result(lambda x: x.get_status_code() >= 400)), stop=stop_docv1, retry_error_callback=callback_docv1)
+    @retry(wait=wait_exponential(multiplier=1), retry=retry_any(retry_if_exception(lambda x: True), retry_if_result(lambda x: x.get_status_code() == 503)), stop=stop_after_attempt(3), retry_error_callback=callback_docv1)
+    @retry(wait=wait_exponential(multiplier=1), retry=retry_if_result(lambda x: x.get_status_code() == 429))
     async def update_data(
         self,
         schema: str,
