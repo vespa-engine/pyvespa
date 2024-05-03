@@ -16,7 +16,15 @@ from requests.models import Response
 from requests.exceptions import ConnectionError, HTTPError, JSONDecodeError
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
-from tenacity import retry, wait_exponential, stop_after_attempt
+from tenacity import (
+    retry,
+    wait_exponential,
+    stop_after_attempt,
+    retry_if_result,
+    retry_if_exception,
+    retry_any,
+    RetryCallState,
+)
 from time import sleep
 from os import environ
 from urllib.parse import quote
@@ -26,10 +34,10 @@ from vespa.io import VespaQueryResponse, VespaResponse
 from vespa.package import ApplicationPackage
 
 retry_strategy = Retry(
-    total=3,
+    total=3,  # should be an unbounded amount of retrires for 429
     backoff_factor=1,
     raise_on_status=False,  # we want to raise and wrap with VespaError instead to get the payload (if any)
-    status_forcelist=[429, 500, 502, 503, 504],
+    status_forcelist=[429, 503],
     allowed_methods=["POST", "GET", "DELETE", "PUT"],
 )
 
@@ -1083,6 +1091,12 @@ class VespaAsync(object):
         await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
         return [result for result in map(lambda task: task.result(), tasks)]
 
+    @staticmethod
+    def callback_docv1(state: RetryCallState) -> VespaResponse:
+        if state.outcome.failed:
+            raise state.outcome.exception()
+        return state.outcome.result()
+
     @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
     async def query(
         self, body: Optional[Dict] = None, groupname: str = None, **kwargs
@@ -1096,7 +1110,19 @@ class VespaAsync(object):
             json=await r.json(), status_code=r.status, url=str(r.url)
         )
 
-    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
+    @retry(
+        wait=wait_exponential(multiplier=1),
+        retry=retry_any(
+            retry_if_exception(lambda x: True),
+            retry_if_result(lambda x: x.get_status_code() == 503),
+        ),
+        stop=stop_after_attempt(3),
+        retry_error_callback=callback_docv1,
+    )
+    @retry(
+        wait=wait_exponential(multiplier=1),
+        retry=retry_if_result(lambda x: x.get_status_code() == 429),
+    )
     async def feed_data_point(
         self,
         schema: str,
@@ -1121,7 +1147,19 @@ class VespaAsync(object):
             operation_type="feed",
         )
 
-    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
+    @retry(
+        wait=wait_exponential(multiplier=1),
+        retry=retry_any(
+            retry_if_exception(lambda x: True),
+            retry_if_result(lambda x: x.get_status_code() == 503),
+        ),
+        stop=stop_after_attempt(3),
+        retry_error_callback=callback_docv1,
+    )
+    @retry(
+        wait=wait_exponential(multiplier=1),
+        retry=retry_if_result(lambda x: x.get_status_code() == 429),
+    )
     async def delete_data(
         self,
         schema: str,
@@ -1142,7 +1180,19 @@ class VespaAsync(object):
             operation_type="delete",
         )
 
-    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
+    @retry(
+        wait=wait_exponential(multiplier=1),
+        retry=retry_any(
+            retry_if_exception(lambda x: True),
+            retry_if_result(lambda x: x.get_status_code() == 503),
+        ),
+        stop=stop_after_attempt(3),
+        retry_error_callback=callback_docv1,
+    )
+    @retry(
+        wait=wait_exponential(multiplier=1),
+        retry=retry_if_result(lambda x: x.get_status_code() == 429),
+    )
     async def get_data(
         self,
         schema: str,
@@ -1163,7 +1213,19 @@ class VespaAsync(object):
             operation_type="get",
         )
 
-    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
+    @retry(
+        wait=wait_exponential(multiplier=1),
+        retry=retry_any(
+            retry_if_exception(lambda x: True),
+            retry_if_result(lambda x: x.get_status_code() == 503),
+        ),
+        stop=stop_after_attempt(3),
+        retry_error_callback=callback_docv1,
+    )
+    @retry(
+        wait=wait_exponential(multiplier=1),
+        retry=retry_if_result(lambda x: x.get_status_code() == 429),
+    )
     async def update_data(
         self,
         schema: str,
