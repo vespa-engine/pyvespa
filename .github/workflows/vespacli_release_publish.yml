@@ -8,16 +8,14 @@ defaults:
 on:
   workflow_dispatch:
   push:
+    branches:
+      - thomasht86/integrate-vespacli
     tags:
       - v*.*.* # Push events to matching v*.*.* tags
 
 jobs:
   prepare-binaries:
     runs-on: ubuntu-latest
-    env:
-      MY_GITHUB_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
-    outputs:
-      asset-path: ${{ steps.set-bin-path.outputs.asset-path }}
     steps:
       - uses: actions/checkout@v4
 
@@ -68,20 +66,20 @@ jobs:
 
       - name: Set permissions on all files in go-binaries
         run: |
-          chmod -R +x vespacli/go-binaries/*
+          chmod -R +x go-binaries/*
 
       - name: Build
         run: |
           python -m build
       
-      - name: Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: dist/*
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || env.version }}
+      # - name: Release
+      #   uses: softprops/action-gh-release@v1
+      #   with:
+      #     files: dist/*
+      #     tag_name: ${{ github.ref_type == 'tag' && github.ref_name || env.version }}
 
       - name: Upload to PyPI
         env:
           TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_TEST }}
+          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_TOKEN_VESPACLI }}
         run: twine upload dist/* --non-interactive
