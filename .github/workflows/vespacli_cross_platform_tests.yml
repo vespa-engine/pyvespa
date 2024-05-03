@@ -34,7 +34,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: binaries
-          path: vespacli/go-binaries
+          path: vespacli/vespacli/go-binaries
 
   build-and-test:
     needs: prepare-binaries
@@ -56,6 +56,12 @@ jobs:
         with:
           name: binaries
           path: vespacli/go-binaries
+      
+      - name: Debug path, pwd and ls
+        run: |
+          echo "Current path: $PWD"
+          echo "Current directory: $(ls)"
+          echo "Go binaries: $(ls vespacli/go-binaries)"
 
       - name: Set permissions on all files in go-binaries
         run: |
