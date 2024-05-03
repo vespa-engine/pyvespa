@@ -7,9 +7,9 @@ defaults:
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - cli-v*.*.* # Push events to matching v*.*.* tags
+  # push:
+  #   tags:
+  #     - cli-v*.*.* # Push events to matching cv*.*.* tags
 
 jobs:
   prepare-binaries:
