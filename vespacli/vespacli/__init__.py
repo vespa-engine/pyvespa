@@ -8,7 +8,7 @@ from vespacli._version_generated import vespa_version
 
 def get_binary_path():
     base_path = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-    go_binaries_path = os.path.join(base_path, "go-binaries")
+    go_binaries_path = os.path.join(base_path, "vespacli", "go-binaries")
 
     os_name = platform.system().lower()
     arch = platform.machine().lower()
