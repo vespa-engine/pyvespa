@@ -12,8 +12,6 @@ on:
 jobs:
   check-and-update:
     runs-on: ubuntu-latest
-    env:
-      GITHUB_TOKEN: ${{ secrets.MY_GITHUB_WRITE_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4

@@ -5,6 +5,7 @@ defaults:
     working-directory: ./vespacli
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: "0 0 * * 0" # Run once a week
 
@@ -12,7 +13,7 @@ jobs:
   prepare-binaries:
     runs-on: ubuntu-latest
     env:
-      MY_GITHUB_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+      MY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       asset-path: ${{ steps.set-bin-path.outputs.asset-path }}
     steps:
