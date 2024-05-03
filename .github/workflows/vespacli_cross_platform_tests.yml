@@ -1,4 +1,4 @@
-name: Cross-Platform build and test
+name: vespacli - Cross-Platform build and test
 
 defaults:
   run:

@@ -1,4 +1,4 @@
-name: Check for Vespa CLI version update
+name: vespacli - Check for Vespa CLI version update
 
 defaults:
   run:

@@ -1,4 +1,4 @@
-name: Release and upload PyPI
+name: vespacli - Release and upload PyPI
 
 defaults:
   run:
