@@ -6,9 +6,6 @@ defaults:
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - thomasht86/integrate-vespacli
   schedule:
     - cron: "0 0 * * 0" # Run once a week
 

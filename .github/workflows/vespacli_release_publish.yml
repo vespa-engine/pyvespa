@@ -8,10 +8,8 @@ defaults:
 on:
   workflow_dispatch:
   push:
-    branches:
-      - thomasht86/integrate-vespacli
     tags:
-      - v*.*.* # Push events to matching v*.*.* tags
+      - cli-v*.*.* # Push events to matching v*.*.* tags
 
 jobs:
   prepare-binaries:
