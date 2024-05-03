@@ -82,4 +82,4 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TEST_PYPI_TOKEN_VESPACLI }}
-        run: twine upload dist/* --non-interactive
+        run: twine upload --repository testpypi dist/* --non-interactive
