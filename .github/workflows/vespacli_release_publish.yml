@@ -72,12 +72,6 @@ jobs:
         run: |
           python -m build
       
-      # - name: Release
-      #   uses: softprops/action-gh-release@v1
-      #   with:
-      #     files: dist/*
-      #     tag_name: ${{ github.ref_type == 'tag' && github.ref_name || env.version }}
-
       - name: Upload to PyPI
         env:
           TWINE_USERNAME: __token__
