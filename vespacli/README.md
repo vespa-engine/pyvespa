@@ -1,4 +1,12 @@
+
 # Vespa CLI - distributed as python package
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://vespa.ai/assets/vespa-ai-logo-heather.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://vespa.ai/assets/vespa-ai-logo-rock.svg">
+  <img alt="#Vespa" width="200" src="https://vespa.ai/assets/vespa-ai-logo-rock.svg" style="margin-bottom: 25px;">
+</picture>
+
 [![image](https://img.shields.io/pypi/v/vespacli.svg)](https://pypi.python.org/pypi/vespacli)
 [![image](https://img.shields.io/pypi/l/vespacli.svg)](https://pypi.python.org/pypi/vespacli)
 ![CI/CD](https://github.com/thomasht86/vespacli/actions/workflows/cross_platform_tests.yml/badge.svg)
@@ -19,7 +27,3 @@ It lets you add it to python dependencies, and it is installed in the same way a
 ## Usage
 
 For usage of the Vespa CLI, see the [Vespa documentation](https://docs.vespa.ai/en/vespa-cli.html).
-
-## Disclaimer
-
-This is an independent contribution and is not affiliated with, nor has it been authorized, sponsored, or otherwise approved by Vespa.ai or any of its affiliates.
