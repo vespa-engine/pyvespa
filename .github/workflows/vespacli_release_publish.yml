@@ -45,7 +45,7 @@ jobs:
           path: vespacli/vespacli/go-binaries
 
   build-and-release:
-    needs: [prepare-binaries]
+    needs: prepare-binaries
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -62,7 +62,15 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: binaries
-          path: vespacli/go-binaries
+          path: vespacli/vespacli/go-binaries
+
+      - name: Debug path, pwd and ls
+        run: |
+            echo "Current path: $PWD"
+            echo "Current directory: $(ls)"
+            echo "Go binaries: $(ls go-binaries)"
+            echo "Working directory: $(ls vespacli)"
+  
 
       - name: Set permissions on all files in go-binaries
         run: |
