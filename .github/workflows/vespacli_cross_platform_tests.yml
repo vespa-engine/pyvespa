@@ -56,12 +56,6 @@ jobs:
         with:
           name: binaries
           path: vespacli/go-binaries
-      
-      - name: Debug path, pwd and ls
-        run: |
-          echo "Current path: $PWD"
-          echo "Current directory: $(ls)"
-          echo "Go binaries: $(ls go-binaries)"
 
       - name: Set permissions on all files in go-binaries
         run: |
