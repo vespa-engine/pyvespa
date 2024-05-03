@@ -61,11 +61,11 @@ jobs:
         run: |
           echo "Current path: $PWD"
           echo "Current directory: $(ls)"
-          echo "Go binaries: $(ls vespacli/go-binaries)"
+          echo "Go binaries: $(ls go-binaries)"
 
       - name: Set permissions on all files in go-binaries
         run: |
-          chmod -R +x vespacli/go-binaries/*
+          chmod -R +x go-binaries/*
 
       - name: Install dependencies
         run: |
