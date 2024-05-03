@@ -15,10 +15,6 @@ on:
 jobs:
   prepare-binaries:
     runs-on: ubuntu-latest
-    env:
-      MY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    outputs:
-      asset-path: ${{ steps.set-bin-path.outputs.asset-path }}
     steps:
       - uses: actions/checkout@v4
 
