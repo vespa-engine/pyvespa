@@ -1,6 +1,6 @@
 # Development requirements
 # TODO remove some
-black==23.11.0
+black==24.3.0
 httpx~=0.23.0
 invoke~=2.2
 mypy~=1.4
