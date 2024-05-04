@@ -1,0 +1,28 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = [ "setuptools>=69", "wheel",]
+
+[project]
+classifiers = [ "Programming Language :: Python :: 3", "License :: OSI Approved :: Apache Software License", "Operating System :: OS Independent",]
+description = "A Python wrapper for Vespa CLI tools, supporting multiple platforms."
+keywords = [ "vespa", "cli", "wrapper",]
+name = "vespacli"
+readme = "README.md"
+version = "8.328.24"
+[[project.authors]]
+name = "Thomas Thoresen"
+email = "thomas@vespa.ai"
+
+[project.license]
+file = "LICENSE"
+
+[project.urls]
+documentation = "https://docs.vespa.ai/en/vespa-cli.html"
+homepage = "https://pypi.org/project/vespacli/"
+repository = "https://github.com/pyvespa/vespacli"
+
+[project.scripts]
+vespa = "vespacli:run_vespa_cli"
+
+[tool.setuptools.packages.find]
+where = [ ".",]

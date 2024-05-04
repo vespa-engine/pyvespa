@@ -1,0 +1,55 @@
+name: vespacli - Check for Vespa CLI version update
+
+defaults:
+  run:
+    working-directory: ./vespacli
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *" # Runs at 00:00 UTC daily
+
+jobs:
+  check-and-update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies and this repo
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements_build.txt
+          pip install -e .
+      - name: Check latest version and set version variable
+        id: check_latest_version
+        run: |
+          version=$(python utils/check_latest_version.py)
+          echo "Latest version is $version"
+          # Set the output variable
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+      - name: Update the version (if not NA)
+        if: ${{ (steps.check_latest_version.outputs.version != 'NA') && (github.ref == 'refs/heads/main') }}
+        run: |
+          # Print evaluation of the condition
+          echo "Version is not NA, updating version to ${{ steps.check_latest_version.outputs.version }}"
+          echo "Updating Vespa CLI version to ${{ steps.check_latest_version.outputs.version }}"
+          python utils/update_version.py --version ${{ steps.check_latest_version.outputs.version }}
+
+      - name: Commit the changes (if not NA)
+        if: ${{ (steps.check_latest_version.outputs.version != 'NA') && (github.ref == 'refs/heads/main') }}
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: |
+            'pyproject.toml'
+            'vespacli/_version_generated.py'
+          # Add `cli-vX.Y.Z` tag to the commit
+          tag: ${{ format('cli-v{0}', steps.check_latest_version.outputs.version) }}
+          default_author: github_actions
+          message: "Update Vespa CLI version to ${{ steps.check_latest_version.outputs.version }}"
