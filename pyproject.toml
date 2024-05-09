@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyvespa"
+description = "Python API for vespa.ai"
+readme = "README.md"
+keywords = ["vespa", "search engine", "data science"]
+license = {text = "Apache-2.0"}
+homepage = "https://pyvespa.readthedocs.io/"
+requires-python = ">=3.8"
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+]
+
+[project.authors]
+name = "Thiago G. Martins"
+
+[project.maintainers]
+name = "Thomas Thoresen"
+email = "thomas@vespa.ai"
+
+[project.dependencies]
+requests = "*"
+requests_toolbelt = "*"
+docker = "*"
+jinja2 = "*"
+cryptography = "*"
+aiohttp = "*"
+tenacity = "*"
+typing_extensions = "*"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "requests-mock",
+    "datasets",
+    "notebook",
+    "nbconvert",
+    "runnb",
+    "ruff",
+    "pre-commit",
+]
+
+[tool.setuptools]
+packages = ["vespa"]
+
+[tool.setuptools.package-data]
+"vespa" = ["py.typed"]
