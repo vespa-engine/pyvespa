@@ -4,12 +4,16 @@ defaults:
   run:
     working-directory: ./vespacli
 
-
 on:
+  workflow_run:
+    workflows: ["vespacli - tests"]
+    branches: [master]
+    types:
+      - completed
   workflow_dispatch:
   # push:
   #   tags:
-  #     - cli-v*.*.* # Push events to matching cv*.*.* tags
+  #     - cli-v*.*.* # Push events to matching cli-v*.*.* tags
 
 jobs:
   prepare-binaries:
@@ -35,7 +39,7 @@ jobs:
           echo "Current version is $version"
           echo "version=$version" >> $GITHUB_ENV
           python utils/download_binaries.py --version $version
-      
+
       - name: Upload binaries as artifact
         uses: actions/upload-artifact@v4
         with:
@@ -69,9 +73,9 @@ jobs:
       - name: Build
         run: |
           python -m build
-      
+
       - name: Upload to PyPI
         env:
           TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_TOKEN_VESPACLI }}
-        run: twine upload --repository testpypi dist/* --non-interactive
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_VESPACLI }}
+        run: twine upload dist/* --non-interactive
