@@ -54,7 +54,8 @@ build = [
 "build==1.0.3",
 "twine==4.0.1",
 "toml==0.10.2",
-"requests~=2.26.0"
+"requests~=2.26.0",
+"bump-my-version==0.21.0",
 ]
 
 [tool.setuptools]
