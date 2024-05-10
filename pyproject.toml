@@ -1,35 +1,42 @@
 [build-system]
-requires = ["setuptools>=69", "wheel"]
+requires = ["setuptools>=69", "wheel", "build", "twine", "versioneer[toml]"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyvespa"
+version = "0.40.0"
 description = "Python API for vespa.ai"
 readme = "README.md"
 keywords = ["vespa", "search engine", "data science"]
-license = {text = "Apache-2.0"}
-homepage = "https://pyvespa.readthedocs.io/"
-requires-python = ">=3.8"
 classifiers = [
-    "License :: OSI Approved :: Apache Software License",
+    "License :: OSI Approved :: Apache Software License"
 ]
+dependencies = [
+    "requests",
+    "requests_toolbelt",
+    "docker",
+    "jinja2",
+    "cryptography",
+    "aiohttp",
+    "tenacity",
+    "typing_extensions"
+]
+requires-python = ">=3.8"
 
-[project.authors]
+[project.urls]
+homepage = "https://pypi.org/project/pyvespa"
+repository = "https://github.com/vespa-engine/pyvespa"
+
+[[project.authors]]
 name = "Thiago G. Martins"
 
-[project.maintainers]
+[[project.maintainers]]
 name = "Thomas Thoresen"
 email = "thomas@vespa.ai"
 
-[project.dependencies]
-requests = "*"
-requests_toolbelt = "*"
-docker = "*"
-jinja2 = "*"
-cryptography = "*"
-aiohttp = "*"
-tenacity = "*"
-typing_extensions = "*"
+# License file 
+[project.license]
+file = "LICENSE"
 
 [project.optional-dependencies]
 dev = [
@@ -40,11 +47,36 @@ dev = [
     "nbconvert",
     "runnb",
     "ruff",
-    "pre-commit",
+    "pre-commit"
+]
+build = [
+"setuptools==69.0.3",
+"build==1.0.3",
+"twine==4.0.1",
+"toml==0.10.2",
+"requests?=2.26.0"
 ]
 
 [tool.setuptools]
 packages = ["vespa"]
 
 [tool.setuptools.package-data]
-"vespa" = ["py.typed"]
+vespa = ["py.typed"]
+
+[tool.bumpversion]
+current_version = "0.40.0"
+parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)"
+serialize = ["{major}.{minor}.{patch}"]
+search = "{current_version}"
+replace = "{new_version}"
+regex = false
+ignore_missing_version = false
+ignore_missing_files = false
+tag = false
+sign_tags = false
+tag_name = "v{new_version}"
+tag_message = "Bump version: {current_version} → {new_version}"
+allow_dirty = false
+commit = false
+message = "Bump version: {current_version} → {new_version}"
+commit_args = ""
