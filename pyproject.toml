@@ -65,6 +65,7 @@ vespa = ["py.typed"]
 
 [tool.bumpversion]
 current_version = "0.40.0"
+excluded_paths = ["docs", "vespacli"]
 parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)"
 serialize = ["{major}.{minor}.{patch}"]
 search = "{current_version}"
