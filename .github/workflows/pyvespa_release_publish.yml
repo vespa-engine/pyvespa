@@ -2,43 +2,13 @@ name: pyvespa - Release and upload PyPI
 
 on:
   workflow_dispatch:
-  # push:
-  #   tags:
-  #     - cli-v*.*.* # Push events to matching cv*.*.* tags
+  push:
+    tags:
+      - v*.*.* # Run on tags like v1.2.3s (Tagged in pyvespa_bump_version.yml)
 
 jobs:
-  prepare-binaries:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Download latest binaries
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements_build.txt
-          pip install -e .
-
-      - name: Get current version, set as variable and download binaries
-        id: get_current_version
-        run: |
-          version=$(python -c "import vespacli; print(vespacli.__version__)")
-          echo "Current version is $version"
-          echo "version=$version" >> $GITHUB_ENV
-          python utils/download_binaries.py --version $version
-      
-      - name: Upload binaries as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: binaries
-          path: vespacli/vespacli/go-binaries
 
   build-and-release:
-    needs: prepare-binaries
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
