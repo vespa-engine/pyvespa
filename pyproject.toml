@@ -82,4 +82,6 @@ commit = false
 message = "Bump version: {current_version} → {new_version}"
 commit_args = ""
 [[tool.bumpversion.files]]
-filenames = ["pyproject.toml","vespa/__init__.py"]
+filename = "pyproject.toml"
+[[tool.bumpversion.files]]
+filename = "vespa/__init__.py"
