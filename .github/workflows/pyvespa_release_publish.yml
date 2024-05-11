@@ -2,9 +2,9 @@ name: pyvespa - Release and upload PyPI
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - v*.*.* # Run on tags like v1.2.3s (Tagged in pyvespa_bump_version.yml)
+  # push:
+  #   tags:
+  #     - v*.*.* # Run on tags like v1.2.3s (Tagged in pyvespa_bump_version.yml)
 
 jobs:
 
