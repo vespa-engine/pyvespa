@@ -62,7 +62,7 @@ build = [
 packages = ["vespa"]
 
 [tool.setuptools.package-data]
-vespa = ["py.typed"]
+vespa = ["py.typed","templates/*"]
 
 [tool.bumpversion]
 current_version = "0.40.0"
