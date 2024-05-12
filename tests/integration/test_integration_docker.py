@@ -262,6 +262,12 @@ class TestApplicationCommon(unittest.TestCase):
     # Set maxDiff to None to see full diff
     maxDiff = None
 
+    def test_async_is_http2_client(self, app):
+        with self.app.asyncio() as async_app:
+            response = async_app.get_application_status()
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.http_version, "HTTP/2")
+
     def execute_data_operations(
         self,
         app,
