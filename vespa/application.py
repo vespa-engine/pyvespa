@@ -1089,7 +1089,6 @@ class VespaAsync(object):
         await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
         return [result for result in map(lambda task: task.result(), tasks)]
 
-    @staticmethod
     def callback_docv1(state: RetryCallState) -> VespaResponse:
         if state.outcome.failed:
             raise state.outcome.exception()
@@ -1105,7 +1104,7 @@ class VespaAsync(object):
             self.app.search_end_point, json=body, params=kwargs
         )
         return VespaQueryResponse(
-            json=await r.json(), status_code=r.status, url=str(r.url)
+            json=r.json(), status_code=r.status_code, url=str(r.url)
         )
 
     @retry(
@@ -1139,8 +1138,8 @@ class VespaAsync(object):
             end_point, json=vespa_format, params=kwargs
         )
         return VespaResponse(
-            json=await response.json(),
-            status_code=response.status,
+            json=response.json(),
+            status_code=response.status_code,
             url=str(response.url),
             operation_type="feed",
         )
@@ -1172,8 +1171,8 @@ class VespaAsync(object):
         end_point = "{}{}".format(self.app.end_point, path)
         response = await self.httpx_client.delete(end_point, params=kwargs)
         return VespaResponse(
-            json=await response.json(),
-            status_code=response.status,
+            json=response.json(),
+            status_code=response.status_code,
             url=str(response.url),
             operation_type="delete",
         )
@@ -1205,8 +1204,8 @@ class VespaAsync(object):
         end_point = "{}{}".format(self.app.end_point, path)
         response = await self.httpx_client.get(end_point, params=kwargs)
         return VespaResponse(
-            json=await response.json(),
-            status_code=response.status,
+            json=response.json(),
+            status_code=response.status_code,
             url=str(response.url),
             operation_type="get",
         )
@@ -1250,8 +1249,8 @@ class VespaAsync(object):
             end_point, json=vespa_format, params=kwargs
         )
         return VespaResponse(
-            json=await response.json(),
-            status_code=response.status,
+            json=response.json(),
+            status_code=response.status_code,
             url=str(response.url),
             operation_type="update",
         )
