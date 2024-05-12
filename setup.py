@@ -33,6 +33,7 @@ setuptools.setup(
         "jinja2",
         "cryptography",
         "aiohttp",
+        "httpx[http2]",
         "tenacity",
         "typing_extensions",
     ],
