@@ -46,9 +46,9 @@ jobs:
         if: ${{ (steps.check_latest_version.outputs.version != 'NA') && (github.ref == 'refs/heads/master') }}
         uses: EndBug/add-and-commit@v9
         with:
-          add: |
-            'pyproject.toml'
-            'vespacli/_version_generated.py'
+          add: | # Action does not use working-directory 
+            'vespacli/pyproject.toml'
+            'vespacli/vespacli/_version_generated.py'
           # Add `cli-vX.Y.Z` tag to the commit
           tag: ${{ format('cli-v{0}', steps.check_latest_version.outputs.version) }}
           default_author: github_actions
