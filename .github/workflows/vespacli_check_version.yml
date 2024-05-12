@@ -6,6 +6,9 @@ defaults:
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - thomasht86/fix-commit-path-workflow # Temporary branch for testing
   schedule:
     - cron: "0 0 * * *" # Runs at 00:00 UTC daily
 
