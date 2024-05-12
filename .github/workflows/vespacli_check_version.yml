@@ -38,7 +38,7 @@ jobs:
           echo "version=$version" >> $GITHUB_OUTPUT
 
       - name: Update the version (if not NA)
-        if: ${{ (steps.check_latest_version.outputs.version != 'NA') && (github.ref == 'refs/heads/master') }}
+        if: ${{ (steps.check_latest_version.outputs.version != 'NA') }} 
         run: |
           # Print evaluation of the condition
           echo "Version is not NA, updating version to ${{ steps.check_latest_version.outputs.version }}"
@@ -46,7 +46,7 @@ jobs:
           python utils/update_version.py --version ${{ steps.check_latest_version.outputs.version }}
 
       - name: Commit the changes (if not NA)
-        if: ${{ (steps.check_latest_version.outputs.version != 'NA') && (github.ref == 'refs/heads/master') }}
+        if: ${{ (steps.check_latest_version.outputs.version != 'NA') }}
         uses: EndBug/add-and-commit@v9
         with:
           add: | # Action does not use working-directory 
