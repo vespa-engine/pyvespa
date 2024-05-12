@@ -1069,6 +1069,7 @@ class VespaAsync(object):
                 timeout=httpx.Timeout(timeout=self.total_timeout),
                 headers=self.headers,
                 verify=sslcontext,
+                http2=True,
             )
         else:
             self.httpx_client = httpx.AsyncClient(
