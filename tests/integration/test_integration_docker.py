@@ -24,7 +24,7 @@ from vespa.package import (
     Struct,
 )
 from vespa.deployment import VespaDocker
-from vespa.application import VespaSync
+from vespa.application import VespaSync, VespaAsync
 from vespa.exceptions import VespaError
 
 
@@ -263,7 +263,7 @@ class TestApplicationCommon(unittest.TestCase):
     maxDiff = None
 
     def async_is_http2_client(self, app):
-        with app.asyncio() as async_app:
+        with VespaAsync(app=app) as async_app:
             response = async_app.get_application_status()
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.http_version, "HTTP/2")
