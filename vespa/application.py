@@ -17,6 +17,7 @@ from urllib3.util import Retry
 from tenacity import (
     retry,
     wait_exponential,
+    wait_random_exponential,
     stop_after_attempt,
     retry_if_result,
     retry_if_exception,
@@ -1118,7 +1119,7 @@ class VespaAsync(object):
         retry_error_callback=callback_docv1,
     )
     @retry(
-        wait=wait_exponential(multiplier=1),
+        wait=wait_random_exponential(multiplier=1, max=10),
         retry=retry_if_result(lambda x: x.get_status_code() == 429),
     )
     async def feed_data_point(
@@ -1155,7 +1156,7 @@ class VespaAsync(object):
         retry_error_callback=callback_docv1,
     )
     @retry(
-        wait=wait_exponential(multiplier=1),
+        wait=wait_exponential(multiplier=1, max=10),
         retry=retry_if_result(lambda x: x.get_status_code() == 429),
     )
     async def delete_data(
@@ -1188,7 +1189,7 @@ class VespaAsync(object):
         retry_error_callback=callback_docv1,
     )
     @retry(
-        wait=wait_exponential(multiplier=1),
+        wait=wait_exponential(multiplier=1, max=10),
         retry=retry_if_result(lambda x: x.get_status_code() == 429),
     )
     async def get_data(
@@ -1221,7 +1222,7 @@ class VespaAsync(object):
         retry_error_callback=callback_docv1,
     )
     @retry(
-        wait=wait_exponential(multiplier=1),
+        wait=wait_exponential(multiplier=1, max=10),
         retry=retry_if_result(lambda x: x.get_status_code() == 429),
     )
     async def update_data(

@@ -1,2 +1,3 @@
 include README.md
 recursive-exclude * __pycache__
+include vespa/templates
