@@ -1,0 +1,32 @@
+name: pyvespa - Release and upload PyPI
+
+on:
+  workflow_dispatch:
+  # push:
+  #   tags:
+  #     - v*.*.* # Run on tags like v1.2.3s (Tagged in pyvespa_bump_version.yml)
+
+jobs:
+
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[build]
+
+      - name: Build
+        run: |
+          python -m build
+      
+      - name: Upload to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_TOKEN_PYVESPA }} #TODO: this must be added to secrets
+        run: twine upload --repository testpypi dist/* --non-interactive
