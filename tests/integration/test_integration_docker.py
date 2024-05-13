@@ -262,7 +262,7 @@ class TestApplicationCommon(unittest.TestCase):
     # Set maxDiff to None to see full diff
     maxDiff = None
 
-    def test_async_is_http2_client(self, app):
+    def async_is_http2_client(self, app):
         with app.asyncio() as async_app:
             response = async_app.get_application_status()
             self.assertEqual(response.status_code, 200)
@@ -899,6 +899,9 @@ class TestMsmarcoApplication(TestApplicationCommon):
             for i in range(10)
         ]
         self.queries_first_hit = ["this is title 1", "this is title 2"]
+
+    def test_is_using_http2_client(self):
+        self.async_is_http2_client(app=self.app)
 
     def test_model_endpoints_when_no_model_is_available(self):
         self.get_model_endpoints_when_no_model_is_available(
