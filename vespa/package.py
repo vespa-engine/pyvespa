@@ -989,6 +989,87 @@ class GlobalPhaseRanking(object):
         )
 
 
+class Mutate(object):
+    def __init__(
+            self, 
+            on_match: Dict | None, 
+            on_first_phase: Dict | None,
+            on_second_phase: Dict | None, 
+            on_summary: Dict | None,
+        ) -> None:
+        r"""
+        Enable mutating operations in rank profiles.
+
+        Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#mutate> 
+        for more detailed information about mutable attributes.
+
+        :param on_match: Can be None or Dict. Dictionary contains 3 mandatory keys for the on-match phase:
+            - attribute: name of the mutable attribute we want to mutate on
+            - operation_string: operation we want to perform on the mutable attribute
+            - operation_value: number we want to set, add or substract to/from the current value of the mutable attribute
+        :param on_first_phase: Can be None or Dict. Dictionary contains 3 mandatory keys for the on-first-phase phase:
+            - attribute: name of the mutable attribute we want to mutate on
+            - operation_string: operation we want to perform on the mutable attribute
+            - operation_value: number we want to set, add or substract to/from the current value of the mutable attribute
+        :param on_second_phase: Can be None or Dict. Dictionary contains 3 mandatory keys for the on-second-phase phase:
+            - attribute: name of the mutable attribute we want to mutate on
+            - operation_string: operation we want to perform on the mutable attribute
+            - operation_value: number we want to set, add or substract to/from the current value of the mutable attribute
+        :param on_summary: Can be None or Dict. Dictionary contains 3 mandatory keys for the on-summary phase:
+            - attribute: name of the mutable attribute we want to mutate on
+            - operation_string: operation we want to perform on the mutable attribute
+            - operation_value: number we want to set, add or substract to/from the current value of the mutable attribute
+        """
+        if on_match:
+            self.on_match = True
+            self.on_match_attribute = on_match["attribute"]
+            self.on_match_operation_string = on_match["operation_string"]
+            self.on_match_operation_value = on_match["operation_value"]
+        else:
+            self.on_match = False
+        if on_first_phase:
+            self.on_first_phase = True
+            self.on_first_phase_attribute = on_first_phase["attribute"]
+            self.on_first_phase_operation_string = on_first_phase["operation_string"]
+            self.on_first_phase_operation_value = on_first_phase["operation_value"]
+        else:
+            self.on_first_phase = False
+        if on_second_phase:
+            self.on_second_phase = True
+            self.on_second_phase_attribute = on_second_phase["attribute"]
+            self.on_second_phase_operation_string = on_second_phase["operation_string"]
+            self.on_second_phase_operation_value = on_second_phase["operation_value"]
+        else:
+            self.on_second_phase = False
+        if on_summary:
+            self.on_summary = True
+            self.on_summary_attribute = on_summary["attribute"]
+            self.on_summary_operation_string = on_summary["operation_string"]
+            self.on_summary_operation_value = on_summary["operation_value"]
+        else:
+            self.on_summary = False
+        
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (
+            self.on_match == other.on_match
+            and self.on_first_phase == other.on_first_phase
+            and self.on_second_phase == other.on_second_phase
+            and self.on_summary == other.on_summary
+        )
+
+    def __repr__(self) -> str:
+        return "{0}({1}, {2}, {3}, {4})".format(
+            self.__class__.__name__, 
+            repr(self.on_match), 
+            repr(self.on_first_phase), 
+            repr(self.on_second_phase), 
+            repr(self.on_summary)
+        )
+
+
 class RankProfileFields(TypedDict, total=False):
     inherits: str
     constants: Dict
@@ -1001,6 +1082,7 @@ class RankProfileFields(TypedDict, total=False):
     rank_type: List[Tuple[str, str]]
     rank_properties: List[Tuple[str, str]]
     inputs: List[Union[Tuple[str, str], Tuple[str, str, str]]]
+    mutable: Mutate
 
 
 class RankProfile(object):
@@ -1053,6 +1135,9 @@ class RankProfile(object):
             `More info <https://docs.vespa.ai/en/reference/schema-reference.html#rank-type>`__ about rank-type.
         :key rank_properties: A list of tuples containing a field and its configuration.
             `More info <https://docs.vespa.ai/en/reference/schema-reference.html#rank-properties>`__ about rank-properties.
+        :key mutate: A Mutate object containing attributes to mutate on, mutation operation and value.
+            See :class:`Mutate`.
+            `More info <https://docs.vespa.ai/en/reference/schema-reference.html#mutate>`__ about mutate operation.
 
         >>> RankProfile(name = "default", first_phase = "nativeRank(title, body)")
         RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, None)
@@ -1130,6 +1215,7 @@ class RankProfile(object):
         self.rank_type = kwargs.get("rank_type", None)
         self.rank_properties = kwargs.get("rank_properties", None)
         self.inputs = kwargs.get("inputs", None)
+        self.mutate = kwargs.get("mutate", None)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
@@ -1148,10 +1234,11 @@ class RankProfile(object):
             and self.rank_type == other.rank_type
             and self.rank_properties == other.rank_properties
             and self.inputs == other.inputs
+            and self.mutate == other.mutate
         )
 
     def __repr__(self) -> str:
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.first_phase),
@@ -1166,6 +1253,7 @@ class RankProfile(object):
             repr(self.rank_type),
             repr(self.rank_properties),
             repr(self.inputs),
+            repr(self.mutate)
         )
 
 
