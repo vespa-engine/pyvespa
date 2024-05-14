@@ -1082,7 +1082,7 @@ class RankProfileFields(TypedDict, total=False):
     rank_type: List[Tuple[str, str]]
     rank_properties: List[Tuple[str, str]]
     inputs: List[Union[Tuple[str, str], Tuple[str, str, str]]]
-    mutable: Mutate
+    mutate: Mutate
 
 
 class RankProfile(object):
