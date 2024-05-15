@@ -550,7 +550,9 @@ class VespaCloud(VespaDeployment):
         # The different deployment stages might be out of sync, so we need all the ids to determine the latest one
         run_ids = []
         for item in res["steps"]:
-            if "runs" in item.keys() and len(item["runs"]) > 0:  # "id" is only present in steps with "runs" key
+            if (
+                "runs" in item.keys() and len(item["runs"]) > 0
+            ):  # "id" is only present in steps with "runs" key
                 run_ids.append(item["runs"][0]["id"])  # Index zero to get the latest id
         if run_ids == []:
             return -1  # No runs found
@@ -795,7 +797,7 @@ class VespaCloud(VespaDeployment):
     def _create_certificate_pair() -> (
         Tuple[ec.EllipticCurvePrivateKey, x509.Certificate]
     ):
-        key = ec.generate_private_key(ec.SECP384R1, default_backend())
+        key = ec.generate_private_key(ec.SECP384R1(), default_backend())
         name = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, "localhost")])
         certificate = (
             x509.CertificateBuilder()
@@ -1109,7 +1111,8 @@ class VespaCloud(VespaDeployment):
                 )
             if self.application_package.validations:
                 zip_archive.writestr(
-                    "validation-overrides.xml", self.application_package.validations_to_text
+                    "validation-overrides.xml",
+                    self.application_package.validations_to_text,
                 )
 
         return buffer
