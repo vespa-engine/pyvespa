@@ -1050,8 +1050,11 @@ class VespaAsync(object):
                 "Authorization": f"Bearer {self.app.vespa_cloud_secret_token}",
                 "User-Agent": "pyvespa asyncio client",
             }
+        else:
+            self.headers = {"User-Agent": "pyvespa asyncio client"}
 
     async def __aenter__(self):
+        print("Opening httpx client")
         await self._open_httpx_client()
         return self
 
@@ -1065,19 +1068,13 @@ class VespaAsync(object):
         if self.app.cert is not None:
             sslcontext = httpx.create_ssl_context()
             sslcontext.load_cert_chain(self.app.cert, self.app.key)
-        if self.app.vespa_cloud_secret_token:
-            self.httpx_client = httpx.AsyncClient(
-                timeout=httpx.Timeout(timeout=self.total_timeout),
-                headers=self.headers,
-                verify=sslcontext,
-                http2=True,
-            )
-        else:
-            self.httpx_client = httpx.AsyncClient(
-                timeout=httpx.Timeout(timeout=self.total_timeout),
-                headers={"User-Agent": "pyvespa asyncio client"},
-                verify=sslcontext,
-            )
+        self.httpx_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(timeout=self.total_timeout),
+            headers=self.headers,
+            verify=sslcontext,
+            http2=True,
+            http1=False,
+        )
         return self.httpx_client
 
     async def _close_httpx_client(self):
@@ -1085,7 +1082,6 @@ class VespaAsync(object):
             return
         await self.httpx_client.aclose()
 
-    @staticmethod
     async def _wait(f, args, **kwargs):
         tasks = [asyncio.create_task(f(*arg, **kwargs)) for arg in args]
         await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
@@ -1119,7 +1115,7 @@ class VespaAsync(object):
         retry_error_callback=callback_docv1,
     )
     @retry(
-        wait=wait_random_exponential(multiplier=1, max=10),
+        wait=wait_random_exponential(multiplier=1, max=3),
         retry=retry_if_result(lambda x: x.get_status_code() == 429),
     )
     async def feed_data_point(
