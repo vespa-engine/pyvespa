@@ -1039,8 +1039,17 @@ class VespaSync(object):
 
 class VespaAsync(object):
     def __init__(
-        self, app: Vespa, connections: Optional[int] = 10, total_timeout: int = 180
+        self, app: Vespa, connections: Optional[int] = 10, total_timeout: int = 10
     ) -> None:
+        """
+        Class to handle async requests to Vespa.
+        Uses httpx as the async http client, and HTTP/2 by default.
+
+        Args:
+            app (Vespa): Vespa application object.
+            connections (Optional[int], optional): number of connections. Defaults to 10.
+            total_timeout (int, optional): timeout for each individual request in seconds. Defaults to 10.
+        """
         self.app = app
         self.httpx_client = None
         self.connections = connections
@@ -1065,6 +1074,11 @@ class VespaAsync(object):
         if self.httpx_client is not None:
             return
         sslcontext = None
+        limits = httpx.Limits(
+            max_keepalive_connections=self.connections,
+            max_connections=self.connections,
+            keepalive_expiry=5,
+        )
         if self.app.cert is not None:
             sslcontext = httpx.create_ssl_context()
             sslcontext.load_cert_chain(self.app.cert, self.app.key)
@@ -1074,6 +1088,7 @@ class VespaAsync(object):
             verify=sslcontext,
             http2=True,
             http1=False,
+            limits=limits,
         )
         return self.httpx_client
 
