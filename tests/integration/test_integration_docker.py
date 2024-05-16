@@ -7,7 +7,7 @@ import asyncio
 import json
 
 from typing import List, Dict, Optional
-from vespa.io import VespaResponse
+from vespa.io import VespaResponse, VespaQueryResponse
 from vespa.resources import get_resource_path
 from vespa.package import (
     HNSW,
@@ -264,7 +264,9 @@ class TestApplicationCommon(unittest.TestCase):
 
     async def async_is_http2_client(self, app):
         async with app.asyncio() as async_app:
-            response = async_app.get_application_status()
+            response = await async_app.httpx_client.get(
+                app.end_point + "/ApplicationStatus"
+            )
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.http_version, "HTTP/2")
 
@@ -1093,7 +1095,6 @@ class TestStreamingApplication(unittest.TestCase):
                 print("Id " + id + " + failed : " + response.json)
 
         self.app.feed_iterable(docs, schema="mail", namespace="test", callback=callback)
-        from vespa.io import VespaQueryResponse
 
         response: VespaQueryResponse = self.app.query(
             yql="select * from sources * where title contains 'title'",
