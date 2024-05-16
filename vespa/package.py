@@ -989,6 +989,87 @@ class GlobalPhaseRanking(object):
         )
 
 
+class Mutate(object):
+    def __init__(
+            self, 
+            on_match: Union[Dict, None], 
+            on_first_phase: Union[Dict, None],
+            on_second_phase: Union[Dict, None], 
+            on_summary: Union[Dict, None],
+        ) -> None:
+        r"""
+        Enable mutating operations in rank profiles.
+
+        Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#mutate> 
+        for more detailed information about mutable attributes.
+
+        :param on_match: Can be None or Dict. Dictionary contains 3 mandatory keys for the on-match phase:
+            - attribute: name of the mutable attribute we want to mutate on
+            - operation_string: operation we want to perform on the mutable attribute
+            - operation_value: number we want to set, add or substract to/from the current value of the mutable attribute
+        :param on_first_phase: Can be None or Dict. Dictionary contains 3 mandatory keys for the on-first-phase phase:
+            - attribute: name of the mutable attribute we want to mutate on
+            - operation_string: operation we want to perform on the mutable attribute
+            - operation_value: number we want to set, add or substract to/from the current value of the mutable attribute
+        :param on_second_phase: Can be None or Dict. Dictionary contains 3 mandatory keys for the on-second-phase phase:
+            - attribute: name of the mutable attribute we want to mutate on
+            - operation_string: operation we want to perform on the mutable attribute
+            - operation_value: number we want to set, add or substract to/from the current value of the mutable attribute
+        :param on_summary: Can be None or Dict. Dictionary contains 3 mandatory keys for the on-summary phase:
+            - attribute: name of the mutable attribute we want to mutate on
+            - operation_string: operation we want to perform on the mutable attribute
+            - operation_value: number we want to set, add or substract to/from the current value of the mutable attribute
+        """
+        if on_match:
+            self.on_match = True
+            self.on_match_attribute = on_match["attribute"]
+            self.on_match_operation_string = on_match["operation_string"]
+            self.on_match_operation_value = on_match["operation_value"]
+        else:
+            self.on_match = False
+        if on_first_phase:
+            self.on_first_phase = True
+            self.on_first_phase_attribute = on_first_phase["attribute"]
+            self.on_first_phase_operation_string = on_first_phase["operation_string"]
+            self.on_first_phase_operation_value = on_first_phase["operation_value"]
+        else:
+            self.on_first_phase = False
+        if on_second_phase:
+            self.on_second_phase = True
+            self.on_second_phase_attribute = on_second_phase["attribute"]
+            self.on_second_phase_operation_string = on_second_phase["operation_string"]
+            self.on_second_phase_operation_value = on_second_phase["operation_value"]
+        else:
+            self.on_second_phase = False
+        if on_summary:
+            self.on_summary = True
+            self.on_summary_attribute = on_summary["attribute"]
+            self.on_summary_operation_string = on_summary["operation_string"]
+            self.on_summary_operation_value = on_summary["operation_value"]
+        else:
+            self.on_summary = False
+        
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (
+            self.on_match == other.on_match
+            and self.on_first_phase == other.on_first_phase
+            and self.on_second_phase == other.on_second_phase
+            and self.on_summary == other.on_summary
+        )
+
+    def __repr__(self) -> str:
+        return "{0}({1}, {2}, {3}, {4})".format(
+            self.__class__.__name__, 
+            repr(self.on_match), 
+            repr(self.on_first_phase), 
+            repr(self.on_second_phase), 
+            repr(self.on_summary)
+        )
+
+
 class RankProfileFields(TypedDict, total=False):
     inherits: str
     constants: Dict
@@ -1001,6 +1082,7 @@ class RankProfileFields(TypedDict, total=False):
     rank_type: List[Tuple[str, str]]
     rank_properties: List[Tuple[str, str]]
     inputs: List[Union[Tuple[str, str], Tuple[str, str, str]]]
+    mutate: Mutate
 
 
 class RankProfile(object):
@@ -1053,12 +1135,15 @@ class RankProfile(object):
             `More info <https://docs.vespa.ai/en/reference/schema-reference.html#rank-type>`__ about rank-type.
         :key rank_properties: A list of tuples containing a field and its configuration.
             `More info <https://docs.vespa.ai/en/reference/schema-reference.html#rank-properties>`__ about rank-properties.
+        :key mutate: A Mutate object containing attributes to mutate on, mutation operation and value.
+            See :class:`Mutate`.
+            `More info <https://docs.vespa.ai/en/reference/schema-reference.html#mutate>`__ about mutate operation.
 
         >>> RankProfile(name = "default", first_phase = "nativeRank(title, body)")
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, None, None)
 
         >>> RankProfile(name = "new", first_phase = "BM25(title)", inherits = "default")
-        RankProfile('new', 'BM25(title)', 'default', None, None, None, None, None, None, None, None, None, None)
+        RankProfile('new', 'BM25(title)', 'default', None, None, None, None, None, None, None, None, None, None, None)
 
         >>> RankProfile(
         ...     name = "new",
@@ -1067,7 +1152,7 @@ class RankProfile(object):
         ...     constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
         ...     summary_features=["BM25(title)"]
         ... )
-        RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None, ['BM25(title)'], None, None, None, None, None, None, None)
+        RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None, ['BM25(title)'], None, None, None, None, None, None, None, None)
 
         >>> RankProfile(
         ...     name="bert",
@@ -1087,34 +1172,34 @@ class RankProfile(object):
         ...     ],
         ...     summary_features=["question_length", "doc_length"]
         ... )
-        RankProfile('bert', 'bm25(title) + bm25(body)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, [Function('question_length', 'sum(map(query(query_token_ids), f(a)(a > 0)))', None), Function('doc_length', 'sum(map(attribute(doc_token_ids), f(a)(a > 0)))', None)], ['question_length', 'doc_length'], None, SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10), None, None, None, None, None)
+        RankProfile('bert', 'bm25(title) + bm25(body)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, [Function('question_length', 'sum(map(query(query_token_ids), f(a)(a > 0)))', None), Function('doc_length', 'sum(map(attribute(doc_token_ids), f(a)(a > 0)))', None)], ['question_length', 'doc_length'], None, SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10), None, None, None, None, None, None)
 
         >>> RankProfile(
         ...     name = "default",
         ...     first_phase = "nativeRank(title, body)",
         ...     weight = [("title", 200), ("body", 100)]
         ... )
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, [('title', 200), ('body', 100)], None, None, None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, [('title', 200), ('body', 100)], None, None, None, None)
 
         >>> RankProfile(
         ...     name = "default",
         ...     first_phase = "nativeRank(title, body)",
         ...     rank_type = [("body", "about")]
         ... )
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, [('body', 'about')], None, None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, [('body', 'about')], None, None, None)
 
         >>> RankProfile(
         ...     name = "default",
         ...     first_phase = "nativeRank(title, body)",
         ...     rank_properties = [("fieldMatch(title).maxAlternativeSegmentations", "10")]
         ... )
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, [('fieldMatch(title).maxAlternativeSegmentations', '10')], None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, [('fieldMatch(title).maxAlternativeSegmentations', '10')], None, None)
 
         >>> RankProfile(
         ...    name = "default",
         ...    first_phase = FirstPhaseRanking(expression="nativeRank(title, body)", keep_rank_count=50)
         ... )
-        RankProfile('default', FirstPhaseRanking('nativeRank(title, body)', 50, None), None, None, None, None, None, None, None, None, None, None, None)
+        RankProfile('default', FirstPhaseRanking('nativeRank(title, body)', 50, None), None, None, None, None, None, None, None, None, None, None, None, None)
 
         """
         self.name = name
@@ -1130,6 +1215,7 @@ class RankProfile(object):
         self.rank_type = kwargs.get("rank_type", None)
         self.rank_properties = kwargs.get("rank_properties", None)
         self.inputs = kwargs.get("inputs", None)
+        self.mutate = kwargs.get("mutate", None)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
@@ -1148,10 +1234,11 @@ class RankProfile(object):
             and self.rank_type == other.rank_type
             and self.rank_properties == other.rank_properties
             and self.inputs == other.inputs
+            and self.mutate == other.mutate
         )
 
     def __repr__(self) -> str:
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.first_phase),
@@ -1166,6 +1253,7 @@ class RankProfile(object):
             repr(self.rank_type),
             repr(self.rank_properties),
             repr(self.inputs),
+            repr(self.mutate)
         )
 
 

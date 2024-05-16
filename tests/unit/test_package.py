@@ -12,6 +12,7 @@ from vespa.package import (
     Function,
     SecondPhaseRanking,
     GlobalPhaseRanking,
+    Mutate,
     RankProfile,
     OnnxModel,
     Schema,
@@ -289,7 +290,47 @@ class TestRankProfile(unittest.TestCase):
         )
         self.assertEqual(rank_profile.inputs[0][0], "query(image_query_embedding)")
         self.assertEqual(rank_profile.inputs[1][0], "query(image_query_embedding2)")
+    
+    def test_rank_profile_mutate_definition(self):
+        mutate: Mutate = Mutate(
+            on_match={
+                "attribute": "my_mutable_attribute",
+                "operation_string": "+=",
+                "operation_value": 5
+            },
+            on_first_phase=None,
+            on_second_phase={
+                "attribute": "my_mutable_attribute",
+                "operation_string": "-=",
+                "operation_value": 3,
+            },
+            on_summary={
+                "attribute": "my_mutable_attribute",
+                "operation_string": "=",
+                "operation_value": 42
+            }
+        )
+        rank_profile = RankProfile(
+            name="track_some_attribute",
+            first_phase="bm25(title)",
+            mutate=mutate
+        )
+        self.assertTrue(rank_profile.mutate.on_match)
+        self.assertFalse(rank_profile.mutate.on_first_phase)
+        self.assertTrue(rank_profile.mutate.on_second_phase)
+        self.assertTrue(rank_profile.mutate.on_summary)
 
+        self.assertEqual(rank_profile.mutate.on_match_attribute, "my_mutable_attribute")
+        self.assertEqual(rank_profile.mutate.on_second_phase_attribute, "my_mutable_attribute")
+        self.assertEqual(rank_profile.mutate.on_summary_attribute, "my_mutable_attribute")
+
+        self.assertEqual(rank_profile.mutate.on_match_operation_string, "+=")
+        self.assertEqual(rank_profile.mutate.on_second_phase_operation_string, "-=")
+        self.assertEqual(rank_profile.mutate.on_summary_operation_string, "=")
+
+        self.assertEqual(rank_profile.mutate.on_match_operation_value, 5)
+        self.assertEqual(rank_profile.mutate.on_second_phase_operation_value, 3)
+        self.assertEqual(rank_profile.mutate.on_summary_operation_value, 42)
 
 class TestSchema(unittest.TestCase):
     def setUp(self) -> None:
