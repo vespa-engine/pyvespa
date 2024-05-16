@@ -266,6 +266,7 @@ class TestApplicationCommon(unittest.TestCase):
         self,
         app,
         schema_name,
+        cluster_name,
         fields_to_send,
         field_to_update,
         expected_fields_from_get_operation,
@@ -326,6 +327,33 @@ class TestApplicationCommon(unittest.TestCase):
                 "pathId": "/document/v1/{}/{}/docid/{}".format(
                     schema_name, schema_name, fields_to_send["id"]
                 ),
+            },
+        )
+
+        #
+        # Visit data
+        visit_results = []
+        for slice in app.visit(
+            schema=schema_name,
+            content_cluster_name=cluster_name,
+            timeout="200s",
+        ):
+            for response in slice:
+                visit_results.append(response)
+
+        self.assertDictEqual(
+            visit_results[0].json,
+            {
+                "pathId": "/document/v1/{}/{}/docid/".format(schema_name, schema_name),
+                "documents": [
+                    {
+                        "id": "id:{}:{}::{}".format(
+                            schema_name, schema_name, fields_to_send["id"]
+                        ),
+                        "fields": expected_fields_from_get_operation,
+                    }
+                ],
+                "documentCount": 1,
             },
         )
 
@@ -909,6 +937,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
         self.execute_data_operations(
             app=self.app,
             schema_name=self.app_package.name,
+            cluster_name=f"{self.app_package.name}_content",
             fields_to_send=self.fields_to_send[0],
             field_to_update=self.fields_to_update[0],
             expected_fields_from_get_operation=self.fields_to_send[0],
@@ -991,6 +1020,7 @@ class TestQaApplication(TestApplicationCommon):
         self.execute_data_operations(
             app=self.app,
             schema_name="sentence",
+            cluster_name="qa_content",
             fields_to_send=self.fields_to_send_sentence[0],
             field_to_update=self.fields_to_update[0],
             expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation[
@@ -1002,6 +1032,7 @@ class TestQaApplication(TestApplicationCommon):
         self.execute_data_operations(
             app=self.app,
             schema_name="context",
+            cluster_name="qa_content",
             fields_to_send=self.fields_to_send_context[0],
             field_to_update=self.fields_to_update[0],
             expected_fields_from_get_operation=self.fields_to_send_context[0],
