@@ -901,7 +901,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
         self.queries_first_hit = ["this is title 1", "this is title 2"]
 
     def test_is_using_http2_client(self):
-        await self.async_is_http2_client(app=self.app)
+        asyncio.run(self.async_is_http2_client(app=self.app))
 
     def test_model_endpoints_when_no_model_is_available(self):
         self.get_model_endpoints_when_no_model_is_available(
