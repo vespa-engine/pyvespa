@@ -19,6 +19,10 @@ compute and rank big data at user serving time.
 It allows users to create, modify, deploy and interact with running Vespa instances.
 The main goal of the library is to allow for faster prototyping and get familiar with Vespa features.
 
+## vespacli
+
+This repo also contains the python wrapper for the [Vespa CLI](https://docs.vespa.ai/en/vespa-cli).
+See [README](https://github.com/vespa-engine/pyvespa/tree/master/vespacli) and [Veso]
 
 ## License
 Code licensed under the Apache 2.0 license. See [LICENSE](LICENSE) for terms.
@@ -28,7 +32,7 @@ Code licensed under the Apache 2.0 license. See [LICENSE](LICENSE) for terms.
 To install editable version of the library with dev dependencies, run the following command from the root directory of the repository:
 
 ```python
-pip install -e .[]
+pip install -e ".[dev]"
 ```
 
 Note that this will enforce linting and formatting with [Ruff](https://github.com/astral-sh/ruff), which also will be triggered by a [pre-commit](https://pre-commit.com/)-hook.
