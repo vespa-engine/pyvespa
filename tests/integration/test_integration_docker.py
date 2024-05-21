@@ -262,6 +262,19 @@ class TestApplicationCommon(unittest.TestCase):
     # Set maxDiff to None to see full diff
     maxDiff = None
 
+    async def handle_longlived_connection(self, app, n_seconds=10):
+        # Test that the connection can live for at least n_seconds
+        async with app.asyncio(connections=1) as async_app:
+            response = await async_app.httpx_client.get(
+                app.end_point + "/ApplicationStatus"
+            )
+            self.assertEqual(response.status_code, 200)
+            await asyncio.sleep(n_seconds)
+            response = await async_app.httpx_client.get(
+                app.end_point + "/ApplicationStatus"
+            )
+            self.assertEqual(response.status_code, 200)
+
     async def async_is_http2_client(self, app):
         async with app.asyncio() as async_app:
             response = await async_app.httpx_client.get(
@@ -904,6 +917,9 @@ class TestMsmarcoApplication(TestApplicationCommon):
 
     def test_is_using_http2_client(self):
         asyncio.run(self.async_is_http2_client(app=self.app))
+
+    def test_handle_longlived_connection(self):
+        asyncio.run(self.handle_longlived_connection(app=self.app))
 
     def test_model_endpoints_when_no_model_is_available(self):
         self.get_model_endpoints_when_no_model_is_available(
