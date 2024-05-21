@@ -8,6 +8,9 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "0 0 * * *" # Runs at 00:00 UTC daily
+  push:
+    branches:
+      - thomasht86/fix-action-workflows
 
 jobs:
   check-and-update:
@@ -41,7 +44,12 @@ jobs:
           echo "Version is not NA, updating version to ${{ steps.check_latest_version.outputs.version }}"
           echo "Updating Vespa CLI version to ${{ steps.check_latest_version.outputs.version }}"
           python utils/update_version.py --version ${{ steps.check_latest_version.outputs.version }}
-
+      
+      - name: Checkout new branch
+        if: ${{ (steps.check_latest_version.outputs.version != 'NA') && (github.ref == 'refs/heads/master') }}
+        run: |
+          git checkout -b update-version-${{ steps.check_latest_version.outputs.version }}
+      
       - name: Commit the changes (if not NA)
         if: ${{ (steps.check_latest_version.outputs.version != 'NA') && (github.ref == 'refs/heads/master') }}
         uses: EndBug/add-and-commit@v9
@@ -53,3 +61,16 @@ jobs:
           tag: ${{ format('cli-v{0}', steps.check_latest_version.outputs.version) }}
           default_author: github_actions
           message: "Update Vespa CLI version to ${{ steps.check_latest_version.outputs.version }}"
+     
+      - name: Create PR
+        if: ${{ (steps.check_latest_version.outputs.version != 'NA') && (github.ref == 'refs/heads/master') }}
+        uses: peter-evans/create-pull-request@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Update Vespa CLI version to ${{ steps.check_latest_version.outputs.version }}"
+          title: "Update Vespa CLI version to ${{ steps.check_latest_version.outputs.version }}"
+          body: "This PR updates the Vespa CLI version to ${{ steps.check_latest_version.outputs.version }}"
+          branch: update-version-${{ steps.check_latest_version.outputs.version }}
+          base: master
+          labels: "vespacli, version-update"
+          draft: false
