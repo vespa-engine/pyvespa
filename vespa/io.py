@@ -1,5 +1,5 @@
 import warnings
-from typing import Optional, Dict, List
+from typing import Any, Optional, Dict, List
 
 
 class VespaResponse(object):
@@ -76,3 +76,26 @@ class VespaQueryResponse(VespaResponse):
         :return: JSON object with full response
         """
         return self.json
+
+
+class VespaVisitResponse(VespaResponse):
+    def __init__(self, json, status_code, url) -> None:
+        super().__init__(
+            json=json, status_code=status_code, url=url, operation_type="visit"
+        )
+
+    @property
+    def continuation(self) -> Optional[str]:
+        return self.json.get("continuation")
+
+    @property
+    def path_id(self) -> str:
+        return self.json.get("pathId", "")
+
+    @property
+    def documents(self) -> List[Dict[str, Any]]:
+        return self.json.get("documents", [])
+
+    @property
+    def number_documents_retrieved(self) -> int:
+        return self.json.get("documentCount", 0)

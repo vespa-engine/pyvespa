@@ -7,8 +7,8 @@ import asyncio
 import requests
 import traceback
 import concurrent.futures
-from typing import Optional, Dict, List, IO, Iterable, Callable, Tuple, Union
-from concurrent.futures import ThreadPoolExecutor, Future
+from typing import Optional, Dict, Generator, List, IO, Iterable, Callable, Tuple, Union
+from concurrent.futures import ThreadPoolExecutor, Future, as_completed
 from queue import Queue, Empty
 import threading
 from requests import Session
@@ -23,6 +23,7 @@ from tenacity import (
     stop_after_attempt,
     retry_if_result,
     retry_if_exception,
+    retry_if_exception_type,
     retry_any,
     RetryCallState,
 )
@@ -31,7 +32,7 @@ from os import environ
 from urllib.parse import quote
 
 from vespa.exceptions import VespaError
-from vespa.io import VespaQueryResponse, VespaResponse
+from vespa.io import VespaQueryResponse, VespaResponse, VespaVisitResponse
 from vespa.package import ApplicationPackage
 
 retry_strategy = Retry(
@@ -583,6 +584,43 @@ class Vespa(object):
                 **kwargs,
             )
 
+    def visit(
+        self,
+        content_cluster_name: str,
+        schema: Optional[str] = None,
+        namespace: Optional[str] = None,
+        slices: int = 1,
+        selection: str = "true",
+        chunk_size: int = 500,
+        **kwargs,
+    ) -> Generator[Generator[VespaVisitResponse, None, None], None, None]:
+        """
+        Visit all documents associated with the schema and matching the selection.
+
+        Will run each slice on a seperate thread, for each slice yields the
+        response for each page.
+
+        :param content_cluster_name: Name of content cluster to GET from.
+        :param schema: The schema that we are visiting data from.
+        :param namespace: The namespace that we are visiting data from.
+        :param slices: Number of slices to use for parallel GET.
+        :param chunk_size: How many documents to retrieve for each request
+        :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)
+        :return: A generator of slices, each containing a generator of responses.
+        :raises HTTPError: if one occurred
+        """
+
+        with VespaSync(self, pool_connections=slices, pool_maxsize=slices) as sync_app:
+            return sync_app.visit(
+                content_cluster_name=content_cluster_name,
+                namespace=namespace,
+                schema=schema,
+                slices=slices,
+                selection=selection,
+                chunk_size=chunk_size,
+                **kwargs,
+            )
+
     def get_data(
         self,
         schema: str,
@@ -948,6 +986,78 @@ class VespaSync(object):
 
         with ThreadPoolExecutor(max_workers=slices) as executor:
             executor.map(delete_slice, range(slices))
+
+    def visit(
+        self,
+        content_cluster_name: str,
+        schema: Optional[str] = None,
+        namespace: Optional[str] = None,
+        slices: int = 1,
+        selection: str = "true",
+        chunk_size: int = 500,
+        **kwargs,
+    ) -> Generator[Generator[VespaVisitResponse, None, None], None, None]:
+        """
+        Visit all documents associated with the schema and matching the selection.
+
+        Will run each slice on a seperate thread, for each slice yields the
+        response for each page.
+
+        :param content_cluster_name: Name of content cluster to GET from.
+        :param schema: The schema that we are visiting data from.
+        :param namespace: The namespace that we are visiting data from.
+        :param slices: Number of slices to use for parallel GET.
+        :param chunk_size: How many documents to retrieve for each request
+        :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)
+        :return: A generator of slices, each containing a generator of responses.
+        :raises HTTPError: if one occurred
+        """
+        if not namespace:
+            namespace = schema
+
+        if schema:
+            target = "{}/{}/docid/".format(
+                namespace,
+                schema,
+            )
+        else:
+            target = ""
+
+        end_point = "{}/document/v1/{}".format(
+            self.app.end_point,
+            target,
+        )
+
+        @retry(retry=retry_if_exception_type(HTTPError), stop=stop_after_attempt(3))
+        def visit_request(end_point: str, params: Dict[str, str]):
+            r = self.http_session.get(end_point, params=params)
+            r.raise_for_status()
+            return VespaVisitResponse(
+                json=r.json(), status_code=r.status_code, url=str(r.url)
+            )
+
+        def visit_slice(slice_id):
+            params = {
+                "cluster": content_cluster_name,
+                "selection": selection,
+                "wantedDocumentCount": chunk_size,
+                "slices": slices,
+                "sliceId": slice_id,
+                **kwargs,
+            }
+
+            while True:
+                result = visit_request(end_point, params=params)
+                yield result
+                if result.continuation:
+                    params["continuation"] = result.continuation
+                else:
+                    break
+
+        with ThreadPoolExecutor(max_workers=slices) as executor:
+            futures = [executor.submit(visit_slice, slice) for slice in range(slices)]
+            for future in as_completed(futures):
+                yield future.result()
 
     def get_data(
         self,

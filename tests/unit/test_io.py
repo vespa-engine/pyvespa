@@ -1,10 +1,41 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import unittest
-from vespa.io import VespaQueryResponse
+from vespa.io import VespaVisitResponse, VespaQueryResponse
 
 
-class TestVespaResult(unittest.TestCase):
+class TestVespaVisitResult(unittest.TestCase):
+    def setUp(self) -> None:
+        self.raw_vespa_result = {
+            "pathId": "/document/v1/foo/foo/docid/",
+            "documents": [
+                {
+                    "id": "id:foo:foo::01",
+                    "fields": {"id": "01", "desc": "some data for 01"},
+                },
+                {
+                    "id": "id:foo:foo::02",
+                    "fields": {"id": "02", "desc": "some data for 02"},
+                },
+            ],
+            "documentCount": 2,
+            "continuation": "AAA",
+        }
+
+    def test_json(self):
+        vespa_result = VespaVisitResponse(
+            json=self.raw_vespa_result, status_code=None, url=None
+        )
+        self.assertDictEqual(vespa_result.json, self.raw_vespa_result)
+
+    def test_continuation(self):
+        vespa_result = VespaVisitResponse(
+            json=self.raw_vespa_result, status_code=None, url=None
+        )
+        assert vespa_result.continuation == "AAA"
+
+
+class TestVespaQueryResult(unittest.TestCase):
     def setUp(self) -> None:
         self.raw_vespa_result_empty_hits = {
             "root": {
