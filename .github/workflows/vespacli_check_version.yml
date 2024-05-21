@@ -45,11 +45,6 @@ jobs:
           echo "Updating Vespa CLI version to ${{ steps.check_latest_version.outputs.version }}"
           python utils/update_version.py --version ${{ steps.check_latest_version.outputs.version }}
       
-      - name: Checkout new branch
-        if: ${{ (steps.check_latest_version.outputs.version != 'NA') }}
-        run: |
-          git checkout -b update-version-${{ steps.check_latest_version.outputs.version }}
-      
       - name: Commit the changes (if not NA)
         if: ${{ (steps.check_latest_version.outputs.version != 'NA') }}
         uses: EndBug/add-and-commit@v9
@@ -61,10 +56,11 @@ jobs:
           tag: ${{ format('cli-v{0}', steps.check_latest_version.outputs.version) }}
           default_author: github_actions
           message: "Update Vespa CLI version to ${{ steps.check_latest_version.outputs.version }}"
+          new_branch: update-version-${{ steps.check_latest_version.outputs.version }}
      
       - name: Create PR
         if: ${{ (steps.check_latest_version.outputs.version != 'NA') }}
-        uses: peter-evans/create-pull-request@v3
+        uses: peter-evans/create-pull-request@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "Update Vespa CLI version to ${{ steps.check_latest_version.outputs.version }}"
