@@ -131,7 +131,6 @@ class TestMsmarcoApplicationWithTokenAuth(TestApplicationCommon):
             self.execute_async_data_operations(
                 app=self.app,
                 schema_name=self.app_package.name,
-                cluster_name=f"{self.app_package.name}_content",
                 fields_to_send=self.fields_to_send,
                 field_to_update=self.fields_to_update[0],
                 expected_fields_from_get_operation=self.fields_to_send,
