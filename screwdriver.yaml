@@ -221,10 +221,18 @@ jobs:
           echo $PATH
           find docs -name '*cloud*.ipynb' -not -name mother-of-all-embedding-models-cloud.ipynb | while read f
           do
+            # Display total and free memory in human-readable format before running each notebook
+            total_mem=$(free -h | grep Mem | awk '{print $2}')
+            free_mem=$(free -h | grep Mem | awk '{print $4}')
+            echo "Before running $f - Total Memory: $total_mem, Free Memory: $free_mem"
+
+            # Run the notebook in a subshell
             echo "running: runnb --allow-not-trusted $f"
-            runnb --allow-not-trusted $f
+            (runnb --allow-not-trusted $f)
+            # Check the exit status of the last command in the subshell
             if [ $? -ne 0 ]
             then
+              echo "Error running $f"
               exit 1
             fi
           done
