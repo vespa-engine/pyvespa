@@ -219,7 +219,7 @@ jobs:
       - run-notebooks-cloud-related: |
           echo "PATH:"
           echo $PATH
-          find docs -name '*cloud*.ipynb' -not -name 'mother-of-all-embedding-models-cloud.ipynb' | while read f
+          find docs -name '*cloud*.ipynb' -not -name mother-of-all-embedding-models-cloud.ipynb | while read f
           do
             # Display total and free memory in human-readable format before running each notebook
             total_mem=$(free -h | grep Mem | awk '{print $2}')
