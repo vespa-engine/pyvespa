@@ -220,7 +220,6 @@ jobs:
           echo "PATH:"
           echo $PATH
 
-          # Find and process specified Jupyter notebooks
           find docs -name '*cloud*.ipynb' -not -name 'mother-of-all-embedding-models-cloud.ipynb' | while read f
           do
             # Display total and free memory in human-readable format before running each notebook
