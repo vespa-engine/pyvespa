@@ -326,7 +326,21 @@ class Vespa(object):
         """
         Feed a data point to a Vespa app. Will create a new VespaSync with
         connection overhead.
-        >>> with VespaSync(app) as sync_app: sync_app.feed_data_point(...)  # doctest: +SKIP
+
+        Example usage::
+
+            app = Vespa(url="localhost", port=8080)
+            data_id = "1",
+            fields = {
+                    "field1": "value1",
+                }
+            with VespaSync(app) as sync_app:
+                response = sync_app.feed_data_point(
+                    schema="schema_name",
+                    data_id=data_id,
+                    fields=fields
+                )
+            print(response)
 
         :param schema: The schema that we are sending data to.
         :param data_id: Unique id associated with this data point.
@@ -367,7 +381,18 @@ class Vespa(object):
         Uses a queue to feed data in parallel with a thread pool. The result of each operation is forwarded
         to the user provided callback function that can process the returned `VespaResponse`.
 
-        :param iter: An iterable of Dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
+        Example usage::
+
+            app = Vespa(url="localhost", port=8080)
+            data = [
+                {"id": "1", "fields": {"field1": "value1"}},
+                {"id": "2", "fields": {"field1": "value2"}},
+            ]
+            def callback(response, id):
+                print(f"Response for id {id}: {response.status_code}")
+            app.feed_iterable(data, schema="schema_name", callback=callback)
+
+        :param iter: An iterable of Dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`. Note that this 'id' is only the last part of the full document id, that will be generated automatically by pyvespa.
         :param schema: The Vespa schema name that we are sending data to.
         :param namespace: The Vespa document id namespace. If no namespace is provided the schema is used.
         :param callback: A callback function to be called on each result. Signature `callback(response:VespaResponse, id:str)`
@@ -538,6 +563,12 @@ class Vespa(object):
         """
         Delete a data point from a Vespa app.
 
+        Example usage::
+
+            app = Vespa(url="localhost", port=8080)
+            response = app.delete_data(schema="schema_name", data_id="1")
+            print(response)
+
         :param schema: The schema that we are deleting data from.
         :param data_id: Unique id associated with this data point.
         :param namespace: The namespace that we are deleting data from. If no namespace is provided the schema is used.
@@ -589,9 +620,9 @@ class Vespa(object):
         content_cluster_name: str,
         schema: Optional[str] = None,
         namespace: Optional[str] = None,
-        slices: int = 1,
+        slices: int = 10,
         selection: str = "true",
-        chunk_size: int = 500,
+        wanted_document_count: int = 500,
         **kwargs,
     ) -> Generator[Generator[VespaVisitResponse, None, None], None, None]:
         """
@@ -600,11 +631,17 @@ class Vespa(object):
         Will run each slice on a seperate thread, for each slice yields the
         response for each page.
 
+        Example usage::
+
+            for slice in app.visit(schema="schema_name", slices=2):
+                for response in slice:
+                    print(response.json)
+
         :param content_cluster_name: Name of content cluster to GET from.
         :param schema: The schema that we are visiting data from.
         :param namespace: The namespace that we are visiting data from.
         :param slices: Number of slices to use for parallel GET.
-        :param chunk_size: How many documents to retrieve for each request
+        :param wanted_document_count: Best effort number of documents to retrieve for each request. May contain less if there are not enough documents left.
         :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)
         :return: A generator of slices, each containing a generator of responses.
         :raises HTTPError: if one occurred
@@ -617,7 +654,7 @@ class Vespa(object):
                 schema=schema,
                 slices=slices,
                 selection=selection,
-                chunk_size=chunk_size,
+                wanted_document_count=wanted_document_count,
                 **kwargs,
             )
 
@@ -666,10 +703,22 @@ class Vespa(object):
         """
         Update a data point in a Vespa app.
 
+        Example usage::
+
+            vespa = Vespa(url="localhost", port=8080)
+
+            fields = {"mystringfield": "value1", "myintfield": 42}
+            response = vespa.update_data(schema="schema_name", data_id="id1", fields=fields)
+            # or, with partial update, setting auto_assign=False
+            fields = {"myintfield": {"increment": 1}}
+            response = vespa.update_data(schema="schema_name", data_id="id1", fields=fields, auto_assign=False)
+            print(response.json)
+
         :param schema: The schema that we are updating data.
         :param data_id: Unique id associated with this data point.
         :param fields: Dict containing all the fields you want to update.
         :param create: If true, updates to non-existent documents will create an empty document to update
+        :param auto_assign: Assumes `fields`-parameter is an assignment operation. (https://docs.vespa.ai/en/reference/document-json-format.html#assign). If set to false, the fields parameter should be a dictionary including the update operation.
         :param namespace: The namespace that we are updating data. If no namespace is provided the schema is used.
         :param groupname: The groupname that we are updating data.
         :param kwargs: Additional arguments to be passed to the HTTP PUT request. https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters
@@ -992,9 +1041,9 @@ class VespaSync(object):
         content_cluster_name: str,
         schema: Optional[str] = None,
         namespace: Optional[str] = None,
-        slices: int = 1,
+        slices: int = 10,
         selection: str = "true",
-        chunk_size: int = 500,
+        wanted_document_count: int = 500,
         **kwargs,
     ) -> Generator[Generator[VespaVisitResponse, None, None], None, None]:
         """
@@ -1007,7 +1056,7 @@ class VespaSync(object):
         :param schema: The schema that we are visiting data from.
         :param namespace: The namespace that we are visiting data from.
         :param slices: Number of slices to use for parallel GET.
-        :param chunk_size: How many documents to retrieve for each request
+        :param wanted_document_count: Best effort number of documents to retrieve for each request. May contain less if there are not enough documents left.
         :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)
         :return: A generator of slices, each containing a generator of responses.
         :raises HTTPError: if one occurred
@@ -1040,7 +1089,7 @@ class VespaSync(object):
             params = {
                 "cluster": content_cluster_name,
                 "selection": selection,
-                "wantedDocumentCount": chunk_size,
+                "wantedDocumentCount": wanted_document_count,
                 "slices": slices,
                 "sliceId": slice_id,
                 **kwargs,
@@ -1107,13 +1156,6 @@ class VespaSync(object):
     ) -> VespaResponse:
         """
         Update a data point in a Vespa app.
-
-        Example usage:
-        >>> fields = {"mystringfield": "value1", "myintfield": 42}  # doctest: +SKIP
-        >>> response = vespa.update_data(schema="schema_name", data_id="id1", fields=fields)  # doctest: +SKIP
-        or, with partial update, setting auto_assign=False
-        >>> fields = {"myintfield": {"increment": 1}} # doctest: +SKIP
-        >>> response = vespa.update_data(schema="schema_name", data_id="id1", fields=fields, auto_assign=False) # doctest: +SKIP
 
         :param schema: The schema that we are updating data.
         :param data_id: Unique id associated with this data point.
