@@ -9,9 +9,7 @@ on:
   schedule:
     # Run at midnight sunday-thursday
     - cron: "0 0 * * 1-4"
-  push:
-    branches:
-      - thomasht86/ci-updates
+
 jobs:
   check-and-update:
     runs-on: ubuntu-latest
