@@ -27,8 +27,7 @@ jobs:
       - name: Install dependencies and this repo
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements_build.txt
-          pip install -e .
+          pip install -e .[build]
       - name: Check latest version and set version variable
         id: check_latest_version
         run: |
@@ -92,7 +91,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e .[test] requests
+          pip install -e .[build]
 
       - name: Verify installation
         run: |
@@ -116,8 +115,7 @@ jobs:
       - name: Install dependencies and this repo
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements_build.txt
-          pip install -e .
+          pip install -e .[build]
       
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v6
