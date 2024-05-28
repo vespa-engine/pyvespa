@@ -83,11 +83,16 @@ jobs:
       - name: Set permissions on all files in go-binaries
         run: |
           chmod -R +x vespacli/go-binaries/*
-          
+    
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[build]
+  
       - name: Update latest version
         run: |
           python utils/update_version.py --version ${{ needs.check-and-update.outputs.version }}
-
+      
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
