@@ -5,7 +5,6 @@ on:
   release:
     types: [published]
 jobs:
-
   update_version:
     runs-on: ubuntu-latest
     steps:
@@ -21,8 +20,12 @@ jobs:
 
       - name: Set version from ref tag that triggered the workflow (strip prefix 'v' from tag)
         id: set_version
-        run: echo "version=${{ format('v{0}', github.ref_name) }}" >> $GITHUB_OUTPUT
-      
+        run: |
+          echo "tag=${{ github.ref_name }}" 
+          # strip prefix 'v' from version variable
+          version=${tag#v}
+          echo "version=$version" >> $GITHUB_OUTPUT
+
       - name: Update version
         run: |
           echo "Updating pyvespa version to ${{ steps.set_version.outputs.version }}"
@@ -31,14 +34,14 @@ jobs:
       - name: Build
         run: |
           python -m build
-      
+
       - name: Upload to PyPI
         if: github.event_name == 'release'
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_PYVESPA }} #TODO: this must be added to secrets
-        run: python -m twine upload dist/* 
-      
+        run: python -m twine upload dist/*
+
       - name: Create Pull Request
         if: github.event_name == 'release'
         uses: peter-evans/create-pull-request@v6
