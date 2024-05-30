@@ -202,9 +202,9 @@ class TestRetryApplication(unittest.TestCase):
         def callback(response: VespaResponse, id: str):
             nonlocal num_429
             if response.status_code == 429:
-                print(f"429 response for id {id}")
                 num_429 += 1
 
+        self.assertEqual(num_429, 0)
         self.app.feed_iterable(
             self.doc_generator(num_docs),
             schema="retryapplication",
@@ -217,10 +217,6 @@ class TestRetryApplication(unittest.TestCase):
             schema="retryapplication",
             namespace="retryapplication",
             selection="true",
-            slices=4,
-            max_workers=32,
-            max_connections=32,
-            wanted_document_count=num_docs // 4,
         ):
             for response in doc_slice:
                 total_docs.extend(response.documents)

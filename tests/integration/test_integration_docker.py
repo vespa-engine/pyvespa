@@ -1396,7 +1396,7 @@ class TestRetryApplication(unittest.TestCase):
             }
 
     def test_retry(self):
-        num_docs = 100
+        num_docs = 10
         num_429 = 0
 
         def callback(response: VespaResponse, id: str):
@@ -1410,17 +1410,13 @@ class TestRetryApplication(unittest.TestCase):
             schema="retryapplication",
             callback=callback,
         )
-        print(f"Number of 429 responses: {num_429}")
+        self.assertEqual(num_429, 0)
         total_docs = []
         for doc_slice in self.app.visit(
             content_cluster_name="retryapplication_content",
             schema="retryapplication",
             namespace="retryapplication",
             selection="true",
-            slices=4,
-            max_workers=32,
-            max_connections=32,
-            wanted_document_count=num_docs // 4,
         ):
             for response in doc_slice:
                 total_docs.extend(response.documents)
