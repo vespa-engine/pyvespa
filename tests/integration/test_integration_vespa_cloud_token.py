@@ -39,7 +39,7 @@ class TestTokenBasedAuth(unittest.TestCase):
             key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
         )
-        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.disk_folder = os.path.join(os.getcwd(), "sample_application")
         self.instance_name = "token"
         self.app: Vespa = self.vespa_cloud.deploy(
             instance=self.instance_name, disk_folder=self.disk_folder
@@ -94,7 +94,7 @@ class TestMsmarcoApplicationWithTokenAuth(TestApplicationCommon):
             key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
         )
-        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.disk_folder = os.path.join(os.getcwd(), "sample_application")
         self.instance_name = "token"
         self.app = self.vespa_cloud.deploy(
             instance=self.instance_name, disk_folder=self.disk_folder
