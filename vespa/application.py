@@ -808,7 +808,7 @@ class CustomHTTPAdapter(HTTPAdapter):
         retry_strategy = Retry(
             total=3,
             backoff_factor=1,
-            raise_on_status=True,  # raise exception on status
+            raise_on_status=False,
             status_forcelist=[503],
             allowed_methods=["POST", "GET", "DELETE", "PUT"],
         )
