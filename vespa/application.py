@@ -819,7 +819,7 @@ class CustomHTTPAdapter(HTTPAdapter):
             response = super().send(request, **kwargs)
             if response.status_code == 429:
                 wait_time = (
-                    2** attempt + random.uniform(0, 1)
+                    0.1 * 1.618** attempt + random.uniform(0, 1)
                 )  # Exponential backoff with jitter. The 10th retry will sleep for 1024 seconds.
                 time.sleep(wait_time)
             else:
