@@ -72,7 +72,7 @@ class TestVectorSearch(unittest.TestCase):
             application_package=self.app_package,
             auth_client_token_id="pyvespa_integration_msmarco",
         )
-        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.disk_folder = os.path.join(os.getcwd(), "sample_application")
         self.instance_name = "default"
         self.app: Vespa = self.vespa_cloud.deploy(
             instance=self.instance_name, disk_folder=self.disk_folder
@@ -265,7 +265,7 @@ class TestProdDeployment(TestVectorSearch):
             application_package=self.app_package,
             auth_client_token_id="pyvespa_integration_msmarco",
         )
-        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.disk_folder = os.path.join(os.getcwd(), "sample_application")
         self.instance_name = "default"
         self.app = self.vespa_cloud.deploy_to_prod(
             instance=self.instance_name, disk_folder=self.disk_folder

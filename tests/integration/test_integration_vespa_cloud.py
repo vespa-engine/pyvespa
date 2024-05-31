@@ -9,6 +9,9 @@ import unittest
 from cryptography.hazmat.primitives import serialization
 from vespa.application import Vespa
 from vespa.deployment import VespaCloud
+from vespa.package import ApplicationPackage, Schema, Document, Field
+import random
+from vespa.io import VespaResponse
 from test_integration_docker import (
     TestApplicationCommon,
     create_msmarco_application_package,
@@ -26,7 +29,7 @@ class TestVespaKeyAndCertificate(unittest.TestCase):
             key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
         )
-        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.disk_folder = os.path.join(os.getcwd(), "sample_application")
         self.instance_name = "msmarco"
         self.app = self.vespa_cloud.deploy(
             instance=self.instance_name, disk_folder=self.disk_folder
@@ -88,7 +91,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
             key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
         )
-        self.disk_folder = os.path.join(os.getenv("WORK_DIR"), "sample_application")
+        self.disk_folder = os.path.join(os.getcwd(), "sample_application")
         self.instance_name = "msmarco"
         self.app = self.vespa_cloud.deploy(
             instance=self.instance_name, disk_folder=self.disk_folder
@@ -138,6 +141,90 @@ class TestMsmarcoApplication(TestApplicationCommon):
     def tearDown(self) -> None:
         self.app.delete_all_docs(
             content_cluster_name="msmarco_content", schema="msmarco"
+        )
+        shutil.rmtree(self.disk_folder, ignore_errors=True)
+        self.vespa_cloud.delete(instance=self.instance_name)
+
+
+class TestRetryApplication(unittest.TestCase):
+    """
+    Test class that simulates slow docprocessing which causes 429 errors while feeding documents to Vespa.
+
+    Through the CustomHTTPAdapter in `application.py`, these 429 errors will be retried with an exponential backoff strategy,
+    and hence not be returned to the user.
+
+    The slow docprocessing is simulated by setting the `sleep` indexing option on the `latency` field, which then will sleep
+    according to the value of the field when processing the document.
+    """
+
+    def setUp(self) -> None:
+        document = Document(
+            fields=[
+                Field(name="id", type="string", indexing=["attribute", "summary"]),
+                Field(
+                    name="latency",
+                    type="double",
+                    indexing=["attribute", "summary", "sleep"],
+                ),
+            ]
+        )
+        schema = Schema(
+            name="retryapplication",
+            document=document,
+        )
+        self.app_package = ApplicationPackage(name="retryapplication", schema=[schema])
+        self.vespa_cloud = VespaCloud(
+            tenant="vespa-team",
+            application="pyvespa-integration",
+            key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
+            application_package=self.app_package,
+        )
+        self.disk_folder = os.path.join(os.getcwd(), "sample_application")
+        self.instance_name = "retryapplication"
+        self.app = self.vespa_cloud.deploy(
+            instance=self.instance_name, disk_folder=self.disk_folder
+        )
+
+    def doc_generator(self, num_docs: int):
+        for i in range(num_docs):
+            yield {
+                "id": str(i),
+                "fields": {
+                    "id": str(i),
+                    "latency": random.uniform(3, 4),
+                },
+            }
+
+    def test_retry(self):
+        num_docs = 10
+        num_429 = 0
+
+        def callback(response: VespaResponse, id: str):
+            nonlocal num_429
+            if response.status_code == 429:
+                num_429 += 1
+
+        self.assertEqual(num_429, 0)
+        self.app.feed_iterable(
+            self.doc_generator(num_docs),
+            schema="retryapplication",
+            callback=callback,
+        )
+        print(f"Number of 429 responses: {num_429}")
+        total_docs = []
+        for doc_slice in self.app.visit(
+            content_cluster_name="retryapplication_content",
+            schema="retryapplication",
+            namespace="retryapplication",
+            selection="true",
+        ):
+            for response in doc_slice:
+                total_docs.extend(response.documents)
+        self.assertEqual(len(total_docs), num_docs)
+
+    def tearDown(self) -> None:
+        self.app.delete_all_docs(
+            content_cluster_name="retryapplication_content", schema="retryapplication"
         )
         shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_cloud.delete(instance=self.instance_name)

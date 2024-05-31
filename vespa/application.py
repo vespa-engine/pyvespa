@@ -30,18 +30,12 @@ from tenacity import (
 from time import sleep
 from os import environ
 from urllib.parse import quote
+import random
+import time
 
 from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse, VespaVisitResponse
 from vespa.package import ApplicationPackage
-
-retry_strategy = Retry(
-    total=3,  # should be an unbounded amount of retrires for 429
-    backoff_factor=1,
-    raise_on_status=False,  # we want to raise and wrap with VespaError instead to get the payload (if any)
-    status_forcelist=[429, 503],
-    allowed_methods=["POST", "GET", "DELETE", "PUT"],
-)
 
 VESPA_CLOUD_SECRET_TOKEN: str = "VESPA_CLOUD_SECRET_TOKEN"
 
@@ -538,7 +532,9 @@ class Vespa(object):
                     )
 
         with VespaSync(
-            app=self, pool_maxsize=max_connections, pool_connections=max_connections
+            app=self,
+            pool_maxsize=max_connections,
+            pool_connections=max_connections,
         ) as session:
             queue = Queue(maxsize=max_queue_size)
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -802,8 +798,39 @@ class Vespa(object):
         return f"/document/v1/{namespace}/{schema}/docid/{id}"
 
 
+class CustomHTTPAdapter(HTTPAdapter):
+    def __init__(self, *args, **kwargs):
+        self.pool_maxsize = kwargs.pop("pool_maxsize")
+        self.pool_connections = kwargs.pop("pool_connections")
+        self.num_retries_429 = kwargs.pop("num_retries_429", 10)
+        super().__init__(*args, **kwargs)
+
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            raise_on_status=False,
+            status_forcelist=[503],
+            allowed_methods=["POST", "GET", "DELETE", "PUT"],
+        )
+        self.retry_strategy = retry_strategy
+
+    def send(self, request, **kwargs) -> Response:
+        for attempt in range(self.num_retries_429):
+            response = super().send(request, **kwargs)
+            if response.status_code == 429:
+                wait_time = (
+                    0.1 * 1.618** attempt + random.uniform(0, 1)
+                )  # Exponential backoff with jitter. The 10th retry will sleep for 1024 seconds.
+                time.sleep(wait_time)
+            else:
+                break
+        return response
+
+
 class VespaSync(object):
-    def __init__(self, app: Vespa, pool_maxsize: int = 10, pool_connections=10) -> None:
+    def __init__(
+        self, app: Vespa, pool_maxsize: int = 10, pool_connections: int = 10
+    ) -> None:
         self.app = app
         if self.app.key:
             self.cert = (self.app.cert, self.app.key)
@@ -814,10 +841,11 @@ class VespaSync(object):
                 "Authorization": f"Bearer {self.app.vespa_cloud_secret_token}"
             }
         self.http_session = None
-        self.adapter = HTTPAdapter(
-            max_retries=retry_strategy,
+        self.adapter = CustomHTTPAdapter(
             pool_maxsize=pool_maxsize,
             pool_connections=pool_connections,
+            num_retries_429=10,
+            pool_block=True,
         )
 
     def __enter__(self):
