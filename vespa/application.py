@@ -532,7 +532,9 @@ class Vespa(object):
                     )
 
         with VespaSync(
-            app=self, pool_maxsize=max_connections, pool_connections=max_connections
+            app=self,
+            pool_maxsize=max_connections,
+            pool_connections=max_connections,
         ) as session:
             queue = Queue(maxsize=max_queue_size)
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -826,7 +828,9 @@ class CustomHTTPAdapter(HTTPAdapter):
 
 
 class VespaSync(object):
-    def __init__(self, app: Vespa, pool_maxsize: int = 10, pool_connections=10) -> None:
+    def __init__(
+        self, app: Vespa, pool_maxsize: int = 10, pool_connections: int = 10
+    ) -> None:
         self.app = app
         if self.app.key:
             self.cert = (self.app.cert, self.app.key)
@@ -840,7 +844,8 @@ class VespaSync(object):
         self.adapter = CustomHTTPAdapter(
             pool_maxsize=pool_maxsize,
             pool_connections=pool_connections,
-            num_retries_429=100,
+            num_retries_429=10,
+            pool_block=True,
         )
 
     def __enter__(self):
