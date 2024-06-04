@@ -1,11 +1,10 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 shared:
-  image: quay.io/centos/centos:stream8
+  image: almalinux:8
   annotations:
     screwdriver.cd/restrictPR: fork
-  environment:
-    PYVESPA_VERSION: 0.7
+
 jobs:
   unit-tests:
     requires: [~commit,~pr]
@@ -18,12 +17,9 @@ jobs:
       screwdriver.cd/dockerRam: TURBO
       screwdriver.cd/buildPeriodically: H 11 * * *
     steps:
-      - setup: |
-          export WORK_DIR=$SD_DIND_SHARE_PATH
-          export RESOURCES_DIR=$(pwd)/vespa/resources
       - install-docker: |
           dnf install -y dnf-plugins-core
-          dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+          dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
           dnf install -y docker-ce-cli
           docker system info
           ls -la $SD_DIND_SHARE_PATH
@@ -54,12 +50,9 @@ jobs:
       screwdriver.cd/dockerRam: TURBO
       screwdriver.cd/buildPeriodically: H 11 * * *
     steps:
-      - setup: |
-          export WORK_DIR=$SD_DIND_SHARE_PATH
-          export RESOURCES_DIR=$(pwd)/vespa/resources
       - install-docker: |
           dnf install -y dnf-plugins-core
-          dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+          dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
           dnf install -y docker-ce-cli
           docker system info
           ls -la $SD_DIND_SHARE_PATH
@@ -83,11 +76,10 @@ jobs:
     steps:
       - setup: |
           dnf install -y git
-          export WORK_DIR=$SD_DIND_SHARE_PATH
-          export RESOURCES_DIR=$(pwd)/vespa/resources
+
       - install-docker: |
           dnf install -y dnf-plugins-core
-          dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+          dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
           dnf install -y docker-ce-cli
           docker system info
           ls -la $SD_DIND_SHARE_PATH
@@ -97,10 +89,6 @@ jobs:
           python3 -m pip install -e .[dev]
           python3 -m pip install -r docs/sphinx/source/requirements.txt
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
-      - install-vespa-cli: |
-          VESPA_CLI_VERSION=$(curl -fsSL https://api.github.com/repos/vespa-engine/vespa/releases/latest | grep -Po '"tag_name": "v\K.*?(?=")') && \
-          curl -fsSL https://github.com/vespa-engine/vespa/releases/download/v${VESPA_CLI_VERSION}/vespa-cli_${VESPA_CLI_VERSION}_linux_amd64.tar.gz | tar -zxf - -C /opt && \
-          ln -sf /opt/vespa-cli_${VESPA_CLI_VERSION}_linux_amd64/bin/vespa /usr/local/bin/
       - install-openmp: |
           # required for using lightgbm
           dnf install -y libgomp zstd
@@ -133,9 +121,6 @@ jobs:
     environment:
       SD_ZIP_ARTIFACTS: true
     steps:
-      - setup: |
-          export WORK_DIR=$SD_DIND_SHARE_PATH
-          export RESOURCES_DIR=$(pwd)/vespa/resources
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
@@ -156,9 +141,6 @@ jobs:
     environment:
       SD_ZIP_ARTIFACTS: true
     steps:
-      - setup: |
-          export WORK_DIR=$SD_DIND_SHARE_PATH
-          export RESOURCES_DIR=$(pwd)/vespa/resources
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
@@ -179,9 +161,6 @@ jobs:
     environment:
       SD_ZIP_ARTIFACTS: true
     steps:
-      - setup: |
-          export WORK_DIR=$SD_DIND_SHARE_PATH
-          export RESOURCES_DIR=$(pwd)/vespa/resources
       - install-python: |
           dnf install -y python38-pip
           python3 -m pip install --upgrade pip
@@ -202,9 +181,6 @@ jobs:
     environment:
       SD_ZIP_ARTIFACTS: true
     steps:
-      - setup: |
-          export WORK_DIR=$SD_DIND_SHARE_PATH
-          export RESOURCES_DIR=$(pwd)/vespa/resources
       - install-python: |
           dnf install -y which git-all python38-pip python38-devel gcc-toolset-9-gcc gcc-toolset-9-gcc-c++ # gcc9 required for colbert
           source /opt/rh/gcc-toolset-9/enable # enable gcc9 for colbert
@@ -212,10 +188,7 @@ jobs:
           python3 -m pip install -e .[dev]
           python3 -m pip install -r docs/sphinx/source/requirements.txt
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
-      - install-vespa-cli: |
-          VESPA_CLI_VERSION=$(curl -fsSL https://api.github.com/repos/vespa-engine/vespa/releases/latest | grep -Po '"tag_name": "v\K.*?(?=")') && \
-          curl -fsSL https://github.com/vespa-engine/vespa/releases/download/v${VESPA_CLI_VERSION}/vespa-cli_${VESPA_CLI_VERSION}_linux_amd64.tar.gz | tar -zxf - -C /opt && \
-          ln -sf /opt/vespa-cli_${VESPA_CLI_VERSION}_linux_amd64/bin/vespa /usr/local/bin/
+      
       - run-notebooks-cloud-related: |
           echo "PATH:"
           echo $PATH
