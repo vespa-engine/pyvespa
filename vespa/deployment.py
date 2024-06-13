@@ -5,12 +5,12 @@ import sys
 import zipfile
 import logging
 from base64 import standard_b64encode
-from datetime import datetime, timedelta
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from time import sleep, strftime, gmtime
-import random
-from typing import Tuple, Union, IO, Optional, List
+from typing import Tuple, Union, IO, Optional, List, Dict
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 import docker
 import requests
@@ -19,9 +19,12 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import ec
+import shlex
+import subprocess
 
 from vespa.application import Vespa, VESPA_CLOUD_SECRET_TOKEN
 from vespa.package import ApplicationPackage, AuthClient, Parameter
+from vespa.utils.decorators import run_with_max_time
 
 
 class VespaDeployment:
@@ -223,7 +226,7 @@ class VespaDocker(VespaDeployment):
             docker_timeout=docker_timeout,
         )
 
-    def wait_for_config_server_start(self, max_wait: int) -> None:
+    def wait_for_config_server_start(self, max_wait: int = 300) -> None:
         """
         Waits for Config Server to start inside the Docker image
 
@@ -516,7 +519,7 @@ class VespaCloud(VespaDeployment):
         :return: a Vespa connection instance.
         """
         if not disk_folder:
-            disk_folder = os.path.join(os.getcwd(), self.application_package.name)
+            disk_folder = os.path.join(os.getcwd(), self.application)
         self.application_package.to_files(disk_folder)
 
         region = self.get_dev_region()
@@ -550,21 +553,31 @@ class VespaCloud(VespaDeployment):
         # The different deployment stages might be out of sync, so we need all the ids to determine the latest one
         run_ids = []
         for item in res["steps"]:
-            if "runs" in item.keys() and len(item["runs"]) > 0:  # "id" is only present in steps with "runs" key
+            if (
+                "runs" in item.keys() and len(item["runs"]) > 0
+            ):  # "id" is only present in steps with "runs" key
                 run_ids.append(item["runs"][0]["id"])  # Index zero to get the latest id
         if run_ids == []:
             return -1  # No runs found
 
         return max(run_ids)
 
+    def _get_run_id_with_retry(self, instance, last_run_id):
+        run_id = self._get_latest_run_id(instance)
+        if run_id <= last_run_id:
+            raise Exception("Run id not updated yet.")
+        return run_id
+
+    @run_with_max_time
     def deploy_to_prod(
         self,
         instance: Optional[str] = "default",
         disk_folder: Optional[str] = None,
-        max_wait: int = 300,
+        max_wait: int = 600,
     ) -> None:
         """
         Deploy the given application package as the given instance in the Vespa Cloud prod environment.
+        NB! This feature is experimental and may fail in unexpected ways. Expect better support in future releases.
 
         :param instance: Name of this instance of the application, in the Vespa Cloud.
         :param disk_folder: Disk folder to save the required Vespa config files. Default to application name
@@ -576,7 +589,7 @@ class VespaCloud(VespaDeployment):
         )
 
         if not disk_folder:
-            disk_folder = os.path.join(os.getcwd(), self.application_package.name)
+            disk_folder = os.path.join(os.getcwd(), self.application)
         self.application_package.to_files(disk_folder)
 
         if self.application_package.deployment_config is None:
@@ -590,29 +603,28 @@ class VespaCloud(VespaDeployment):
         print(f"Follow deployment at: {deploy_url}", file=self.output)
 
         print("Waiting for monitoring...", file=self.output)
-        last_run_id = self._get_latest_run_id(
-            instance
-        )  # This may or may not be updated
-        # TODO: We should probably use tenacity for this.
-        retry_count = 0
-        max_retries = 5
-        while retry_count < max_retries:
-            run_id = self._get_latest_run_id(instance)
-            if run_id > last_run_id:
-                break  # New run id found, proceed
-            else:
-                retry_count += 1
-                if retry_count == max_retries:
-                    # There is a chance that last_run_id is actually updated already, and there is also a chance that it is not.
-                    # In any case, the deployment will proceed as expected, we just won't be able to monitor it (can still be montiored from web console).
-                    print(
-                        f"Could not find a new run id after {max_retries} retries. Proceeding anyway.",
-                        file=self.output,
-                    )
-                    break
-                else:
-                    delay = min(2**retry_count, 8) + random.uniform(0, 1)
-                    sleep(delay)
+        run_id = -1
+        updated = False
+        for _ in range(5):
+            new_run_id = self._get_latest_run_id(instance)  # This may or may not be
+            if new_run_id > run_id:
+                run_id = new_run_id
+                updated = True
+                break
+            sleep(4)
+        if not updated:
+            print(
+                "Not certain if this is the latest run id. Please monitor at: "
+                + deploy_url,
+                file=self.output,
+            )
+        if run_id == -1:
+            raise Exception(
+                "No run id found. Please monitor manually at: " + deploy_url,
+                file=self.output,
+            )
+        else:
+            print(f"Latest run id: {run_id}", file=self.output)
 
         # We need to wait for the tests to finish before we can monitor the deployment itself
         self._follow_deployment(instance, "staging-test", run_id)
@@ -624,24 +636,27 @@ class VespaCloud(VespaDeployment):
         region = self.get_prod_region()
         self._follow_deployment(instance, f"production-{region}", run_id)
 
-        token = os.environ.get(VESPA_CLOUD_SECRET_TOKEN, None)
-        if token is None:
-            endpoint_url = self.get_mtls_endpoint(
-                instance=instance, region=region, environment="prod"
-            )
-        else:
-            endpoint_url = self.get_token_endpoint(
-                instance=instance, region=region, environment="prod"
-            )
+        # token = os.environ.get(VESPA_CLOUD_SECRET_TOKEN, None)
+        mtls_endpoint = self.get_mtls_endpoint(
+            instance=instance, region=region, environment="prod"
+        )
+        if self.auth_client_token_id is not None:
+            try:  # May have client_token_id set but the deployed app was not configured to use it
+                token_endpoint = self.get_token_endpoint(
+                    instance=instance, region=region, environment="prod"
+                )
+            except Exception as _:
+                token_endpoint = None
 
         app = Vespa(
-            url=endpoint_url,
+            url=mtls_endpoint or token_endpoint,
             cert=self.data_cert_path
             or os.path.join(disk_folder, self.private_cert_file_name),
             key=self.data_key_path or None,
             application_package=self.application_package,
         )
-
+        app.wait_for_application_up(max_wait=max_wait)
+        print("Finished deployment.", file=self.output)
         return app
 
     def deploy_from_disk(
@@ -668,7 +683,7 @@ class VespaCloud(VespaDeployment):
         data = BytesIO(self.read_app_package_from_disk(application_root))
 
         # Deploy the zipped application package
-        disk_folder = os.path.join(os.getcwd(), self.application_package.name)
+        disk_folder = os.path.join(os.getcwd(), self.application)
         region = self.get_dev_region()
         job = "dev-" + region
         run = self._start_deployment(
@@ -736,8 +751,53 @@ class VespaCloud(VespaDeployment):
             raise TypeError("Key must be an elliptic curve private key")
         return key
 
+    def _check_vespacli_available(self) -> bool:
+        vespa_version = subprocess.run(
+            shlex.split("vespa version"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        ).stdout.decode("utf-8")
+        return "Vespa CLI" in vespa_version
+
+    def _set_target_cloud(self):
+        output = subprocess.run(
+            shlex.split("vespa config set target cloud"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if output.returncode != 0:
+            raise RuntimeError(
+                f"Failed to set target cloud with 'vespa config set target cloud'. Return code: {output.returncode}"
+            )
+        else:
+            print(output.stdout.decode("utf-8"))
+
+    def _vespa_auth_cert(self):
+        output = subprocess.run(
+            shlex.split("vespa auth cert -N"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        # This may return a non-zero exit code if the certificate and key already exist
+        print(output.stdout.decode("utf-8"))
+
+    def _set_application(self):
+        vespa_cli_command = (
+            f"vespa config set application {self.tenant}.{self.application}"
+        )
+        output = subprocess.run(
+            shlex.split(vespa_cli_command),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if output.returncode != 0:
+            raise RuntimeError(
+                f"Failed to set application with '{vespa_cli_command}'. Return code: {output.returncode}"
+            )
+
     def _load_certificate_pair(
         self,
+        generate_cert: bool = True,  # Need a flag to avoid infinite recursion
     ) -> Tuple[ec.EllipticCurvePrivateKey, x509.Certificate]:
         def _check_dir(path: Path):
             cert_path = path / "data-plane-public-cert.pem"
@@ -757,10 +817,10 @@ class VespaCloud(VespaDeployment):
         else:
             # If cert/key not found in application root: look in ~/.vespa/tenant.app.default/
             home_vespa_dir = (
-                Path.home()
-                / ".vespa"
-                / f"{self.tenant}.{self.application_package.name}.default"
+                Path.home() / ".vespa" / f"{self.tenant}.{self.application}.default"
             )  # TODO Support other instance names
+            # TODO: Remove
+            print(f"Looking in {home_vespa_dir}")
             cert, key = _check_dir(home_vespa_dir)
             if cert and key:
                 self.data_cert_path = cert
@@ -781,33 +841,44 @@ class VespaCloud(VespaDeployment):
                 )
             return private_key, cert
         else:
-            # Existing cert/key not found in ~/.vespa; create custom
-            print(
-                f"Certificate and key not found in {local_vespa_dir} or {home_vespa_dir}: Creating new cert/key pair."
-            )
-            print(
-                "Warning: This behavior is deprecated. Please generate a cert/key pair with 'vespa auth cert'.\n"
-            )
-            self.private_cert_file_name = "private_cert.txt"
-            return self._create_certificate_pair()
-
-    @staticmethod
-    def _create_certificate_pair() -> (
-        Tuple[ec.EllipticCurvePrivateKey, x509.Certificate]
-    ):
-        key = ec.generate_private_key(ec.SECP384R1, default_backend())
-        name = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, "localhost")])
-        certificate = (
-            x509.CertificateBuilder()
-            .subject_name(name)
-            .issuer_name(name)
-            .serial_number(x509.random_serial_number())
-            .not_valid_before(datetime.utcnow() - timedelta(minutes=1))
-            .not_valid_after(datetime.utcnow() + timedelta(days=7))
-            .public_key(key.public_key())
-            .sign(key, hashes.SHA256(), default_backend())
+            # Existing cert/key not found in ~/.vespa; create with 'vespa auth cert'
+            # 1. Check that vespacli package is installed
+            if generate_cert:
+                if self._check_vespacli_available():
+                    print(
+                        f"Certificate and key not found in {local_vespa_dir} or {home_vespa_dir}: Creating new cert/key pair."
+                    )
+                    # Run vespa config set application
+                    print("Setting application...")
+                    self._set_application()
+                    # Run vespa config set target cloud
+                    print("Setting target cloud...")
+                    self._set_target_cloud()
+                    # Run vespa auth cert
+                    print("Generating certificate and key...")
+                    self._vespa_auth_cert()
+                    return self._load_certificate_pair(generate_cert=False)
+        raise FileNotFoundError(
+            "Certificate and key not found in ~/.vespa or .vespa. Please generate a cert/key pair with 'vespa auth cert -N'."
         )
-        return key, certificate
+
+    # @staticmethod
+    # def _create_certificate_pair() -> (
+    #     Tuple[ec.EllipticCurvePrivateKey, x509.Certificate]
+    # ):
+    #     key = ec.generate_private_key(ec.SECP384R1, default_backend())
+    #     name = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, "localhost")])
+    #     certificate = (
+    #         x509.CertificateBuilder()
+    #         .subject_name(name)
+    #         .issuer_name(name)
+    #         .serial_number(x509.random_serial_number())
+    #         .not_valid_before(datetime.utcnow() - timedelta(minutes=1))
+    #         .not_valid_after(datetime.utcnow() + timedelta(days=7))
+    #         .public_key(key.public_key())
+    #         .sign(key, hashes.SHA256(), default_backend())
+    #     )
+    #     return key, certificate
 
     def _write_private_key_and_cert(
         self, key: ec.EllipticCurvePrivateKey, cert: x509.Certificate, disk_folder: str
@@ -829,6 +900,15 @@ class VespaCloud(VespaDeployment):
     def get_prod_region(self):
         # TODO Support multiple regions
         return self.application_package.deployment_config.regions[0]
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, max=2),
+        reraise=True,
+    )
+    def get_connection_response_with_retry(self, method, path, body, headers):
+        self.connection.request(method, path, body, headers)
+        return self.connection.getresponse()
 
     def _request(
         self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
@@ -857,33 +937,80 @@ class VespaCloud(VespaDeployment):
         }
 
         body.seek(0)
-        # TODO: We should probably use tenacity for this.
-        retry_count = 0
-        max_retries = 3
-        while retry_count < max_retries:
-            try:
-                self.connection.request(method, path, body, headers)
-                with self.connection.getresponse() as response:
-                    parsed = json.load(response)
-                    if response.status != 200:
-                        raise RuntimeError(
-                            "Status code "
-                            + str(response.status)
-                            + " doing "
-                            + method
-                            + " at "
-                            + url
-                            + ":\n"
-                            + parsed["message"]
-                        )
-                    return parsed
-            except Exception as e:
-                retry_count += 1
-                if retry_count == max_retries:
-                    raise e
-                else:
-                    delay = min(2**retry_count, 1) + random.uniform(0, 1)
-                    sleep(delay)
+        with self.get_connection_response_with_retry(
+            method, path, body, headers
+        ) as response:
+            parsed = json.load(response)
+            if response.status != 200:
+                raise RuntimeError(
+                    "Status code "
+                    + str(response.status)
+                    + " doing "
+                    + method
+                    + " at "
+                    + url
+                    + ":\n"
+                    + parsed["message"]
+                )
+            return parsed
+
+    def get_all_endpoints(
+        self,
+        instance: Optional[str] = "default",
+        region: Optional[str] = None,
+        environment: Optional[str] = "dev",
+    ) -> List[Dict[str, str]]:
+        if region is None:
+            if environment == "dev":
+                region = self.get_dev_region()
+            elif environment == "prod":
+                region = self.get_prod_region()
+            else:
+                raise ValueError("Invalid environment. Must be 'dev' or 'prod'")
+
+        endpoints = self._request(
+            "GET",
+            "/application/v4/tenant/{}/application/{}/instance/{}/environment/{}/region/{}".format(
+                self.tenant, self.application, instance, environment, region
+            ),
+        )["endpoints"]
+        return endpoints
+
+    def get_endpoint_auth_method(
+        self,
+        url: str,
+        instance: Optional[str] = "default",
+        region: Optional[str] = None,
+        environment: Optional[str] = "dev",
+    ) -> str:
+        endpoints = self.get_all_endpoints(instance, region, environment)
+        for endpoint in endpoints:
+            if endpoint["url"] == url:
+                return endpoint["authMethod"]
+        else:
+            return None
+
+    def get_endpoint(
+        self,
+        auth_method: str,
+        instance: Optional[str] = "default",
+        region: Optional[str] = None,
+        environment: Optional[str] = "dev",
+    ) -> str:
+        cluster_name = "{}_container".format(self.application_package.name)
+        endpoints = self.get_all_endpoints(instance, region, environment)
+        for endpoint in endpoints:
+            if endpoint["cluster"] == cluster_name:
+                authMethod = endpoint.get("authMethod", None)
+                if authMethod == auth_method:
+                    print(
+                        f"Found {auth_method} endpoint for {cluster_name}",
+                        file=self.output,
+                    )
+                    return endpoint["url"]
+        raise RuntimeError(
+            f"No {auth_method} endpoints found for container cluster {cluster_name}"
+        )
 
     def get_mtls_endpoint(
         self,
@@ -891,57 +1018,15 @@ class VespaCloud(VespaDeployment):
         region: Optional[str] = None,
         environment: Optional[str] = "dev",
     ) -> str:
-        if region is None:
-            if environment == "dev":
-                region = self.get_dev_region()
-            elif environment == "prod":
-                region = self.get_prod_region()
-            else:
-                raise ValueError("Invalid environment. Must be 'dev' or 'prod'")
-        endpoints = self._request(
-            "GET",
-            "/application/v4/tenant/{}/application/{}/instance/{}/environment/{}/region/{}".format(
-                self.tenant, self.application, instance, environment, region
-            ),
-        )["endpoints"]
-        cluster_name = "{}_container".format(self.application_package.name)
-        for endpoint in endpoints:
-            if endpoint["cluster"] == cluster_name:
-                authMethod = endpoint.get("authMethod", None)
-                if authMethod == "mtls":
-                    return endpoint["url"]
-        raise RuntimeError(
-            "No mtls endpoints found for container cluster " + cluster_name
-        )
+        return self.get_endpoint("mtls", instance, region, environment)
 
     def get_token_endpoint(
         self,
         instance: Optional[str] = "default",
         region: Optional[str] = None,
         environment: Optional[str] = "dev",
-    ) -> List[dict]:
-        if region is None:
-            if environment == "dev":
-                region = self.get_dev_region()
-            elif environment == "prod":
-                region = self.get_prod_region()
-            else:
-                raise ValueError("Invalid environment. Must be 'dev' or 'prod'")
-        endpoints = self._request(
-            "GET",
-            "/application/v4/tenant/{}/application/{}/instance/{}/environment/{}/region/{}".format(
-                self.tenant, self.application, instance, environment, region
-            ),
-        )["endpoints"]
-        cluster_name = "{}_container".format(self.application_package.name)
-        for endpoint in endpoints:
-            if endpoint["cluster"] == cluster_name:
-                authMethod = endpoint.get("authMethod", None)
-                if authMethod == "token":
-                    return endpoint["url"]
-        raise RuntimeError(
-            "No token endpoints found for container cluster " + cluster_name
-        )
+    ) -> str:
+        return self.get_endpoint("token", instance, region, environment)
 
     def _start_prod_deployment(self, disk_folder: str) -> None:
         # The submit API is used for prod deployments
@@ -1109,7 +1194,8 @@ class VespaCloud(VespaDeployment):
                 )
             if self.application_package.validations:
                 zip_archive.writestr(
-                    "validation-overrides.xml", self.application_package.validations_to_text
+                    "validation-overrides.xml",
+                    self.application_package.validations_to_text,
                 )
 
         return buffer
