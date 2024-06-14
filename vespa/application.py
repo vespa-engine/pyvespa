@@ -243,14 +243,17 @@ class Vespa(object):
         :return: Dict of auth methods.
         """
         endpoint = "{}/ApplicationStatus".format(self.end_point)
+        auth_methods = {}
         if self.vespa_cloud_secret_token is not None:
             headers = {"Authorization": f"Bearer {self.vespa_cloud_secret_token}"}
-            auth_methods = {
-                "token": lambda: requests.get(
-                    endpoint,
-                    headers=headers,
-                ),
-            }
+            auth_methods.update(
+                {
+                    "token": lambda: requests.get(
+                        endpoint,
+                        headers=headers,
+                    ),
+                }
+            )
         if self.key and self.cert:
             auth_methods.update(
                 {
