@@ -210,16 +210,14 @@ class Vespa(object):
         :raises RuntimeError: If not able to reach endpoint within :max_wait: param or the client fails to authenticate.
         :return:
         """
-        endpoint = f"{self.end_point}/ApplicationStatus"
         for wait_sec in range(max_wait):
             sleep(1)
             try:
-                self.auth_method = self._get_valid_auth_method()
-                if self.auth_method is None:
+                response = self.get_application_status()
+                if not response:
                     continue
-                request_func = self._auth_methods[self.auth_method]
-                response = request_func(endpoint)
                 if response.status_code == 200:
+                    print("Application is up!", file=self.output_file)
                     return
             except ConnectionError:
                 pass
@@ -313,12 +311,12 @@ class Vespa(object):
         :return:
         """
         endpoint = f"{self.end_point}/ApplicationStatus"
-        try:
-            self.auth_method = self._get_valid_auth_method()
-            request_func = self._auth_methods[self.auth_method]
-            response = request_func(endpoint)
-        except ConnectionError:
+        auth_method = self._get_valid_auth_method()
+        if not auth_method:
             response = None
+        else:
+            request_func = self._auth_methods[auth_method]
+            response = request_func(endpoint)
         return response
 
     def get_model_endpoint(self, model_id: Optional[str] = None) -> Optional[Response]:
