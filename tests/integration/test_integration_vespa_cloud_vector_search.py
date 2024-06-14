@@ -238,8 +238,6 @@ class TestVectorSearch(unittest.TestCase):
         self.vespa_cloud.delete()
 
 
-# Skip this test in CI for now
-# @unittest.skip("Skip this test in CI for now")
 class TestProdDeployment(TestVectorSearch):
     def setUp(self) -> None:
         self.app_package = create_vector_ada_application_package()
