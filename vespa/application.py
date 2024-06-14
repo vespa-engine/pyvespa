@@ -312,10 +312,11 @@ class Vespa(object):
 
         :return:
         """
+        endpoint = f"{self.end_point}/ApplicationStatus"
         try:
             self.auth_method = self._get_valid_auth_method()
             request_func = self._auth_methods[self.auth_method]
-            response = request_func()
+            response = request_func(endpoint)
         except ConnectionError:
             response = None
         return response
