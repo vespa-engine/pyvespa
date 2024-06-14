@@ -210,16 +210,20 @@ class Vespa(object):
         :raises RuntimeError: If not able to reach endpoint within :max_wait: param or the client fails to authenticate.
         :return:
         """
+        endpoint = f"{self.end_point}/ApplicationStatus"
         for wait_sec in range(max_wait):
+            sleep(1)
             try:
                 self.auth_method = self._get_valid_auth_method()
+                if self.auth_method is None:
+                    continue
                 request_func = self._auth_methods[self.auth_method]
-                response = request_func()
+                response = request_func(endpoint)
                 if response.status_code == 200:
                     return
             except ConnectionError:
                 pass
-            sleep(1)
+
             if wait_sec % 5 == 0:
                 print(
                     f"Waiting for application to come up, {wait_sec}/{max_wait} seconds.",
@@ -242,13 +246,14 @@ class Vespa(object):
 
         :return: Dict of auth methods.
         """
-        endpoint = "{}/ApplicationStatus".format(self.end_point)
-        auth_methods = {}
+        auth_methods = {
+            "http": lambda endpoint: requests.get(endpoint),
+        }
         if self.vespa_cloud_secret_token is not None:
             headers = {"Authorization": f"Bearer {self.vespa_cloud_secret_token}"}
             auth_methods.update(
                 {
-                    "token": lambda: requests.get(
+                    "token": lambda endpoint: requests.get(
                         endpoint,
                         headers=headers,
                     ),
@@ -257,7 +262,7 @@ class Vespa(object):
         if self.key and self.cert:
             auth_methods.update(
                 {
-                    "mtls_key_cert": lambda: requests.get(
+                    "mtls_key_cert": lambda endpoint: requests.get(
                         endpoint, cert=(self.cert, self.key)
                     ),
                 }
@@ -265,17 +270,14 @@ class Vespa(object):
         elif self.cert:
             auth_methods.update(
                 {
-                    "mtls_cert": lambda: requests.get(endpoint, cert=self.cert),
+                    "mtls_cert": lambda endpoint: requests.get(
+                        endpoint, cert=self.cert
+                    ),
                 }
             )
-        auth_methods.update(
-            {
-                "http": lambda: requests.get(endpoint),
-            }
-        )
         return auth_methods
 
-    def _get_valid_auth_method(self) -> str:
+    def _get_valid_auth_method(self) -> Optional[str]:
         """
         Get auth method for Vespa connection.
 
@@ -284,12 +286,12 @@ class Vespa(object):
         :raises ConnectionError: If not able to connect to endpoint using any of the available auth methods.
 
         """
+        endpoint = f"{self.end_point}/ApplicationStatus"
         if self.auth_method:
             return self.auth_method
-        endpoint = "{}/ApplicationStatus".format(self.end_point)
         for auth_method, request_func in self._auth_methods.items():
             try:
-                response = request_func()
+                response = request_func(endpoint)
                 if response.status_code == 200:
                     print(
                         f"Using {auth_method} Authentication against endpoint {endpoint}",
@@ -299,11 +301,10 @@ class Vespa(object):
             except ConnectionError:
                 pass
         else:
-            raise ConnectionError(
-                "Could not connect to endpoint {0} using any of the available auth methods.".format(
-                    endpoint
-                )
-            )
+            # Could not connect to endpoint using any of the available auth methods.
+            # It might not be available yet. It might also be protected, and /search/ - endpoints may still be available.",
+            # so we will not raise an exception here.
+            return None
 
     def get_application_status(self) -> Optional[Response]:
         """
