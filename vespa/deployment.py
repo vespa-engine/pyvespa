@@ -527,18 +527,28 @@ class VespaCloud(VespaDeployment):
         run = self._start_deployment(instance, job, disk_folder, None)
         self._follow_deployment(instance, job, run)
 
-        token = os.environ.get(VESPA_CLOUD_SECRET_TOKEN, None)
-        if token is None:
-            endpoint_url = self.get_mtls_endpoint(instance=instance, region=region)
+        mtls_endpoint = self.get_mtls_endpoint(
+            instance=instance,
+            region=region,
+        )
+        if self.auth_client_token_id is not None:
+            try:  # May have client_token_id set but the deployed app was not configured to use it
+                token_endpoint = self.get_token_endpoint(
+                    instance=instance,
+                    region=region,
+                )
+            except Exception as _:
+                token_endpoint = None
         else:
-            endpoint_url = self.get_token_endpoint(instance=instance, region=region)
+            token_endpoint = None
 
         app = Vespa(
-            url=endpoint_url,
+            url=token_endpoint or mtls_endpoint,
             cert=self.data_cert_path
             or os.path.join(disk_folder, self.private_cert_file_name),
             key=self.data_key_path or None,
             application_package=self.application_package,
+            vespa_cloud_secret_token=os.environ.get(VESPA_CLOUD_SECRET_TOKEN),
         )
         app.wait_for_application_up(max_wait=max_wait)
         print("Finished deployment.", file=self.output)
@@ -636,7 +646,6 @@ class VespaCloud(VespaDeployment):
         region = self.get_prod_region()
         self._follow_deployment(instance, f"production-{region}", run_id)
 
-        # token = os.environ.get(VESPA_CLOUD_SECRET_TOKEN, None)
         mtls_endpoint = self.get_mtls_endpoint(
             instance=instance, region=region, environment="prod"
         )
@@ -647,13 +656,16 @@ class VespaCloud(VespaDeployment):
                 )
             except Exception as _:
                 token_endpoint = None
+        else:
+            token_endpoint = None
 
         app = Vespa(
-            url=mtls_endpoint or token_endpoint,
+            url=token_endpoint or mtls_endpoint,
             cert=self.data_cert_path
             or os.path.join(disk_folder, self.private_cert_file_name),
             key=self.data_key_path or None,
             application_package=self.application_package,
+            vespa_cloud_secret_token=os.environ.get(VESPA_CLOUD_SECRET_TOKEN),
         )
         app.wait_for_application_up(max_wait=max_wait)
         print("Finished deployment.", file=self.output)
@@ -690,15 +702,22 @@ class VespaCloud(VespaDeployment):
             instance, job, disk_folder, application_zip_bytes=data
         )
         self._follow_deployment(instance, job, run)
-        if os.environ.get(VESPA_CLOUD_SECRET_TOKEN) is None:
-            endpoint_url = self.get_mtls_endpoint(instance=instance, region=region)
+        mtls_endpoint = self.get_mtls_endpoint(instance=instance, region=region)
+        if self.auth_client_token_id is not None:
+            try:  # May have client_token_id set but the deployed app was not configured to use it
+                token_endpoint = self.get_token_endpoint(
+                    instance=instance, region=region
+                )
+            except Exception as _:
+                token_endpoint = None
         else:
-            endpoint_url = self.get_token_endpoint(instance=instance, region=region)
+            token_endpoint = None
         app = Vespa(
-            url=endpoint_url,
+            url=token_endpoint or mtls_endpoint,
             cert=self.data_cert_path,
             key=self.data_key_path,
             application_package=self.application_package,
+            vespa_cloud_secret_token=os.environ.get(VESPA_CLOUD_SECRET_TOKEN),
         )
         app.wait_for_application_up(max_wait=max_wait)
         print("Finished deployment.", file=self.output)
