@@ -1,4 +1,5 @@
 import http.client
+from urllib3.exceptions import HTTPError
 import json
 import os
 import sys
@@ -11,6 +12,13 @@ from pathlib import Path
 from time import sleep, strftime, gmtime
 from typing import Tuple, Union, IO, Optional, List, Dict
 from tenacity import retry, stop_after_attempt, wait_exponential
+from datetime import timezone
+import pty
+import subprocess
+import shlex
+import select
+from dateutil import parser
+
 
 import docker
 import requests
@@ -19,12 +27,14 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import ec
-import shlex
-import subprocess
 
 from vespa.application import Vespa, VESPA_CLOUD_SECRET_TOKEN
 from vespa.package import ApplicationPackage, AuthClient, Parameter
 from vespa.utils.decorators import run_with_max_time
+from vespa.utils.utils import is_jupyter_notebook
+
+# Get the Vespa home directory
+VESPA_HOME = Path(os.getenv("VESPA_HOME", Path.home() / ".vespa"))
 
 
 class VespaDeployment:
@@ -462,20 +472,37 @@ class VespaCloud(VespaDeployment):
         self.tenant = tenant
         self.application = application
         self.application_package = application_package
+        self.output = output_file
         self.api_key = self._read_private_key(key_location, key_content)
-        self.api_public_key_bytes = standard_b64encode(
-            self.api_key.public_key().public_bytes(
-                serialization.Encoding.PEM,
-                serialization.PublicFormat.SubjectPublicKeyInfo,
+        self.control_plane_auth_method = None  # "api_key" or "access_token"
+        self.control_plane_access_token = None
+        self.auth_file_path = VESPA_HOME / "auth.json"
+        if self.api_key:
+            self.api_public_key_bytes = standard_b64encode(
+                self.api_key.public_key().public_bytes(
+                    serialization.Encoding.PEM,
+                    serialization.PublicFormat.SubjectPublicKeyInfo,
+                )
             )
-        )
+            self.control_plane_auth_method = "api_key"
+        else:
+            self.api_public_key_bytes = None
+            self.control_plane_auth_method = "access_token"
+            print(
+                "No api-key found for control plane access. Using access token.",
+                file=self.output,
+            )
+            self.control_plane_access_token = self._try_get_access_token()
+            print(
+                "Successfully obtained access token for control plane access.",
+                file=self.output,
+            )
         self.data_cert_path = None
         self.data_key_path = None
         self.data_key, self.data_certificate = self._load_certificate_pair()
         self.connection = http.client.HTTPSConnection(
             "api.vespa-external.aws.oath.cloud", 4443
         )
-        self.output = output_file
         self.auth_client_token_id = auth_client_token_id
         if auth_client_token_id is not None:
             self.application_package.auth_clients = [
@@ -492,12 +519,22 @@ class VespaCloud(VespaDeployment):
                     parameters=[Parameter("token", {"id": auth_client_token_id})],
                 ),
             ]
+        self._build_no = None
 
     def __enter__(self) -> "VespaCloud":
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.close()
+
+    # Add property with getter and setter for self.build_no
+    @property
+    def build_no(self) -> Optional[int]:
+        return self._build_no
+
+    @build_no.setter
+    def build_no(self, value: Optional[int]) -> None:
+        self._build_no = value
 
     def deploy(
         self,
@@ -601,47 +638,83 @@ class VespaCloud(VespaDeployment):
         if self.application_package.deployment_config is None:
             raise ValueError("'Prod deployment requires a deployment_config.")
 
-        self._start_prod_deployment(disk_folder)
+        # This sets self._build_no
+        self.build_no = self._start_prod_deployment(disk_folder)
 
         deploy_url = "https://console.vespa-cloud.com/tenant/{}/application/{}/prod/deployment".format(
             self.tenant, self.application
         )
         print(f"Follow deployment at: {deploy_url}", file=self.output)
+        if self._build_no is None:
+            raise Exception("No build number found.")
+        print(f"Submitted build number: {self._build_no}", file=self.output)
+        # print("Waiting for monitoring...", file=self.output)
+        # run_id = -1
+        # updated = False
+        # for _ in range(5):
+        #     new_run_id = self._get_latest_run_id(instance)  # This may or may not be
+        #     if new_run_id > run_id:
+        #         run_id = new_run_id
+        #         updated = True
+        #         break
+        #     sleep(4)
+        # if not updated:
+        #     print(
+        #         "Not certain if this is the latest run id. Please monitor at: "
+        #         + deploy_url,
+        #         file=self.output,
+        #     )
+        # if run_id == -1:
+        #     raise Exception(
+        #         "No run id found. Please monitor manually at: " + deploy_url,
+        #         file=self.output,
+        #     )
+        # else:
+        #     print(f"Latest run id: {run_id}", file=self.output)
 
-        print("Waiting for monitoring...", file=self.output)
-        run_id = -1
-        updated = False
-        for _ in range(5):
-            new_run_id = self._get_latest_run_id(instance)  # This may or may not be
-            if new_run_id > run_id:
-                run_id = new_run_id
-                updated = True
-                break
-            sleep(4)
-        if not updated:
-            print(
-                "Not certain if this is the latest run id. Please monitor at: "
-                + deploy_url,
-                file=self.output,
-            )
-        if run_id == -1:
-            raise Exception(
-                "No run id found. Please monitor manually at: " + deploy_url,
-                file=self.output,
-            )
-        else:
-            print(f"Latest run id: {run_id}", file=self.output)
+        # # We need to wait for the tests to finish before we can monitor the deployment itself
+        # self._follow_deployment(instance, "staging-test", run_id)
+        # self._follow_deployment(instance, "system-test", run_id)
 
-        # We need to wait for the tests to finish before we can monitor the deployment itself
-        self._follow_deployment(instance, "staging-test", run_id)
-        self._follow_deployment(instance, "system-test", run_id)
+        # # Like with the run id, it can take a couple of seconds for the job to show up here.
+        # # TODO Replace with a more robust solution
+        # sleep(20)
+        # region = self.get_prod_region()
+        # self._follow_deployment(instance, f"production-{region}", run_id)
 
-        # Like with the run id, it can take a couple of seconds for the job to show up here.
-        # TODO Replace with a more robust solution
-        sleep(20)
+        # mtls_endpoint = self.get_mtls_endpoint(
+        #     instance=instance, region=region, environment="prod"
+        # )
+        # if self.auth_client_token_id is not None:
+        #     try:  # May have client_token_id set but the deployed app was not configured to use it
+        #         token_endpoint = self.get_token_endpoint(
+        #             instance=instance, region=region, environment="prod"
+        #         )
+        #     except Exception as _:
+        #         token_endpoint = None
+        # else:
+        #     token_endpoint = None
+
+        # app = Vespa(
+        #     url=token_endpoint or mtls_endpoint,
+        #     cert=self.data_cert_path,
+        #     key=self.data_key_path or None,
+        #     application_package=self.application_package,
+        #     vespa_cloud_secret_token=os.environ.get(VESPA_CLOUD_SECRET_TOKEN),
+        # )
+        # app.wait_for_application_up(max_wait=max_wait)
+        # print("Finished deployment.", file=self.output)
+        return self._build_no
+
+    def get_application(
+        self, instance: str = "default", environment: str = "dev", max_wait: int = 60
+    ) -> Vespa:
+        """
+        Get the Vespa application instance.
+
+        :return: Vespa application instance.
+        """
         region = self.get_prod_region()
-        self._follow_deployment(instance, f"production-{region}", run_id)
-
         mtls_endpoint = self.get_mtls_endpoint(
             instance=instance, region=region, environment="prod"
         )
@@ -658,13 +731,80 @@ class VespaCloud(VespaDeployment):
         app = Vespa(
             url=token_endpoint or mtls_endpoint,
             cert=self.data_cert_path,
-            key=self.data_key_path or None,
-            application_package=self.application_package,
-            vespa_cloud_secret_token=os.environ.get(VESPA_CLOUD_SECRET_TOKEN),
+            key=self.data_key_path,
         )
-        app.wait_for_application_up(max_wait=max_wait)
-        print("Finished deployment.", file=self.output)
         return app
+
+    def check_production_build_status(self, build_no: Optional[int]) -> dict:
+        """
+        Check the status of a production build.
+
+        Example usage:
+        >>> vespa_cloud = VespaCloud(...)
+        >>> vespa_cloud.check_production_build_status(1234)
+        ```json
+        {
+            "build_no": 1234,
+            "system-test": {"active": False, "status": "success", "run_id": 1234},
+            "staging-test": {"active": False, "status": "success", "run_id": 1234},
+            "production-us-east-1": {
+                "active": False,
+                "status": "success",
+                "run_id": 1234,
+            },
+        }
+        ```
+
+        :param build_no: The build number to check.
+        :return: The build status.
+        """
+
+        def check_build_no_in_log(log):
+            # Regex to find the build number in the log
+            # Example input: Deploying platform version 8.358.34 and application build 8.
+            # Example output: 8
+            import re
+
+            match = re.search(r"application build (\d+)", log)
+            if match:
+                return int(match.group(1))
+
+        if build_no is None:
+            build_no = self._build_no
+        jobs = ["system-test", "staging-test", f"production-{self.get_prod_region()}"]
+        status = {"build_no": build_no}
+        for job in jobs:
+            # Try with run_ids down from build_no (inclusive)
+            for run_id in reversed(range(build_no + 1)):
+                try:
+                    endpoint = f"/application/v4/tenant/{self.tenant}/application/{self.application}/instance/default/job/{job}/run/{run_id}"
+                    response = self._request("GET", endpoint)
+                except HTTPError:
+                    continue
+                # TODO: Remove this print(response, run_id, file=self.output)
+                if "dependent" in response:
+                    if response["dependent"]["build"] == build_no:
+                        status[job] = {
+                            "active": response["active"],
+                            "status": response["status"],
+                            "run_id": run_id,
+                        }
+                        break
+                elif "log" in response:
+                    first_log = response["log"]["deployReal"][0]["message"]
+                    build_no_in_log = check_build_no_in_log(first_log)
+                    if build_no_in_log == build_no:
+                        status[job] = {
+                            "active": response["active"],
+                            "status": response["status"],
+                            "run_id": run_id,
+                        }
+                        break
+
+            else:
+                if job not in status:
+                    status[job] = {"active": False, "status": "NOT_FOUND", "run_id": -1}
+        return status
 
     def deploy_from_disk(
         self, instance: str, application_root: Path, max_wait: int = 300
@@ -743,14 +883,14 @@ class VespaCloud(VespaDeployment):
     @staticmethod
     def _read_private_key(
         key_location: Optional[str] = None, key_content: Optional[str] = None
-    ) -> ec.EllipticCurvePrivateKey:
+    ) -> Optional[ec.EllipticCurvePrivateKey]:
         if key_content:
             key_content = bytes(key_content, "ascii")
         elif key_location:
             with open(key_location, "rb") as key_data:
                 key_content = key_data.read()
         else:
-            raise ValueError("Provide either key_content or key_location.")
+            return None
 
         key = serialization.load_pem_private_key(key_content, None, default_backend())
         if not isinstance(key, ec.EllipticCurvePrivateKey):
@@ -758,14 +898,22 @@ class VespaCloud(VespaDeployment):
         return key
 
     def _check_vespacli_available(self) -> bool:
-        vespa_version = subprocess.run(
-            shlex.split("vespa version"),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        ).stdout.decode("utf-8")
-        return "Vespa CLI" in vespa_version
+        try:
+            vespa_version = subprocess.run(
+                shlex.split("vespa version"),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            ).stdout.decode("utf-8")
+            is_available = "Vespa CLI" in vespa_version
+        except FileNotFoundError:
+            print(
+                "Vespa CLI not found. Run `pip install vespacli` to login interactively",
+            )
+            is_available = False
+        return is_available
 
     def _set_target_cloud(self):
+        print("Running: vespa config set target cloud")
         output = subprocess.run(
             shlex.split("vespa config set target cloud"),
             stdout=subprocess.PIPE,
@@ -778,7 +926,62 @@ class VespaCloud(VespaDeployment):
         else:
             print(output.stdout.decode("utf-8"))
 
+    def _vespa_auth_login(self):
+        is_notebook = is_jupyter_notebook()
+        # Open a new pseudo-terminal
+        master, slave = pty.openpty()
+
+        # Start the subprocess with its input/output connected to the PTY
+        p = subprocess.Popen(
+            shlex.split("vespa auth login"),
+            stdin=slave,
+            stdout=slave,
+            stderr=slave,
+            universal_newlines=True,
+        )
+
+        # Close the slave end in the parent process
+        os.close(slave)
+        finished = False
+        try:
+            while not finished:
+                # Use select to wait for data to be available on the PTY
+                rlist, _, _ = select.select([master], [], [], 1)
+
+                for fd in rlist:
+                    if fd == master:
+                        # Read output from the master end of the PTY
+                        output = os.read(master, 1024).decode("utf-8")
+                        if output:
+                            print(output, end="")
+                            sys.stdout.flush()
+                        if "Success:" in output:
+                            finished = True  # Exit the loop after success message
+                            break
+
+                        # Check for input only if running in a Jupyter Notebook
+                        if is_notebook and "[Y/n]" in output:
+                            user_input = input() + "\n"
+                            os.write(master, user_input.encode())
+                            sys.stdout.flush()
+                if finished:
+                    break
+
+        finally:
+            # Ensure the master end of the PTY is closed
+            os.close(master)
+            # Ensure the subprocess is properly terminated
+            p.terminate()
+            p.wait()
+        #
+        auth_json_path = VESPA_HOME / "auth.json"
+        while not auth_json_path.exists():
+            sleep(1)
+        print(f" auth.json created at {auth_json_path}")
+        return
+
     def _vespa_auth_cert(self):
+        print("Running: vespa auth cert -N")
         output = subprocess.run(
             shlex.split("vespa auth cert -N"),
             stdout=subprocess.PIPE,
@@ -791,6 +994,7 @@ class VespaCloud(VespaDeployment):
         vespa_cli_command = (
             f"vespa config set application {self.tenant}.{self.application}"
         )
+        print("Running: " + vespa_cli_command)
         output = subprocess.run(
             shlex.split(vespa_cli_command),
             stdout=subprocess.PIPE,
@@ -823,10 +1027,8 @@ class VespaCloud(VespaDeployment):
         else:
             # If cert/key not found in application root: look in ~/.vespa/tenant.app.default/
             home_vespa_dir = (
-                Path.home() / ".vespa" / f"{self.tenant}.{self.application}.default"
+                VESPA_HOME / f"{self.tenant}.{self.application}.default"
             )  # TODO Support other instance names
-            # TODO: Remove
-            print(f"Looking in {home_vespa_dir}")
             cert, key = _check_dir(home_vespa_dir)
             if cert and key:
                 self.data_cert_path = cert
@@ -886,7 +1088,86 @@ class VespaCloud(VespaDeployment):
         self.connection.request(method, path, body, headers)
         return self.connection.getresponse()
 
+    def _try_get_access_token(self) -> str:
+        # Check if auth.json exists
+        if not self.auth_file_path.exists():
+            print("No auth.json found. Please authenticate.")
+            self._vespa_auth_login()
+            # Recheck for auth.json after authentication
+            if not self.auth_file_path.exists():
+                raise FileNotFoundError("Authentication failed, auth.json not found.")
+        else:
+            print("Checking for access token in auth.json...")
+
+        # Load the auth.json file
+        auth = json.loads(self.auth_file_path.read_text())
+
+        # Ensure the datetime string is parsed correctly
+        try:
+            expires_at = parser.parse(
+                auth["providers"]["auth0"]["systems"]["public"]["expires_at"]
+            )
+        except ValueError as e:
+            print(f"Error parsing the date: {e}")
+            raise
+
+        # Compare offset-aware datetime objects
+        if expires_at < datetime.now(timezone.utc):
+            print("Access token expired. Please re-authenticate.")
+            # Remove the expired file
+            os.remove(self.auth_file_path)
+            self._vespa_auth_login()
+            # Reload the auth.json file after re-authentication
+            auth = json.loads(self.auth_file_path.read_text())
+            try:
+                expires_at = parser.parse(
+                    auth["providers"]["auth0"]["systems"]["public"]["expires_at"]
+                )
+            except ValueError as e:
+                print(f"Error parsing the date: {e}")
+                raise
+            if expires_at < datetime.now(timezone.utc):
+                raise Exception("Authentication failed, token is still expired.")
+
+        return auth["providers"]["auth0"]["systems"]["public"]["access_token"]
+
+    def _request_access_token(
+        self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
+    ) -> dict:
+        url = "https://" + self.connection.host + ":" + str(self.connection.port) + path
+        if not self.control_plane_access_token:
+            raise ValueError("Access token not set.")
+        body.seek(0)
+        headers = {
+            "Authorization": "Bearer " + self.control_plane_access_token,
+            **headers,
+        }
+        response = self.get_connection_response_with_retry(method, path, body, headers)
+        parsed = json.load(response)
+        # TODO: Remove print
+        if "build" in parsed:
+            # is a deployment response with build number
+            print(f"Build number: {parsed['build']}")
+            self.build_no = parsed["build"]
+        if response.status != 200:
+            raise HTTPError(
+                f"HTTP {response.status} error: {response.reason} for {url}"
+            )
+        return parsed
+
     def _request(
+        self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
+    ) -> dict:
+        if self.control_plane_auth_method == "access_token":
+            return self._request_access_token(method, path, body, headers)
+        elif self.control_plane_auth_method == "api_key":
+            return self._request_api_key(method, path, body, headers)
+        else:
+            raise ValueError(
+                "Control plane auth method not inferred. Should be either api_key or access_token."
+            )
+
+    def _request_api_key(
         self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
     ) -> dict:
         digest = hashes.Hash(hashes.SHA256(), default_backend())
@@ -913,22 +1194,18 @@ class VespaCloud(VespaDeployment):
         }
 
         body.seek(0)
-        with self.get_connection_response_with_retry(
-            method, path, body, headers
-        ) as response:
-            parsed = json.load(response)
-            if response.status != 200:
-                raise RuntimeError(
-                    "Status code "
-                    + str(response.status)
-                    + " doing "
-                    + method
-                    + " at "
-                    + url
-                    + ":\n"
-                    + parsed["message"]
-                )
-            return parsed
+        response = self.get_connection_response_with_retry(method, path, body, headers)
+        parsed = json.load(response)
+        # TODO: Remove print
+        if "build" in parsed:
+            # is a deployment response with build number
+            print(f"Build number: {parsed['build']}")
+            self.build_no = parsed["build"]
+        if response.status != 200:
+            raise HTTPError(
+                f"HTTP {response.status} error: {response.reason} for {url}"
+            )
+        return parsed
 
     def get_all_endpoints(
         self,
@@ -973,7 +1250,7 @@ class VespaCloud(VespaDeployment):
         region: Optional[str] = None,
         environment: Optional[str] = "dev",
     ) -> str:
-        cluster_name = "{}_container".format(self.application_package.name)
+        cluster_name = "{}_container".format(self.application_package.schema.name)
         endpoints = self.get_all_endpoints(instance, region, environment)
         for endpoint in endpoints:
             if endpoint["cluster"] == cluster_name:
@@ -1044,41 +1321,57 @@ class VespaCloud(VespaDeployment):
         )
 
         # Compute content hash, etc
-        url = (
-            "https://"
-            + self.connection.host
-            + ":"
-            + str(self.connection.port)
-            + deploy_path
+        if self.control_plane_auth_method == "api_key":
+            url = (
+                "https://"
+                + self.connection.host
+                + ":"
+                + str(self.connection.port)
+                + deploy_path
+            )
+            digest = hashes.Hash(hashes.SHA256(), default_backend())
+            digest.update(
+                multipart_data.to_string()
+            )  # This moves the buffer position to the end
+            multipart_data._buffer.seek(
+                0
+            )  # Needs to be reset. Otherwise, no data will be sent
+            content_hash = standard_b64encode(digest.finalize()).decode("UTF-8")
+            timestamp = (
+                datetime.utcnow().isoformat() + "Z"
+            )  # Java's Instant.parse requires the neutral time zone appended
+            canonical_message = (
+                "POST" + "\n" + url + "\n" + timestamp + "\n" + content_hash
+            )
+            signature = self.api_key.sign(
+                canonical_message.encode("UTF-8"), ec.ECDSA(hashes.SHA256())
+            )
+            headers = {
+                "X-Timestamp": timestamp,
+                "X-Content-Hash": content_hash,
+                "X-Key-Id": self.tenant + ":" + self.application + ":" + "default",
+                "X-Key": self.api_public_key_bytes,
+                "X-Authorization": standard_b64encode(signature),
+            }
+        elif self.control_plane_auth_method == "access_token":
+            headers = {
+                "Authorization": "Bearer " + self.control_plane_access_token,
+            }
+        # Read the content of multipart_data into a bytes object
+        multipart_data_bytes: bytes = multipart_data.to_string()
+        headers["Content-Length"] = str(len(multipart_data_bytes))
+        # Update the headers to include the Content-Type
+        headers["Content-Type"] = multipart_data.content_type
+        # Convert multipart_data_bytes to type BytesIO
+        multipart_data_bytes = BytesIO(multipart_data_bytes)
+        response = self._request(
+            "POST", deploy_path, body=multipart_data_bytes, headers=headers
         )
-        digest = hashes.Hash(hashes.SHA256(), default_backend())
-        digest.update(
-            multipart_data.to_string()
-        )  # This moves the buffer position to the end
-        multipart_data._buffer.seek(
-            0
-        )  # Needs to be reset. Otherwise, no data will be sent
-        content_hash = standard_b64encode(digest.finalize()).decode("UTF-8")
-        timestamp = (
-            datetime.utcnow().isoformat() + "Z"
-        )  # Java's Instant.parse requires the neutral time zone appended
-        canonical_message = "POST" + "\n" + url + "\n" + timestamp + "\n" + content_hash
-        signature = self.api_key.sign(
-            canonical_message.encode("UTF-8"), ec.ECDSA(hashes.SHA256())
-        )
-        headers = {
-            "X-Timestamp": timestamp,
-            "X-Content-Hash": content_hash,
-            "X-Key-Id": self.tenant + ":" + self.application + ":" + "default",
-            "X-Key": self.api_public_key_bytes,
-            "X-Authorization": standard_b64encode(signature),
-            "Content-Type": multipart_data.content_type,
-        }
-
-        response = requests.post(url, data=multipart_data, headers=headers)
-
-        message = response.json()["message"]
+        message = response.get("message", "No message provided")
+        build_no = response.get("build", None)
         print(message, file=self.output)
+
+        return build_no
 
     def _start_deployment(
         self,
@@ -1105,7 +1398,8 @@ class VespaCloud(VespaDeployment):
             application_zip_bytes,
             {"Content-Type": "application/zip"},
         )
-        print(response["message"], file=self.output)
+        message = response.get("message", "No message provided")
+        print(message, file=self.output)
         return response["run"]
 
     def _to_application_zip(self, disk_folder: str) -> BytesIO:
