@@ -18,6 +18,10 @@ class TestVespaRequestsUsage(unittest.TestCase):
     def test_additional_query_params(self):
         app = Vespa(url="http://localhost", port=8080)
         with requests_mock.Mocker() as m:
+            m.get(
+                "http://localhost:8080/ApplicationStatus",
+                status_code=200,
+            )
             m.post("http://localhost:8080/search/", status_code=200, text="{}")
             r: VespaQueryResponse = app.query(
                 query="this is a test", hits=10, searchChain="default"
@@ -30,6 +34,11 @@ class TestVespaRequestsUsage(unittest.TestCase):
     def test_additional_doc_params(self):
         app = Vespa(url="http://localhost", port=8080)
         with requests_mock.Mocker() as m:
+            # Mock the ApplicationStatus endpoint
+            m.get(
+                "http://localhost:8080/ApplicationStatus",
+                status_code=200,
+            )
             m.post(
                 "http://localhost:8080/document/v1/foo/foo/docid/0",
                 status_code=200,
@@ -82,6 +91,10 @@ class TestVespaRequestsUsage(unittest.TestCase):
     def test_delete_all_docs(self):
         app = Vespa(url="http://localhost", port=8080)
         with requests_mock.Mocker() as m:
+            m.get(
+                "http://localhost:8080/ApplicationStatus",
+                status_code=200,
+            )
             m.delete(
                 "http://localhost:8080/document/v1/foo/foo/docid/",
                 status_code=200,
@@ -97,6 +110,10 @@ class TestVespaRequestsUsage(unittest.TestCase):
     def test_visit(self):
         app = Vespa(url="http://localhost", port=8080)
         with requests_mock.Mocker() as m:
+            m.get(
+                "http://localhost:8080/ApplicationStatus",
+                status_code=200,
+            )
             m.get(
                 "http://localhost:8080/document/v1/foo/foo/docid/",
                 [

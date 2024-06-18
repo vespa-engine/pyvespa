@@ -48,6 +48,7 @@ dev = [
     "runnb",
     "ruff",
     "pre-commit",
+    "vespacli",
 ]
 build = [
     "setuptools==69.0.3",
@@ -57,6 +58,7 @@ build = [
     "requests~=2.26.0",
     "ruff",
 ]
+vespacli = ["vespacli"]
 
 [tool.setuptools]
 packages = ["vespa"]
