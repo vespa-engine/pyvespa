@@ -242,6 +242,7 @@ class TestProdDeployment(TestVectorSearch):
     def setUp(self) -> None:
         self.app_package = create_vector_ada_application_package()
         auth_client_token_id = "pyvespa_integration_msmarco"
+        prod_region = "aws-us-east-1c"
         self.app_package.clusters = [
             ContentCluster(
                 id="vector_content",
@@ -255,7 +256,7 @@ class TestProdDeployment(TestVectorSearch):
             ),
         ]
         self.app_package.deployment_config = DeploymentConfiguration(
-            environment="prod", regions=["aws-us-east-1c"]
+            environment="prod", regions=[prod_region]
         )
         self.app_package.auth_clients = [
             AuthClient(
@@ -287,9 +288,20 @@ class TestProdDeployment(TestVectorSearch):
         self.disk_folder = os.path.join(os.getcwd(), "sample_application")
         self.vespa_cloud.application_package.to_files(self.disk_folder)
         self.instance_name = "default"
-        self.app = self.vespa_cloud.deploy_to_prod(
+        self.build_no = self.vespa_cloud.deploy_to_prod(
             instance=self.instance_name, disk_folder=self.disk_folder
         )
+        # Wait until buildstatus is succeeded
+        max_wait = 30  # 10 minutes
+        start = time.time()
+        while time.time() - start < max_wait:
+            build_status = self.vespa_cloud.check_production_build_status(
+                build_no=self.build_no
+            )
+            if build_status[f"production-{prod_region}"]["status"] == "success":
+                print("Deployment succeeded")
+                break
+        self.app = self.vespa_cloud.get_application()
 
     def test_vector_indexing_and_query(self):
         super().test_vector_indexing_and_query()
