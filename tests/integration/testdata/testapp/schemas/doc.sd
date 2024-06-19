@@ -1,0 +1,13 @@
+schema doc {
+    document doc {
+        field id type string {
+            indexing: summary
+        }
+        field text type string {
+            indexing: summary
+        }
+    }
+    fieldset default {
+        fields: text
+    }
+}

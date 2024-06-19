@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<services version="1.0">
+    <content id="doc_content" version="1.0">
+        <nodes count="2"/>
+        <min-redundancy>2</min-redundancy>
+        <documents>
+            <document type="doc" mode="index"/>
+        </documents>
+    </content>
+    <container id="doc_container" version="1.0">
+        <nodes count="2"/>
+        <search></search>
+        <document-api></document-api>
+        <document-processing></document-processing>
+    </container>
+</services>

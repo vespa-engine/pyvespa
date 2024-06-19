@@ -1,0 +1,3 @@
+<validation-overrides>
+    <allow until="2024-06-20">certificate-removal</allow>
+</validation-overrides>

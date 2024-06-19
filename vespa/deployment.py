@@ -18,7 +18,8 @@ import subprocess
 import shlex
 import select
 from dateutil import parser
-
+import re
+import xml.etree.ElementTree as ET
 
 import docker
 import requests
@@ -30,7 +31,6 @@ from cryptography.hazmat.primitives.asymmetric import ec
 
 from vespa.application import Vespa, VESPA_CLOUD_SECRET_TOKEN
 from vespa.package import ApplicationPackage, AuthClient, Parameter
-from vespa.utils.decorators import run_with_max_time
 from vespa.utils.utils import is_jupyter_notebook
 
 # Get the Vespa home directory
@@ -450,7 +450,7 @@ class VespaCloud(VespaDeployment):
         self,
         tenant: str,
         application: str,
-        application_package: ApplicationPackage,
+        application_package: ApplicationPackage = None,
         key_location: Optional[str] = None,
         key_content: Optional[str] = None,
         auth_client_token_id: Optional[str] = None,
@@ -519,7 +519,11 @@ class VespaCloud(VespaDeployment):
                     parameters=[Parameter("token", {"id": auth_client_token_id})],
                 ),
             ]
-        self._build_no = None
+        self.build_no = None  # Build number of submitted production deployment
+        self.submitted_timestamp = None  # Timestamp of submitted production deployment
+        self.disk_folder = (
+            None  # disk_folder for prod deployment. Set in deploy_to_prod
+        )
 
     def __enter__(self) -> "VespaCloud":
         return self
@@ -535,6 +539,15 @@ class VespaCloud(VespaDeployment):
     @build_no.setter
     def build_no(self, value: Optional[int]) -> None:
         self._build_no = value
+
+    # Add property with getter and setter for  self.submitted_timestamp
+    @property
+    def submitted_timestamp(self) -> Optional[int]:
+        return self._submitted_timestamp
+
+    @submitted_timestamp.setter
+    def submitted_timestamp(self, value: Optional[int]) -> None:
+        self._submitted_timestamp = value
 
     def deploy(
         self,
@@ -611,12 +624,11 @@ class VespaCloud(VespaDeployment):
             raise Exception("Run id not updated yet.")
         return run_id
 
-    @run_with_max_time
     def deploy_to_prod(
         self,
         instance: Optional[str] = "default",
         disk_folder: Optional[str] = None,
-        max_wait: int = 600,
+        submit_options: Dict[str, str] = {},
     ) -> None:
         """
         Deploy the given application package as the given instance in the Vespa Cloud prod environment.
@@ -625,21 +637,29 @@ class VespaCloud(VespaDeployment):
         :param instance: Name of this instance of the application, in the Vespa Cloud.
         :param disk_folder: Disk folder to save the required Vespa config files. Default to application name
             folder within user's current working directory.
-        :param max_wait: Seconds to wait for the deployment.
+        :param submit_options: Optional dictionary of submit options, containing one or more of the following keys:
+            - "repository"
+            - "branch"
+            - "commit"
+            - "description"
+            - "authorEmail"
+            - "sourceUrl"
+            These will show up in the Vespa Cloud Console.
+
         """
         logging.warning(
-            "This feature is experimental and may fail in unexpected ways. Expect better support in future releases."
+            "Deploying to production is in beta and may fail in unexpected ways. Expect better support in future releases."
         )
 
         if not disk_folder:
             disk_folder = os.path.join(os.getcwd(), self.application)
-        self.application_package.to_files(disk_folder)
-
-        if self.application_package.deployment_config is None:
-            raise ValueError("'Prod deployment requires a deployment_config.")
-
+        if self.application_package is not None:
+            if self.application_package.deployment_config is None:
+                raise ValueError("Prod deployment requires a deployment_config.")
+            self.application_package.to_files(disk_folder)
+        self.disk_folder = disk_folder
         # This sets self._build_no
-        self.build_no = self._start_prod_deployment(disk_folder)
+        self.build_no = self._start_prod_deployment(disk_folder, submit_options)
 
         deploy_url = "https://console.vespa-cloud.com/tenant/{}/application/{}/prod/deployment".format(
             self.tenant, self.application
@@ -704,13 +724,14 @@ class VespaCloud(VespaDeployment):
         # )
         # app.wait_for_application_up(max_wait=max_wait)
         # print("Finished deployment.", file=self.output)
-        return self._build_no
+        return self.build_no
 
     def get_application(
         self, instance: str = "default", environment: str = "dev", max_wait: int = 60
     ) -> Vespa:
         """
-        Get the Vespa application instance.
+        Get a connection to the Vespa application instance.
+        Will only work if the application is already deployed.
 
         :return: Vespa application instance.
         """
@@ -734,6 +755,12 @@ class VespaCloud(VespaDeployment):
             key=self.data_key_path,
         )
         return app
+
+    def _get_deployment_jobs(self) -> List[str]:
+        prod_regions = self.get_prod_regions()
+        return ["system-test", "staging-test"] + [
+            f"production-{region}" for region in prod_regions
+        ]
 
     def check_production_build_status(self, build_no: Optional[int]) -> dict:
         """
@@ -762,48 +789,26 @@ class VespaCloud(VespaDeployment):
         def check_build_no_in_log(log):
             # Regex to find the build number in the log
             # Example input: Deploying platform version 8.358.34 and application build 8.
-            # Example output: 8
-            import re
-
             match = re.search(r"application build (\d+)", log)
             if match:
                 return int(match.group(1))
 
         if build_no is None:
-            build_no = self._build_no
-        jobs = ["system-test", "staging-test", f"production-{self.get_prod_region()}"]
+            if self.build_no is None:
+                raise ValueError("No build number provided, and no build number set.")
+            else:
+                build_no = int(self.build_no)
+        jobs = self._get_deployment_jobs()
+        # ["system-test", "staging-test", f"production-{self.get_prod_region()}"]
         status = {"build_no": build_no}
         for job in jobs:
-            # Try with run_ids down from build_no (inclusive)
-            for run_id in reversed(range(build_no + 1)):
-                try:
-                    endpoint = f"/application/v4/tenant/{self.tenant}/application/{self.application}/instance/default/job/{job}/run/{run_id}"
-                    response = self._request("GET", endpoint)
-                except HTTPError:
-                    continue
-                # TODO: Remove this print(response, run_id, file=self.output)
-                if "dependent" in response:
-                    if response["dependent"]["build"] == build_no:
-                        status[job] = {
-                            "active": response["active"],
-                            "status": response["status"],
-                            "run_id": run_id,
-                        }
+            endpoint = f"/application/v4/tenant/{self.tenant}/application/{self.application}/instance/default/job/{job}/"
+            runs = self._request("GET", endpoint)
+            for run in runs["runs"]:
+                if "dependent" in run:
+                    if run["dependent"]["build"] == build_no:
+                        status[job] = run
                         break
-                elif "log" in response:
-                    first_log = response["log"]["deployReal"][0]["message"]
-                    build_no_in_log = check_build_no_in_log(first_log)
-                    if build_no_in_log == build_no:
-                        status[job] = {
-                            "active": response["active"],
-                            "status": response["status"],
-                            "run_id": run_id,
-                        }
-                        break
-
-            else:
-                if job not in status:
-                    status[job] = {"active": False, "status": "NOT_FOUND", "run_id": -1}
         return status
 
     def deploy_from_disk(
@@ -907,7 +912,7 @@ class VespaCloud(VespaDeployment):
             is_available = "Vespa CLI" in vespa_version
         except FileNotFoundError:
             print(
-                "Vespa CLI not found. Run `pip install vespacli` to login interactively",
+                "Vespa CLI not found. Run `pip install vespacli`.",
             )
             is_available = False
         return is_available
@@ -1078,6 +1083,40 @@ class VespaCloud(VespaDeployment):
     def get_prod_region(self):
         # TODO Support multiple regions
         return self.application_package.deployment_config.regions[0]
+
+    def get_regions_from_deployment_xml(self, disk_folder: Optional[str] = None):
+        # Parse the XML data from file
+        if disk_folder is None:
+            if self.disk_folder is None:
+                disk_folder = os.path.join(os.getcwd(), self.application)
+            else:
+                disk_folder = self.disk_folder
+        deployment_xml_path = Path(disk_folder) / "deployment.xml"
+        try:
+            with open(deployment_xml_path) as f:
+                xml_data = f.read()
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"deployment.xml not found in {deployment_xml_path}. Provide disk_folder with the path to application root."
+            )
+        root = ET.fromstring(xml_data)
+
+        # Find all 'region' elements that have 'prod' as a parent
+        regions = [
+            region.text
+            for prod in root.findall(".//prod")
+            for region in prod.findall("region")
+        ]
+        return regions
+
+    def get_prod_regions(self, disk_folder: Optional[str] = None):
+        if self.application_package is None:
+            regions = self.get_regions_from_deployment_xml(self.disk_folder)
+        else:
+            if self.application_package.deployment_config is None:
+                raise ValueError("Deployment config not found.")
+            regions = self.application_package.deployment_config.regions
+        return regions
 
     @retry(
         stop=stop_after_attempt(3),
@@ -1281,7 +1320,9 @@ class VespaCloud(VespaDeployment):
     ) -> str:
         return self.get_endpoint("token", instance, region, environment)
 
-    def _start_prod_deployment(self, disk_folder: str) -> None:
+    def _start_prod_deployment(
+        self, disk_folder: str, submit_options: Dict[str, str] = {}
+    ) -> int:
         # The submit API is used for prod deployments
         deploy_path = "/application/v4/tenant/{}/application/{}/submit/".format(
             self.tenant, self.application
@@ -1289,23 +1330,29 @@ class VespaCloud(VespaDeployment):
 
         # Create app package zip
         Path(disk_folder).mkdir(parents=True, exist_ok=True)
-        application_package_zip_bytes = self._to_application_zip(
-            disk_folder=disk_folder
-        )
+        if self.application_package is not None:
+            application_package_zip_bytes = self._to_application_zip(
+                disk_folder=disk_folder
+            )
+        else:
+            # Need to write the certificate to disk_folder in security/clients.pem
+            client_pem_path = os.path.join(disk_folder, "security/clients.pem")
+            if not os.path.exists(client_pem_path):
+                os.makedirs(os.path.dirname(client_pem_path), exist_ok=True)
+                with open(client_pem_path, "wb") as clients_pem:
+                    clients_pem.write(
+                        self.data_certificate.public_bytes(serialization.Encoding.PEM)
+                    )
+            application_package_zip_bytes = BytesIO(
+                self.read_app_package_from_disk(disk_folder)
+            )
 
-        # Create submission
-        # TODO Avoid hardcoding projectId and risk
-        # TODO Consider supporting optional fields
-        submit_options = {
-            "projectId": 1,
-            "risk": 0,
-            # "repository": "",
-            # "branch": "",
-            # "commit": "",
-            # "description": "",
-            # "authorEmail": "",
-            # "sourceUrl": ""
-        }
+        submit_options.update(
+            {
+                "projectId": 1,
+                "risk": 0,
+            }
+        )
 
         # Vespa expects prod deployments to be submitted as multipart data
         multipart_data = MultipartEncoder(
@@ -1368,10 +1415,26 @@ class VespaCloud(VespaDeployment):
             "POST", deploy_path, body=multipart_data_bytes, headers=headers
         )
         message = response.get("message", "No message provided")
-        build_no = response.get("build", None)
+        build_no = int(response.get("build", None))
         print(message, file=self.output)
-
+        # Set submitted_timestamp in format 1718776065383
+        # Use current UTC time in milliseconds
+        self.submitted_timestamp = int(datetime.utcnow().timestamp() * 1000)
         return build_no
+
+    def get_previous_build_no(self, build_no: int) -> int:
+        # Get the last successful build number
+        # Check decrementing build numbers until a successful build is found
+        print(f"Checking previous build numbers for successful build before {build_no}")
+        for build_no in range(build_no - 1, 0, -1):
+            prev = self.check_production_build_status(build_no)
+            prod = prev[f"production-{self.get_prod_region()}"]
+            if prod["status"] == "success" or prod["active"]:
+                last_successful_build_no = build_no
+                break
+        else:
+            last_successful_build_no = -1
+        return last_successful_build_no
 
     def _start_deployment(
         self,
