@@ -678,10 +678,11 @@ class VespaCloud(VespaDeployment):
         return self.build_no
 
     def _get_last_deployable(self, build_no: int) -> int:
+        # This is due to optimization that some builds will not be deployable (e.g if no diff from previous build)
         # May take a few seconds for the build to show up in the deployment list
         max_wait = 10
-        start = datetime.now(timezone.utc)
-        while (datetime.now(timezone.utc) - start).seconds < max_wait:
+        start = time.time()
+        while time.time() - start < max_wait:
             time.sleep(1)
             deployments = self._request(
                 "GET",
@@ -706,6 +707,16 @@ class VespaCloud(VespaDeployment):
         """
         Get a connection to the Vespa application instance.
         Will only work if the application is already deployed.
+
+        Example usage::
+
+            vespa_cloud = VespaCloud(...)
+            app: Vespa = vespa_cloud.get_application()
+            # Feed, query, visit, etc.
+
+        :param instance: Name of this instance of the application, in the Vespa Cloud. Default is "default".
+        :param environment: Environment of the application. Default is "dev". Options are "dev" or "prod".
+        :param max_wait: Seconds to wait for the application to be up. Default is 60 seconds.
 
         :return: Vespa application instance.
         """
@@ -738,24 +749,30 @@ class VespaCloud(VespaDeployment):
     def check_production_build_status(self, build_no: Optional[int]) -> dict:
         """
         Check the status of a production build.
+        Useful for example in CI/CD pipelines to check when a build has converged.
 
-        Example usage:
-        >>> vespa_cloud = VespaCloud(...)
-        >>> build_no = vespa_cloud.deploy_to_prod()
-        >>> vespa_cloud.check_production_build_status(build_no)
-        ```json
-        {
-            "build_no": 1234,
-            "system-test": {"active": False, "status": "success", "run_id": 1234},
-            "staging-test": {"active": False, "status": "success", "run_id": 1234},
-            "production-us-east-1": {
-                "active": False,
-                "status": "success", # "running", "success" (or "noTests" for system/staging test jobs.)
-                "run_id": 1234,
-                "is_latest": True, # If False, another build is newer, thus this may not be the active one.
-            },
-        }
-        ```
+        Example usage::
+
+            vespa_cloud = VespaCloud(...)
+            build_no = vespa_cloud.deploy_to_prod()
+            status = vespa_cloud.check_production_build_status(build_no)
+            print(status)
+            {
+                "build_no": 1234,
+                "jobs": [
+                    {"system-test": {"active": False, "status": "success", "run_id": 1234}},
+                    {"staging-test": {"active": False, "status": "success", "run_id": 1234}},
+                    {
+                        "production-us-east-1": {
+                            "active": False,
+                            "status": "success",  # "running", "success" (or "noTests" for system/staging test jobs.)
+                            "run_id": 1234,
+                            "is_latest": True,  # If False, another build is newer, thus this may not be the active one.
+                        }
+                    },
+                ],
+            }
+
 
         :param build_no: The build number to check.
         :return: dict with the status of all jobs for the given build number.
@@ -771,7 +788,7 @@ class VespaCloud(VespaDeployment):
                 build_no = int(self.build_no)
         jobs = self._get_deployment_jobs()
         print(f"Checking status of jobs: {jobs}", file=self.output)
-        status = {"build_no": build_no}
+        status = {"build_no": build_no, "jobs": []}
         for job in jobs:
             endpoint = f"/application/v4/tenant/{self.tenant}/application/{self.application}/instance/default/job/{job}/"
             runs = self._request("GET", endpoint)
@@ -792,7 +809,7 @@ class VespaCloud(VespaDeployment):
                     job_status["status"] = run["status"]
                     job_status["run_id"] = run["id"]
                     job_status["is_latest"] = not overridden
-            status[job] = job_status
+            status["jobs"].append({job: job_status})
         return status
 
     def deploy_from_disk(
