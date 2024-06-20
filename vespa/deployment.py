@@ -722,7 +722,6 @@ class VespaCloud(VespaDeployment):
                 token_endpoint = None
         else:
             token_endpoint = None
-
         app = Vespa(
             url=token_endpoint or mtls_endpoint,
             cert=self.data_cert_path,
@@ -742,7 +741,8 @@ class VespaCloud(VespaDeployment):
 
         Example usage:
         >>> vespa_cloud = VespaCloud(...)
-        >>> vespa_cloud.check_production_build_status(1234)
+        >>> build_no = vespa_cloud.deploy_to_prod()
+        >>> vespa_cloud.check_production_build_status(build_no)
         ```json
         {
             "build_no": 1234,
@@ -750,14 +750,15 @@ class VespaCloud(VespaDeployment):
             "staging-test": {"active": False, "status": "success", "run_id": 1234},
             "production-us-east-1": {
                 "active": False,
-                "status": "success",
+                "status": "success", # "running", "success" (or "noTests" for system/staging test jobs.)
                 "run_id": 1234,
+                "is_latest": True, # If False, another build is newer, thus this may not be the active one.
             },
         }
         ```
 
         :param build_no: The build number to check.
-        :return: The build status.
+        :return: dict with the status of all jobs for the given build number.
         """
         logging.warning(
             f"Method {self.check_production_build_status.__name__} is in beta and may fail in unexpected ways. Expect better support in future releases."
@@ -774,16 +775,24 @@ class VespaCloud(VespaDeployment):
         for job in jobs:
             endpoint = f"/application/v4/tenant/{self.tenant}/application/{self.application}/instance/default/job/{job}/"
             runs = self._request("GET", endpoint)
+            job_status = {
+                "status": "NOT_FOUND",
+                "run_id": -1,
+                "is_latest": False,
+            }
+            overridden = False
             for run in runs["runs"]:
-                if "dependent" in run:  # system-test and staging-test
-                    if run["dependent"]["build"] == build_no:
-                        status[job] = run
-                        break
-                elif (
-                    "versions" in run and "targetApplication" in run["versions"]
-                ):  # production
-                    status[job] = run
+                if run["versions"]["targetApplication"]["build"] < build_no:
                     break
+                # Build may be overridden by a newer build
+                if run["versions"]["targetApplication"]["build"] > build_no:
+                    job_status["is_latest"] = False
+                    overridden = True
+                if run["versions"]["targetApplication"]["build"] == build_no:
+                    job_status["status"] = run["status"]
+                    job_status["run_id"] = run["id"]
+                    job_status["is_latest"] = not overridden
+            status[job] = job_status
         return status
 
     def deploy_from_disk(
@@ -1157,7 +1166,10 @@ class VespaCloud(VespaDeployment):
             **headers,
         }
         response = self.get_connection_response_with_retry(method, path, body, headers)
-        parsed = json.load(response)
+        try:
+            parsed = json.load(response)
+        except json.JSONDecodeError:
+            parsed = response.read()
         if response.status != 200:
             raise HTTPError(
                 f"HTTP {response.status} error: {response.reason} for {url}"
@@ -1254,20 +1266,31 @@ class VespaCloud(VespaDeployment):
         region: Optional[str] = None,
         environment: Optional[str] = "dev",
     ) -> str:
-        cluster_name = "{}_container".format(self.application_package.schema.name)
+        # TODO: Support multiple endpoints.
+        auth_endpoints = []
         endpoints = self.get_all_endpoints(instance, region, environment)
         for endpoint in endpoints:
-            if endpoint["cluster"] == cluster_name:
-                authMethod = endpoint.get("authMethod", None)
-                if authMethod == auth_method:
-                    print(
-                        f"Found {auth_method} endpoint for {cluster_name}",
-                        file=self.output,
-                    )
-                    return endpoint["url"]
-        raise RuntimeError(
-            f"No {auth_method} endpoints found for container cluster {cluster_name}"
-        )
+            cluster = endpoint.get("cluster", None)
+            authMethod = endpoint.get("authMethod", None)
+            if authMethod == auth_method:
+                print(
+                    f"Found {auth_method} endpoint for {cluster}",
+                    file=self.output,
+                )
+                print(f"URL: {endpoint['url']}", file=self.output)
+                auth_endpoints.append(endpoint["url"])
+        if len(auth_endpoints) == 1:
+            return auth_endpoints[0]
+        elif len(auth_endpoints) > 1:
+            print(
+                f"Multiple {auth_method} endpoints found. Returning the first one.",
+                file=self.output,
+            )
+            return auth_endpoints[0]
+        elif len(auth_endpoints) == 0:
+            raise RuntimeError(
+                f"No {auth_method} endpoints found for instance {instance}, region {region}, and environment {environment}."
+            )
 
     def get_mtls_endpoint(
         self,
