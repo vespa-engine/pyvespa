@@ -760,14 +760,20 @@ class VespaCloud(VespaDeployment):
             {
                 "build_no": 1234,
                 "jobs": [
-                    {"system-test": {"active": False, "status": "success", "run_id": 1234}},
-                    {"staging-test": {"active": False, "status": "success", "run_id": 1234}},
+                    {"system-test": {"status": "noTests", "run_id": 1234, "is_latest": True}},
+                    {"staging-test": {"status": "success", "run_id": 1234, "is_latest": True}},
                     {
                         "production-us-east-1": {
-                            "active": False,
-                            "status": "success",  # "running", "success" (or "noTests" for system/staging test jobs.)
+                            "status": "success",  # "running", "success" (or "noTests" for system/staging test jobs.) "NOT_FOUND" if no corresponding run is found.
                             "run_id": 1234,
                             "is_latest": True,  # If False, another build is newer, thus this may not be the active one.
+                        }
+                    },
+                    {
+                        "production-us-west-1": {
+                            "status": "running",
+                            "run_id": 1234,
+                            "is_latest": True,
                         }
                     },
                 ],
