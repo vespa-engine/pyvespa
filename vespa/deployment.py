@@ -740,7 +740,7 @@ class VespaCloud(VespaDeployment):
         )
         return app
 
-    def _get_deployment_jobs(self) -> List[str]:
+    def get_deployment_jobs(self) -> List[str]:
         prod_regions = self.get_prod_regions()
         return ["system-test", "staging-test"] + [
             f"production-{region}" for region in prod_regions
@@ -786,7 +786,7 @@ class VespaCloud(VespaDeployment):
                 raise ValueError("No build number provided, and no build number set.")
             else:
                 build_no = int(self.build_no)
-        jobs = self._get_deployment_jobs()
+        jobs = self.get_deployment_jobs()
         print(f"Checking status of jobs: {jobs}", file=self.output)
         status = {"build_no": build_no, "jobs": []}
         for job in jobs:
