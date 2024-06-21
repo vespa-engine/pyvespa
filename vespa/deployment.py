@@ -756,32 +756,26 @@ class VespaCloud(VespaDeployment):
             vespa_cloud = VespaCloud(...)
             build_no = vespa_cloud.deploy_to_prod()
             status = vespa_cloud.check_production_build_status(build_no)
-            print(status)
+            # This can yield one of three responses:
+            1. If the revision (build_no), or higher, has successfully converged everywhere, and nothing older has then been deployed on top of that again. Nothing more will happen in this case.
             {
-                "build_no": 1234,
-                "jobs": [
-                    {"system-test": {"status": "noTests", "run_id": 1234, "is_latest": True}},
-                    {"staging-test": {"status": "success", "run_id": 1234, "is_latest": True}},
-                    {
-                        "production-us-east-1": {
-                            "status": "success",  # "running", "success" (or "noTests" for system/staging test jobs.) "NOT_FOUND" if no corresponding run is found.
-                            "run_id": 1234,
-                            "is_latest": True,  # If False, another build is newer, thus this may not be the active one.
-                        }
-                    },
-                    {
-                        "production-us-west-1": {
-                            "status": "running",
-                            "run_id": 1234,
-                            "is_latest": True,
-                        }
-                    },
-                ],
+                "deployed": True,
+                "status": "done"
             }
 
+            2. If the revision (build_no), or newer, has not yet converged, but the system is (most likely) still trying to deploy it. There is a point in polling again later when this is the response.
+            {
+                "deployed": False,
+                "status": "deploying"
+            }
+            3. If the revision, or newer, has not yet converged everywhere, and it's never going to, because it was similar to the previous build, or marked obsolete by a user. There is no point in asking again for this revision.
+            {
+                "deployed": False,
+                "status": "done"
+            }
 
         :param build_no: The build number to check.
-        :return: dict with the status of all jobs for the given build number.
+        :return: dict with the aggregated status of all deployment jobs for the given build number.
         """
         logging.warning(
             f"Method {self.check_production_build_status.__name__} is in beta and may fail in unexpected ways. Expect better support in future releases."
@@ -792,37 +786,18 @@ class VespaCloud(VespaDeployment):
                 raise ValueError("No build number provided, and no build number set.")
             else:
                 build_no = int(self.build_no)
-        jobs = self.get_deployment_jobs()
-        print(f"Checking status of jobs: {jobs}", file=self.output)
-        status = {"build_no": build_no, "jobs": []}
-        for job in jobs:
-            endpoint = f"/application/v4/tenant/{self.tenant}/application/{self.application}/instance/default/job/{job}/"
-            runs = self._request("GET", endpoint)
-            job_status = {
-                "status": "NOT_FOUND",
-                "run_id": -1,
-                "is_latest": False,
-            }
-            overridden = False
-            for run in runs["runs"]:
-                if run["versions"]["targetApplication"]["build"] < build_no:
-                    break
-                # Build may be overridden by a newer build
-                if run["versions"]["targetApplication"]["build"] > build_no:
-                    job_status["is_latest"] = False
-                    overridden = True
-                if run["versions"]["targetApplication"]["build"] == build_no:
-                    job_status["status"] = run["status"]
-                    job_status["run_id"] = run["id"]
-                    job_status["is_latest"] = not overridden
-            status["jobs"].append({job: job_status})
+        print(f"Checking status of build number: {build_no}", file=self.output)
+        status = self._request(
+            "GET",
+            f"/application/v4/tenant/{self.tenant}/application/{self.application}/build-status/{build_no}",
+        )
         return status
 
     def deploy_from_disk(
         self, instance: str, application_root: Path, max_wait: int = 300
     ) -> Vespa:
         """
-        Deploy from a directory tree.
+        Deploy to dev from a directory tree.
         Used when making changes to application package files not supported by pyvespa.
         NB: Requires certificate and key to be generated with 'vespa auth cert'.
 
@@ -869,6 +844,8 @@ class VespaCloud(VespaDeployment):
     def delete(self, instance: Optional[str] = "default") -> None:
         """
         Delete the specified instance from the dev environment in the Vespa Cloud.
+        (To delete a production instance, you need to submit a new deployment with `deployment-removal` added to 'validation-overrides.xml', see
+        https://cloud.vespa.ai/en/deleting-applications)
 
         :param instance: Name of the instance to delete.
         :return:
@@ -1091,7 +1068,9 @@ class VespaCloud(VespaDeployment):
         regions = self.get_prod_regions()
         return regions[0]
 
-    def get_regions_from_deployment_xml(self, disk_folder: Optional[str] = None):
+    def get_regions_from_deployment_xml(
+        self, disk_folder: Optional[str] = None
+    ) -> List[str]:
         # Parse the XML data from file
         if disk_folder is None:
             if self.disk_folder is None:
@@ -1116,7 +1095,7 @@ class VespaCloud(VespaDeployment):
         ]
         return regions
 
-    def get_prod_regions(self, disk_folder: Optional[str] = None):
+    def get_prod_regions(self, disk_folder: Optional[str] = None) -> List[str]:
         if self.application_package is None:
             regions = self.get_regions_from_deployment_xml(self.disk_folder)
         else:

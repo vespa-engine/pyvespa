@@ -292,21 +292,14 @@ class TestProdDeployment(TestVectorSearch):
             instance=self.instance_name, disk_folder=self.disk_folder
         )
         # Wait until buildstatus is succeeded
-        max_wait = 1200  # Could take up to 20 minutes
+        max_wait = 600  # Could take up to 10 minutes
         start = time.time()
         success = False
-        all_jobs = self.vespa_cloud.get_deployment_jobs()
         while time.time() - start < max_wait:
             build_status = self.vespa_cloud.check_production_build_status(
                 build_no=self.build_no
             )
-            print(build_status)
-            jobs_dict = {k: v for d in build_status["jobs"] for k, v in d.items()}
-
-            if all(job in jobs_dict for job in all_jobs) and all(
-                jobs_dict[job]["status"] in ["success", "noTests"] for job in all_jobs
-            ):
-                print("Deployment succeeded")
+            if build_status["status"] == "done":  # and build_status["deployed"]:
                 success = True
                 break
             time.sleep(5)
@@ -345,60 +338,3 @@ class TestProdDeployment(TestVectorSearch):
         # This will delete the deployment
         self.vespa_cloud._start_prod_deployment(self.disk_folder)
         shutil.rmtree(self.disk_folder, ignore_errors=True)
-
-
-class TestProdDeploymentFromDisk(unittest.TestCase):
-    def test_deploy(self) -> None:
-        self.disk_folder = os.path.join(os.getcwd(), "testdata", "testapp")
-        self.vespa_cloud = VespaCloud(
-            tenant="vespa-team",
-            application="testapp",
-            key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
-        )
-        build_no = self.vespa_cloud.deploy_to_prod(disk_folder=self.disk_folder)
-        # Wait until buildstatus is succeeded
-        max_wait = 600  # Could take up to 10 minutes
-        start = time.time()
-        success = False
-        jobs = self.vespa_cloud.get_deployment_jobs()
-        while time.time() - start < max_wait:
-            build_status = self.vespa_cloud.check_production_build_status(
-                build_no=build_no
-            )
-            print(build_status)
-            # if all jobs in build_status, and all jobs are either succeeded or noTest
-            if all(
-                job in build_status
-                and build_status[job]["status"] in ["success", "noTests"]
-                for job in jobs
-            ):
-                print("Deployment succeeded")
-                success = True
-                break
-
-        if not success:
-            raise ValueError("Deployment failed")
-        self.app = self.vespa_cloud.get_application()
-
-    def tearDown(self) -> None:
-        deployment_xml_path = os.path.join(self.disk_folder, "deployment.xml")
-        validation_path = os.path.join(self.disk_folder, "validation-overrides.xml")
-        # Need to add a dummy app package to be able to deploy an empty deployment.xml
-        app_package = ApplicationPackage(name="dummy")
-        tomorrow = datetime.now() + timedelta(days=1)
-        formatted_date = tomorrow.strftime("%Y-%m-%d")
-        app_package.validations = [
-            Validation(ValidationID("deployment-removal"), formatted_date)
-        ]
-        validation_text = app_package.validations_to_text
-        with open(validation_path, "w") as f:
-            f.write(validation_text)
-
-        # copy to tmpfile
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            shutil.copy(deployment_xml_path, tmpdirname)
-            os.remove(deployment_xml_path)
-            self.vespa_cloud._start_prod_deployment(disk_folder=self.disk_folder)
-            shutil.copy(os.path.join(tmpdirname, "deployment.xml"), deployment_xml_path)
