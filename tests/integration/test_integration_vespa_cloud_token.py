@@ -206,6 +206,7 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
         )
         self.disk_folder = os.path.join(os.getcwd(), "sample_application")
         self.instance_name = "token"
+        self.app_package.to_files(self.disk_folder)
         self.build_no = self.vespa_cloud.deploy_to_prod(
             instance=self.instance_name,
             disk_folder=self.disk_folder,
