@@ -78,7 +78,7 @@ class TestVectorSearch(unittest.TestCase):
             application="pyvespa-int-vsearch",
             key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
-            auth_client_token_id="pyvespa_integration_msmarco",
+            auth_client_token_id="colbert_xai_token",
         )
         self.disk_folder = os.path.join(os.getcwd(), "sample_application")
         self.instance_name = "default"
@@ -241,7 +241,7 @@ class TestVectorSearch(unittest.TestCase):
 class TestProdDeploymentFromDisk(TestVectorSearch):
     def setUp(self) -> None:
         self.app_package = create_vector_ada_application_package()
-        auth_client_token_id = "pyvespa_integration_msmarco"
+        auth_client_token_id = "colbert_xai_token"
         prod_region = "aws-us-east-1c"
         self.app_package.clusters = [
             ContentCluster(
@@ -299,7 +299,7 @@ class TestProdDeploymentFromDisk(TestVectorSearch):
             build_status = self.vespa_cloud.check_production_build_status(
                 build_no=self.build_no
             )
-            if build_status["status"] == "done":  # and build_status["deployed"]:
+            if build_status["status"] == "done":  # TODO: add build_status["deployed"]:
                 success = True
                 break
             time.sleep(5)

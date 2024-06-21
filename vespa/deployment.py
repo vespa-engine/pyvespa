@@ -459,6 +459,27 @@ class VespaCloud(VespaDeployment):
     ) -> None:
         """
         Deploy application to the Vespa Cloud (cloud.vespa.ai)
+        There are several ways to initialize VespaCloud:
+
+        Example usage::
+
+            # 1. Initialize VespaCloud with application package and existing api-key for control plane access.
+            vespa_cloud = VespaCloud(
+                tenant="my-tenant",
+                application="my-application",
+                application_package=app_package,
+                key_location="/path/to/private-key.pem",
+            )
+
+            # 2. Initialize VespaCloud from disk folder and interactive control plane access.
+            vespa_cloud = VespaCloud(
+                tenant="my-tenant",
+                application="my-application",
+                disk_folder="/path/to/application",
+            )
+
+            # For data plane access, mTLS is used, unless auth_client_token_id is set.
+
 
         :param tenant: Tenant name registered in the Vespa Cloud.
         :param application: Application name in the Vespa Cloud.
@@ -467,7 +488,8 @@ class VespaCloud(VespaDeployment):
         :param key_content: Content of the control plane key used for signing HTTP requests to the Vespa Cloud. Use only when
             key file is not available.
         :param auth_client_token_id: Use token based data plane authentication. This is the token name configured in the Vespa Cloud Console.
-            This is used to configure Vespa services.xml. The token is given read and write permissions.
+            This is used to configure Vespa services.xml. The token is given read and write permissions. If initiliazing from disk_folder, make sure
+            that services.xml is configured to use the provided token_id.
         :param output_file: Output file to write output messages. Default is sys.stdout
         :param disk_folder: Disk folder for application root.
         """
@@ -512,20 +534,26 @@ class VespaCloud(VespaDeployment):
         )
         self.auth_client_token_id = auth_client_token_id
         if auth_client_token_id is not None:
-            self.application_package.auth_clients = [
-                AuthClient(
-                    id="mtls",
-                    permissions=["read,write"],
-                    parameters=[
-                        Parameter("certificate", {"file": "security/clients.pem"})
-                    ],
-                ),
-                AuthClient(
-                    id="token",
-                    permissions=["read,write"],
-                    parameters=[Parameter("token", {"id": auth_client_token_id})],
-                ),
-            ]
+            if self.application_package is not None:
+                self.application_package.auth_clients = [
+                    AuthClient(
+                        id="mtls",
+                        permissions=["read,write"],
+                        parameters=[
+                            Parameter("certificate", {"file": "security/clients.pem"})
+                        ],
+                    ),
+                    AuthClient(
+                        id="token",
+                        permissions=["read,write"],
+                        parameters=[Parameter("token", {"id": auth_client_token_id})],
+                    ),
+                ]
+            else:
+                print(
+                    "Warning: Auth client token id set, but no application package provided. Make sure that services.xml is configured to use the provided token_id.",
+                    file=self.output,
+                )
         self.build_no = None  # Build number of submitted production deployment
         self.submitted_timestamp = None  # Timestamp of submitted production deployment
 
@@ -592,7 +620,7 @@ class VespaCloud(VespaDeployment):
                 token_endpoint = None
         else:
             token_endpoint = None
-
+        print(f"Connecting to {token_endpoint or mtls_endpoint}", file=self.output)
         app = Vespa(
             url=token_endpoint or mtls_endpoint,
             cert=self.data_cert_path,
@@ -603,30 +631,6 @@ class VespaCloud(VespaDeployment):
         app.wait_for_application_up(max_wait=max_wait)
         print("Finished deployment.", file=self.output)
         return app
-
-    def _get_latest_run_id(self, instance) -> int:
-        # The following endpoint returns a dictionary containing information about various builds for a given application.
-        # It sometimes takes a couple of seconds for the actual latest build to show up, but once it does, we can get the latest run id.
-        endpoint = f"/application/v4/tenant/{self.tenant}/application/{self.application}/deployment"
-        res = self._request("GET", endpoint)
-
-        # The different deployment stages might be out of sync, so we need all the ids to determine the latest one
-        run_ids = []
-        for item in res["steps"]:
-            if (
-                "runs" in item.keys() and len(item["runs"]) > 0
-            ):  # "id" is only present in steps with "runs" key
-                run_ids.append(item["runs"][0]["id"])  # Index zero to get the latest id
-        if run_ids == []:
-            return -1  # No runs found
-
-        return max(run_ids)
-
-    def _get_run_id_with_retry(self, instance, last_run_id):
-        run_id = self._get_latest_run_id(instance)
-        if run_id <= last_run_id:
-            raise Exception("Run id not updated yet.")
-        return run_id
 
     def deploy_to_prod(
         self,
@@ -720,23 +724,32 @@ class VespaCloud(VespaDeployment):
 
         :return: Vespa application instance.
         """
-        region = self.get_prod_region()
+        if environment == "dev":
+            region = self.get_dev_region()
+        elif environment == "prod":
+            region = self.get_prod_region()
+        else:
+            raise ValueError("Environment must be 'dev' or 'prod'.")
+
         mtls_endpoint = self.get_mtls_endpoint(
-            instance=instance, region=region, environment="prod"
+            instance=instance, region=region, environment=environment
         )
         if self.auth_client_token_id is not None:
             try:  # May have client_token_id set but the deployed app was not configured to use it
                 token_endpoint = self.get_token_endpoint(
-                    instance=instance, region=region, environment="prod"
+                    instance=instance, region=region, environment=environment
                 )
             except Exception as _:
                 token_endpoint = None
         else:
             token_endpoint = None
+        print(f"Connecting to {token_endpoint or mtls_endpoint}", file=self.output)
         app = Vespa(
             url=token_endpoint or mtls_endpoint,
             cert=self.data_cert_path,
             key=self.data_key_path,
+            application_package=self.application_package,
+            vespa_cloud_secret_token=os.environ.get(VESPA_CLOUD_SECRET_TOKEN),
         )
         return app
 
