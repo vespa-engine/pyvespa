@@ -31,7 +31,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 
 from vespa.application import Vespa, VESPA_CLOUD_SECRET_TOKEN
 from vespa.package import ApplicationPackage, AuthClient, Parameter
-from vespa.utils.utils import is_jupyter_notebook
+from vespa.utils.notebook import is_jupyter_notebook
 
 # Get the Vespa home directory
 VESPA_HOME = Path(os.getenv("VESPA_HOME", Path.home() / ".vespa"))
