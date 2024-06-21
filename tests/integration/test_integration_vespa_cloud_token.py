@@ -32,7 +32,7 @@ APP_INIT_TIMEOUT = 900
 
 class TestTokenBasedAuth(unittest.TestCase):
     def setUp(self) -> None:
-        token_id = "colbert_xai_token"
+        token_id = "pyvespa_integration_msmarco"
         self.clients = [
             AuthClient(
                 id="mtls",
@@ -89,7 +89,7 @@ class TestTokenBasedAuth(unittest.TestCase):
 
 class TestMsmarcoApplicationWithTokenAuth(TestApplicationCommon):
     def setUp(self) -> None:
-        token_id = "colbert_xai_token"
+        token_id = "pyvespa_integration_msmarco"
         self.clients = [
             AuthClient(
                 id="mtls",
@@ -164,7 +164,7 @@ class TestMsmarcoApplicationWithTokenAuth(TestApplicationCommon):
 
 class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
     def setUp(self) -> None:
-        auth_client_token_id = "colbert_xai_token"
+        auth_client_token_id = "pyvespa_integration_msmarco"
         schema_name = "msmarco"
         self.app_package = create_msmarco_application_package()
         # Add prod deployment config
@@ -215,7 +215,7 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
         )
         # Wait for deployment to be ready
         # Wait until buildstatus is succeeded
-        max_wait = 1200  # Could take up to 20 minutes
+        max_wait = 1800  # Could take up to 30 minutes
         start = time.time()
         success = False
         while time.time() - start < max_wait:

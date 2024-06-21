@@ -78,7 +78,7 @@ class TestVectorSearch(unittest.TestCase):
             application="pyvespa-int-vsearch",
             key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
-            auth_client_token_id="colbert_xai_token",
+            auth_client_token_id="pyvespa_integration_msmarco",
         )
         self.disk_folder = os.path.join(os.getcwd(), "sample_application")
         self.instance_name = "default"
@@ -241,7 +241,7 @@ class TestVectorSearch(unittest.TestCase):
 class TestProdDeploymentFromDisk(TestVectorSearch):
     def setUp(self) -> None:
         self.app_package = create_vector_ada_application_package()
-        auth_client_token_id = "colbert_xai_token"
+        auth_client_token_id = "pyvespa_integration_msmarco"
         prod_region = "aws-us-east-1c"
         self.app_package.clusters = [
             ContentCluster(
@@ -292,7 +292,7 @@ class TestProdDeploymentFromDisk(TestVectorSearch):
             instance=self.instance_name, disk_folder=self.disk_folder
         )
         # Wait until buildstatus is succeeded
-        max_wait = 1200  # Could take up to 20 minutes
+        max_wait = 1800  # Could take up to 30 minutes
         start = time.time()
         success = False
         while time.time() - start < max_wait:
@@ -305,7 +305,7 @@ class TestProdDeploymentFromDisk(TestVectorSearch):
             time.sleep(5)
         if not success:
             raise ValueError("Deployment failed")
-        self.app = self.vespa_cloud.get_application()
+        self.app = self.vespa_cloud.get_application(environment="prod")
 
     def test_vector_indexing_and_query(self):
         super().test_vector_indexing_and_query()
