@@ -78,13 +78,15 @@ class VespaDocker(VespaDeployment):
 
         Make sure to start the Docker daemon before instantiating this class.
 
-        Example:
+        Example usage::
 
-        >>> from vespa.deployment import VespaDocker
-        >>> vespa_docker = VespaDocker(port=8080)
-        ... # or initialize from a running container:
-        >>> vespa_docker
-        VespaDocker('http://localhost', 8080, None, None, 4294967296, 'vespaengine/vespa')
+            from vespa.deployment import VespaDocker
+
+            #
+            vespa_docker = VespaDocker(port=8080)
+            # or initialize from a running container:
+            vespa_docker
+            VespaDocker('http://localhost', 8080, None, None, 4294967296, 'vespaengine/vespa')
 
         **Note**:
 
@@ -460,6 +462,12 @@ class VespaCloud(VespaDeployment):
         """
         Deploy application to the Vespa Cloud (cloud.vespa.ai)
         There are several ways to initialize VespaCloud:
+        The choices are:
+        - Application source: From python-defined application package or from disk folder.
+        - Control plane access: With api-key (must be added to Vespa Cloud Console) or access token, obtained by interactive login.
+        - Data plane access: mTLS is used by default, but Vespa applications can also be configured to use token based authentication. (token must be added to Vespa Cloud Console, and corresponding auth_token_id must be provided)
+
+        Below are some examples of how to initialize VespaCloud.
 
         Example usage::
 
@@ -471,14 +479,20 @@ class VespaCloud(VespaDeployment):
                 key_location="/path/to/private-key.pem",
             )
 
-            # 2. Initialize VespaCloud from disk folder and interactive control plane access.
+            # 2. Initialize VespaCloud from disk folder by interactive control plane auth.
             vespa_cloud = VespaCloud(
                 tenant="my-tenant",
                 application="my-application",
                 disk_folder="/path/to/application",
             )
 
-            # For data plane access, mTLS is used, unless auth_client_token_id is set.
+            # 3. Initialize VespaCloud with application package and token based data plane access.
+            vespa_cloud = VespaCloud(
+                tenant="my-tenant",
+                application="my-application",
+                application_package=app_package,
+                auth_client_token_id="my-token-id", # Must be added in Vespa Cloud Console
+            )
 
 
         :param tenant: Tenant name registered in the Vespa Cloud.
