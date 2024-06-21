@@ -238,7 +238,7 @@ class TestVectorSearch(unittest.TestCase):
         self.vespa_cloud.delete()
 
 
-class TestProdDeployment(TestVectorSearch):
+class TestProdDeploymentFromDisk(TestVectorSearch):
     def setUp(self) -> None:
         self.app_package = create_vector_ada_application_package()
         auth_client_token_id = "pyvespa_integration_msmarco"
@@ -292,7 +292,7 @@ class TestProdDeployment(TestVectorSearch):
             instance=self.instance_name, disk_folder=self.disk_folder
         )
         # Wait until buildstatus is succeeded
-        max_wait = 600  # Could take up to 10 minutes
+        max_wait = 1200  # Could take up to 20 minutes
         start = time.time()
         success = False
         while time.time() - start < max_wait:
@@ -334,7 +334,7 @@ class TestProdDeployment(TestVectorSearch):
         self.app_package.validations = [
             Validation(ValidationID("deployment-removal"), formatted_date)
         ]
-
+        self.app_package.to_files(self.disk_folder)
         # This will delete the deployment
         self.vespa_cloud._start_prod_deployment(self.disk_folder)
         shutil.rmtree(self.disk_folder, ignore_errors=True)
