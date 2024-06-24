@@ -61,7 +61,7 @@ build = [
 vespacli = ["vespacli"]
 
 [tool.setuptools]
-packages = ["vespa", "vespa.utils"]
+package-dir = {vespa = "vespa"}
 
 [tool.ruff]
 exclude = [
