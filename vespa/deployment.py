@@ -1177,7 +1177,7 @@ class VespaCloud(VespaDeployment):
 
         return auth["providers"]["auth0"]["systems"]["public"]["access_token"]
 
-    def _request_access_token(
+    def _request_with_access_token(
         self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
     ) -> dict:
         url = "https://" + self.connection.host + ":" + str(self.connection.port) + path
@@ -1203,15 +1203,15 @@ class VespaCloud(VespaDeployment):
         self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
     ) -> dict:
         if self.control_plane_auth_method == "access_token":
-            return self._request_access_token(method, path, body, headers)
+            return self._request_with_access_token(method, path, body, headers)
         elif self.control_plane_auth_method == "api_key":
-            return self._request_api_key(method, path, body, headers)
+            return self._request_with_api_key(method, path, body, headers)
         else:
             raise ValueError(
                 "Control plane auth method not inferred. Should be either api_key or access_token."
             )
 
-    def _request_api_key(
+    def _request_with_api_key(
         self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
     ) -> dict:
         digest = hashes.Hash(hashes.SHA256(), default_backend())
