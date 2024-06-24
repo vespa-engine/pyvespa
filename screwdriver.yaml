@@ -110,7 +110,7 @@ jobs:
           done
 
   integration-cloud:
-    requires: [~commit]
+    requires: [~commit, ~pr]
     annotations:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
@@ -129,7 +129,7 @@ jobs:
           pytest tests/integration/test_integration_vespa_cloud.py -s -v
 
   integration-cloud-token:
-    requires: [~commit]
+    requires: [~commit, ~pr]
     annotations:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
@@ -149,7 +149,7 @@ jobs:
           pytest tests/integration/test_integration_vespa_cloud_token.py -s -v
 
   integration-cloud-vector-search:
-    requires: [~commit]
+    requires: [~commit,~pr]
     annotations:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
