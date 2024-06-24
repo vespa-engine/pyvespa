@@ -28,11 +28,11 @@ from test_integration_docker import (
 )
 
 APP_INIT_TIMEOUT = 900
+CLIENT_TOKEN_ID = os.environ.get("VESPA_CLIENT_TOKEN_ID", "pyvespa_integration_msmarco")
 
 
 class TestTokenBasedAuth(unittest.TestCase):
     def setUp(self) -> None:
-        token_id = "pyvespa_integration_msmarco"
         self.clients = [
             AuthClient(
                 id="mtls",
@@ -42,7 +42,7 @@ class TestTokenBasedAuth(unittest.TestCase):
             AuthClient(
                 id="token",
                 permissions=["read", "write"],
-                parameters=[Parameter("token", {"id": token_id})],
+                parameters=[Parameter("token", {"id": CLIENT_TOKEN_ID})],
             ),
         ]
         self.app_package = create_msmarco_application_package(auth_clients=self.clients)
@@ -52,7 +52,7 @@ class TestTokenBasedAuth(unittest.TestCase):
             application="pyvespa-integration",
             key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
-            auth_client_token_id=token_id,
+            auth_client_token_id=CLIENT_TOKEN_ID,
         )
         self.disk_folder = os.path.join(os.getcwd(), "sample_application")
         self.instance_name = "token"
@@ -89,7 +89,6 @@ class TestTokenBasedAuth(unittest.TestCase):
 
 class TestMsmarcoApplicationWithTokenAuth(TestApplicationCommon):
     def setUp(self) -> None:
-        token_id = "pyvespa_integration_msmarco"
         self.clients = [
             AuthClient(
                 id="mtls",
@@ -99,7 +98,7 @@ class TestMsmarcoApplicationWithTokenAuth(TestApplicationCommon):
             AuthClient(
                 id="token",
                 permissions=["read", "write"],
-                parameters=[Parameter("token", {"id": token_id})],
+                parameters=[Parameter("token", {"id": CLIENT_TOKEN_ID})],
             ),
         ]
 
@@ -109,7 +108,7 @@ class TestMsmarcoApplicationWithTokenAuth(TestApplicationCommon):
             application="pyvespa-integration",
             key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
-            auth_client_token_id=token_id,
+            auth_client_token_id=CLIENT_TOKEN_ID,
         )
         self.disk_folder = os.path.join(os.getcwd(), "sample_application")
         self.instance_name = "token"
@@ -132,6 +131,13 @@ class TestMsmarcoApplicationWithTokenAuth(TestApplicationCommon):
             }
             for i in range(10)
         ]
+
+    def test_using_token_endpoint(self):
+        endpoint = self.app.url
+        auth_method = self.vespa_cloud.get_endpoint_auth_method(
+            url=endpoint, environment="dev"
+        )
+        self.assertEqual(auth_method, "token")
 
     def test_execute_data_operations(self):
         self.execute_data_operations(
@@ -164,7 +170,6 @@ class TestMsmarcoApplicationWithTokenAuth(TestApplicationCommon):
 
 class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
     def setUp(self) -> None:
-        auth_client_token_id = "pyvespa_integration_msmarco"
         schema_name = "msmarco"
         self.app_package = create_msmarco_application_package()
         # Add prod deployment config
@@ -187,13 +192,13 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
         self.app_package.auth_clients = [
             AuthClient(
                 id="mtls",
-                permissions=["read,write"],
+                permissions=["read"],
                 parameters=[Parameter("certificate", {"file": "security/clients.pem"})],
             ),
             AuthClient(
                 id="token",
                 permissions=["read,write"],
-                parameters=[Parameter("token", {"id": auth_client_token_id})],
+                parameters=[Parameter("token", {"id": CLIENT_TOKEN_ID})],
             ),
         ]
         # Deploy to Vespa Cloud
@@ -202,17 +207,14 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
             application="pyvespa-integration",
             key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
-            auth_client_token_id=auth_client_token_id,
+            auth_client_token_id=CLIENT_TOKEN_ID,
         )
-        self.disk_folder = os.path.join(os.getcwd(), "sample_application")
-        self.instance_name = "token"
-        self.app_package.to_files(self.disk_folder)
+        self.application_root = os.path.join(os.getcwd(), "sample_application")
+        self.instance_name = "default"
         self.build_no = self.vespa_cloud.deploy_to_prod(
             instance=self.instance_name,
-            disk_folder=self.disk_folder,
-            submit_options={
-                "sourceUrl": "https://github.com/vespa-engine/pyvespa"
-            },  # TODO: Add commit hash?
+            application_root=self.application_root,
+            source_url="https://github.com/vespa-engine/pyvespa",
         )
         # Wait for deployment to be ready
         # Wait until buildstatus is succeeded
@@ -229,7 +231,10 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
             time.sleep(5)
         if not success:
             raise ValueError("Deployment failed")
-        self.app = self.vespa_cloud.get_application(environment="prod")
+        self.app = self.vespa_cloud.get_application(
+            instance=self.instance_name, environment="prod"
+        )
+        self.app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
 
         print("Endpoint used " + self.app.url)
         self.fields_to_send = [
@@ -247,6 +252,13 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
             }
             for i in range(10)
         ]
+
+    def test_using_token_endpoint(self):
+        endpoint = self.app.url
+        auth_method = self.vespa_cloud.get_endpoint_auth_method(
+            url=endpoint, environment="prod"
+        )
+        self.assertEqual(auth_method, "token")
 
     def test_execute_data_operations(self):
         self.execute_data_operations(
@@ -282,7 +294,7 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
         self.app_package.validations = [
             Validation(ValidationID("deployment-removal"), formatted_date)
         ]
-        self.app_package.to_files(self.disk_folder)
+        self.app_package.to_files(self.application_root)
         # This will delete the deployment
-        self.vespa_cloud._start_prod_deployment(self.disk_folder)
-        shutil.rmtree(self.disk_folder, ignore_errors=True)
+        self.vespa_cloud._start_prod_deployment(self.application_root)
+        shutil.rmtree(self.application_root, ignore_errors=True)
