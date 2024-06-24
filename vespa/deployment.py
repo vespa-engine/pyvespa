@@ -778,12 +778,6 @@ class VespaCloud(VespaDeployment):
         )
         return app
 
-    def get_deployment_jobs(self) -> List[str]:
-        prod_regions = self.get_prod_regions()
-        return ["system-test", "staging-test"] + [
-            f"production-{region}" for region in prod_regions
-        ]
-
     def check_production_build_status(self, build_no: Optional[int]) -> dict:
         """
         Check the status of a production build.
