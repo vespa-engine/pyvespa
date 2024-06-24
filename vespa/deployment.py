@@ -457,13 +457,13 @@ class VespaCloud(VespaDeployment):
         key_content: Optional[str] = None,
         auth_client_token_id: Optional[str] = None,
         output_file: IO = sys.stdout,
-        disk_folder: Optional[str] = None,
+        application_root: Optional[str] = None,
     ) -> None:
         """
         Deploy application to the Vespa Cloud (cloud.vespa.ai)
         There are several ways to initialize VespaCloud:
         The choices are:
-        - Application source: From python-defined application package or from disk folder.
+        - Application source: From python-defined application package or from application_root folder.
         - Control plane access: With api-key (must be added to Vespa Cloud Console) or access token, obtained by interactive login.
         - Data plane access: mTLS is used by default, but Vespa applications can also be configured to use token based authentication. (token must be added to Vespa Cloud Console, and corresponding auth_token_id must be provided)
 
@@ -483,7 +483,7 @@ class VespaCloud(VespaDeployment):
             vespa_cloud = VespaCloud(
                 tenant="my-tenant",
                 application="my-application",
-                disk_folder="/path/to/application",
+                application_root="/path/to/application",
             )
 
             # 3. Initialize VespaCloud with application package and token based data plane access.
@@ -497,23 +497,23 @@ class VespaCloud(VespaDeployment):
 
         :param tenant: Tenant name registered in the Vespa Cloud.
         :param application: Application name in the Vespa Cloud.
-        :param application_package: ApplicationPackage to be deployed. Either this or disk_folder must be set.
+        :param application_package: ApplicationPackage to be deployed. Either this or application_root must be set.
         :param key_location: Location of the control plane key used for signing HTTP requests to the Vespa Cloud.
         :param key_content: Content of the control plane key used for signing HTTP requests to the Vespa Cloud. Use only when
             key file is not available.
         :param auth_client_token_id: Use token based data plane authentication. This is the token name configured in the Vespa Cloud Console.
-            This is used to configure Vespa services.xml. The token is given read and write permissions. If initiliazing from disk_folder, make sure
+            This is used to configure Vespa services.xml. The token is given read and write permissions. If initiliazing from application_root, make sure
             that services.xml is configured to use the provided token_id.
         :param output_file: Output file to write output messages. Default is sys.stdout
-        :param disk_folder: Disk folder for application root.
+        :param application_root: Directory for application root. (location of services.xml, models/, schemas/, etc.)
         """
         self.tenant = tenant
         self.application = application
         self.application_package = application_package
-        self.disk_folder = disk_folder
-        if self.application_package is None and self.disk_folder is None:
+        self.application_root = application_root
+        if self.application_package is None and self.application_root is None:
             raise ValueError(
-                "Either application_package or disk_folder must be set for deployment."
+                "Either application_package or application_root must be set for deployment."
             )
         self.output = output_file
         self.api_key = self._read_private_key(key_location, key_content)
@@ -565,7 +565,7 @@ class VespaCloud(VespaDeployment):
                 ]
             else:
                 print(
-                    "Warning: Auth client token id set, but no application package provided. Make sure that services.xml is configured to use the provided token_id.",
+                    "Auth client token id set, but no application package provided. Make sure that services.xml is configured to use the provided token_id.",
                     file=self.output,
                 )
         self.build_no = None  # Build number of submitted production deployment
@@ -649,39 +649,33 @@ class VespaCloud(VespaDeployment):
     def deploy_to_prod(
         self,
         instance: Optional[str] = "default",
-        disk_folder: Optional[str] = None,
-        submit_options: Dict[str, str] = {},
+        application_root: Optional[str] = None,
+        source_url: str = "",
     ) -> None:
         """
         Deploy the given application package as the given instance in the Vespa Cloud prod environment.
         NB! This feature is experimental and may fail in unexpected ways. Expect better support in future releases.
 
         :param instance: Name of this instance of the application, in the Vespa Cloud.
-        :param disk_folder: Disk folder to either save the required Vespa config files (if initialized with application_package) or read them from (if initialized with disk_folder).
-        :param submit_options: Optional dictionary of submit options, containing one or more of the following keys:
-            - "repository"
-            - "branch"
-            - "commit"
-            - "description"
-            - "authorEmail"
-            - "sourceUrl"
-            These will show up in the Vespa Cloud Console.
+        :param application_root: Path to either save the required Vespa config files (if initialized with application_package) or read them from (if initialized with application_root).
+        :param source_url: Optional source URL (including commit hash) for the deployment. This is a URL to the source code repository, e.g. GitHub, that is used to build the application package. Example: https://github.com/vespa-cloud/vector-search/commit/474d7771bd938d35dc5dcfd407c21c019d15df3c.
+        The source URL will show up in the Vespa Cloud Console next to the build number.
 
         """
         logging.warning(
             "Deploying to production is in beta and may fail in unexpected ways. Expect better support in future releases."
         )
-        if disk_folder is None:
-            if self.disk_folder is None:
-                disk_folder = os.path.join(os.getcwd(), self.application)
+        if application_root is None:
+            if self.application_root is None:
+                application_root = os.path.join(os.getcwd(), self.application)
             else:
-                disk_folder = self.disk_folder
+                application_root = self.application_root
         if self.application_package is not None:
             if self.application_package.deployment_config is None:
                 raise ValueError("Prod deployment requires a deployment_config.")
-            self.application_package.to_files(disk_folder)
+            self.application_package.to_files(application_root)
 
-        self.build_no = self._start_prod_deployment(disk_folder, submit_options)
+        self.build_no = self._start_prod_deployment(application_root, source_url)
         deployable_build_no = self._get_last_deployable(self.build_no)
         if deployable_build_no != self.build_no:
             print(
@@ -758,7 +752,7 @@ class VespaCloud(VespaDeployment):
         else:
             token_endpoint = None
         print(f"Connecting to {token_endpoint or mtls_endpoint}", file=self.output)
-        app = Vespa(
+        app: Vespa = Vespa(
             url=token_endpoint or mtls_endpoint,
             cert=self.data_cert_path,
             key=self.data_key_path,
@@ -1096,21 +1090,21 @@ class VespaCloud(VespaDeployment):
         return regions[0]
 
     def get_regions_from_deployment_xml(
-        self, disk_folder: Optional[str] = None
+        self, application_root: Optional[str] = None
     ) -> List[str]:
         # Parse the XML data from file
-        if disk_folder is None:
-            if self.disk_folder is None:
-                disk_folder = os.path.join(os.getcwd(), self.application)
+        if application_root is None:
+            if self.application_root is None:
+                application_root = os.path.join(os.getcwd(), self.application)
             else:
-                disk_folder = self.disk_folder
-        deployment_xml_path = Path(disk_folder) / "deployment.xml"
+                application_root = self.application_root
+        deployment_xml_path = Path(application_root) / "deployment.xml"
         try:
             with open(deployment_xml_path) as f:
                 xml_data = f.read()
         except FileNotFoundError:
             raise FileNotFoundError(
-                f"deployment.xml not found in {deployment_xml_path}. Provide disk_folder with the path to application root."
+                f"deployment.xml not found in {deployment_xml_path}. Provide application_root with the path to application root."
             )
         root = ET.fromstring(xml_data)
 
@@ -1122,9 +1116,9 @@ class VespaCloud(VespaDeployment):
         ]
         return regions
 
-    def get_prod_regions(self, disk_folder: Optional[str] = None) -> List[str]:
+    def get_prod_regions(self, application_root: Optional[str] = None) -> List[str]:
         if self.application_package is None:
-            regions = self.get_regions_from_deployment_xml(self.disk_folder)
+            regions = self.get_regions_from_deployment_xml(self.application_root)
         else:
             if self.application_package.deployment_config is None:
                 raise ValueError("Deployment config not found.")
@@ -1338,7 +1332,7 @@ class VespaCloud(VespaDeployment):
         return self.get_endpoint("token", instance, region, environment)
 
     def _start_prod_deployment(
-        self, disk_folder: str, submit_options: Dict[str, str] = {}
+        self, application_root: str, source_url: str = ""
     ) -> int:
         # The submit API is used for prod deployments
         deploy_path = "/application/v4/tenant/{}/application/{}/submit/".format(
@@ -1346,14 +1340,14 @@ class VespaCloud(VespaDeployment):
         )
 
         # Create app package zip
-        Path(disk_folder).mkdir(parents=True, exist_ok=True)
+        Path(application_root).mkdir(parents=True, exist_ok=True)
         if self.application_package is not None:
             application_package_zip_bytes = self._to_application_zip(
-                disk_folder=disk_folder
+                disk_folder=application_root
             )
         else:
             # Need to write the certificate to disk_folder in security/clients.pem
-            client_pem_path = os.path.join(disk_folder, "security/clients.pem")
+            client_pem_path = os.path.join(application_root, "security/clients.pem")
             if not os.path.exists(client_pem_path):
                 os.makedirs(os.path.dirname(client_pem_path), exist_ok=True)
                 with open(client_pem_path, "wb") as clients_pem:
@@ -1361,15 +1355,14 @@ class VespaCloud(VespaDeployment):
                         self.data_certificate.public_bytes(serialization.Encoding.PEM)
                     )
             application_package_zip_bytes = BytesIO(
-                self.read_app_package_from_disk(disk_folder)
+                self.read_app_package_from_disk(application_root)
             )
 
-        submit_options.update(
-            {
-                "projectId": 1,
-                "risk": 0,
-            }
-        )
+        submit_options = {
+            "projectId": 1,
+            "risk": 0,
+            "sourceUrl": source_url,
+        }
 
         # Vespa expects prod deployments to be submitted as multipart data
         multipart_data = MultipartEncoder(
