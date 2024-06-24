@@ -528,6 +528,10 @@ class VespaCloud(VespaDeployment):
                 )
             )
             self.control_plane_auth_method = "api_key"
+            print(
+                "Api-key found for control plane access. Using api-key.",
+                file=self.output,
+            )
         else:
             self.api_public_key_bytes = None
             self.control_plane_auth_method = "access_token"
@@ -676,13 +680,7 @@ class VespaCloud(VespaDeployment):
             self.application_package.to_files(application_root)
 
         self.build_no = self._start_prod_deployment(application_root, source_url)
-        deployable_build_no = self._get_last_deployable(self.build_no)
-        if deployable_build_no != self.build_no:
-            print(
-                f"Returning last deployable build number: {deployable_build_no}",
-                file=self.output,
-            )
-            self.build_no = deployable_build_no
+
         deploy_url = "https://console.vespa-cloud.com/tenant/{}/application/{}/prod/deployment".format(
             self.tenant, self.application
         )
@@ -692,7 +690,7 @@ class VespaCloud(VespaDeployment):
     def _get_last_deployable(self, build_no: int) -> int:
         # This is due to optimization that some builds will not be deployable (e.g if no diff from previous build)
         # May take a few seconds for the build to show up in the deployment list
-        max_wait = 10
+        max_wait = 5
         start = time.time()
         while time.time() - start < max_wait:
             time.sleep(1)
@@ -714,7 +712,11 @@ class VespaCloud(VespaDeployment):
         )
 
     def get_application(
-        self, instance: str = "default", environment: str = "dev", max_wait: int = 60
+        self,
+        instance: str = "default",
+        environment: str = "dev",
+        region: Optional[str] = None,
+        max_wait: int = 60,
     ) -> Vespa:
         """
         Get a connection to the Vespa application instance.
@@ -728,14 +730,25 @@ class VespaCloud(VespaDeployment):
 
         :param instance: Name of this instance of the application, in the Vespa Cloud. Default is "default".
         :param environment: Environment of the application. Default is "dev". Options are "dev" or "prod".
+        :param region: Region of the application in Vespa cloud, eg "aws-us-east-1c". If not provided, the first region from the environment will be used.
         :param max_wait: Seconds to wait for the application to be up. Default is 60 seconds.
 
         :return: Vespa application instance.
         """
         if environment == "dev":
             region = self.get_dev_region()
+            print(
+                f"Only region: {region} available in dev environment.", file=self.output
+            )
         elif environment == "prod":
-            region = self.get_prod_region()
+            valid_regions = self.get_prod_regions()
+            if region is not None:
+                if region not in valid_regions:
+                    raise ValueError(
+                        f"Region {region} not found in production regions: {valid_regions}"
+                    )
+            else:
+                region = valid_regions[0]
         else:
             raise ValueError("Environment must be 'dev' or 'prod'.")
 
@@ -751,6 +764,10 @@ class VespaCloud(VespaDeployment):
                 token_endpoint = None
         else:
             token_endpoint = None
+        if token_endpoint is None and mtls_endpoint is None:
+            raise ValueError(
+                "No token endpoint or mtls endpoint found. Please check your deployment."
+            )
         print(f"Connecting to {token_endpoint or mtls_endpoint}", file=self.output)
         app: Vespa = Vespa(
             url=token_endpoint or mtls_endpoint,
@@ -1194,6 +1211,7 @@ class VespaCloud(VespaDeployment):
         except json.JSONDecodeError:
             parsed = response.read()
         if response.status != 200:
+            print(parsed)
             raise HTTPError(
                 f"HTTP {response.status} error: {response.reason} for {url}"
             )
@@ -1241,6 +1259,7 @@ class VespaCloud(VespaDeployment):
         response = self.get_connection_response_with_retry(method, path, body, headers)
         parsed = json.load(response)
         if response.status != 200:
+            print(parsed)
             raise HTTPError(
                 f"HTTP {response.status} error: {response.reason} for {url}"
             )
@@ -1288,16 +1307,19 @@ class VespaCloud(VespaDeployment):
         instance: Optional[str] = "default",
         region: Optional[str] = None,
         environment: Optional[str] = "dev",
+        cluster: Optional[str] = None,
     ) -> str:
         # TODO: Support multiple endpoints.
         auth_endpoints = []
         endpoints = self.get_all_endpoints(instance, region, environment)
         for endpoint in endpoints:
-            cluster = endpoint.get("cluster", None)
+            endpoint_cluster = endpoint.get("cluster", None)
+            if cluster is not None and cluster != endpoint_cluster:
+                continue
             authMethod = endpoint.get("authMethod", None)
             if authMethod == auth_method:
                 print(
-                    f"Found {auth_method} endpoint for {cluster}",
+                    f"Found {auth_method} endpoint for {endpoint_cluster}",
                     file=self.output,
                 )
                 print(f"URL: {endpoint['url']}", file=self.output)
@@ -1332,7 +1354,7 @@ class VespaCloud(VespaDeployment):
         return self.get_endpoint("token", instance, region, environment)
 
     def _start_prod_deployment(
-        self, application_root: str, source_url: str = ""
+        self, application_root: str, source_url: str = "", instance: str = "default"
     ) -> int:
         # The submit API is used for prod deployments
         deploy_path = "/application/v4/tenant/{}/application/{}/submit/".format(
@@ -1361,8 +1383,9 @@ class VespaCloud(VespaDeployment):
         submit_options = {
             "projectId": 1,
             "risk": 0,
-            "sourceUrl": source_url,
         }
+        if source_url:
+            submit_options["sourceUrl"] = source_url
 
         # Vespa expects prod deployments to be submitted as multipart data
         multipart_data = MultipartEncoder(
@@ -1406,7 +1429,7 @@ class VespaCloud(VespaDeployment):
             headers = {
                 "X-Timestamp": timestamp,
                 "X-Content-Hash": content_hash,
-                "X-Key-Id": self.tenant + ":" + self.application + ":" + "default",
+                "X-Key-Id": self.tenant + ":" + self.application + ":" + instance,
                 "X-Key": self.api_public_key_bytes,
                 "X-Authorization": standard_b64encode(signature),
             }
@@ -1425,8 +1448,16 @@ class VespaCloud(VespaDeployment):
             "POST", deploy_path, body=multipart_data_bytes, headers=headers
         )
         message = response.get("message", "No message provided")
-        build_no = int(response.get("build", None))
         print(message, file=self.output)
+        build_no = int(response.get("build"))
+        skipped = bool(response.get("skipped"))
+        if skipped:
+            deployable_build_no = self._get_last_deployable(build_no)
+            print(
+                f"Build {build_no} was skipped. Returning last deployable build {deployable_build_no} instead.",
+                file=self.output,
+            )
+            build_no = deployable_build_no
         # Set submitted_timestamp in format 1718776065383
         # Use current UTC time in milliseconds
         self.submitted_timestamp = int(datetime.utcnow().timestamp() * 1000)
