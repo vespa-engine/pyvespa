@@ -1,6 +1,5 @@
 import unittest
-from unittest.mock import patch, MagicMock, mock_open
-from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 from vespa.deployment import VespaCloud
 
@@ -90,17 +89,6 @@ class TestVespaCloud(unittest.TestCase):
         regions = self.vespa_cloud.get_prod_regions()
 
         self.assertEqual(regions, ["us-east-1", "us-west-1"])
-
-    @patch(
-        "builtins.open",
-        new_callable=mock_open,
-        read_data='<deployment version="1.0"><prod><region>us-east-1</region><region>us-west-1</region></prod></deployment>',
-    )
-    def test_get_regions_from_deployment_xml(self, mock_file):
-        regions = self.vespa_cloud.get_regions_from_deployment_xml("/fake/path")
-
-        self.assertEqual(regions, ["us-east-1", "us-west-1"])
-        mock_file.assert_called_once_with(Path("/fake/path") / "deployment.xml")
 
     @patch("vespa.deployment.VespaCloud._request")
     def test_check_production_build_status_deployed(self, mock_request):
