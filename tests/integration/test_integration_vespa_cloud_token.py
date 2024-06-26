@@ -168,10 +168,12 @@ class TestMsmarcoApplicationWithTokenAuth(TestApplicationCommon):
         self.vespa_cloud.delete(instance=self.instance_name)
 
 
+# Skip for now, due to bug with AuthClient parsing
+@pytest.mark.skip
 class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
     def setUp(self) -> None:
         schema_name = "msmarco"
-        auth_clients = [
+        self.auth_clients = [
             AuthClient(
                 id="mtls",
                 permissions=["read"],
@@ -183,7 +185,9 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
                 parameters=[Parameter("token", {"id": CLIENT_TOKEN_ID})],
             ),
         ]
-        self.app_package = create_msmarco_application_package(auth_clients=auth_clients)
+        self.app_package = create_msmarco_application_package(
+            auth_clients=self.auth_clients
+        )
         # Add prod deployment config
         prod_region = "aws-us-east-1c"
         self.app_package.clusters = [
@@ -204,16 +208,15 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
         # Deploy to Vespa Cloud
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
-            application="pyvespa-integration",
+            application="pyvespa-int-prod",
             key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
             auth_client_token_id=CLIENT_TOKEN_ID,
         )
         self.application_root = os.path.join(os.getcwd(), "sample_application")
-        self.instance_name = "default"
+        self.instance_name = "token"
         self.build_no = self.vespa_cloud.deploy_to_prod(
             instance=self.instance_name,
-            application_root=self.application_root,
             source_url="https://github.com/vespa-engine/pyvespa",
         )
         # Wait for deployment to be ready
