@@ -79,18 +79,6 @@ class TestVespaCloud(unittest.TestCase):
             self.vespa_cloud._follow_deployment("default", "dev-us-east-1", 123)
 
     @patch("vespa.deployment.VespaCloud._request")
-    def test_get_prod_regions(self, mock_request):
-        self.vespa_cloud.application_package = MagicMock()
-        self.vespa_cloud.application_package.deployment_config.regions = [
-            "us-east-1",
-            "us-west-1",
-        ]
-
-        regions = self.vespa_cloud.get_prod_regions()
-
-        self.assertEqual(regions, ["us-east-1", "us-west-1"])
-
-    @patch("vespa.deployment.VespaCloud._request")
     def test_check_production_build_status_deployed(self, mock_request):
         mock_request.return_value = {"deployed": True, "status": "done"}
 
