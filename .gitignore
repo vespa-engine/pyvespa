@@ -145,3 +145,7 @@ Pipfile
 _site/
 pyvespa_index.json
 paragraph_index.json
+
+# All .pem and .crt files
+*.pem
+*.crt
