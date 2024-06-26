@@ -18,7 +18,6 @@ import subprocess
 import shlex
 import select
 from dateutil import parser
-import xml.etree.ElementTree as ET
 import time
 
 import docker
@@ -30,7 +29,7 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 
 from vespa.application import Vespa, VESPA_CLOUD_SECRET_TOKEN
-from vespa.package import ApplicationPackage, AuthClient, Parameter
+from vespa.package import ApplicationPackage
 from vespa.utils.notebook import is_jupyter_notebook
 
 # Get the Vespa home directory
@@ -452,7 +451,7 @@ class VespaCloud(VespaDeployment):
         self,
         tenant: str,
         application: str,
-        application_package: ApplicationPackage = None,
+        application_package: Optional[ApplicationPackage] = None,
         key_location: Optional[str] = None,
         key_content: Optional[str] = None,
         auth_client_token_id: Optional[str] = None,
@@ -553,20 +552,11 @@ class VespaCloud(VespaDeployment):
         self.auth_client_token_id = auth_client_token_id
         if auth_client_token_id is not None:
             if self.application_package is not None:
-                self.application_package.auth_clients = [
-                    AuthClient(
-                        id="mtls",
-                        permissions=["read,write"],
-                        parameters=[
-                            Parameter("certificate", {"file": "security/clients.pem"})
-                        ],
-                    ),
-                    AuthClient(
-                        id="token",
-                        permissions=["read,write"],
-                        parameters=[Parameter("token", {"id": auth_client_token_id})],
-                    ),
-                ]
+                # TODO: Should add some check to see if the auth_client_token_id is added to AuthClients.
+                print(
+                    "Auth client token id set. Make sure that corresponding auth_client is configured and added to ApplicationPackage.",
+                    file=self.output,
+                )
             else:
                 print(
                     "Auth client token id set, but no application package provided. Make sure that services.xml is configured to use the provided token_id.",
@@ -627,12 +617,14 @@ class VespaCloud(VespaDeployment):
         mtls_endpoint = self.get_mtls_endpoint(
             instance=instance,
             region=region,
+            environment="dev",
         )
         if self.auth_client_token_id is not None:
             try:  # May have client_token_id set but the deployed app was not configured to use it
                 token_endpoint = self.get_token_endpoint(
                     instance=instance,
                     region=region,
+                    environment="dev",
                 )
             except Exception as _:
                 token_endpoint = None
@@ -679,7 +671,9 @@ class VespaCloud(VespaDeployment):
                 raise ValueError("Prod deployment requires a deployment_config.")
             self.application_package.to_files(application_root)
 
-        self.build_no = self._start_prod_deployment(application_root, source_url)
+        self.build_no = self._start_prod_deployment(
+            application_root, source_url, instance
+        )
 
         deploy_url = "https://console.vespa-cloud.com/tenant/{}/application/{}/prod/deployment".format(
             self.tenant, self.application
@@ -741,7 +735,7 @@ class VespaCloud(VespaDeployment):
                 f"Only region: {region} available in dev environment.", file=self.output
             )
         elif environment == "prod":
-            valid_regions = self.get_prod_regions()
+            valid_regions = self.get_prod_regions(instance=instance)
             if region is not None:
                 if region not in valid_regions:
                     raise ValueError(
@@ -1100,40 +1094,21 @@ class VespaCloud(VespaDeployment):
         regions = self.get_prod_regions()
         return regions[0]
 
-    def get_regions_from_deployment_xml(
-        self, application_root: Optional[str] = None
-    ) -> List[str]:
-        # Parse the XML data from file
-        if application_root is None:
-            if self.application_root is None:
-                application_root = os.path.join(os.getcwd(), self.application)
-            else:
-                application_root = self.application_root
-        deployment_xml_path = Path(application_root) / "deployment.xml"
-        try:
-            with open(deployment_xml_path) as f:
-                xml_data = f.read()
-        except FileNotFoundError:
-            raise FileNotFoundError(
-                f"deployment.xml not found in {deployment_xml_path}. Provide application_root with the path to application root."
+    def get_prod_regions(self, instance: Optional[str] = "default") -> List[str]:
+        regions = []
+        info = self._request(
+            method="GET",
+            path=f"/application/v4/tenant/{self.tenant}/application/{self.application}",
+        )
+        for inst in info["instances"]:
+            if inst["instance"] == instance:
+                for deployment in inst["deployments"]:
+                    if deployment["environment"] == "prod":
+                        regions.append(deployment["region"])
+        if not regions:
+            raise ValueError(
+                f"No production regions found for instance {instance}, available instances: {info['instances']}",
             )
-        root = ET.fromstring(xml_data)
-
-        # Find all 'region' elements that have 'prod' as a parent
-        regions = [
-            region.text
-            for prod in root.findall(".//prod")
-            for region in prod.findall("region")
-        ]
-        return regions
-
-    def get_prod_regions(self, application_root: Optional[str] = None) -> List[str]:
-        if self.application_package is None:
-            regions = self.get_regions_from_deployment_xml(self.application_root)
-        else:
-            if self.application_package.deployment_config is None:
-                raise ValueError("Deployment config not found.")
-            regions = self.application_package.deployment_config.regions
         return regions
 
     @retry(
