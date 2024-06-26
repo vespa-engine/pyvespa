@@ -854,7 +854,7 @@ class VespaCloud(VespaDeployment):
         while time.time() - start_time < max_wait:
             status = self.check_production_build_status(build_no)
             if status["status"] == "done":
-                return status
+                return status["deployed"]
             time.sleep(poll_interval)
         raise TimeoutError(f"Deployment did not finish within {max_wait} seconds. ")
 
