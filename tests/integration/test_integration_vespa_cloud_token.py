@@ -168,7 +168,7 @@ class TestMsmarcoApplicationWithTokenAuth(TestApplicationCommon):
         self.vespa_cloud.delete(instance=self.instance_name)
 
 
-# Skip for now, due to bug with AuthClient parsing
+# Skip for now, due to bug with AuthClient parsing. Add after that is fixed.
 @pytest.mark.skip
 class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
     def setUp(self) -> None:
@@ -228,9 +228,10 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
             build_status = self.vespa_cloud.check_production_build_status(
                 build_no=self.build_no
             )
-            if build_status["status"] == "done":  # TODO:  add build_status["deployed"]:
-                success = True
-                break
+            if build_status["status"] == "done":
+                if build_status["deployed"]:
+                    success = True
+                    break
             time.sleep(5)
         if not success:
             raise ValueError("Deployment failed")
