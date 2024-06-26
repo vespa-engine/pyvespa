@@ -1424,7 +1424,7 @@ class VespaCloud(VespaDeployment):
         if skipped:
             deployable_build_no = self._get_last_deployable(build_no)
             print(
-                f"Build {build_no} was skipped. Returning last deployable build {deployable_build_no} instead.",
+                f"Build {build_no} will not be deployed, being equal to the previous one. Returning last deployable build {deployable_build_no} instead.",
                 file=self.output,
             )
             build_no = deployable_build_no
