@@ -519,6 +519,13 @@ class VespaCloud(VespaDeployment):
         self.control_plane_auth_method = None  # "api_key" or "access_token"
         self.control_plane_access_token = None
         self.auth_file_path = VESPA_HOME / "auth.json"
+        if self._check_vespacli_available():
+            # Run vespa config set application
+            print("Setting application...")
+            self._set_application()
+            # Run vespa config set target cloud
+            print("Setting target cloud...")
+            self._set_target_cloud()
         if self.api_key:
             self.api_public_key_bytes = standard_b64encode(
                 self.api_key.public_key().public_bytes(
@@ -1076,12 +1083,6 @@ class VespaCloud(VespaDeployment):
         )
 
     def _generate_cert_vespacli(self) -> None:
-        # Run vespa config set application
-        print("Setting application...")
-        self._set_application()
-        # Run vespa config set target cloud
-        print("Setting target cloud...")
-        self._set_target_cloud()
         # Run vespa auth cert
         print("Generating certificate and key...")
         self._vespa_auth_cert()
