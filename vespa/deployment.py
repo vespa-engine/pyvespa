@@ -826,6 +826,38 @@ class VespaCloud(VespaDeployment):
         )
         return status
 
+    def wait_for_prod_deployment(
+        self,
+        build_no: Optional[int] = None,
+        max_wait: int = 3600,
+        poll_interval: int = 5,
+    ) -> bool:
+        """
+        Wait for a production deployment to finish.
+        Useful for example in CI/CD pipelines to wait for a deployment to finish.
+
+        Example usage::
+
+            vespa_cloud = VespaCloud(...)
+            build_no = vespa_cloud.deploy_to_prod()
+            status = vespa_cloud.wait_for_prod_deployment(build_no, max_wait=3600, poll_interval=5)
+            print(status)
+
+        :param build_no: The build number to check.
+        :param max_wait: Maximum time to wait for the deployment in seconds. Default is 3600 (1 hour).
+        :param poll_interval: Polling interval in seconds. Default is 5 seconds.
+
+        :return: True if the deployment is done and converged. False if the deployment has failed.
+        :raises TimeoutError: If the deployment did not finish within max_wait seconds.
+        """
+        start_time = time.time()
+        while time.time() - start_time < max_wait:
+            status = self.check_production_build_status(build_no)
+            if status["status"] == "done":
+                return status
+            time.sleep(poll_interval)
+        raise TimeoutError(f"Deployment did not finish within {max_wait} seconds. ")
+
     def deploy_from_disk(
         self, instance: str, application_root: Path, max_wait: int = 300
     ) -> Vespa:
