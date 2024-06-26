@@ -285,21 +285,11 @@ class TestProdDeploymentFromDisk(TestVectorSearch):
             instance=self.instance_name,
             application_root=self.application_root,
         )
-        # Wait until buildstatus is succeeded
-        max_wait = 1800  # Could take up to 30 minutes
-        start = time.time()
-        success = False
-        while time.time() - start < max_wait:
-            build_status = self.vespa_cloud.check_production_build_status(
-                build_no=self.build_no
-            )
-            if build_status["status"] == "done":
-                if build_status["deployed"]:
-                    success = True
-                    break
-            time.sleep(5)
+        success = self.vespa_cloud.wait_for_prod_deployment(
+            build_no=self.build_no, max_wait=1800
+        )
         if not success:
-            raise ValueError("Deployment failed. Please check the Vespa Cloud console.")
+            self.fail("Deployment failed")
         self.app: Vespa = self.vespa_cloud.get_application(environment="prod")
         self.app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
 
