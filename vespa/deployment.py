@@ -840,8 +840,9 @@ class VespaCloud(VespaDeployment):
 
             vespa_cloud = VespaCloud(...)
             build_no = vespa_cloud.deploy_to_prod()
-            status = vespa_cloud.wait_for_prod_deployment(build_no, max_wait=3600, poll_interval=5)
-            print(status)
+            success = vespa_cloud.wait_for_prod_deployment(build_no, max_wait=3600, poll_interval=5)
+            print(success)
+            True
 
         :param build_no: The build number to check.
         :param max_wait: Maximum time to wait for the deployment in seconds. Default is 3600 (1 hour).
