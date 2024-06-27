@@ -290,13 +290,13 @@ class TestRankProfile(unittest.TestCase):
         )
         self.assertEqual(rank_profile.inputs[0][0], "query(image_query_embedding)")
         self.assertEqual(rank_profile.inputs[1][0], "query(image_query_embedding2)")
-    
+
     def test_rank_profile_mutate_definition(self):
         mutate: Mutate = Mutate(
             on_match={
                 "attribute": "my_mutable_attribute",
                 "operation_string": "+=",
-                "operation_value": 5
+                "operation_value": 5,
             },
             on_first_phase=None,
             on_second_phase={
@@ -307,13 +307,11 @@ class TestRankProfile(unittest.TestCase):
             on_summary={
                 "attribute": "my_mutable_attribute",
                 "operation_string": "=",
-                "operation_value": 42
-            }
+                "operation_value": 42,
+            },
         )
         rank_profile = RankProfile(
-            name="track_some_attribute",
-            first_phase="bm25(title)",
-            mutate=mutate
+            name="track_some_attribute", first_phase="bm25(title)", mutate=mutate
         )
         self.assertTrue(rank_profile.mutate.on_match)
         self.assertFalse(rank_profile.mutate.on_first_phase)
@@ -321,8 +319,12 @@ class TestRankProfile(unittest.TestCase):
         self.assertTrue(rank_profile.mutate.on_summary)
 
         self.assertEqual(rank_profile.mutate.on_match_attribute, "my_mutable_attribute")
-        self.assertEqual(rank_profile.mutate.on_second_phase_attribute, "my_mutable_attribute")
-        self.assertEqual(rank_profile.mutate.on_summary_attribute, "my_mutable_attribute")
+        self.assertEqual(
+            rank_profile.mutate.on_second_phase_attribute, "my_mutable_attribute"
+        )
+        self.assertEqual(
+            rank_profile.mutate.on_summary_attribute, "my_mutable_attribute"
+        )
 
         self.assertEqual(rank_profile.mutate.on_match_operation_string, "+=")
         self.assertEqual(rank_profile.mutate.on_second_phase_operation_string, "-=")
@@ -331,6 +333,7 @@ class TestRankProfile(unittest.TestCase):
         self.assertEqual(rank_profile.mutate.on_match_operation_value, 5)
         self.assertEqual(rank_profile.mutate.on_second_phase_operation_value, 3)
         self.assertEqual(rank_profile.mutate.on_summary_operation_value, 42)
+
 
 class TestSchema(unittest.TestCase):
     def setUp(self) -> None:
@@ -1379,6 +1382,70 @@ class TestClientTokenSetup(unittest.TestCase):
         self.assertEqual(self.app_package.services_to_text, expected_result)
 
 
+class TestClientsWithCluster(unittest.TestCase):
+    def setUp(self) -> None:
+        schema_name = "test"
+        clients = [
+            AuthClient(
+                id="mtls",
+                permissions=["read", "write"],
+                parameters=[Parameter("certificate", {"file": "security/clients.pem"})],
+            ),
+            AuthClient(
+                id="token",
+                permissions=["read", "write"],
+                parameters=[Parameter("token", {"id": "accessToken"})],
+            ),
+        ]
+        clusters = [
+            ContentCluster(
+                id=f"{schema_name}_content",
+                nodes=Nodes(count="2"),
+                document_name=schema_name,
+                min_redundancy="2",
+            ),
+            ContainerCluster(
+                id=f"{schema_name}_container",
+                nodes=Nodes(count="2"),
+                auth_clients=clients,
+            ),
+        ]
+        self.app_package = ApplicationPackage(
+            name="testapp",
+            clusters=clusters,
+        )
+
+    def test_services_to_text(self):
+        self.maxDiff = None
+        expected_result = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<services version="1.0">\n'
+            '    <content id="test_content" version="1.0">\n'
+            '        <nodes count="2"/>\n'
+            "        <min-redundancy>2</min-redundancy>\n"
+            "        <documents>\n"
+            '            <document type="test" mode="index"></document>\n'
+            "        </documents>\n"
+            "    </content>\n"
+            '    <container id="test_container" version="1.0">\n'
+            '        <nodes count="2"/>\n'
+            "        <search></search>\n"
+            "        <document-api></document-api>\n"
+            "        <document-processing></document-processing>\n"
+            "        <clients>\n"
+            '            <client id="mtls" permissions="read,write">\n'
+            '                <certificate file="security/clients.pem"/>\n'
+            "            </client>\n"
+            '            <client id="token" permissions="read,write">\n'
+            '                <token id="accessToken"/>\n'
+            "            </client>\n"
+            "        </clients>\n"
+            "    </container>\n"
+            "</services>"
+        )
+        self.assertEqual(self.app_package.services_to_text, expected_result)
+
+
 class TestValidAppName(unittest.TestCase):
     def test_invalid_name(self):
         with pytest.raises(ValueError):
@@ -1508,6 +1575,55 @@ class TestCluster(unittest.TestCase):
             "</services>"
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
+
+
+class TestAuthClientEquality(unittest.TestCase):
+    def setUp(self) -> None:
+        self.clients_one = [
+            AuthClient(
+                id="mtls",
+                permissions=["read", "write"],
+                parameters=[Parameter("certificate", {"file": "security/clients.pem"})],
+            ),
+            AuthClient(
+                id="token",
+                permissions=["read"],
+                parameters=[Parameter("token", {"id": "accessToken"})],
+            ),
+        ]
+
+        self.clients_two = [
+            AuthClient(
+                id="token",
+                permissions=["read"],
+                parameters=[Parameter("token", {"id": "accessToken"})],
+            ),
+            AuthClient(
+                id="mtls",
+                permissions=["read", "write"],
+                parameters=[Parameter("certificate", {"file": "security/clients.pem"})],
+            ),
+        ]
+
+        self.clients_three = [
+            AuthClient(
+                id="mtls",
+                permissions=["read"],
+                parameters=[Parameter("certificate", {"file": "security/clients.pem"})],
+            ),
+            AuthClient(
+                id="foo",
+                permissions=["read"],
+                parameters=[Parameter("token", {"id": "bar"})],
+            ),
+        ]
+
+    def test_auth_client_equality(self):
+        # Test equality between two lists with different order
+        self.assertEqual(sorted(self.clients_one), sorted(self.clients_two))
+
+        # Test inequality between different client lists
+        self.assertNotEqual(self.clients_one, self.clients_three)
 
 
 class TestDeploymentConfiguration(unittest.TestCase):
