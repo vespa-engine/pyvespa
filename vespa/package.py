@@ -4,6 +4,7 @@ from enum import Enum
 import os
 import sys
 import zipfile
+import warnings
 
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
@@ -991,16 +992,16 @@ class GlobalPhaseRanking(object):
 
 class Mutate(object):
     def __init__(
-            self, 
-            on_match: Union[Dict, None], 
-            on_first_phase: Union[Dict, None],
-            on_second_phase: Union[Dict, None], 
-            on_summary: Union[Dict, None],
-        ) -> None:
+        self,
+        on_match: Union[Dict, None],
+        on_first_phase: Union[Dict, None],
+        on_second_phase: Union[Dict, None],
+        on_summary: Union[Dict, None],
+    ) -> None:
         r"""
         Enable mutating operations in rank profiles.
 
-        Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#mutate> 
+        Vespa documentation <https://docs.vespa.ai/en/reference/schema-reference.html#mutate>
         for more detailed information about mutable attributes.
 
         :param on_match: Can be None or Dict. Dictionary contains 3 mandatory keys for the on-match phase:
@@ -1048,7 +1049,6 @@ class Mutate(object):
             self.on_summary_operation_value = on_summary["operation_value"]
         else:
             self.on_summary = False
-        
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
@@ -1062,11 +1062,11 @@ class Mutate(object):
 
     def __repr__(self) -> str:
         return "{0}({1}, {2}, {3}, {4})".format(
-            self.__class__.__name__, 
-            repr(self.on_match), 
-            repr(self.on_first_phase), 
-            repr(self.on_second_phase), 
-            repr(self.on_summary)
+            self.__class__.__name__,
+            repr(self.on_match),
+            repr(self.on_first_phase),
+            repr(self.on_second_phase),
+            repr(self.on_summary),
         )
 
 
@@ -1253,7 +1253,7 @@ class RankProfile(object):
             repr(self.rank_type),
             repr(self.rank_properties),
             repr(self.inputs),
-            repr(self.mutate)
+            repr(self.mutate),
         )
 
 
@@ -1768,6 +1768,15 @@ class Parameter(object):
                     child.to_xml(xml)
         return xml
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (
+            self.name == other.name
+            and self.args == other.args
+            and self.children == other.children
+        )
+
 
 class AuthClient(object):
     def __init__(
@@ -1776,9 +1785,36 @@ class AuthClient(object):
         permissions: List[str],
         parameters: Optional[List[Parameter]] = None,
     ) -> None:
+        """
+        Create a Vespa AuthClient.
+
+        Check the `Vespa documentation <https://docs.vespa.ai/en/reference/services-container.html#auth-client>`__
+
+        :param id: The auth client id.
+        :param permissions: List of permissions.
+        :param parameters: List of :class:`Parameter` defining the configuration of the auth client.
+
+        Example:
+
+        >>> AuthClient(
+        ...     id="token",
+        ...     permissions=["read", "write"],
+        ...     parameters=[Parameter("token", {"id": "my-token-id"})],
+        ... )
+        AuthClient(id="token", permissions="['read', 'write']")
+        """
         self.id = id
         self.permissions = permissions
         self.parameters = parameters
+
+    def to_xml(self, root) -> ET.Element:
+        xml = ET.SubElement(root, "client")
+        xml.set("id", self.id)
+        xml.set("permissions", ",".join(self.permissions))
+        if self.parameters:
+            for param in self.parameters:
+                param.to_xml(xml)
+        return root
 
     def to_xml_string(self, indent: int = 1) -> str:
         root = ET.Element("client")
@@ -1796,6 +1832,25 @@ class AuthClient(object):
         return "\n".join(
             [xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]]
         )
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (
+            self.id == other.id
+            and self.permissions == other.permissions
+            and self.parameters == other.parameters
+        )
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return self.id < other.id
+
+    def __gt__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return self.id > other.id
 
     def __repr__(self) -> str:
         id = f'id="{self.id}"'
@@ -1898,8 +1953,8 @@ class Nodes(object):
         ...    nodes=Nodes(
         ...        count="2",
         ...        parameters=[
-        ...            Parameter("resources", {"vcpu": "4.0", "memory": "16Gb", "disk": "125Gb"},
-        ...            [Parameter("gpu", {"count": "1", "memory": "16Gb"})]),
+        ...            Parameter("resources", {"vcpu": "4.0", "memory": "16Gb", "disk": "125Gb"}),
+        ...            Parameter("gpu", {"count": "1", "memory": "16Gb"}),
         ...            Parameter("node", {"hostalias": "node1", "distribution-key": "0"}),
         ...        ]
         ...    )
@@ -1965,11 +2020,13 @@ class ContainerCluster(Cluster):
         version: str = "1.0",
         nodes: Optional[Nodes] = None,
         components: Optional[List[Component]] = None,
+        auth_clients: Optional[List[AuthClient]] = None,
     ) -> None:
         """
         Defines the configuration of a container cluster.
 
         :param components: List of :class:`Component` that contains configurations for application components, e.g. embedders.
+        :param auth_clients: List of :class:`AuthClient` that contains configurations for authentication clients (eg. mTLS/token).
 
         If :class: `ContainerCluster` is used, any :class: `Component`s must be added to the :class: `ContainerCluster`,
         rather than to the :class: `ApplicationPackage`, in order to be included in the generated schema.
@@ -1982,17 +2039,23 @@ class ContainerCluster(Cluster):
         ...            Parameter("transformer-model", {"url": "https://github.com/vespa-engine/sample-apps/raw/master/simple-semantic-search/model/e5-small-v2-int8.onnx"}),
         ...            Parameter("tokenizer-model", {"url": "https://raw.githubusercontent.com/vespa-engine/sample-apps/master/simple-semantic-search/model/tokenizer.json"})
         ...        ]
-        ...    )]
+        ...    )],
+        ...    auth_clients=[AuthClient(id="mtls", permissions=["read", "write"])],
+        ...    nodes=Nodes(count="2", parameters=[Parameter("resources", {"vcpu": "4.0", "memory": "16Gb", "disk": "125Gb"})])
         ... )
-        ContainerCluster(id="example_container", version="1.0", components="[Component(id="e5", type="hugging-face-embedder")]")
+        ContainerCluster(id="example_container", version="1.0", nodes="Nodes(count="2")", components="[Component(id="e5", type="hugging-face-embedder")]", auth_clients="[AuthClient(id="mtls", permissions="['read', 'write']")]")
         """
         super().__init__(id, version, nodes)
         self.components = components
+        self.auth_clients = auth_clients
 
     def __repr__(self) -> str:
         base_str = super().__repr__()
         components = f', components="{self.components}"' if self.components else ""
-        return f"{base_str}{components})"
+        auth_clients = (
+            f', auth_clients="{self.auth_clients}"' if self.auth_clients else ""
+        )
+        return f"{base_str}{components}{auth_clients})"
 
     def to_xml_string(self, indent=1):
         root = ET.Element("container")
@@ -2006,6 +2069,11 @@ class ContainerCluster(Cluster):
         if self.components:
             for comp in self.components:
                 comp.to_xml(root)
+
+        if self.auth_clients:
+            clients = ET.SubElement(root, "clients")
+            for client in self.auth_clients:
+                client.to_xml(clients)
 
         # Temporary workaround to get ElementTree to print closing tags.
         # Otherwise it prints <search/>, etc.
@@ -2198,7 +2266,6 @@ class DeploymentConfiguration(object):
         )
 
 
-
 class EmptyDeploymentConfiguration(DeploymentConfiguration):
     def __init__(self):
         """
@@ -2206,7 +2273,9 @@ class EmptyDeploymentConfiguration(DeploymentConfiguration):
         """
         super().__init__("", [])
 
-    def to_xml_string(self, indent=1) -> str:  # Indent is unused, but included for compatibility
+    def to_xml_string(
+        self, indent=1
+    ) -> str:  # Indent is unused, but included for compatibility
         return ""
 
 
@@ -2250,7 +2319,7 @@ class ApplicationPackage(object):
         :param components: List of :class:`Component` that contains configurations for application components.
         :param clusters: List of :class:`Cluster` that contains configurations for content or container clusters.
             If clusters is used, any :class: `Component`s must be configured as part of a cluster.
-        :param clients: List of :class:`Client` that contains configurations for client authorization.
+        :param auth_clients: List of :class:`AuthClient` that contains configurations for client authorization. If clusters is passed, pass the auth clients to the :class:`ContainerCluster` instead.
         :param deployment_config: DeploymentConfiguration` that contains configurations for production deployments.
 
         The easiest way to get started is to create a default application package:
@@ -2292,6 +2361,21 @@ class ApplicationPackage(object):
         self.components = components
         self.auth_clients = auth_clients
         self.clusters = clusters
+        if self.auth_clients and self.clusters:
+            for cluster in self.clusters:
+                if isinstance(cluster, ContainerCluster):
+                    if cluster.auth_clients:
+                        # It is only meaningful to warn and override if the auth_clients differ.
+                        # Works due to __eq__ and __gt/lt__ implementation in AuthClient
+                        if not sorted(cluster.auth_clients) == sorted(
+                            self.auth_clients
+                        ):
+                            warnings.warn(
+                                "Auth clients are defined in the container cluster and in the application package. Overriding the container cluster auth clients. If this is not the intended behavior, remove the auth clients that are defined in the application package.",
+                                UserWarning,
+                            )
+                            cluster.auth_clients = self.auth_clients
+
         self.deployment_config = deployment_config
 
     @property
