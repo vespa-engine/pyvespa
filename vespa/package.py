@@ -1953,8 +1953,8 @@ class Nodes(object):
         ...    nodes=Nodes(
         ...        count="2",
         ...        parameters=[
-        ...            Parameter("resources", {"vcpu": "4.0", "memory": "16Gb", "disk": "125Gb"},
-        ...            [Parameter("gpu", {"count": "1", "memory": "16Gb"})]),
+        ...            Parameter("resources", {"vcpu": "4.0", "memory": "16Gb", "disk": "125Gb"}),
+        ...            Parameter("gpu", {"count": "1", "memory": "16Gb"}),
         ...            Parameter("node", {"hostalias": "node1", "distribution-key": "0"}),
         ...        ]
         ...    )
