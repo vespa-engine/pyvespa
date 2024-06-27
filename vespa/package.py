@@ -1797,10 +1797,10 @@ class AuthClient(object):
         Example:
 
         >>> AuthClient(
-                id="token",
-                permissions=["read", "write"],
-                parameters=[Parameter("token", {"id": "my-token-id"})],
-            )
+        ...     id="token",
+        ...     permissions=["read", "write"],
+        ...     parameters=[Parameter("token", {"id": "my-token-id"})],
+        ... )
         AuthClient(id="token", permissions="['read', 'write']")
         """
         self.id = id
@@ -2043,7 +2043,7 @@ class ContainerCluster(Cluster):
         ...    auth_clients=[AuthClient(id="mtls", permissions=["read", "write"])],
         ...    nodes=Nodes(count="2", parameters=[Parameter("resources", {"vcpu": "4.0", "memory": "16Gb", "disk": "125Gb"})])
         ... )
-        ContainerCluster(id="example_container", version="1.0", components="[Component(id="e5", type="hugging-face-embedder")]", auth_clients="[AuthClient(id="mtls", permissions="['read', 'write']")]", nodes="Nodes(count='2')")
+        ContainerCluster(id="example_container", version="1.0", nodes="Nodes(count="2")", components="[Component(id="e5", type="hugging-face-embedder")]", auth_clients="[AuthClient(id="mtls", permissions="['read', 'write']")]")
         """
         super().__init__(id, version, nodes)
         self.components = components
