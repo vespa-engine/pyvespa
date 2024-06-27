@@ -167,8 +167,6 @@ class TestMsmarcoApplicationWithTokenAuth(TestApplicationCommon):
         self.vespa_cloud.delete(instance=self.instance_name)
 
 
-# Skip for now, due to bug with AuthClient parsing. Add after that is fixed.
-@pytest.mark.skip
 class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
     def setUp(self) -> None:
         schema_name = "msmarco"
@@ -213,7 +211,7 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
             auth_client_token_id=CLIENT_TOKEN_ID,
         )
         self.application_root = os.path.join(os.getcwd(), "sample_application")
-        self.instance_name = "token"
+        self.instance_name = "default"
         self.build_no = self.vespa_cloud.deploy_to_prod(
             instance=self.instance_name,
             source_url="https://github.com/vespa-engine/pyvespa",
