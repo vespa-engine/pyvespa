@@ -1356,6 +1356,13 @@ class VespaCloud(VespaDeployment):
     ) -> str:
         return self.get_endpoint("token", instance, region, environment)
 
+    def _application_root_has_tests(self, application_root: str) -> bool:
+        """Check if the application contains tests folder (recursively)"""
+        for root, dirs, files in os.walk(application_root):
+            if "tests" in dirs:
+                return True
+        return False
+
     def _start_prod_deployment(
         self, application_root: str, source_url: str = "", instance: str = "default"
     ) -> int:
@@ -1390,17 +1397,30 @@ class VespaCloud(VespaDeployment):
         if source_url:
             submit_options["sourceUrl"] = source_url
 
+        # Define the fields data to add to the multipart data
+        fields = {
+            "submitOptions": ("", json.dumps(submit_options), "application/json"),
+            "applicationZip": (
+                "application.zip",
+                application_package_zip_bytes,
+                "application/zip",
+            ),
+        }
+
+        # Check if the application contains tests folder. If so, submit as application-test.zip
+        if self._application_root_has_tests(application_root):
+            test_fields = {
+                "applicationTestZip": (
+                    "application-test.zip",
+                    application_package_zip_bytes,  # Just submitting duplicate of application package (same behavior as Vespa CLI)
+                    "application/zip",
+                )
+            }
+            fields.update(test_fields)
+
         # Vespa expects prod deployments to be submitted as multipart data
         multipart_data = MultipartEncoder(
-            fields={
-                "submitOptions": ("", json.dumps(submit_options), "application/json"),
-                "applicationZip": (
-                    "application.zip",
-                    application_package_zip_bytes,
-                    "application/zip",
-                ),
-                # TODO Implement test package zip
-            }
+            fields=fields,
         )
 
         # Compute content hash, etc
