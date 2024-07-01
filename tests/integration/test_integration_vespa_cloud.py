@@ -4,12 +4,21 @@ import os
 import asyncio
 import shutil
 import pytest
+from datetime import datetime, timedelta
+import pathlib
 from requests import HTTPError
 import unittest
 from cryptography.hazmat.primitives import serialization
 from vespa.application import Vespa
 from vespa.deployment import VespaCloud
-from vespa.package import ApplicationPackage, Schema, Document, Field
+from vespa.package import (
+    ApplicationPackage,
+    Schema,
+    Document,
+    Field,
+    Validation,
+    ValidationID,
+)
 import random
 from vespa.io import VespaResponse
 from test_integration_docker import (
@@ -228,3 +237,58 @@ class TestRetryApplication(unittest.TestCase):
         )
         shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_cloud.delete(instance=self.instance_name)
+
+
+class TestDeployProdWithTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # Set root to parent directory/testapps/production-deployment-with-tests
+        self.application_root = (
+            pathlib.Path(__file__).parent.parent
+            / "testapps"
+            / "production-deployment-with-tests"
+        )
+        self.vespa_cloud = VespaCloud(
+            tenant="vespa-team",
+            application="pyvespa-integration",
+            key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
+            application_root=self.application_root,
+        )
+
+        self.build_no = self.vespa_cloud.deploy_to_prod(
+            source_url="https://github.com/vespa-engine/pyvespa",
+        )
+
+    def test_application_status(self):
+        # Wait for deployment to be ready
+        success = self.vespa_cloud.wait_for_prod_deployment(
+            build_no=self.build_no, max_wait=3600
+        )
+        if not success:
+            self.fail("Deployment failed")
+        self.app = self.vespa_cloud.get_application(environment="prod")
+
+    def tearDown(self) -> None:
+        # Deployment is deleted by deploying with an empty deployment.xml file.
+        # We need to temporarily rename the deployment.xml file.
+        shutil.move(
+            self.application_root / "deployment.xml",
+            self.application_root / "deployment.xml.bak",
+        )
+        # Creating a dummy ApplicationPackage just to use the validation_to_text method
+        app_package = ApplicationPackage(name="empty")
+        # Vespa won't push the deleted deployment.xml file unless we add a validation override
+        tomorrow = datetime.now() + timedelta(days=1)
+        formatted_date = tomorrow.strftime("%Y-%m-%d")
+        app_package.validations = [
+            Validation(ValidationID("deployment-removal"), formatted_date)
+        ]
+        # Write validations_to_text to "validation-overrides.xml"
+        with open(self.application_root / "validation-overrides.xml", "w") as f:
+            f.write(app_package.validations_to_text())
+        # This will delete the deployment
+        self.vespa_cloud._start_prod_deployment(self.application_root)
+        # Restore the deployment.xml file
+        shutil.move(
+            self.application_root / "deployment.xml.bak",
+            self.application_root / "deployment.xml",
+        )
