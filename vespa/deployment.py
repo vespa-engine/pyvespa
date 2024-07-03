@@ -1436,6 +1436,7 @@ class VespaCloud(VespaDeployment):
                     "application/zip",
                 )
             }
+            fields.update(test_fields)
         else:
             print(
                 f"No `tests` folder found in {application_root}. No `application-test` directory found in {parent_path}.",
