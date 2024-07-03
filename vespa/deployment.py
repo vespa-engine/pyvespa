@@ -504,7 +504,7 @@ class VespaCloud(VespaDeployment):
             This is used to configure Vespa services.xml. The token is given read and write permissions. If initiliazing from application_root, make sure
             that services.xml is configured to use the provided token_id.
         :param output_file: Output file to write output messages. Default is sys.stdout
-        :param application_root: Directory for application root. (location of services.xml, models/, schemas/, etc.)
+        :param application_root: Directory for application root. (location of services.xml, models/, schemas/, etc.). If application is packaged with maven, use the generated <myapp>/target/application directory.
         """
         self.tenant = tenant
         self.application = application
@@ -658,6 +658,9 @@ class VespaCloud(VespaDeployment):
         """
         Deploy the given application package as the given instance in the Vespa Cloud prod environment.
         NB! This feature is experimental and may fail in unexpected ways. Expect better support in future releases.
+
+        If submitting an application that is not yet packaged, tests should be located in <application_root>/tests.
+        If submitting an application packaged with maven, application_root should refer to the generated <myapp>/target/application directory.
 
         :param instance: Name of this instance of the application, in the Vespa Cloud.
         :param application_root: Path to either save the required Vespa config files (if initialized with application_package) or read them from (if initialized with application_root).
@@ -1363,6 +1366,10 @@ class VespaCloud(VespaDeployment):
                 return True
         return False
 
+    def _test_zip_exists(self, application_root: str) -> bool:
+        """Check if application-test.zip exists in parent directory of application root"""
+        return Path(application_root).parent.joinpath("application-test.zip").exists()
+
     def _start_prod_deployment(
         self, application_root: str, source_url: str = "", instance: str = "default"
     ) -> int:
@@ -1417,8 +1424,30 @@ class VespaCloud(VespaDeployment):
                 )
             }
             fields.update(test_fields)
-
-        # Vespa expects prod deployments to be submitted as multipart data
+        elif self._test_zip_exists(
+            application_root
+        ):  # If packaged with maven, use the existing application-test.zip
+            print(
+                "application-test.zip found in parent directory of application root. Using it for testing.",
+                file=self.output,
+            )
+            with open(
+                Path(application_root).parent.joinpath("application-test.zip"), "rb"
+            ) as test_zip:
+                test_zip_bytes = BytesIO(test_zip.read())
+            test_fields = {
+                "applicationTestZip": (
+                    "application-test.zip",
+                    test_zip_bytes,
+                    "application/zip",
+                )
+            }
+        else:
+            print(
+                f"No `tests` folder found in {application_root}. No `application-test.zip` found in parent directory.",
+                file=self.output,
+            )
+            print("No tests will be submitted.", file=self.output)
         multipart_data = MultipartEncoder(
             fields=fields,
         )
