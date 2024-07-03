@@ -1362,10 +1362,6 @@ class VespaCloud(VespaDeployment):
                 return True
         return False
 
-    def _test_zip_exists(self, application_root: str) -> bool:
-        """Check if application-test.zip exists in parent directory of application root"""
-        return Path(application_root).parent.joinpath("application-test.zip").exists()
-
     def _start_prod_deployment(
         self, application_root: str, source_url: str = "", instance: str = "default"
     ) -> int:
@@ -1410,6 +1406,9 @@ class VespaCloud(VespaDeployment):
             ),
         }
 
+        parent_path = Path(application_root).parent
+        application_test_path = parent_path.joinpath("application-test")
+
         # Check if the application contains tests folder. If so, submit as application-test.zip
         if self._application_root_has_tests(application_root):
             test_fields = {
@@ -1420,17 +1419,16 @@ class VespaCloud(VespaDeployment):
                 )
             }
             fields.update(test_fields)
-        elif self._test_zip_exists(
-            application_root
-        ):  # If packaged with maven, use the existing application-test.zip
+        elif (
+            application_test_path.exists()
+        ):  # If packaged with maven, use the existing application-test
             print(
-                "application-test.zip found in parent directory of application root. Using it for testing.",
+                f"`application-test´ found in {parent_path}. Including in package.",
                 file=self.output,
             )
-            with open(
-                Path(application_root).parent.joinpath("application-test.zip"), "rb"
-            ) as test_zip:
-                test_zip_bytes = BytesIO(test_zip.read())
+            test_zip_bytes = BytesIO(
+                self.read_app_package_from_disk(application_test_path)
+            )
             test_fields = {
                 "applicationTestZip": (
                     "application-test.zip",
@@ -1440,7 +1438,7 @@ class VespaCloud(VespaDeployment):
             }
         else:
             print(
-                f"No `tests` folder found in {application_root}. No `application-test.zip` found in parent directory.",
+                f"No `tests` folder found in {application_root}. No `application-test` directory found in {parent_path}.",
                 file=self.output,
             )
             print("No tests will be submitted.", file=self.output)
