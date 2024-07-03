@@ -20,6 +20,7 @@ dependencies = [
     "aiohttp",
     "tenacity>=8.4.1",
     "typing_extensions",
+    "python-dateutil",
 ]
 
 requires-python = ">=3.8"
