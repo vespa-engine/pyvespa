@@ -1,5 +1,5 @@
 # Command line script to deploy Vespa applications to Vespa Cloud
-# Usage: vespa-deploy.py --tenant --application --api-key --application-root --max-wait 3600 --source-url
+# Usage: python -m vespa.utils.deploy_prod --tenant --application --api-key --application-root --max-wait 3600 --source-url
 
 import argparse
 
@@ -14,7 +14,7 @@ def deploy_prod(
 
     Example usage:
     ```
-    python -m vespa.utils.ci.deploy_prod --tenant <tenant> --application <application> --api-key <api_key> --application-root <application_root> --max-wait 3600 --source-url <source_url>
+    python -m vespa.utils.deploy_prod --tenant <tenant> --application <application> --api-key <api_key> --application-root <application_root> --max-wait 3600 --source-url <source_url>
     ```
 
     Args:
@@ -41,6 +41,8 @@ def deploy_prod(
         raise ValueError(
             f"Deployment failed to complete within {max_wait} seconds. Please check the Vespa Cloud console for more information."
         )
+    else:
+        print("Deployment completed successfully.")
 
 
 if __name__ == "__main__":
