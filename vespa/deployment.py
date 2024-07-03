@@ -813,10 +813,6 @@ class VespaCloud(VespaDeployment):
         :param build_no: The build number to check.
         :return: dict with the aggregated status of all deployment jobs for the given build number.
         """
-        logging.warning(
-            f"Method {self.check_production_build_status.__name__} is in beta and may fail in unexpected ways. Expect better support in future releases."
-        )
-
         if build_no is None:
             if self.build_no is None:
                 raise ValueError("No build number provided, and no build number set.")
