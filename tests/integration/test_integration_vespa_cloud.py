@@ -284,7 +284,7 @@ class TestDeployProdWithTests(unittest.TestCase):
         ]
         # Write validations_to_text to "validation-overrides.xml"
         with open(self.application_root / "validation-overrides.xml", "w") as f:
-            f.write(app_package.validations_to_text())
+            f.write(app_package.validations_to_text)
         # This will delete the deployment
         self.vespa_cloud._start_prod_deployment(self.application_root)
         # Restore the deployment.xml file
@@ -292,3 +292,5 @@ class TestDeployProdWithTests(unittest.TestCase):
             self.application_root / "deployment.xml.bak",
             self.application_root / "deployment.xml",
         )
+        # Remove the validation-overrides.xml file
+        os.remove(self.application_root / "validation-overrides.xml")

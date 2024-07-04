@@ -504,7 +504,7 @@ class VespaCloud(VespaDeployment):
             This is used to configure Vespa services.xml. The token is given read and write permissions. If initiliazing from application_root, make sure
             that services.xml is configured to use the provided token_id.
         :param output_file: Output file to write output messages. Default is sys.stdout
-        :param application_root: Directory for application root. (location of services.xml, models/, schemas/, etc.)
+        :param application_root: Directory for application root. (location of services.xml, models/, schemas/, etc.). If application is packaged with maven, use the generated <myapp>/target/application directory.
         """
         self.tenant = tenant
         self.application = application
@@ -659,6 +659,9 @@ class VespaCloud(VespaDeployment):
         Deploy the given application package as the given instance in the Vespa Cloud prod environment.
         NB! This feature is experimental and may fail in unexpected ways. Expect better support in future releases.
 
+        If submitting an application that is not yet packaged, tests should be located in <application_root>/tests.
+        If submitting an application packaged with maven, application_root should refer to the generated <myapp>/target/application directory.
+
         :param instance: Name of this instance of the application, in the Vespa Cloud.
         :param application_root: Path to either save the required Vespa config files (if initialized with application_package) or read them from (if initialized with application_root).
         :param source_url: Optional source URL (including commit hash) for the deployment. This is a URL to the source code repository, e.g. GitHub, that is used to build the application package. Example: https://github.com/vespa-cloud/vector-search/commit/474d7771bd938d35dc5dcfd407c21c019d15df3c.
@@ -810,10 +813,6 @@ class VespaCloud(VespaDeployment):
         :param build_no: The build number to check.
         :return: dict with the aggregated status of all deployment jobs for the given build number.
         """
-        logging.warning(
-            f"Method {self.check_production_build_status.__name__} is in beta and may fail in unexpected ways. Expect better support in future releases."
-        )
-
         if build_no is None:
             if self.build_no is None:
                 raise ValueError("No build number provided, and no build number set.")
@@ -1407,6 +1406,9 @@ class VespaCloud(VespaDeployment):
             ),
         }
 
+        parent_path = Path(application_root).parent
+        application_test_path = parent_path.joinpath("application-test")
+
         # Check if the application contains tests folder. If so, submit as application-test.zip
         if self._application_root_has_tests(application_root):
             test_fields = {
@@ -1417,8 +1419,30 @@ class VespaCloud(VespaDeployment):
                 )
             }
             fields.update(test_fields)
-
-        # Vespa expects prod deployments to be submitted as multipart data
+        elif (
+            application_test_path.exists()
+        ):  # If packaged with maven, use the existing application-test
+            print(
+                f"`application-test´ found in {parent_path}. Including in package.",
+                file=self.output,
+            )
+            test_zip_bytes = BytesIO(
+                self.read_app_package_from_disk(application_test_path)
+            )
+            test_fields = {
+                "applicationTestZip": (
+                    "application-test.zip",
+                    test_zip_bytes,
+                    "application/zip",
+                )
+            }
+            fields.update(test_fields)
+        else:
+            print(
+                f"No `tests` folder found in {application_root}. No `application-test` directory found in {parent_path}.",
+                file=self.output,
+            )
+            print("No tests will be submitted.", file=self.output)
         multipart_data = MultipartEncoder(
             fields=fields,
         )

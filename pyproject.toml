@@ -6,13 +6,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyvespa"
-version = "0.42.0"
+version = "0.44.0"
 description = "Python API for vespa.ai"
 readme = "README.md"
 keywords = ["vespa", "search engine", "data science"]
 classifiers = ["License :: OSI Approved :: Apache Software License"]
 dependencies = [
-    "requests",
+    "requests>=2.32.0",
     "requests_toolbelt",
     "docker",
     "jinja2",
@@ -20,6 +20,7 @@ dependencies = [
     "aiohttp",
     "tenacity>=8.4.1",
     "typing_extensions",
+    "python-dateutil",
 ]
 
 requires-python = ">=3.8"
@@ -53,9 +54,9 @@ dev = [
 build = [
     "setuptools==69.0.3",
     "build==1.0.3",
-    "twine==4.0.1",
+    "twine==5.1.1",
     "toml==0.10.2",
-    "requests~=2.26.0",
+    "requests~=2.32.0",
     "ruff",
 ]
 vespacli = ["vespacli"]
