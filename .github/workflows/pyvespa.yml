@@ -4,6 +4,9 @@ on:
   workflow_dispatch:
   release:
     types: [published]
+  push:
+    branches:
+      - thomasht86/fix-release-pipeline
 jobs:
   update_version:
     runs-on: ubuntu-latest
@@ -21,9 +24,9 @@ jobs:
       - name: Set version from ref tag that triggered the workflow (strip prefix 'v' from tag)
         id: set_version
         run: |
-          echo "tag=${{ github.ref_name }}" 
+          echo "GITHUB_REF=$GITHUB_REF" 
           # strip prefix 'v' from version variable
-          version=${tag#v}
+          version=${GITHUB_REF#refs/tags/v}
           echo "version=$version" >> $GITHUB_OUTPUT
 
       - name: Update version
