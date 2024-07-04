@@ -182,9 +182,7 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
                 parameters=[Parameter("token", {"id": CLIENT_TOKEN_ID})],
             ),
         ]
-        self.app_package = create_msmarco_application_package(
-            auth_clients=self.auth_clients
-        )
+        self.app_package = create_msmarco_application_package()
         # Add prod deployment config
         prod_region = "aws-us-east-1c"
         self.app_package.clusters = [
@@ -197,6 +195,7 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
             ContainerCluster(
                 id=f"{schema_name}_container",
                 nodes=Nodes(count="2"),
+                auth_clients=self.auth_clients,
             ),
         ]
         self.app_package.deployment_config = DeploymentConfiguration(
