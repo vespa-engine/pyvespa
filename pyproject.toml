@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyvespa"
-version = "0.44.0"
+version = "0.45.0"
 description = "Python API for vespa.ai"
 readme = "README.md"
 keywords = ["vespa", "search engine", "data science"]
