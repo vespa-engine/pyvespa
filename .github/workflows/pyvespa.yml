@@ -4,9 +4,7 @@ on:
   workflow_dispatch:
   release:
     types: [published]
-  push:
-    branches:
-      - thomasht86/fix-release-pipeline
+
 jobs:
   update_version:
     runs-on: ubuntu-latest
