@@ -22,7 +22,7 @@ def deploy_prod(
         application (str): Vespa Cloud application
         api_key (str): Vespa Cloud Control-plane API key
         application_root (str): Path to the Vespa application root. If application is packaged with maven, this should refer to the generated target/application directory.
-        max_wait (int, optional): Max wait time in seconds. Defaults to 3600.
+        max_wait (int, optional): Max wait time in seconds. Defaults to 3600. If set to -1, the script will return immediately after deployment is submitted.
         source_url (str, optional): Source URL (git commit URL) for the deployment. Defaults to None.
 
 
@@ -36,6 +36,9 @@ def deploy_prod(
     build_no = vespa_cloud.deploy_to_prod(
         instance="default", application_root=application_root, source_url=source_url
     )
+    if max_wait == -1:
+        print(f"Deployment submitted. Build number: {build_no}")
+        return
     success = vespa_cloud.wait_for_prod_deployment(build_no, max_wait=max_wait)
     if not success:
         raise ValueError(
@@ -56,11 +59,21 @@ if __name__ == "__main__":
         "--application-root", required=True, help="Path to the Vespa application root"
     )
     args.add_argument(
-        "--max-wait", type=int, default=3600, help="Max wait time in seconds"
+        "--max-wait",
+        type=int,
+        default=3600,
+        help="Max wait time in seconds. -1 to return immediately after deployment is submitted.",
     )
     args.add_argument(
         "--source-url", help="Source URL (git commit URL) for the deployment"
     )
 
     args = args.parse_args()
-    deploy_prod(args.tenant, args.application, args.api_key, args.application_root)
+    deploy_prod(
+        args.tenant,
+        args.application,
+        args.api_key,
+        args.application_root,
+        args.max_wait,
+        args.source_url,
+    )
