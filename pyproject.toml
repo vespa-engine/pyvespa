@@ -56,7 +56,7 @@ build = [
     "build==1.0.3",
     "twine==5.1.1",
     "toml==0.10.2",
-    "requests~=2.26.0",
+    "requests~=2.32.0",
     "ruff",
 ]
 vespacli = ["vespacli"]
