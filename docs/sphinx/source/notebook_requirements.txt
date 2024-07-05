@@ -10,3 +10,5 @@ datasets
 numpy
 vespacli
 jupytext
+nbconvert
+ipykernel
