@@ -12,13 +12,13 @@ from datetime import datetime, timedelta
 from vespa.package import (
     AuthClient,
     Parameter,
-    EmptyDeploymentConfiguration,
     DeploymentConfiguration,
-    Validation,
-    ValidationID,
     ContentCluster,
     ContainerCluster,
     Nodes,
+    EmptyDeploymentConfiguration,
+    Validation,
+    ValidationID,
 )
 from vespa.deployment import VespaCloud
 from test_integration_docker import (
@@ -217,7 +217,7 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
         )
         # Wait for deployment to be ready
         success = self.vespa_cloud.wait_for_prod_deployment(
-            build_no=self.build_no, max_wait=1800
+            build_no=self.build_no, max_wait=3600
         )
         if not success:
             self.fail("Deployment failed")

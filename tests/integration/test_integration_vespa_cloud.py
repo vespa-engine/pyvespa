@@ -18,6 +18,7 @@ from vespa.package import (
     Field,
     Validation,
     ValidationID,
+    EmptyDeploymentConfiguration,
 )
 import random
 from vespa.io import VespaResponse
@@ -268,12 +269,7 @@ class TestDeployProdWithTests(unittest.TestCase):
         self.app = self.vespa_cloud.get_application(environment="prod")
 
     def tearDown(self) -> None:
-        # Deployment is deleted by deploying with an empty deployment.xml file.
-        # We need to temporarily rename the deployment.xml file.
-        shutil.move(
-            self.application_root / "deployment.xml",
-            self.application_root / "deployment.xml.bak",
-        )
+        # Deployment is deleted by deploying with an empty deployment.xml file
         # Creating a dummy ApplicationPackage just to use the validation_to_text method
         app_package = ApplicationPackage(name="empty")
         # Vespa won't push the deleted deployment.xml file unless we add a validation override
@@ -285,12 +281,9 @@ class TestDeployProdWithTests(unittest.TestCase):
         # Write validations_to_text to "validation-overrides.xml"
         with open(self.application_root / "validation-overrides.xml", "w") as f:
             f.write(app_package.validations_to_text)
+        # Create an empty deployment.xml file
+        app_package.deployment_config = EmptyDeploymentConfiguration()
+        with open(self.application_root / "deployment.xml", "w") as f:
+            f.write(app_package.deployment_config.to_xml_string)
         # This will delete the deployment
         self.vespa_cloud._start_prod_deployment(self.application_root)
-        # Restore the deployment.xml file
-        shutil.move(
-            self.application_root / "deployment.xml.bak",
-            self.application_root / "deployment.xml",
-        )
-        # Remove the validation-overrides.xml file
-        os.remove(self.application_root / "validation-overrides.xml")
