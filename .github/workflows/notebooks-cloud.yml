@@ -17,7 +17,8 @@ jobs:
       - name: Set output variable (Make sure it is this quote format - '["path/to/notebook1.ipynb", "path/to/notebook2.ipynb"]')
         id: set_output
         run: |
-          echo notebooks=$(find docs -name '*cloud.ipynb*' ! -name 'mother-of-all-embedding-models-cloud.ipynb' | jq -R -s -c 'split("\n")[:-1]') >> $GITHUB_OUTPUT
+          notebooks=$(find docs -name '*cloud.ipynb*' ! -name 'mother-of-all-embedding-models-cloud.ipynb' | jq -R -s -c 'split("\n")[:-1]') 
+          echo "notebooks=$notebooks" >> $GITHUB_OUTPUT
   notebooks-cloud:
     runs-on: ubuntu-latest
     needs: get-notebooks-cloud
