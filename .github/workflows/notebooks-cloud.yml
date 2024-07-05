@@ -2,9 +2,12 @@ name: Notebooks - cloud
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - master
   push:
     branches:
-      - thomasht86/some-tests-to-github-action
+      - master
 
 jobs:
   get-notebooks-cloud:
