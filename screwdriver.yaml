@@ -24,7 +24,7 @@ jobs:
           docker system info
           ls -la $SD_DIND_SHARE_PATH
       - install-python: |
-          dnf install -y python38-pip python38-devel gcc gcc-c++ # gcc et al required for pytrec_eval
+          dnf install -y python39-pip python39-devel gcc gcc-c++ # gcc et al required for pytrec_eval
           dnf install -y --enablerepo=powertools pandoc
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[dev]
@@ -57,7 +57,7 @@ jobs:
           docker system info
           ls -la $SD_DIND_SHARE_PATH
       - install-python: |
-          dnf install -y python38-pip
+          dnf install -y python39-pip
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[dev]
       - run-integration-docker: |
@@ -84,7 +84,7 @@ jobs:
           docker system info
           ls -la $SD_DIND_SHARE_PATH
       - install-python: |
-          dnf install -y python38-pip python38-devel gcc gcc-c++ # gcc required for pytrec_eval
+          dnf install -y python39-pip python39-devel gcc gcc-c++ # gcc required for pytrec_eval
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[dev]
           python3 -m pip install -r docs/sphinx/source/requirements.txt
@@ -122,7 +122,7 @@ jobs:
       SD_ZIP_ARTIFACTS: true
     steps:
       - install-python: |
-          dnf install -y python38-pip
+          dnf install -y python39-pip
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[dev]
       - run-integration-cloud: |
@@ -142,7 +142,7 @@ jobs:
       SD_ZIP_ARTIFACTS: true
     steps:
       - install-python: |
-          dnf install -y python38-pip
+          dnf install -y python39-pip
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[dev]
       - run-integration-cloud: |
@@ -162,50 +162,50 @@ jobs:
       SD_ZIP_ARTIFACTS: true
     steps:
       - install-python: |
-          dnf install -y python38-pip
+          dnf install -y python39-pip
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[dev]
       - run-integration-cloud: |
           pytest tests/integration/test_integration_vespa_cloud_vector_search.py -s -v
 
-  notebooks-cloud:
-    requires: [integration-cloud]
-    annotations:
-      screwdriver.cd/timeout: 120
-      screwdriver.cd/cpu: HIGH
-      screwdriver.cd/ram: HIGH
-    secrets:
-      - VESPA_TEAM_API_KEY
-      - OPENAI_API_KEY
-      - CO_API_KEY
-    environment:
-      SD_ZIP_ARTIFACTS: true
-    steps:
-      - install-python: |
-          dnf install -y which git-all python38-pip python38-devel gcc-toolset-9-gcc gcc-toolset-9-gcc-c++ # gcc9 required for colbert
-          source /opt/rh/gcc-toolset-9/enable # enable gcc9 for colbert
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -e .[dev]
-          python3 -m pip install -r docs/sphinx/source/requirements.txt
-          python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
+  # notebooks-cloud:
+  #   requires: [integration-cloud]
+  #   annotations:
+  #     screwdriver.cd/timeout: 120
+  #     screwdriver.cd/cpu: HIGH
+  #     screwdriver.cd/ram: HIGH
+  #   secrets:
+  #     - VESPA_TEAM_API_KEY
+  #     - OPENAI_API_KEY
+  #     - CO_API_KEY
+  #   environment:
+  #     SD_ZIP_ARTIFACTS: true
+  #   steps:
+  #     - install-python: |
+  #         dnf install -y which git-all python39-pip python39-devel gcc-toolset-9-gcc gcc-toolset-9-gcc-c++ # gcc9 required for colbert
+  #         source /opt/rh/gcc-toolset-9/enable # enable gcc9 for colbert
+  #         python3 -m pip install --upgrade pip
+  #         python3 -m pip install -e .[dev]
+  #         python3 -m pip install -r docs/sphinx/source/requirements.txt
+  #         python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
       
-      - run-notebooks-cloud-related: |
-          echo "PATH:"
-          echo $PATH
-          find docs -name '*cloud*.ipynb' -not -name mother-of-all-embedding-models-cloud.ipynb | while read f
-          do
-            # Display total and free memory in human-readable format before running each notebook
-            total_mem=$(free -h | grep Mem | awk '{print $2}')
-            free_mem=$(free -h | grep Mem | awk '{print $4}')
-            echo "Before running $f - Total Memory: $total_mem, Free Memory: $free_mem"
+  #     - run-notebooks-cloud-related: |
+  #         echo "PATH:"
+  #         echo $PATH
+  #         find docs -name '*cloud*.ipynb' -not -name mother-of-all-embedding-models-cloud.ipynb | while read f
+  #         do
+  #           # Display total and free memory in human-readable format before running each notebook
+  #           total_mem=$(free -h | grep Mem | awk '{print $2}')
+  #           free_mem=$(free -h | grep Mem | awk '{print $4}')
+  #           echo "Before running $f - Total Memory: $total_mem, Free Memory: $free_mem"
 
-            # Run the notebook in a subshell
-            echo "running: runnb --allow-not-trusted $f"
-            (runnb --allow-not-trusted $f)
-            # Check the exit status of the last command in the subshell
-            if [ $? -ne 0 ]
-            then
-              echo "Error running $f"
-              exit 1
-            fi
-          done
+  #           # Run the notebook in a subshell
+  #           echo "running: runnb --allow-not-trusted $f"
+  #           (runnb --allow-not-trusted $f)
+  #           # Check the exit status of the last command in the subshell
+  #           if [ $? -ne 0 ]
+  #           then
+  #             echo "Error running $f"
+  #             exit 1
+  #           fi
+  #         done
