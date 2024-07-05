@@ -7,8 +7,6 @@ on:
       - thomasht86/some-tests-to-github-action
 
 jobs:
-  integration-vespa-cloud:
-    runs-on: ubuntu-latest
   get-notebooks-cloud:
     runs-on: ubuntu-latest
     outputs:
