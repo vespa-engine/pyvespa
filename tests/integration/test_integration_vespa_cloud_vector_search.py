@@ -286,7 +286,7 @@ class TestProdDeploymentFromDisk(TestVectorSearch):
             application_root=self.application_root,
         )
         success = self.vespa_cloud.wait_for_prod_deployment(
-            build_no=self.build_no, max_wait=1800
+            build_no=self.build_no, max_wait=3600
         )
         if not success:
             self.fail("Deployment failed")
