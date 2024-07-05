@@ -39,16 +39,10 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip" # caching pip dependencies
-      - name: Set up uv
-        run: |
-          pip install uv
-          uv venv
-          echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
-          echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
       - name: Install dependencies
         run: |
-          uv pip install -e ".[dev]" -r docs/sphinx/source/requirements.txt -r docs/sphinx/source/notebook_requirements.txt
+          pip install -e ".[dev]" -r docs/sphinx/source/requirements.txt -r docs/sphinx/source/notebook_requirements.txt
 
       - name: Run notebooks tests
         env:
