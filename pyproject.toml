@@ -46,6 +46,8 @@ dev = [
     "datasets",
     "notebook",
     "nbconvert",
+    "ipykernel",
+    "jupytext",
     "ruff",
     "pre-commit",
     "vespacli",
