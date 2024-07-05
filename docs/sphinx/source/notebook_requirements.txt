@@ -8,4 +8,7 @@ datasets
 #pytrec_eval
 #torch
 numpy
+nbconvert
+ipykernel
+jupytext
 vespacli

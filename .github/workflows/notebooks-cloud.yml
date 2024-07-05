@@ -2,9 +2,9 @@ name: Notebooks - cloud
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches:
-      - master
+  # pull_request:
+  #   branches:
+  #     - master
   push:
     branches:
       - master
@@ -45,7 +45,6 @@ jobs:
           cache: "pip" # caching pip dependencies
           cache-dependency-path: |
             pyproject.toml
-            **/requirements.txt
             **/notebook_requirements.txt
 
       - name: Install dependencies
