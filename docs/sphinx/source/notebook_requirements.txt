@@ -1,14 +1,12 @@
-plotly
+# Should only contain dependencies used by many notebooks
+# Place special dependencies in the notebook itself
+#plotly
 pandas
 datasets
-pytest
-cohere==4.57
-notebook
-nbconvert<=7.12.0
-openai
-ir_datasets
-pytrec_eval
-torch
+#openai
+#ir_datasets
+#pytrec_eval
+#torch
 numpy
 vespacli
 jupytext
