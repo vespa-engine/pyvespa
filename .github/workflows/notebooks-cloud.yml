@@ -14,10 +14,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Set output variable (Make sure it is this quote format - '["path/to/notebook1.ipynb", "path/to/notebook2.ipynb"]')
+      - name: Set output variable (Make sure it is this quote format - "[path/to/notebook1.ipynb", "path/to/notebook2.ipynb]")
         id: set_output
         run: |
-          notebooks=$(find docs -name '*cloud.ipynb*' ! -name 'mother-of-all-embedding-models-cloud.ipynb' | jq -R -s -c 'split("\n")[:-1]') 
+          notebooks=$(find docs -name '*cloud.ipynb*' ! -name 'mother-of-all-embedding-models-cloud.ipynb' | jq -R -s -c 'split("\n")[:-1]')
+          # Print all notebooks echo
+          echo $notebooks
           echo "notebooks=$notebooks" >> $GITHUB_OUTPUT
   notebooks-cloud:
     runs-on: ubuntu-latest
@@ -54,5 +56,5 @@ jobs:
           CO_API_KEY: ${{ secrets.CO_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          echo "Running ${{ matrix.notebook }}""
+          echo "Running ${{ matrix.notebook }}"
           jupyter nbconvert --to notebook --execute ${{ matrix.notebook }} --inplace
