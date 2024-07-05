@@ -46,7 +46,6 @@ dev = [
     "datasets",
     "notebook",
     "nbconvert",
-    "runnb",
     "ruff",
     "pre-commit",
     "vespacli",
