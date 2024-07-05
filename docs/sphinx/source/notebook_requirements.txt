@@ -12,3 +12,4 @@ pytrec_eval
 torch
 numpy
 vespacli
+jupytext
