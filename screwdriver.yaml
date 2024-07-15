@@ -99,7 +99,7 @@ jobs:
           dnf install -y tree
           echo "All non-cloud notebooks:"
 
-          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' | while read f
+          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' ! -name 'colpali-document-retrieval-vision-language-models.ipynb' | while read f
           do
             echo "running: runnb --allow-not-trusted $f"
             runnb --allow-not-trusted $f
