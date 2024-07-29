@@ -51,6 +51,7 @@ dev = [
     "pre-commit",
     "vespacli",
 ]
+unittest = ["pytest", "requests-mock"]
 build = [
     "setuptools==69.0.3",
     "build==1.0.3",
