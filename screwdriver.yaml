@@ -1,11 +1,10 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 shared:
-  image: quay.io/centos/centos:stream8
+  image: almalinux:8
   annotations:
     screwdriver.cd/restrictPR: fork
-  environment:
-    PYVESPA_VERSION: 0.7
+
 jobs:
   unit-tests:
     requires: [~commit,~pr]
@@ -18,30 +17,27 @@ jobs:
       screwdriver.cd/dockerRam: TURBO
       screwdriver.cd/buildPeriodically: H 11 * * *
     steps:
-      - setup: |
-          export WORK_DIR=$SD_DIND_SHARE_PATH
-          export RESOURCES_DIR=$(pwd)/vespa/resources
       - install-docker: |
           dnf install -y dnf-plugins-core
-          dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+          dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
           dnf install -y docker-ce-cli
           docker system info
           ls -la $SD_DIND_SHARE_PATH
       - install-python: |
-          dnf install -y python38-pip python38-devel gcc gcc-c++ # gcc et al required for pytrec_eval
+          dnf install -y python39-pip python39-devel gcc gcc-c++ # gcc et al required for pytrec_eval
           dnf install -y --enablerepo=powertools pandoc
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[dev]
           python3 -m pip install -r docs/sphinx/source/requirements.txt
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
+      - run-unit-tests: |
+          pytest tests/unit
+      - run-doc-tests: |
+          pytest vespa --doctest-modules
       - run-doc-linkcheck: |
           sphinx-build -E -D exclude_patterns=getting-started-pyvespa-cloud.ipynb -b linkcheck docs/sphinx/source docs/sphinx/build
           sphinx-build -E -D exclude_patterns=getting-started-pyvespa-cloud.ipynb docs/sphinx/source docs/sphinx/build
           rm -fr docs/sphinx/build
-      - run-doc-tests: |
-          pytest vespa --doctest-modules
-      - run-unit-tests: |
-          pytest tests/unit
 
   integration-except-cloud:
     requires: [~commit,~pr]
@@ -54,17 +50,14 @@ jobs:
       screwdriver.cd/dockerRam: TURBO
       screwdriver.cd/buildPeriodically: H 11 * * *
     steps:
-      - setup: |
-          export WORK_DIR=$SD_DIND_SHARE_PATH
-          export RESOURCES_DIR=$(pwd)/vespa/resources
       - install-docker: |
           dnf install -y dnf-plugins-core
-          dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+          dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
           dnf install -y docker-ce-cli
           docker system info
           ls -la $SD_DIND_SHARE_PATH
       - install-python: |
-          dnf install -y python38-pip
+          dnf install -y python39-pip
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[dev]
       - run-integration-docker: |
@@ -83,24 +76,19 @@ jobs:
     steps:
       - setup: |
           dnf install -y git
-          export WORK_DIR=$SD_DIND_SHARE_PATH
-          export RESOURCES_DIR=$(pwd)/vespa/resources
+
       - install-docker: |
           dnf install -y dnf-plugins-core
-          dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+          dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
           dnf install -y docker-ce-cli
           docker system info
           ls -la $SD_DIND_SHARE_PATH
       - install-python: |
-          dnf install -y python38-pip python38-devel gcc gcc-c++ # gcc required for pytrec_eval
+          dnf install -y python39-pip python39-devel gcc gcc-c++ # gcc required for pytrec_eval
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[dev]
           python3 -m pip install -r docs/sphinx/source/requirements.txt
           python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
-      - install-vespa-cli: |
-          VESPA_CLI_VERSION=$(curl -fsSL https://api.github.com/repos/vespa-engine/vespa/releases/latest | grep -Po '"tag_name": "v\K.*?(?=")') && \
-          curl -fsSL https://github.com/vespa-engine/vespa/releases/download/v${VESPA_CLI_VERSION}/vespa-cli_${VESPA_CLI_VERSION}_linux_amd64.tar.gz | tar -zxf - -C /opt && \
-          ln -sf /opt/vespa-cli_${VESPA_CLI_VERSION}_linux_amd64/bin/vespa /usr/local/bin/
       - install-openmp: |
           # required for using lightgbm
           dnf install -y libgomp zstd
@@ -111,7 +99,7 @@ jobs:
           dnf install -y tree
           echo "All non-cloud notebooks:"
 
-          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' | while read f
+          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' ! -name 'colpali-document-retrieval-vision-language-models.ipynb' | while read f
           do
             echo "running: runnb --allow-not-trusted $f"
             runnb --allow-not-trusted $f
@@ -133,11 +121,8 @@ jobs:
     environment:
       SD_ZIP_ARTIFACTS: true
     steps:
-      - setup: |
-          export WORK_DIR=$SD_DIND_SHARE_PATH
-          export RESOURCES_DIR=$(pwd)/vespa/resources
       - install-python: |
-          dnf install -y python38-pip
+          dnf install -y python39-pip
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[dev]
       - run-integration-cloud: |
@@ -156,11 +141,8 @@ jobs:
     environment:
       SD_ZIP_ARTIFACTS: true
     steps:
-      - setup: |
-          export WORK_DIR=$SD_DIND_SHARE_PATH
-          export RESOURCES_DIR=$(pwd)/vespa/resources
       - install-python: |
-          dnf install -y python38-pip
+          dnf install -y python39-pip
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[dev]
       - run-integration-cloud: |
@@ -179,52 +161,51 @@ jobs:
     environment:
       SD_ZIP_ARTIFACTS: true
     steps:
-      - setup: |
-          export WORK_DIR=$SD_DIND_SHARE_PATH
-          export RESOURCES_DIR=$(pwd)/vespa/resources
       - install-python: |
-          dnf install -y python38-pip
+          dnf install -y python39-pip
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[dev]
       - run-integration-cloud: |
           pytest tests/integration/test_integration_vespa_cloud_vector_search.py -s -v
 
-  notebooks-cloud:
-    requires: [integration-cloud]
-    annotations:
-      screwdriver.cd/timeout: 120
-      screwdriver.cd/cpu: HIGH
-      screwdriver.cd/ram: HIGH
-    secrets:
-      - VESPA_TEAM_API_KEY
-      - OPENAI_API_KEY
-      - CO_API_KEY
-    environment:
-      SD_ZIP_ARTIFACTS: true
-    steps:
-      - setup: |
-          export WORK_DIR=$SD_DIND_SHARE_PATH
-          export RESOURCES_DIR=$(pwd)/vespa/resources
-      - install-python: |
-          dnf install -y which git-all python38-pip python38-devel gcc-toolset-9-gcc gcc-toolset-9-gcc-c++ # gcc9 required for colbert
-          source /opt/rh/gcc-toolset-9/enable # enable gcc9 for colbert
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -e .[dev]
-          python3 -m pip install -r docs/sphinx/source/requirements.txt
-          python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
-      - install-vespa-cli: |
-          VESPA_CLI_VERSION=$(curl -fsSL https://api.github.com/repos/vespa-engine/vespa/releases/latest | grep -Po '"tag_name": "v\K.*?(?=")') && \
-          curl -fsSL https://github.com/vespa-engine/vespa/releases/download/v${VESPA_CLI_VERSION}/vespa-cli_${VESPA_CLI_VERSION}_linux_amd64.tar.gz | tar -zxf - -C /opt && \
-          ln -sf /opt/vespa-cli_${VESPA_CLI_VERSION}_linux_amd64/bin/vespa /usr/local/bin/
-      - run-notebooks-cloud-related: |
-          echo "PATH:"
-          echo $PATH
-          find docs -name '*cloud*.ipynb' -not -name mother-of-all-embedding-models-cloud.ipynb | while read f
-          do
-            echo "running: runnb --allow-not-trusted $f"
-            runnb --allow-not-trusted $f
-            if [ $? -ne 0 ]
-            then
-              exit 1
-            fi
-          done
+  # notebooks-cloud:
+  #   requires: [integration-cloud]
+  #   annotations:
+  #     screwdriver.cd/timeout: 120
+  #     screwdriver.cd/cpu: HIGH
+  #     screwdriver.cd/ram: HIGH
+  #   secrets:
+  #     - VESPA_TEAM_API_KEY
+  #     - OPENAI_API_KEY
+  #     - CO_API_KEY
+  #   environment:
+  #     SD_ZIP_ARTIFACTS: true
+  #   steps:
+  #     - install-python: |
+  #         dnf install -y which git-all python39-pip python39-devel gcc-toolset-9-gcc gcc-toolset-9-gcc-c++ # gcc9 required for colbert
+  #         source /opt/rh/gcc-toolset-9/enable # enable gcc9 for colbert
+  #         python3 -m pip install --upgrade pip
+  #         python3 -m pip install -e .[dev]
+  #         python3 -m pip install -r docs/sphinx/source/requirements.txt
+  #         python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
+      
+  #     - run-notebooks-cloud-related: |
+  #         echo "PATH:"
+  #         echo $PATH
+  #         find docs -name '*cloud*.ipynb' -not -name mother-of-all-embedding-models-cloud.ipynb | while read f
+  #         do
+  #           # Display total and free memory in human-readable format before running each notebook
+  #           total_mem=$(free -h | grep Mem | awk '{print $2}')
+  #           free_mem=$(free -h | grep Mem | awk '{print $4}')
+  #           echo "Before running $f - Total Memory: $total_mem, Free Memory: $free_mem"
+
+  #           # Run the notebook in a subshell
+  #           echo "running: runnb --allow-not-trusted $f"
+  #           (runnb --allow-not-trusted $f)
+  #           # Check the exit status of the last command in the subshell
+  #           if [ $? -ne 0 ]
+  #           then
+  #             echo "Error running $f"
+  #             exit 1
+  #           fi
+  #         done

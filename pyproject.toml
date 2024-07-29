@@ -1,32 +1,30 @@
+# Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
+
 [build-system]
 requires = ["setuptools>=69", "wheel", "build", "twine", "versioneer[toml]"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyvespa"
-version = "0.40.0"
+version = "0.45.0"
 description = "Python API for vespa.ai"
 readme = "README.md"
 keywords = ["vespa", "search engine", "data science"]
-classifiers = [
-    "License :: OSI Approved :: Apache Software License"
-]
+classifiers = ["License :: OSI Approved :: Apache Software License"]
 dependencies = [
-    "requests",
+    "requests>=2.32.0",
     "requests_toolbelt",
     "docker",
     "jinja2",
     "cryptography",
     "aiohttp",
-    "tenacity",
-    "typing_extensions",
     "httpx[http2]",
+    "tenacity>=8.4.1",
+    "typing_extensions",
+    "python-dateutil",
 ]
-requires-python = ">=3.8"
 
-[project.urls]
-homepage = "https://pypi.org/project/pyvespa"
-repository = "https://github.com/vespa-engine/pyvespa"
+requires-python = ">=3.8"
 
 [[project.authors]]
 name = "Thiago G. Martins"
@@ -35,7 +33,10 @@ name = "Thiago G. Martins"
 name = "Thomas Thoresen"
 email = "thomas@vespa.ai"
 
-# License file 
+[project.urls]
+homepage = "https://pypi.org/project/pyvespa"
+repository = "https://github.com/vespa-engine/pyvespa"
+
 [project.license]
 file = "LICENSE"
 
@@ -48,42 +49,68 @@ dev = [
     "nbconvert",
     "runnb",
     "ruff",
-    "pre-commit"
+    "pre-commit",
+    "vespacli",
 ]
 build = [
-"setuptools==69.0.3",
-"build==1.0.3",
-"twine==4.0.1",
-"toml==0.10.2",
-"requests~=2.26.0",
-"bump-my-version==0.21.0",
+    "setuptools==69.0.3",
+    "build==1.0.3",
+    "twine==5.1.1",
+    "toml==0.10.2",
+    "requests~=2.32.0",
+    "ruff",
 ]
+vespacli = ["vespacli"]
 
 [tool.setuptools]
-packages = ["vespa"]
+package-dir = {vespa = "vespa"}
+
+[tool.ruff]
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+]
+line-length = 88
+indent-width = 4
 
 [tool.setuptools.package-data]
-vespa = ["py.typed","templates/*"]
+vespa = ["py.typed", "templates/*"]
 
-[tool.bumpversion]
-current_version = "0.40.0"
-excluded_paths = ["docs", "vespacli", "setup.py"]
-parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)"
-serialize = ["{major}.{minor}.{patch}"]
-search = "{current_version}"
-replace = "{new_version}"
-regex = false
-ignore_missing_version = false
-ignore_missing_files = false
-tag = true
-sign_tags = true
-tag_name = "v{new_version}"
-tag_message = "Bump version: {current_version} → {new_version}"
-allow_dirty = false
-commit = true
-message = "Bump version: {current_version} → {new_version}"
-commit_args = ""
-[[tool.bumpversion.files]]
-filename = "pyproject.toml"
-[[tool.bumpversion.files]]
-filename = "vespa/__init__.py"
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+ignore = []
+fixable = ["ALL"]
+unfixable = []
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
+docstring-code-line-length = "dynamic"

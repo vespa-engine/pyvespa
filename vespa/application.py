@@ -5,8 +5,8 @@ import asyncio
 import requests
 import traceback
 import concurrent.futures
-from typing import Optional, Dict, List, IO, Iterable, Callable, Tuple, Union
-from concurrent.futures import ThreadPoolExecutor, Future
+from typing import Optional, Dict, Generator, List, IO, Iterable, Callable, Tuple, Union
+from concurrent.futures import ThreadPoolExecutor, Future, as_completed
 from queue import Queue, Empty
 import threading
 from requests import Session
@@ -21,25 +21,21 @@ from tenacity import (
     stop_after_attempt,
     retry_if_result,
     retry_if_exception,
+    retry_if_exception_type,
     retry_any,
     RetryCallState,
 )
 from time import sleep
 from os import environ
 from urllib.parse import quote
+import random
+import time
 
 from vespa.exceptions import VespaError
-from vespa.io import VespaQueryResponse, VespaResponse
+from vespa.io import VespaQueryResponse, VespaResponse, VespaVisitResponse
 from vespa.package import ApplicationPackage
 import httpx
 
-retry_strategy = Retry(
-    total=3,  # should be an unbounded amount of retrires for 429
-    backoff_factor=1,
-    raise_on_status=False,  # we want to raise and wrap with VespaError instead to get the payload (if any)
-    status_forcelist=[429, 503],
-    allowed_methods=["POST", "GET", "DELETE", "PUT"],
-)
 
 VESPA_CLOUD_SECRET_TOKEN: str = "VESPA_CLOUD_SECRET_TOKEN"
 
@@ -128,6 +124,7 @@ class Vespa(object):
             token = environ.get(VESPA_CLOUD_SECRET_TOKEN, None)
             if token is not None:
                 self.vespa_cloud_secret_token = token
+        self.auth_method = None
 
     def asyncio(
         self, connections: Optional[int] = 8, total_timeout: int = 10
@@ -204,7 +201,7 @@ class Vespa(object):
 
         return schema.name
 
-    def wait_for_application_up(self, max_wait: int) -> None:
+    def wait_for_application_up(self, max_wait: int = 300) -> None:
         """
         Wait for application endpoint ready (/ApplicationStatus).
 
@@ -212,37 +209,99 @@ class Vespa(object):
         :raises RuntimeError: If not able to reach endpoint within :max_wait: param or the client fails to authenticate.
         :return:
         """
-        try_interval = 5
-        waited = 0
-        while waited < max_wait:
-            response = self.get_application_status()
-            if response is not None and response.status_code == 200:
-                print("Application is up!", file=self.output_file)
-                return
-            if response is not None and (
-                response.status_code == 401 or response.status_code == 403
-            ):
-                auth_method = "token" if self.vespa_cloud_secret_token else "mtls"
-                raise RuntimeError(
-                    "Failued to authenticate client for endpoint {0}, Response code: {1}. Auth Method: {2}".format(
-                        self.url, response.status_code, auth_method
-                    )
-                )
-            print(
-                "Waiting for application status, {0}/{1} seconds...".format(
-                    waited, max_wait
-                ),
-                file=self.output_file,
-            )
-            sleep(try_interval)
-            waited += try_interval
+        for wait_sec in range(max_wait):
+            sleep(1)
+            try:
+                response = self.get_application_status()
+                if not response:
+                    continue
+                if response.status_code == 200:
+                    print("Application is up!", file=self.output_file)
+                    return
+            except ConnectionError:
+                pass
 
-        if waited >= max_wait:
+            if wait_sec % 5 == 0:
+                print(
+                    f"Waiting for application to come up, {wait_sec}/{max_wait} seconds.",
+                    file=self.output_file,
+                )
+        else:
             raise RuntimeError(
-                "Could not reach endpoint {0}, waited for {1} seconds.".format(
-                    self.url, max_wait
+                "Could not connect to endpoint {0} using any of the available auth methods within {1} seconds.".format(
+                    self.end_point, max_wait
                 )
             )
+
+    @property
+    def _auth_methods(self) -> Dict[str, Callable]:
+        """
+        All available authentication methods for Vespa connection.
+        These will be tried in order to connect to Vespa.
+
+        TODO: Let user specify the order of auth methods to try.
+
+        :return: Dict of auth methods.
+        """
+        auth_methods = {
+            "http": lambda endpoint: requests.get(endpoint),
+        }
+        if self.vespa_cloud_secret_token is not None:
+            headers = {"Authorization": f"Bearer {self.vespa_cloud_secret_token}"}
+            auth_methods.update(
+                {
+                    "token": lambda endpoint: requests.get(
+                        endpoint,
+                        headers=headers,
+                    ),
+                }
+            )
+        if self.key and self.cert:
+            auth_methods.update(
+                {
+                    "mtls_key_cert": lambda endpoint: requests.get(
+                        endpoint, cert=(self.cert, self.key)
+                    ),
+                }
+            )
+        elif self.cert:
+            auth_methods.update(
+                {
+                    "mtls_cert": lambda endpoint: requests.get(
+                        endpoint, cert=self.cert
+                    ),
+                }
+            )
+        return auth_methods
+
+    def _get_valid_auth_method(self) -> Optional[str]:
+        """
+        Get auth method for Vespa connection.
+
+        :return: Auth method used for Vespa connection. Either 'token','mtls_key_cert','mtls_cert' or 'http'.
+
+        :raises ConnectionError: If not able to connect to endpoint using any of the available auth methods.
+
+        """
+        endpoint = f"{self.end_point}/ApplicationStatus"
+        if self.auth_method:
+            return self.auth_method
+        for auth_method, request_func in self._auth_methods.items():
+            try:
+                response = request_func(endpoint)
+                if response.status_code == 200:
+                    print(
+                        f"Using {auth_method} Authentication against endpoint {endpoint}",
+                        file=self.output_file,
+                    )
+                    return auth_method
+            except ConnectionError:
+                pass
+        else:
+            # Could not connect to endpoint using any of the available auth methods.
+            # It might not be available yet. It might also be protected, and /search/ - endpoints may still be available.",
+            # so we will not raise an exception here.
+            return None
 
     def get_application_status(self) -> Optional[Response]:
         """
@@ -250,44 +309,14 @@ class Vespa(object):
 
         :return:
         """
-        endpoint = "{}/ApplicationStatus".format(self.end_point)
-        try:
-            if self.vespa_cloud_secret_token:
-                print(
-                    "Using Token Authentication against endpoint {}".format(endpoint),
-                    file=self.output_file,
-                )
-                return requests.get(
-                    endpoint,
-                    headers={
-                        "Authorization": f"Bearer {self.vespa_cloud_secret_token}"
-                    },
-                )
-            if self.key:
-                print(
-                    "Using mTLS (key,cert) Authentication against endpoint {}".format(
-                        endpoint
-                    ),
-                    file=self.output_file,
-                )
-                return requests.get(endpoint, cert=(self.cert, self.key))
-            elif self.cert:
-                print(
-                    "Using mTLS (cert) Authentication against endpoint {}".format(
-                        endpoint
-                    ),
-                    file=self.output_file,
-                )
-                return requests.get(endpoint, cert=self.cert)
-            else:
-                print(
-                    "Using plain http against endpoint {}".format(endpoint),
-                    file=self.output_file,
-                )
-                return requests.get(endpoint)
-
-        except ConnectionError:
-            return None
+        endpoint = f"{self.end_point}/ApplicationStatus"
+        auth_method = self._get_valid_auth_method()
+        if not auth_method:
+            response = None
+        else:
+            request_func = self._auth_methods[auth_method]
+            response = request_func(endpoint)
+        return response
 
     def get_model_endpoint(self, model_id: Optional[str] = None) -> Optional[Response]:
         """Get stateless model evaluation endpoints."""
@@ -324,7 +353,21 @@ class Vespa(object):
         """
         Feed a data point to a Vespa app. Will create a new VespaSync with
         connection overhead.
-        >>> with VespaSync(app) as sync_app: sync_app.feed_data_point(...)  # doctest: +SKIP
+
+        Example usage::
+
+            app = Vespa(url="localhost", port=8080)
+            data_id = "1",
+            fields = {
+                    "field1": "value1",
+                }
+            with VespaSync(app) as sync_app:
+                response = sync_app.feed_data_point(
+                    schema="schema_name",
+                    data_id=data_id,
+                    fields=fields
+                )
+            print(response)
 
         :param schema: The schema that we are sending data to.
         :param data_id: Unique id associated with this data point.
@@ -365,7 +408,18 @@ class Vespa(object):
         Uses a queue to feed data in parallel with a thread pool. The result of each operation is forwarded
         to the user provided callback function that can process the returned `VespaResponse`.
 
-        :param iter: An iterable of Dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
+        Example usage::
+
+            app = Vespa(url="localhost", port=8080)
+            data = [
+                {"id": "1", "fields": {"field1": "value1"}},
+                {"id": "2", "fields": {"field1": "value2"}},
+            ]
+            def callback(response, id):
+                print(f"Response for id {id}: {response.status_code}")
+            app.feed_iterable(data, schema="schema_name", callback=callback)
+
+        :param iter: An iterable of Dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`. Note that this 'id' is only the last part of the full document id, that will be generated automatically by pyvespa.
         :param schema: The Vespa schema name that we are sending data to.
         :param namespace: The Vespa document id namespace. If no namespace is provided the schema is used.
         :param callback: A callback function to be called on each result. Signature `callback(response:VespaResponse, id:str)`
@@ -511,7 +565,9 @@ class Vespa(object):
                     )
 
         with VespaSync(
-            app=self, pool_maxsize=max_connections, pool_connections=max_connections
+            app=self,
+            pool_maxsize=max_connections,
+            pool_connections=max_connections,
         ) as session:
             queue = Queue(maxsize=max_queue_size)
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -535,6 +591,12 @@ class Vespa(object):
     ) -> VespaResponse:
         """
         Delete a data point from a Vespa app.
+
+        Example usage::
+
+            app = Vespa(url="localhost", port=8080)
+            response = app.delete_data(schema="schema_name", data_id="1")
+            print(response)
 
         :param schema: The schema that we are deleting data from.
         :param data_id: Unique id associated with this data point.
@@ -579,6 +641,49 @@ class Vespa(object):
                 namespace=namespace,
                 schema=schema,
                 slices=slices,
+                **kwargs,
+            )
+
+    def visit(
+        self,
+        content_cluster_name: str,
+        schema: Optional[str] = None,
+        namespace: Optional[str] = None,
+        slices: int = 1,
+        selection: str = "true",
+        wanted_document_count: int = 500,
+        **kwargs,
+    ) -> Generator[Generator[VespaVisitResponse, None, None], None, None]:
+        """
+        Visit all documents associated with the schema and matching the selection.
+
+        Will run each slice on a seperate thread, for each slice yields the
+        response for each page.
+
+        Example usage::
+
+            for slice in app.visit(schema="schema_name", slices=2):
+                for response in slice:
+                    print(response.json)
+
+        :param content_cluster_name: Name of content cluster to GET from.
+        :param schema: The schema that we are visiting data from.
+        :param namespace: The namespace that we are visiting data from.
+        :param slices: Number of slices to use for parallel GET.
+        :param wanted_document_count: Best effort number of documents to retrieve for each request. May contain less if there are not enough documents left.
+        :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)
+        :return: A generator of slices, each containing a generator of responses.
+        :raises HTTPError: if one occurred
+        """
+
+        with VespaSync(self, pool_connections=slices, pool_maxsize=slices) as sync_app:
+            return sync_app.visit(
+                content_cluster_name=content_cluster_name,
+                namespace=namespace,
+                schema=schema,
+                slices=slices,
+                selection=selection,
+                wanted_document_count=wanted_document_count,
                 **kwargs,
             )
 
@@ -627,10 +732,22 @@ class Vespa(object):
         """
         Update a data point in a Vespa app.
 
+        Example usage::
+
+            vespa = Vespa(url="localhost", port=8080)
+
+            fields = {"mystringfield": "value1", "myintfield": 42}
+            response = vespa.update_data(schema="schema_name", data_id="id1", fields=fields)
+            # or, with partial update, setting auto_assign=False
+            fields = {"myintfield": {"increment": 1}}
+            response = vespa.update_data(schema="schema_name", data_id="id1", fields=fields, auto_assign=False)
+            print(response.json)
+
         :param schema: The schema that we are updating data.
         :param data_id: Unique id associated with this data point.
         :param fields: Dict containing all the fields you want to update.
         :param create: If true, updates to non-existent documents will create an empty document to update
+        :param auto_assign: Assumes `fields`-parameter is an assignment operation. (https://docs.vespa.ai/en/reference/document-json-format.html#assign). If set to false, the fields parameter should be a dictionary including the update operation.
         :param namespace: The namespace that we are updating data. If no namespace is provided the schema is used.
         :param groupname: The groupname that we are updating data.
         :param kwargs: Additional arguments to be passed to the HTTP PUT request. https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters
@@ -714,22 +831,60 @@ class Vespa(object):
         return f"/document/v1/{namespace}/{schema}/docid/{id}"
 
 
+class CustomHTTPAdapter(HTTPAdapter):
+    def __init__(self, *args, **kwargs):
+        self.pool_maxsize = kwargs.pop("pool_maxsize")
+        self.pool_connections = kwargs.pop("pool_connections")
+        self.num_retries_429 = kwargs.pop("num_retries_429", 10)
+        super().__init__(*args, **kwargs)
+
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            raise_on_status=False,
+            status_forcelist=[503],
+            allowed_methods=["POST", "GET", "DELETE", "PUT"],
+        )
+        self.retry_strategy = retry_strategy
+
+    def send(self, request, **kwargs) -> Response:
+        for attempt in range(self.num_retries_429):
+            response = super().send(request, **kwargs)
+            if response.status_code == 429:
+                wait_time = (
+                    0.1 * 1.618** attempt + random.uniform(0, 1)
+                )  # Exponential backoff with jitter. The 10th retry will sleep for 1024 seconds.
+                time.sleep(wait_time)
+            else:
+                break
+        return response
+
+
 class VespaSync(object):
-    def __init__(self, app: Vespa, pool_maxsize: int = 10, pool_connections=10) -> None:
+    def __init__(
+        self, app: Vespa, pool_maxsize: int = 10, pool_connections: int = 10
+    ) -> None:
         self.app = app
         if self.app.key:
             self.cert = (self.app.cert, self.app.key)
         else:
             self.cert = self.app.cert
-        if self.app.vespa_cloud_secret_token:
-            self.headers = {
-                "Authorization": f"Bearer {self.app.vespa_cloud_secret_token}"
-            }
+        self.app.auth_method = self.app._get_valid_auth_method()
+        self.headers = {
+            "User-Agent": "pyvespa syncio client",
+        }
+        if self.app.auth_method == "token" and self.app.vespa_cloud_secret_token:
+            # Bearer and user-agent
+            self.headers.update(
+                {"Authorization": f"Bearer {self.app.vespa_cloud_secret_token}"}
+            )
+
         self.http_session = None
-        self.adapter = HTTPAdapter(
-            max_retries=retry_strategy,
+        self.adapter = CustomHTTPAdapter(
             pool_maxsize=pool_maxsize,
             pool_connections=pool_connections,
+            num_retries_429=10,
+            pool_block=True,
         )
 
     def __enter__(self):
@@ -747,7 +902,7 @@ class VespaSync(object):
         self.http_session.headers.update({"User-Agent": "pyvespa syncio client"})
         self.http_session.mount("https://", self.adapter)
         self.http_session.mount("http://", self.adapter)
-        if self.app.vespa_cloud_secret_token:
+        if self.app.auth_method == "token" and self.app.vespa_cloud_secret_token:
             self.http_session.headers.update(self.headers)
         else:
             self.http_session.cert = self.cert
@@ -948,6 +1103,78 @@ class VespaSync(object):
         with ThreadPoolExecutor(max_workers=slices) as executor:
             executor.map(delete_slice, range(slices))
 
+    def visit(
+        self,
+        content_cluster_name: str,
+        schema: Optional[str] = None,
+        namespace: Optional[str] = None,
+        slices: int = 1,
+        selection: str = "true",
+        wanted_document_count: int = 500,
+        **kwargs,
+    ) -> Generator[Generator[VespaVisitResponse, None, None], None, None]:
+        """
+        Visit all documents associated with the schema and matching the selection.
+
+        Will run each slice on a seperate thread, for each slice yields the
+        response for each page.
+
+        :param content_cluster_name: Name of content cluster to GET from.
+        :param schema: The schema that we are visiting data from.
+        :param namespace: The namespace that we are visiting data from.
+        :param slices: Number of slices to use for parallel GET.
+        :param wanted_document_count: Best effort number of documents to retrieve for each request. May contain less if there are not enough documents left.
+        :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)
+        :return: A generator of slices, each containing a generator of responses.
+        :raises HTTPError: if one occurred
+        """
+        if not namespace:
+            namespace = schema
+
+        if schema:
+            target = "{}/{}/docid/".format(
+                namespace,
+                schema,
+            )
+        else:
+            target = ""
+
+        end_point = "{}/document/v1/{}".format(
+            self.app.end_point,
+            target,
+        )
+
+        @retry(retry=retry_if_exception_type(HTTPError), stop=stop_after_attempt(3))
+        def visit_request(end_point: str, params: Dict[str, str]):
+            r = self.http_session.get(end_point, params=params)
+            r.raise_for_status()
+            return VespaVisitResponse(
+                json=r.json(), status_code=r.status_code, url=str(r.url)
+            )
+
+        def visit_slice(slice_id):
+            params = {
+                "cluster": content_cluster_name,
+                "selection": selection,
+                "wantedDocumentCount": wanted_document_count,
+                "slices": slices,
+                "sliceId": slice_id,
+                **kwargs,
+            }
+
+            while True:
+                result = visit_request(end_point, params=params)
+                yield result
+                if result.continuation:
+                    params["continuation"] = result.continuation
+                else:
+                    break
+
+        with ThreadPoolExecutor(max_workers=slices) as executor:
+            futures = [executor.submit(visit_slice, slice) for slice in range(slices)]
+            for future in as_completed(futures):
+                yield future.result()
+
     def get_data(
         self,
         schema: str,
@@ -996,13 +1223,6 @@ class VespaSync(object):
     ) -> VespaResponse:
         """
         Update a data point in a Vespa app.
-
-        Example usage:
-        >>> fields = {"mystringfield": "value1", "myintfield": 42}  # doctest: +SKIP
-        >>> response = vespa.update_data(schema="schema_name", data_id="id1", fields=fields)  # doctest: +SKIP
-        or, with partial update, setting auto_assign=False
-        >>> fields = {"myintfield": {"increment": 1}} # doctest: +SKIP
-        >>> response = vespa.update_data(schema="schema_name", data_id="id1", fields=fields, auto_assign=False) # doctest: +SKIP
 
         :param schema: The schema that we are updating data.
         :param data_id: Unique id associated with this data point.
@@ -1054,13 +1274,15 @@ class VespaAsync(object):
         self.httpx_client = None
         self.connections = connections
         self.total_timeout = total_timeout
-        if self.app.vespa_cloud_secret_token:
-            self.headers = {
-                "Authorization": f"Bearer {self.app.vespa_cloud_secret_token}",
-                "User-Agent": "pyvespa asyncio client",
-            }
-        else:
-            self.headers = {"User-Agent": "pyvespa asyncio client"}
+        self.app.auth_method = self.app._get_valid_auth_method()
+        self.headers = {
+            "User-Agent": "pyvespa asyncio client",
+        }
+        if self.app.auth_method == "token" and self.app.vespa_cloud_secret_token:
+            # Bearer and user-agent
+            self.headers.update(
+                {"Authorization": f"Bearer {self.app.vespa_cloud_secret_token}"}
+            )
 
     async def __aenter__(self):
         print("Opening httpx client")

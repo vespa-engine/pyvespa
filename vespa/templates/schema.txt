@@ -201,6 +201,22 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
             {% endfor %}
         }
         {% endif %}
+        {% if value.mutate %}
+        mutate {
+            {% if value.mutate.on_match %}
+            on-match    { {{ value.mutate.on_match_attribute }}   {{ value.mutate.on_match_operation_string }} {{ value.mutate.on_match_operation_value}} }
+            {% endif %}
+            {% if value.mutate.on_first_phase %}
+            on-first-phase  { {{ value.mutate.on_first_phase_attribute }}   {{ value.mutate.on_first_phase_operation_string }} {{ value.mutate.on_first_phase_operation_value }} }
+            {% endif %}
+            {% if value.mutate.on_second_phase %}
+            on-second-phase  { {{ value.mutate.on_second_phase_attribute }}   {{ value.mutate.on_second_phase_operation_string }} {{ value.mutate.on_second_phase_operation_value }} }
+            {% endif %}
+            {% if value.mutate.on_summary %}
+            on-summary  { {{ value.mutate.on_summary_attribute }}   {{ value.mutate.on_summary_operation_string }} {{ value.mutate.on_summary_operation_value }} }
+            {% endif %}
+        }
+        {% endif %}
     }
 {% endfor %}
 {% for document_summary in document_summaries %}

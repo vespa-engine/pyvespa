@@ -26,7 +26,7 @@ from vespa.package import (
 from vespa.deployment import VespaDocker
 from vespa.application import VespaSync
 from vespa.exceptions import VespaError
-
+import random
 
 CONTAINER_STOP_TIMEOUT = 10
 RESOURCES_DIR = get_resource_path()
@@ -287,6 +287,7 @@ class TestApplicationCommon(unittest.TestCase):
         self,
         app,
         schema_name,
+        cluster_name,
         fields_to_send,
         field_to_update,
         expected_fields_from_get_operation,
@@ -347,6 +348,33 @@ class TestApplicationCommon(unittest.TestCase):
                 "pathId": "/document/v1/{}/{}/docid/{}".format(
                     schema_name, schema_name, fields_to_send["id"]
                 ),
+            },
+        )
+
+        #
+        # Visit data
+        visit_results = []
+        for slice in app.visit(
+            schema=schema_name,
+            content_cluster_name=cluster_name,
+            timeout="200s",
+        ):
+            for response in slice:
+                visit_results.append(response)
+
+        self.assertDictEqual(
+            visit_results[0].json,
+            {
+                "pathId": "/document/v1/{}/{}/docid/".format(schema_name, schema_name),
+                "documents": [
+                    {
+                        "id": "id:{}:{}::{}".format(
+                            schema_name, schema_name, fields_to_send["id"]
+                        ),
+                        "fields": expected_fields_from_get_operation,
+                    }
+                ],
+                "documentCount": 1,
             },
         )
 
@@ -936,6 +964,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
         self.execute_data_operations(
             app=self.app,
             schema_name=self.app_package.name,
+            cluster_name=f"{self.app_package.name}_content",
             fields_to_send=self.fields_to_send[0],
             field_to_update=self.fields_to_update[0],
             expected_fields_from_get_operation=self.fields_to_send[0],
@@ -1018,6 +1047,7 @@ class TestQaApplication(TestApplicationCommon):
         self.execute_data_operations(
             app=self.app,
             schema_name="sentence",
+            cluster_name="qa_content",
             fields_to_send=self.fields_to_send_sentence[0],
             field_to_update=self.fields_to_update[0],
             expected_fields_from_get_operation=self.expected_fields_from_sentence_get_operation[
@@ -1029,6 +1059,7 @@ class TestQaApplication(TestApplicationCommon):
         self.execute_data_operations(
             app=self.app,
             schema_name="context",
+            cluster_name="qa_content",
             fields_to_send=self.fields_to_send_context[0],
             field_to_update=self.fields_to_update[0],
             expected_fields_from_get_operation=self.fields_to_send_context[0],
@@ -1343,6 +1374,79 @@ class TestUpdateApplication(TestApplicationCommon):
                 app=self.app, schema_name=self.schema_name
             )
         )
+
+    def tearDown(self) -> None:
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
+        self.vespa_docker.container.remove()
+
+
+class TestRetryApplication(unittest.TestCase):
+    """
+    Test class that simulates slow docprocessing which causes 429 errors while feeding documents to Vespa.
+
+    Through the CustomHTTPAdapter in `application.py`, these 429 errors will be retried with an exponential backoff strategy,
+    and hence not be returned to the user.
+
+    The slow docprocessing is simulated by setting the `sleep` indexing option on the `latency` field, which then will sleep
+    according to the value of the field when processing the document.
+    """
+
+    def setUp(self) -> None:
+        document = Document(
+            fields=[
+                Field(name="id", type="string", indexing=["attribute", "summary"]),
+                Field(
+                    name="latency",
+                    type="double",
+                    indexing=["attribute", "summary", "sleep"],
+                ),
+            ]
+        )
+        schema = Schema(
+            name="retryapplication",
+            document=document,
+        )
+        self.app_package = ApplicationPackage(name="retryapplication", schema=[schema])
+
+        self.vespa_docker = VespaDocker(port=8089)
+        self.app = self.vespa_docker.deploy(application_package=self.app_package)
+
+    def doc_generator(self, num_docs: int):
+        for i in range(num_docs):
+            yield {
+                "id": str(i),
+                "fields": {
+                    "id": str(i),
+                    "latency": random.uniform(3, 4),
+                },
+            }
+
+    def test_retry(self):
+        num_docs = 10
+        num_429 = 0
+
+        def callback(response: VespaResponse, id: str):
+            nonlocal num_429
+            if response.status_code == 429:
+                print(f"429 response for id {id}")
+                num_429 += 1
+
+        self.app.feed_iterable(
+            self.doc_generator(num_docs),
+            schema="retryapplication",
+            callback=callback,
+        )
+        self.assertEqual(num_429, 0)
+        total_docs = []
+        for doc_slice in self.app.visit(
+            content_cluster_name="retryapplication_content",
+            schema="retryapplication",
+            namespace="retryapplication",
+            selection="true",
+        ):
+            for response in doc_slice:
+                total_docs.extend(response.documents)
+        self.assertEqual(len(total_docs), num_docs)
 
     def tearDown(self) -> None:
         self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
