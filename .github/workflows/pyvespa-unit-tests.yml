@@ -2,9 +2,9 @@ name: Unit tests - cross-platform
 
 on:
   workflow_dispatch:
-  push:
+  pull_request:
     branches:
-      - thomasht86/fix-pty-windows
+      - master
 
 jobs:
   test:
