@@ -1277,13 +1277,13 @@ class VespaAsync(object):
             )
 
     async def __aenter__(self):
-        await self._open_aiohttp_session()
+        self._open_aiohttp_session()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self._close_aiohttp_session()
 
-    async def _open_aiohttp_session(self):
+    def _open_aiohttp_session(self):
         if self.aiohttp_session is not None and not self.aiohttp_session.closed:
             return
         sslcontext = False
