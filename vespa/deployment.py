@@ -207,6 +207,33 @@ class VespaDocker(VespaDeployment):
             docker_timeout=max_wait_docker,
             debug=debug,
         )
+    
+    def deploy_from_bytes(
+        self,
+        application_name: str,
+        application_bytes: bytes,
+        max_wait_configserver: int = 60,
+        max_wait_application: int = 300,
+        docker_timeout: int = 300,
+        debug: bool = False,
+    ) -> Vespa:
+        """
+        Deploy directly from zip bytes.
+        Useful when you already have the application package as bytes.
+
+        :param application_name: Application package name.
+        :param application_bytes: Application package as bytes.
+        :param debug: Add the configured debug_port to the docker port mapping.
+        :return: a Vespa connection instance.
+        """
+        return self._deploy_data(
+            ApplicationPackage(name=application_name),
+            application_bytes,
+            debug,
+            max_wait_application=max_wait_application,
+            max_wait_configserver=max_wait_configserver,
+            docker_timeout=docker_timeout,
+        )
 
     def deploy_from_disk(
         self,
