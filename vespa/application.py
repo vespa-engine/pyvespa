@@ -2,7 +2,6 @@
 
 import sys
 import asyncio
-import requests
 import traceback
 import concurrent.futures
 from typing import Optional, Dict, Generator, List, IO, Iterable, Callable, Tuple, Union
@@ -125,6 +124,7 @@ class Vespa(object):
             if token is not None:
                 self.vespa_cloud_secret_token = token
         self.auth_method = None
+        self.auth_method = self._get_valid_auth_method()
 
     def asyncio(
         self, connections: Optional[int] = 8, total_timeout: int = 10
@@ -244,13 +244,13 @@ class Vespa(object):
         :return: Dict of auth methods.
         """
         auth_methods = {
-            "http": lambda endpoint: requests.get(endpoint),
+            "http": lambda endpoint: httpx.get(endpoint),
         }
         if self.vespa_cloud_secret_token is not None:
             headers = {"Authorization": f"Bearer {self.vespa_cloud_secret_token}"}
             auth_methods.update(
                 {
-                    "token": lambda endpoint: requests.get(
+                    "token": lambda endpoint: httpx.get(
                         endpoint,
                         headers=headers,
                     ),
@@ -259,7 +259,7 @@ class Vespa(object):
         if self.key and self.cert:
             auth_methods.update(
                 {
-                    "mtls_key_cert": lambda endpoint: requests.get(
+                    "mtls_key_cert": lambda endpoint: httpx.get(
                         endpoint, cert=(self.cert, self.key)
                     ),
                 }
@@ -267,9 +267,7 @@ class Vespa(object):
         elif self.cert:
             auth_methods.update(
                 {
-                    "mtls_cert": lambda endpoint: requests.get(
-                        endpoint, cert=self.cert
-                    ),
+                    "mtls_cert": lambda endpoint: httpx.get(endpoint, cert=self.cert),
                 }
             )
         return auth_methods
@@ -286,7 +284,7 @@ class Vespa(object):
         endpoint = f"{self.end_point}/ApplicationStatus"
         if self.auth_method:
             return self.auth_method
-        for auth_method, request_func in self._auth_methods.items():
+        for auth_method, request_func in reversed(self._auth_methods.items()):
             try:
                 response = request_func(endpoint)
                 if response.status_code == 200:
@@ -869,7 +867,8 @@ class VespaSync(object):
             self.cert = (self.app.cert, self.app.key)
         else:
             self.cert = self.app.cert
-        self.app.auth_method = self.app._get_valid_auth_method()
+        if self.app.auth_method is None:
+            self.app.auth_method = self.app._get_valid_auth_method()
         self.headers = {
             "User-Agent": "pyvespa syncio client",
         }
@@ -1274,7 +1273,8 @@ class VespaAsync(object):
         self.httpx_client = None
         self.connections = connections
         self.total_timeout = total_timeout
-        self.app.auth_method = self.app._get_valid_auth_method()
+        if self.app.auth_method is None:
+            self.app.auth_method = self.app._get_valid_auth_method()
         self.headers = {
             "User-Agent": "pyvespa asyncio client",
         }
