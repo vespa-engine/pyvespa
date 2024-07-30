@@ -885,12 +885,13 @@ class VespaCloud(VespaDeployment):
             time.sleep(poll_interval)
         raise TimeoutError(f"Deployment did not finish within {max_wait} seconds. ")
 
-    def deploy_from_disk(
-        self, instance: str, application_root: Path, max_wait: int = 300
+    def deploy_from_zip(
+        self, instance: str, zip_file: BytesIO, max_wait: int = 300
     ) -> Vespa:
         """
-        Deploy to dev from a directory tree.
-        Used when making changes to application package files not supported by pyvespa.
+        Deploy to dev from a zipped application package.
+        Useful when you already have the application package as bytes.
+
         NB: Requires certificate and key to be generated with 'vespa auth cert'.
 
         :param instance: Name of the instance where the application is to be run
@@ -898,14 +899,12 @@ class VespaCloud(VespaDeployment):
         :param max_wait: Seconds to wait for the deployment.
         :return: a Vespa connection instance.
         """
-        data = BytesIO(self.read_app_package_from_disk(application_root))
-
         # Deploy the zipped application package
         disk_folder = os.path.join(os.getcwd(), self.application)
         region = self.get_dev_region()
         job = "dev-" + region
         run = self._start_deployment(
-            instance, job, disk_folder, application_zip_bytes=data
+            instance, job, disk_folder, application_zip_bytes=zip_file
         )
         self._follow_deployment(instance, job, run)
         mtls_endpoint = self.get_mtls_endpoint(instance=instance, region=region)
@@ -929,6 +928,22 @@ class VespaCloud(VespaDeployment):
         print("Finished deployment.", file=self.output)
 
         return app
+    
+    def deploy_from_disk(
+        self, instance: str, application_root: Path, max_wait: int = 300
+    ) -> Vespa:
+        """
+        Deploy to dev from a directory tree.
+        Used when making changes to application package files not supported by pyvespa.
+        NB: Requires certificate and key to be generated with 'vespa auth cert'.
+
+        :param instance: Name of the instance where the application is to be run
+        :param application_root: Application package directory root
+        :param max_wait: Seconds to wait for the deployment.
+        :return: a Vespa connection instance.
+        """
+        data = BytesIO(self.read_app_package_from_disk(application_root))
+        return self.deploy_from_zip(instance, data, max_wait)
 
     def close(self) -> None:
         self.connection.close()
