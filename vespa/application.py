@@ -335,7 +335,7 @@ class Vespa(object):
 
         :param body: Dict containing request parameters.
         :param groupname: The groupname used with streaming search.
-        param kwargs: Extra Vespa Query API parameters.
+        :param kwargs: Extra Vespa Query API parameters.
         :return: The response from the Vespa application.
         """
         # Use one connection as this is a single query
