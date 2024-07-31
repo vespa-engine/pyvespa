@@ -1,6 +1,7 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import unittest
+import platform
 import pytest
 
 from vespa.package import (
@@ -616,6 +617,9 @@ class TestApplicationPackage(unittest.TestCase):
         self.assertEqual(self.app_package.schema, self.test_schema)
         self.assertEqual(self.app_package.schema, self.app_package.get_schema())
 
+    @unittest.skipIf(
+        platform.system() == "Windows", "Disabled on Windows due to path differences"
+    )
     def test_schema_to_text(self):
         expected_result = (
             "schema msmarco {\n"

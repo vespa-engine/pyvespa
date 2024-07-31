@@ -13,7 +13,7 @@ from time import sleep, strftime, gmtime
 from typing import Tuple, Union, IO, Optional, List, Dict
 from tenacity import retry, stop_after_attempt, wait_exponential
 from datetime import timezone
-import pty
+import platform
 import subprocess
 import shlex
 import select
@@ -981,6 +981,13 @@ class VespaCloud(VespaDeployment):
             print(output.stdout.decode("utf-8"))
 
     def _vespa_auth_login(self):
+        system = platform.system()
+        if system == "Windows":
+            raise NotImplementedError(
+                "Interactive login is not supported on Windows due to unavailable `pty` module. Please use 'vespa auth login' in the terminal instead."
+            )
+        import pty
+
         is_notebook = is_jupyter_notebook()
         # Open a new pseudo-terminal
         master, slave = pty.openpty()
