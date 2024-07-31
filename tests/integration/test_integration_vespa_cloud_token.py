@@ -48,7 +48,7 @@ class TestTokenBasedAuth(unittest.TestCase):
 
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
-            application="pyvespa-integration",
+            application="pyvespa-int-token",
             key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
             auth_client_token_id=CLIENT_TOKEN_ID,
@@ -104,7 +104,7 @@ class TestMsmarcoApplicationWithTokenAuth(TestApplicationCommon):
         self.app_package = create_msmarco_application_package(auth_clients=self.clients)
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
-            application="pyvespa-integration",
+            application="pyvespa-int-token2",
             key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
             auth_client_token_id=CLIENT_TOKEN_ID,
@@ -201,10 +201,16 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
         self.app_package.deployment_config = DeploymentConfiguration(
             environment="prod", regions=[prod_region]
         )
+        # Validation override is needed to be able to be able to swith between triggering from local or CI.
+        tomorrow = datetime.now() + timedelta(days=1)
+        formatted_date = tomorrow.strftime("%Y-%m-%d")
+        self.app_package.validations = [
+            Validation(ValidationID("certificate-removal"), formatted_date)
+        ]
         # Deploy to Vespa Cloud
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
-            application="pyvespa-int-prod",
+            application="pyvespa-int-prod-token",
             key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
             auth_client_token_id=CLIENT_TOKEN_ID,

@@ -250,7 +250,7 @@ class TestDeployProdWithTests(unittest.TestCase):
         )
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
-            application="pyvespa-integration",
+            application="pyvespa-integration-prod",
             key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_root=self.application_root,
         )
