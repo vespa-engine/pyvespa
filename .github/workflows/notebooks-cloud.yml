@@ -55,5 +55,7 @@ jobs:
           CO_API_KEY: ${{ secrets.CO_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          echo "Running ${{ matrix.notebook }}"
-          jupytext --to notebook --execute ${{ matrix.notebook }}
+          echo "Converting ${{ matrix.notebook }} to .py"
+          jupytext --to py:percent ${{ matrix.notebook }} -o ${{ matrix.notebook }}.py
+          echo "Running ${{ matrix.notebook }}.py"
+          python ${{ matrix.notebook }}.py
