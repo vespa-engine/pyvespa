@@ -2,9 +2,6 @@ name: Notebooks - cloud
 
 on:
   workflow_dispatch:
-  # pull_request:
-  #   branches:
-  #     - master
   push:
     branches:
       - master
