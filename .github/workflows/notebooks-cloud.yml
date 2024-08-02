@@ -1,0 +1,59 @@
+name: Notebooks - cloud
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - thomasht86/move-long-prod-test
+
+jobs:
+  get-notebooks-cloud:
+    runs-on: ubuntu-latest
+    outputs:
+      notebooks: ${{ steps.set_output.outputs.notebooks }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set output variable (Make sure it is this quote format - "[path/to/notebook1.ipynb", "path/to/notebook2.ipynb]")
+        id: set_output
+        run: |
+          notebooks=$(find docs -name '*cloud.ipynb*' ! -name 'mother-of-all-embedding-models-cloud.ipynb' | jq -R -s -c 'split("\n")[:-1]')
+          # Print all notebooks echo
+          echo $notebooks
+          echo "notebooks=$notebooks" >> $GITHUB_OUTPUT
+  notebooks-cloud:
+    runs-on: ubuntu-latest
+    needs: get-notebooks-cloud
+    strategy:
+      max-parallel: 8
+      matrix:
+        notebook: ${{fromJson(needs.get-notebooks-cloud.outputs.notebooks)}}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove unnecessary files
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip" # caching pip dependencies
+          cache-dependency-path: |
+            pyproject.toml
+            **/notebook_requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install -e .[dev]
+          pip install -r docs/sphinx/source/notebook_requirements.txt
+
+      - name: Run notebooks tests
+        env:
+          VESPA_TEAM_API_KEY: ${{ secrets.VESPA_TEAM_API_KEY }}
+          CO_API_KEY: ${{ secrets.CO_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          echo "Running ${{ matrix.notebook }}"
+          jupytext --to notebook --execute ${{ matrix.notebook }}
