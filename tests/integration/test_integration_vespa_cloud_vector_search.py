@@ -285,6 +285,11 @@ class TestProdDeploymentFromDisk(TestVectorSearch):
             instance=self.instance_name,
             application_root=self.application_root,
         )
+
+    @unittest.skip(
+        "This test is too slow for normal testing. Can be used for manual testing if related code is changed."
+    )
+    def test_application_status(self):
         success = self.vespa_cloud.wait_for_prod_deployment(
             build_no=self.build_no, max_wait=3600
         )
@@ -293,9 +298,11 @@ class TestProdDeploymentFromDisk(TestVectorSearch):
         self.app: Vespa = self.vespa_cloud.get_application(environment="prod")
         self.app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
 
+    @unittest.skip("Do not run when not waiting for deployment.")
     def test_vector_indexing_and_query(self):
         super().test_vector_indexing_and_query()
 
+    @unittest.skip("Do not run when not waiting for deployment.")
     def tearDown(self) -> None:
         self.app.delete_all_docs(
             content_cluster_name="vector_content",
