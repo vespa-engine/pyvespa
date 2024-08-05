@@ -2,10 +2,11 @@ name: Notebooks - cloud
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - master
-      - thomasht86/move-long-prod-test
+  # Disable until notebooks are cleaned for (!-syntax, which is not supported).
+  # push:
+  #   branches:
+  #     - master
+  #     - thomasht86/move-long-prod-test
 
 jobs:
   get-notebooks-cloud:
@@ -56,4 +57,6 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           echo "Running ${{ matrix.notebook }}"
-          jupytext --to notebook --execute ${{ matrix.notebook }}
+          jupytext --to py:percent ${{ matrix.notebook }} -o ${{ matrix.notebook }}.py
+          echo "Running ${{ matrix.notebook }}.py"
+          python ${{ matrix.notebook }}.py
