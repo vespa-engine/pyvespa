@@ -13,7 +13,7 @@ from time import sleep, strftime, gmtime
 from typing import Tuple, Union, IO, Optional, List, Dict
 from tenacity import retry, stop_after_attempt, wait_exponential
 from datetime import timezone
-import pty
+import platform
 import subprocess
 import shlex
 import select
@@ -665,7 +665,7 @@ class VespaCloud(VespaDeployment):
         :param instance: Name of this instance of the application, in the Vespa Cloud.
         :param application_root: Path to either save the required Vespa config files (if initialized with application_package) or read them from (if initialized with application_root).
         :param source_url: Optional source URL (including commit hash) for the deployment. This is a URL to the source code repository, e.g. GitHub, that is used to build the application package. Example: https://github.com/vespa-cloud/vector-search/commit/474d7771bd938d35dc5dcfd407c21c019d15df3c.
-        The source URL will show up in the Vespa Cloud Console next to the build number.
+            The source URL will show up in the Vespa Cloud Console next to the build number.
 
         """
         logging.warning(
@@ -981,6 +981,13 @@ class VespaCloud(VespaDeployment):
             print(output.stdout.decode("utf-8"))
 
     def _vespa_auth_login(self):
+        system = platform.system()
+        if system == "Windows":
+            raise NotImplementedError(
+                "Interactive login is not supported on Windows due to unavailable `pty` module. Please use 'vespa auth login' in the terminal instead."
+            )
+        import pty
+
         is_notebook = is_jupyter_notebook()
         # Open a new pseudo-terminal
         master, slave = pty.openpty()
