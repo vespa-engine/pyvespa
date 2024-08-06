@@ -247,6 +247,9 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
         )
         self.app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
 
+    @unittest.skip(
+        "Can't do this without reference to the app. Save for manual testing. Consider using fixed token endpoint URL."
+    )
     def test_using_token_endpoint(self):
         endpoint = self.app.url
         auth_method = self.vespa_cloud.get_endpoint_auth_method(
@@ -254,6 +257,7 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
         )
         self.assertEqual(auth_method, "token")
 
+    @unittest.skip("See above")
     def test_execute_data_operations(self):
         self.execute_data_operations(
             app=self.app,
@@ -264,6 +268,7 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
             expected_fields_from_get_operation=self.fields_to_send[0],
         )
 
+    @unittest.skip("See above")
     def test_execute_async_data_operations(self):
         asyncio.run(
             self.execute_async_data_operations(
@@ -275,6 +280,7 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
             )
         )
 
+    @unittest.skip("See above")
     def tearDown(self) -> None:
         self.app.delete_all_docs(
             content_cluster_name="msmarco_content", schema="msmarco"
