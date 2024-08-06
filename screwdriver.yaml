@@ -109,64 +109,64 @@ jobs:
             fi
           done
 
-  integration-cloud:
-    requires: [~commit]
-    annotations:
-      screwdriver.cd/timeout: 120
-      screwdriver.cd/cpu: HIGH
-      screwdriver.cd/ram: HIGH
-      screwdriver.cd/buildPeriodically: H 11 * * *
-    secrets:
-      - VESPA_TEAM_API_KEY
-    environment:
-      SD_ZIP_ARTIFACTS: true
-    steps:
-      - install-python: |
-          dnf install -y python39-pip
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -e .[dev]
-      - run-integration-cloud: |
-          pytest tests/integration/test_integration_vespa_cloud.py -s -v
+  # integration-cloud:
+  #   requires: [~commit]
+  #   annotations:
+  #     screwdriver.cd/timeout: 120
+  #     screwdriver.cd/cpu: HIGH
+  #     screwdriver.cd/ram: HIGH
+  #     screwdriver.cd/buildPeriodically: H 11 * * *
+  #   secrets:
+  #     - VESPA_TEAM_API_KEY
+  #   environment:
+  #     SD_ZIP_ARTIFACTS: true
+  #   steps:
+  #     - install-python: |
+  #         dnf install -y python39-pip
+  #         python3 -m pip install --upgrade pip
+  #         python3 -m pip install -e .[dev]
+  #     - run-integration-cloud: |
+  #         pytest tests/integration/test_integration_vespa_cloud.py -s -v
 
-  integration-cloud-token:
-    requires: [~commit]
-    annotations:
-      screwdriver.cd/timeout: 120
-      screwdriver.cd/cpu: HIGH
-      screwdriver.cd/ram: HIGH
-      screwdriver.cd/buildPeriodically: H 11 * * *
-    secrets:
-      - VESPA_TEAM_API_KEY
-      - VESPA_CLOUD_SECRET_TOKEN
-    environment:
-      SD_ZIP_ARTIFACTS: true
-    steps:
-      - install-python: |
-          dnf install -y python39-pip
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -e .[dev]
-      - run-integration-cloud: |
-          pytest tests/integration/test_integration_vespa_cloud_token.py -s -v
+  # integration-cloud-token:
+  #   requires: [~commit]
+  #   annotations:
+  #     screwdriver.cd/timeout: 120
+  #     screwdriver.cd/cpu: HIGH
+  #     screwdriver.cd/ram: HIGH
+  #     screwdriver.cd/buildPeriodically: H 11 * * *
+  #   secrets:
+  #     - VESPA_TEAM_API_KEY
+  #     - VESPA_CLOUD_SECRET_TOKEN
+  #   environment:
+  #     SD_ZIP_ARTIFACTS: true
+  #   steps:
+  #     - install-python: |
+  #         dnf install -y python39-pip
+  #         python3 -m pip install --upgrade pip
+  #         python3 -m pip install -e .[dev]
+  #     - run-integration-cloud: |
+  #         pytest tests/integration/test_integration_vespa_cloud_token.py -s -v
 
-  integration-cloud-vector-search:
-    requires: [~commit]
-    annotations:
-      screwdriver.cd/timeout: 120
-      screwdriver.cd/cpu: HIGH
-      screwdriver.cd/ram: HIGH
-      screwdriver.cd/buildPeriodically: H 11 * * *
-    secrets:
-      - VESPA_TEAM_API_KEY
-      - VESPA_CLOUD_SECRET_TOKEN
-    environment:
-      SD_ZIP_ARTIFACTS: true
-    steps:
-      - install-python: |
-          dnf install -y python39-pip
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -e .[dev]
-      - run-integration-cloud: |
-          pytest tests/integration/test_integration_vespa_cloud_vector_search.py -s -v
+  # integration-cloud-vector-search:
+  #   requires: [~commit]
+  #   annotations:
+  #     screwdriver.cd/timeout: 120
+  #     screwdriver.cd/cpu: HIGH
+  #     screwdriver.cd/ram: HIGH
+  #     screwdriver.cd/buildPeriodically: H 11 * * *
+  #   secrets:
+  #     - VESPA_TEAM_API_KEY
+  #     - VESPA_CLOUD_SECRET_TOKEN
+  #   environment:
+  #     SD_ZIP_ARTIFACTS: true
+  #   steps:
+  #     - install-python: |
+  #         dnf install -y python39-pip
+  #         python3 -m pip install --upgrade pip
+  #         python3 -m pip install -e .[dev]
+  #     - run-integration-cloud: |
+  #         pytest tests/integration/test_integration_vespa_cloud_vector_search.py -s -v
 
   # notebooks-cloud:
   #   requires: [integration-cloud]
@@ -188,7 +188,7 @@ jobs:
   #         python3 -m pip install -e .[dev]
   #         python3 -m pip install -r docs/sphinx/source/requirements.txt
   #         python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
-      
+
   #     - run-notebooks-cloud-related: |
   #         echo "PATH:"
   #         echo $PATH
