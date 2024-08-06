@@ -1,8 +1,6 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import sys
-import ssl
-import aiohttp
 import asyncio
 import requests
 import traceback
@@ -36,6 +34,7 @@ import time
 from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse, VespaVisitResponse
 from vespa.package import ApplicationPackage
+import httpx
 
 
 VESPA_CLOUD_SECRET_TOKEN: str = "VESPA_CLOUD_SECRET_TOKEN"
@@ -1260,10 +1259,19 @@ class VespaSync(object):
 
 class VespaAsync(object):
     def __init__(
-        self, app: Vespa, connections: Optional[int] = 10, total_timeout: int = 180
+        self, app: Vespa, connections: Optional[int] = 10, total_timeout: int = 10
     ) -> None:
+        """
+        Class to handle async requests to Vespa.
+        Uses httpx as the async http client, and HTTP/2 by default.
+
+        Args:
+            app (Vespa): Vespa application object.
+            connections (Optional[int], optional): number of connections. Defaults to 10.
+            total_timeout (int, optional): timeout for each individual request in seconds. Defaults to 10.
+        """
         self.app = app
-        self.aiohttp_session = None
+        self.httpx_client = None
         self.connections = connections
         self.total_timeout = total_timeout
         self.app.auth_method = self.app._get_valid_auth_method()
@@ -1277,46 +1285,45 @@ class VespaAsync(object):
             )
 
     async def __aenter__(self):
-        self._open_aiohttp_session()
+        print("Opening httpx client")
+        await self._open_httpx_client()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._close_aiohttp_session()
+        await self._close_httpx_client()
 
-    def _open_aiohttp_session(self):
-        if self.aiohttp_session is not None and not self.aiohttp_session.closed:
+    async def _open_httpx_client(self):
+        if self.httpx_client is not None:
             return
-        sslcontext = False
+        sslcontext = None
+        limits = httpx.Limits(
+            max_keepalive_connections=self.connections,
+            max_connections=self.connections,
+            keepalive_expiry=5,
+        )
         if self.app.cert is not None:
-            sslcontext = ssl.create_default_context()
+            sslcontext = httpx.create_ssl_context()
             sslcontext.load_cert_chain(self.app.cert, self.app.key)
-        conn = aiohttp.TCPConnector(ssl=sslcontext, limit=self.connections)
-        if self.app.vespa_cloud_secret_token:
-            self.aiohttp_session = aiohttp.ClientSession(
-                connector=conn,
-                timeout=aiohttp.ClientTimeout(total=self.total_timeout),
-                headers=self.headers,
-            )
-        else:
-            self.aiohttp_session = aiohttp.ClientSession(
-                connector=conn,
-                timeout=aiohttp.ClientTimeout(total=self.total_timeout),
-                headers={"User-Agent": "pyvespa asyncio client"},
-            )
-        return self.aiohttp_session
+        self.httpx_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(timeout=self.total_timeout),
+            headers=self.headers,
+            verify=sslcontext,
+            http2=True,
+            http1=False,
+            limits=limits,
+        )
+        return self.httpx_client
 
-    async def _close_aiohttp_session(self):
-        if self.aiohttp_session is None:
+    async def _close_httpx_client(self):
+        if self.httpx_client is None:
             return
-        return await self.aiohttp_session.close()
+        await self.httpx_client.aclose()
 
-    @staticmethod
     async def _wait(f, args, **kwargs):
         tasks = [asyncio.create_task(f(*arg, **kwargs)) for arg in args]
         await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
         return [result for result in map(lambda task: task.result(), tasks)]
 
-    @staticmethod
     def callback_docv1(state: RetryCallState) -> VespaResponse:
         if state.outcome.failed:
             raise state.outcome.exception()
@@ -1328,11 +1335,11 @@ class VespaAsync(object):
     ) -> VespaQueryResponse:
         if groupname:
             kwargs["streaming.groupname"] = groupname
-        r = await self.aiohttp_session.post(
+        r = await self.httpx_client.post(
             self.app.search_end_point, json=body, params=kwargs
         )
         return VespaQueryResponse(
-            json=await r.json(), status_code=r.status, url=str(r.url)
+            json=r.json(), status_code=r.status_code, url=str(r.url)
         )
 
     @retry(
@@ -1345,7 +1352,7 @@ class VespaAsync(object):
         retry_error_callback=callback_docv1,
     )
     @retry(
-        wait=wait_random_exponential(multiplier=1, max=10),
+        wait=wait_random_exponential(multiplier=1, max=3),
         retry=retry_if_result(lambda x: x.get_status_code() == 429),
     )
     async def feed_data_point(
@@ -1362,12 +1369,12 @@ class VespaAsync(object):
         )
         end_point = "{}{}".format(self.app.end_point, path)
         vespa_format = {"fields": fields}
-        response = await self.aiohttp_session.post(
+        response = await self.httpx_client.post(
             end_point, json=vespa_format, params=kwargs
         )
         return VespaResponse(
-            json=await response.json(),
-            status_code=response.status,
+            json=response.json(),
+            status_code=response.status_code,
             url=str(response.url),
             operation_type="feed",
         )
@@ -1397,10 +1404,10 @@ class VespaAsync(object):
             id=data_id, schema=schema, namespace=namespace, group=groupname
         )
         end_point = "{}{}".format(self.app.end_point, path)
-        response = await self.aiohttp_session.delete(end_point, params=kwargs)
+        response = await self.httpx_client.delete(end_point, params=kwargs)
         return VespaResponse(
-            json=await response.json(),
-            status_code=response.status,
+            json=response.json(),
+            status_code=response.status_code,
             url=str(response.url),
             operation_type="delete",
         )
@@ -1430,10 +1437,10 @@ class VespaAsync(object):
             id=data_id, schema=schema, namespace=namespace, group=groupname
         )
         end_point = "{}{}".format(self.app.end_point, path)
-        response = await self.aiohttp_session.get(end_point, params=kwargs)
+        response = await self.httpx_client.get(end_point, params=kwargs)
         return VespaResponse(
-            json=await response.json(),
-            status_code=response.status,
+            json=response.json(),
+            status_code=response.status_code,
             url=str(response.url),
             operation_type="get",
         )
@@ -1473,12 +1480,12 @@ class VespaAsync(object):
         else:
             # Can not send 'id' in fields for partial update
             vespa_format = {"fields": {k: v for k, v in fields.items() if k != "id"}}
-        response = await self.aiohttp_session.put(
+        response = await self.httpx_client.put(
             end_point, json=vespa_format, params=kwargs
         )
         return VespaResponse(
-            json=await response.json(),
-            status_code=response.status,
+            json=response.json(),
+            status_code=response.status_code,
             url=str(response.url),
             operation_type="update",
         )
