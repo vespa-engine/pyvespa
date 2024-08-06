@@ -1,4 +1,4 @@
-name: Integration - cloud
+name: Integration - cloud vector search
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ on:
   #  - cron: '0 11 * * *'
 
 jobs:
-  integration-cloud:
+  integration-cloud-vector-search:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,5 +27,6 @@ jobs:
       - name: Run integration tests
         env:
           VESPA_TEAM_API_KEY: ${{ secrets.VESPA_TEAM_API_KEY }}
+          CO_API_KEY: ${{ secrets.VESPA_CLOUD_SECRET_TOKEN }}
         run: |
-          pytest tests/integration/test_integration_vespa_cloud.py -s -v
+          pytest tests/integration/test_integration_vespa_cloud_vector_search.py -s -v
