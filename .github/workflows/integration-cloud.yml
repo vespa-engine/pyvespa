@@ -2,10 +2,11 @@ name: Integration - cloud
 
 on:
   workflow_dispatch:
-  # Uncomment these when reviewed.
-  # push:
-  #  branches:
-  #    - master
+  push:
+    branches:
+      - glebashnik/integration-cloud-to-github-action
+  # Uncomment it when reviewed
+  #   - master
   # pull_request:
   #   branches:
   #     - master
