@@ -48,6 +48,8 @@ dev = [
     "notebook",
     "nbconvert",
     "runnb",
+    "ipykernel",
+    "jupytext",
     "ruff",
     "pre-commit",
     "vespacli",
