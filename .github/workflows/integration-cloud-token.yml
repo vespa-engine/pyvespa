@@ -28,8 +28,6 @@ jobs:
       - name: Run integration tests
         env:
           VESPA_TEAM_API_KEY: ${{ secrets.VESPA_TEAM_API_KEY }}
-          CO_API_KEY: ${{ secrets.VESPA_CLOUD_SECRET_TOKEN }}
-          VESPA_TEAM_API_KEY: ${{ secrets.VESPA_TEAM_API_KEY }}
           VESPA_CLOUD_SECRET_TOKEN: ${{ secrets.VESPA_CLOUD_SECRET_TOKEN }}
           VESPA_CLIENT_TOKEN_ID: ${{ secrets.VESPA_CLIENT_TOKEN_ID}}
         run: |

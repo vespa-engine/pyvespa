@@ -28,6 +28,5 @@ jobs:
       - name: Run integration tests
         env:
           VESPA_TEAM_API_KEY: ${{ secrets.VESPA_TEAM_API_KEY }}
-          SD_ZIP_ARTIFACTS: true
         run: |
           pytest tests/integration/test_integration_vespa_cloud.py -s -v
