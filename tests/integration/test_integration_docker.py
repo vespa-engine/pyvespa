@@ -1076,6 +1076,32 @@ class TestQaApplication(TestApplicationCommon):
             )
         )
 
+    def test_feed_async_iterable(self):
+        def sentence_to_doc(sentences):
+            for sentence in sentences:
+                yield {
+                    "id": sentence["id"],
+                    "fields": {k: v for k, v in sentence.items() if k != "id"},
+                }
+
+        self.app.feed_async_iterable(
+            sentence_to_doc(self.fields_to_send_sentence),
+            schema="sentence",
+            operation_type="feed",
+        )
+        # check doc count
+        total_docs = []
+        for doc_slice in self.app.visit(
+            schema="sentence", content_cluster_name="qa_content", selection="true"
+        ):
+            for response in doc_slice:
+                total_docs.extend(response.documents)
+        self.assertEqual(
+            len(total_docs),
+            len(self.fields_to_send_sentence),
+        )
+        self.app.delete_all_docs(content_cluster_name="qa_content", schema="sentence")
+
     def tearDown(self) -> None:
         self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
