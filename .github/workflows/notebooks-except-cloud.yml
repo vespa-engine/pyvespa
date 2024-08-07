@@ -37,12 +37,10 @@ jobs:
       matrix:
         notebook: ${{fromJson(needs.get-non-cloud-notebooks.outputs.notebooks)}}
     steps:
-      - uses: actions/checkout@v4
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
 
-      - name: Remove unnecessary files
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+      - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -55,8 +53,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -e .[dev]
-          pip install -r docs/sphinx/source/notebook_requirements.txt
+          pip install --no-cache-dir -e .[dev]
+          pip install --no-cache-dir -r docs/sphinx/source/notebook_requirements.txt
 
       - name: Run notebooks tests
         run: |
