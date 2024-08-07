@@ -38,6 +38,11 @@ jobs:
         notebook: ${{fromJson(needs.get-non-cloud-notebooks.outputs.notebooks)}}
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Remove unnecessary files
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
       - name: Set up Python
         uses: actions/setup-python@v5
