@@ -10,4 +10,5 @@ ir_datasets
 pytrec_eval
 torch
 numpy
+lightgbm
 vespacli

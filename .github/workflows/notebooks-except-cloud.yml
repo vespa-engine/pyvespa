@@ -51,7 +51,7 @@ jobs:
           cache: "pip"
           cache-dependency-path: |
             pyproject.toml
-            **/notebook_requirements.txt
+            docs/sphinx/source/notebook_requirements.txt
 
       - name: Install dependencies
         run: |
