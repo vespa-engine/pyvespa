@@ -4,8 +4,6 @@ import os
 import asyncio
 import shutil
 import pytest
-from datetime import datetime, timedelta
-import pathlib
 from requests import HTTPError
 import unittest
 from cryptography.hazmat.primitives import serialization
@@ -16,15 +14,20 @@ from vespa.package import (
     Schema,
     Document,
     Field,
-    Validation,
-    ValidationID,
-    EmptyDeploymentConfiguration,
 )
 import random
 from vespa.io import VespaResponse
 from test_integration_docker import (
     TestApplicationCommon,
     create_msmarco_application_package,
+)
+import pathlib
+from datetime import datetime, timedelta
+
+from vespa.package import (
+    EmptyDeploymentConfiguration,
+    Validation,
+    ValidationID,
 )
 
 APP_INIT_TIMEOUT = 900
@@ -259,15 +262,19 @@ class TestDeployProdWithTests(unittest.TestCase):
             source_url="https://github.com/vespa-engine/pyvespa",
         )
 
+    @unittest.skip(
+        "This test is too slow for normal testing. Can be used for manual testing if related code is changed."
+    )
     def test_application_status(self):
         # Wait for deployment to be ready
         success = self.vespa_cloud.wait_for_prod_deployment(
-            build_no=self.build_no, max_wait=3600
+            build_no=self.build_no, max_wait=3600 * 4
         )
         if not success:
             self.fail("Deployment failed")
         self.app = self.vespa_cloud.get_application(environment="prod")
 
+    @unittest.skip("Can not tearDown when not waiting for application")
     def tearDown(self) -> None:
         # Deployment is deleted by deploying with an empty deployment.xml file
         # Creating a dummy ApplicationPackage just to use the validation_to_text method
@@ -284,6 +291,6 @@ class TestDeployProdWithTests(unittest.TestCase):
         # Create an empty deployment.xml file
         app_package.deployment_config = EmptyDeploymentConfiguration()
         with open(self.application_root / "deployment.xml", "w") as f:
-            f.write(app_package.deployment_config.to_xml_string)
+            f.write(app_package.deployment_config.to_xml_string())
         # This will delete the deployment
         self.vespa_cloud._start_prod_deployment(self.application_root)
