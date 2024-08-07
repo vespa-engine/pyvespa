@@ -59,4 +59,4 @@ jobs:
       - name: Run notebooks tests
         run: |
           echo "Running ${{ matrix.notebook }}"
-          papermill ${{ matrix.notebook }} ${{ matrix.notebook }}-out.ipynb
+          papermill --log-output ${{ matrix.notebook }} ${{ matrix.notebook }}-out.ipynb
