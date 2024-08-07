@@ -581,6 +581,81 @@ class Vespa(object):
                 queue.join()
                 consumer_thread.join()
 
+    def feed_async_iterable(
+        self,
+        iter: Iterable[Dict],
+        schema: Optional[str] = None,
+        namespace: Optional[str] = None,
+        callback: Optional[Callable[[VespaResponse, str], None]] = None,
+        operation_type: Optional[str] = "feed",
+        max_queue_size: int = 5000,
+        max_workers: int = 128,
+        max_connections: int = 64,
+        **kwargs,
+    ):
+        if operation_type not in ["feed", "update", "delete"]:
+            raise ValueError(
+                "Invalid operation type. Valid are `feed`, `update` or `delete`."
+            )
+
+        if namespace is None:
+            namespace = schema
+        if not schema:
+            try:
+                schema = self._infer_schema_name()
+            except ValueError:
+                raise ValueError(
+                    "Not possible to infer schema name. Specify schema parameter."
+                )
+
+        async def run():
+            async with self.asyncio(connections=max_connections) as async_session:
+                semaphore = asyncio.Semaphore(max_workers)
+                tasks = []
+                for doc in iter:
+                    if operation_type == "feed":
+                        task = asyncio.create_task(
+                            async_session.feed_data_point(
+                                schema=schema,
+                                namespace=namespace,
+                                data_id=doc["id"],
+                                fields=doc["fields"],
+                                semaphore=semaphore,
+                                **kwargs,
+                            )
+                        )
+                    elif operation_type == "update":
+                        task = asyncio.create_task(
+                            async_session.update_data(
+                                schema=schema,
+                                namespace=namespace,
+                                data_id=doc["id"],
+                                fields=doc["fields"],
+                                **kwargs,
+                            )
+                        )
+                    elif operation_type == "delete":
+                        task = asyncio.create_task(
+                            async_session.delete_data(
+                                schema=schema,
+                                namespace=namespace,
+                                data_id=doc["id"],
+                                **kwargs,
+                            )
+                        )
+                    tasks.append(task)
+                    # Make sure we don't have too many tasks in flight
+                    # Tried to use queue, but found that batching like this is more efficient
+                    if len(tasks) >= max_queue_size:
+                        await asyncio.gather(*tasks)
+                        tasks = []
+                if tasks:
+                    await asyncio.gather(*tasks)
+                await asyncio.gather(*tasks)
+
+        asyncio.run(run())
+        return
+
     def delete_data(
         self,
         schema: str,
@@ -1295,17 +1370,18 @@ class VespaAsync(object):
     async def _open_httpx_client(self):
         if self.httpx_client is not None:
             return
-        sslcontext = None
         limits = httpx.Limits(
             max_keepalive_connections=self.connections,
             max_connections=self.connections,
-            keepalive_expiry=5,
+            keepalive_expiry=10,
         )
+        timeout = httpx.Timeout(pool=5, connect=5, read=5, write=5)
         if self.app.cert is not None:
-            sslcontext = httpx.create_ssl_context()
-            sslcontext.load_cert_chain(self.app.cert, self.app.key)
+            sslcontext = httpx.create_ssl_context(cert=(self.app.cert, self.app.key))
+        else:
+            sslcontext = False
         self.httpx_client = httpx.AsyncClient(
-            timeout=httpx.Timeout(timeout=self.total_timeout),
+            timeout=timeout,
             headers=self.headers,
             verify=sslcontext,
             http2=True,
@@ -1362,6 +1438,7 @@ class VespaAsync(object):
         fields: Dict,
         namespace: str = None,
         groupname: str = None,
+        semaphore: asyncio.Semaphore = None,
         **kwargs,
     ) -> VespaResponse:
         path = self.app.get_document_v1_path(
@@ -1369,9 +1446,16 @@ class VespaAsync(object):
         )
         end_point = "{}{}".format(self.app.end_point, path)
         vespa_format = {"fields": fields}
-        response = await self.httpx_client.post(
-            end_point, json=vespa_format, params=kwargs
-        )
+        if semaphore:
+            async with semaphore:
+                response = await self.httpx_client.post(
+                    end_point, json=vespa_format, params=kwargs
+                )
+        else:
+            response = await self.httpx_client.post(
+                end_point, json=vespa_format, params=kwargs
+            )
+        response.raise_for_status()
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -1398,13 +1482,19 @@ class VespaAsync(object):
         data_id: str,
         namespace: str = None,
         groupname: str = None,
+        semaphore: asyncio.Semaphore = None,
         **kwargs,
     ) -> VespaResponse:
         path = self.app.get_document_v1_path(
             id=data_id, schema=schema, namespace=namespace, group=groupname
         )
         end_point = "{}{}".format(self.app.end_point, path)
-        response = await self.httpx_client.delete(end_point, params=kwargs)
+        if semaphore:
+            async with semaphore:
+                response = await self.httpx_client.delete(end_point, params=kwargs)
+        else:
+            response = await self.httpx_client.delete(end_point, params=kwargs)
+        response.raise_for_status()
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -1431,13 +1521,19 @@ class VespaAsync(object):
         data_id: str,
         namespace: str = None,
         groupname: str = None,
+        semaphore: asyncio.Semaphore = None,
         **kwargs,
     ) -> VespaResponse:
         path = self.app.get_document_v1_path(
             id=data_id, schema=schema, namespace=namespace, group=groupname
         )
         end_point = "{}{}".format(self.app.end_point, path)
-        response = await self.httpx_client.get(end_point, params=kwargs)
+        if semaphore:
+            async with semaphore:
+                response = await self.httpx_client.get(end_point, params=kwargs)
+        else:
+            response = await self.httpx_client.get(end_point, params=kwargs)
+        response.raise_for_status()
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -1467,6 +1563,7 @@ class VespaAsync(object):
         auto_assign: bool = True,
         namespace: str = None,
         groupname: str = None,
+        semaphore: asyncio.Semaphore = None,
         **kwargs,
     ) -> VespaResponse:
         path = self.app.get_document_v1_path(
@@ -1480,9 +1577,16 @@ class VespaAsync(object):
         else:
             # Can not send 'id' in fields for partial update
             vespa_format = {"fields": {k: v for k, v in fields.items() if k != "id"}}
-        response = await self.httpx_client.put(
-            end_point, json=vespa_format, params=kwargs
-        )
+        if semaphore:
+            async with semaphore:
+                response = await self.httpx_client.put(
+                    end_point, json=vespa_format, params=kwargs
+                )
+        else:
+            response = await self.httpx_client.put(
+                end_point, json=vespa_format, params=kwargs
+            )
+        response.raise_for_status()
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
