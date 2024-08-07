@@ -4,14 +4,12 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - glebashnik/integration-cloud-to-github-action
-  # Uncomment it when reviewed
-  #   - master
-  # pull_request:
-  #   branches:
-  #     - master
-  # schedule:
-  #  - cron: '0 11 * * *'
+      - master
+  pull_request:
+    branches:
+      - master
+  schedule:
+   - cron: '0 11 * * *'
 
 jobs:
   integration-cloud:
