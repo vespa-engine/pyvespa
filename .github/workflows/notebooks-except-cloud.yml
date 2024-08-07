@@ -38,7 +38,7 @@ jobs:
         notebook: ${{fromJson(needs.get-non-cloud-notebooks.outputs.notebooks)}}
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Remove unnecessary files
         run: |
           sudo rm -rf /usr/share/dotnet
@@ -61,7 +61,7 @@ jobs:
       - name: Install OpenMP
         run: |
           # Required for using lightgbm
-          apt install -y install libgomp1 zstd
+          sudo apt install -y install libgomp1 zstd
 
       - name: Run notebooks tests
         run: |
