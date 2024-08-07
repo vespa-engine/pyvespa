@@ -11,4 +11,5 @@ pytrec_eval
 torch
 numpy
 lightgbm
+papermill
 vespacli

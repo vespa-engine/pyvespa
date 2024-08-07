@@ -59,6 +59,4 @@ jobs:
       - name: Run notebooks tests
         run: |
           echo "Running ${{ matrix.notebook }}"
-          jupytext --to py:percent ${{ matrix.notebook }} -o ${{ matrix.notebook }}.py
-          echo "Running ${{ matrix.notebook }}.py"
-          python ${{ matrix.notebook }}.py
+          papermill ${{ matrix.notebook }} -o ${{ matrix.notebook }}-out.ipynb
