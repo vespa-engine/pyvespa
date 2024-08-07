@@ -1360,7 +1360,6 @@ class VespaAsync(object):
             )
 
     async def __aenter__(self):
-        print("Opening httpx client")
         await self._open_httpx_client()
         return self
 
@@ -1455,7 +1454,6 @@ class VespaAsync(object):
             response = await self.httpx_client.post(
                 end_point, json=vespa_format, params=kwargs
             )
-        response.raise_for_status()
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -1494,7 +1492,6 @@ class VespaAsync(object):
                 response = await self.httpx_client.delete(end_point, params=kwargs)
         else:
             response = await self.httpx_client.delete(end_point, params=kwargs)
-        response.raise_for_status()
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -1533,7 +1530,6 @@ class VespaAsync(object):
                 response = await self.httpx_client.get(end_point, params=kwargs)
         else:
             response = await self.httpx_client.get(end_point, params=kwargs)
-        response.raise_for_status()
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -1586,7 +1582,6 @@ class VespaAsync(object):
             response = await self.httpx_client.put(
                 end_point, json=vespa_format, params=kwargs
             )
-        response.raise_for_status()
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
