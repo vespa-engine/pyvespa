@@ -1,4 +1,4 @@
-name: Doc test
+name: Docs test
 
 on:
   workflow_dispatch:
@@ -7,27 +7,27 @@ on:
       - master
 
 jobs:
-  doc-test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-14]
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+  docs-test:
+    runs-on: ubuntu-latest
     steps:
+      - name: Install Pandoc
+        run: |
+          wget https://github.com/jgm/pandoc/releases/download/3.3/pandoc-3.3-1-amd64.deb
+          sudo dpkg -i pandoc-3.3-1-amd64.deb
+
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Upgrade pip
-        run: |
-          python -m pip install --upgrade pip
+          python-version: '3.9'
+          cache: 'pip'
+          cache-dependency-path: |
+            pyproject.toml
 
       - name: Install dependencies
         run: |
-          pip install -e .[unittest,docs]
+          pip install -e .[dev]
 
       - name: Run tests
         run: |
