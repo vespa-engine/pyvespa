@@ -1447,7 +1447,7 @@ class TestRetryApplication(unittest.TestCase):
                 },
             }
 
-    def test_retry(self):
+    def test_retries_sync(self):
         num_docs = 10
         num_429 = 0
 
@@ -1473,6 +1473,43 @@ class TestRetryApplication(unittest.TestCase):
             for response in doc_slice:
                 total_docs.extend(response.documents)
         self.assertEqual(len(total_docs), num_docs)
+        self.app.delete_all_docs(
+            content_cluster_name="retryapplication_content",
+            schema="retryapplication",
+            namespace="retryapplication",
+        )
+
+    def test_retries_async(self):
+        num_docs = 10
+        num_429 = 0
+
+        def callback(response: VespaResponse, id: str):
+            nonlocal num_429
+            if response.status_code == 429:
+                print(f"429 response for id {id}")
+                num_429 += 1
+
+        self.app.feed_async_iterable(
+            self.doc_generator(num_docs),
+            schema="retryapplication",
+            callback=callback,
+        )
+        self.assertEqual(num_429, 0)
+        total_docs = []
+        for doc_slice in self.app.visit(
+            content_cluster_name="retryapplication_content",
+            schema="retryapplication",
+            namespace="retryapplication",
+            selection="true",
+        ):
+            for response in doc_slice:
+                total_docs.extend(response.documents)
+        self.assertEqual(len(total_docs), num_docs)
+        self.app.delete_all_docs(
+            content_cluster_name="retryapplication_content",
+            schema="retryapplication",
+            namespace="retryapplication",
+        )
 
     def tearDown(self) -> None:
         self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
