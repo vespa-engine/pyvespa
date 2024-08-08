@@ -23,7 +23,6 @@ jobs:
           cache: 'pip'
           cache-dependency-path: |
             pyproject.toml
-            **/notebook_requirements.txt
       - name: Install dependencies
         run: |
           pip install -e .[dev]
@@ -45,7 +44,6 @@ jobs:
           cache: 'pip'
           cache-dependency-path: |
             pyproject.toml
-            **/notebook_requirements.txt
       - name: Install dependencies
         run: |
           pip install -e .[dev]
@@ -69,7 +67,6 @@ jobs:
           cache: 'pip'
           cache-dependency-path: |
             pyproject.toml
-            **/notebook_requirements.txt
       - name: Install dependencies
         run: |
           pip install -e .[dev]

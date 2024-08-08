@@ -74,7 +74,7 @@ notebooks = [
 ]
 dev = [
     "pre-commit",
-    "pyvespa[vespacli]",
+    "vespacli",
     "pyvespa[unittest]",
     "pyvespa[build]",
 ]
