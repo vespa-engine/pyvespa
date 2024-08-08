@@ -70,6 +70,7 @@ notebooks = [
     "openai",
     "ir_datasets",
     "pytrec_eval",
+    "papermill"
 ]
 dev = [
     "pre-commit",
