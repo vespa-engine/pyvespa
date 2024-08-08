@@ -2,11 +2,11 @@ name: Notebooks - cloud
 
 on:
   workflow_dispatch:
-  # Disable until notebooks are cleaned for (!-syntax, which is not supported).
-  # push:
-  #   branches:
-  #     - master
-  #     - thomasht86/move-long-prod-test
+  pull_request:
+    branches:
+      - master
+  schedule:
+   - cron: '0 11 * * *'
 
 jobs:
   get-notebooks-cloud:
@@ -23,6 +23,7 @@ jobs:
           # Print all notebooks echo
           echo $notebooks
           echo "notebooks=$notebooks" >> $GITHUB_OUTPUT
+
   notebooks-cloud:
     runs-on: ubuntu-latest
     needs: get-notebooks-cloud
@@ -30,12 +31,13 @@ jobs:
       max-parallel: 8
       matrix:
         notebook: ${{fromJson(needs.get-notebooks-cloud.outputs.notebooks)}}
+
     steps:
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+
       - uses: actions/checkout@v4
-      - name: Remove unnecessary files
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -43,7 +45,6 @@ jobs:
           cache: "pip" # caching pip dependencies
           cache-dependency-path: |
             pyproject.toml
-            **/notebook_requirements.txt
 
       - name: Install dependencies
         run: |
@@ -56,6 +57,4 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           echo "Running ${{ matrix.notebook }}"
-          jupytext --to py:percent ${{ matrix.notebook }} -o ${{ matrix.notebook }}.py
-          echo "Running ${{ matrix.notebook }}.py"
-          python ${{ matrix.notebook }}.py
+          papermill --log-output ${{ matrix.notebook }} ${{ matrix.notebook }}-out.ipynb

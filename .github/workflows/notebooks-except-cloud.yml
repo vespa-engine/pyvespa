@@ -2,16 +2,11 @@ name: Notebooks except cloud
 
 on:
   workflow_dispatch:
-  push:
+  pull_request:
     branches:
-      - glebashnik/integration-except-cloud-to-github-action
-  # Uncomment it when reviewed
-  #   - master
-  # pull_request:
-  #   branches:
-  #     - master
-  # schedule:
-  #  - cron: '0 11 * * *'
+      - master
+  schedule:
+   - cron: '0 11 * * *'
 
 jobs:
   get-non-cloud-notebooks:
@@ -49,12 +44,10 @@ jobs:
           cache: "pip"
           cache-dependency-path: |
             pyproject.toml
-            docs/sphinx/source/notebook_requirements.txt
 
       - name: Install dependencies
         run: |
-          pip install --no-cache-dir -e .[dev]
-          pip install --no-cache-dir -r docs/sphinx/source/notebook_requirements.txt
+          pip install --no-cache-dir -e .[dev,notebooks]
 
       - name: Run notebooks tests
         run: |

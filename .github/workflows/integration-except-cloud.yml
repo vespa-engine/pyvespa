@@ -2,27 +2,20 @@ name: Integration - except cloud
 
 on:
   workflow_dispatch:
-  push:
+  pull_request:
     branches:
-      - glebashnik/integration-except-cloud-to-github-action
-  # Uncomment it when reviewed
-  #   - master
-  # pull_request:
-  #   branches:
-  #     - master
-  # schedule:
-  #  - cron: '0 11 * * *'
+      - master
+  schedule:
+   - cron: '0 11 * * *'
 
 jobs:
   integration-except-cloud:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
 
-      - name: Remove unnecessary files
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+      - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -31,7 +24,6 @@ jobs:
           cache: 'pip'
           cache-dependency-path: |
             pyproject.toml
-            **/notebook_requirements.txt
       - name: Install dependencies
         run: |
           pip install -e .[dev]
