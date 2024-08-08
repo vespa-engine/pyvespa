@@ -616,7 +616,7 @@ class Vespa(object):
         :param operation_type: The operation to perform. Default to `feed`. Valid are `feed`, `update` or `delete`.
         :param max_queue_size: The maximum number of tasks waiting to be processed. Useful to limit memory usage. Default is 5000.
         :param max_workers: Used to initialize a a semaphore to control the number of concurrent requests to the server. Default is 128. Increase if the server is scaled to handle more requests.
-        :param max_connections: The maximum number of persisted connections to the Vespa endpoint. Default is 64.
+        :param max_connections: The maximum number of persisted connections passed to httpx.AsyncClient to the Vespa endpoint. Default is 64.
         :param kwargs: Additional parameters are passed to the respective operation type specific :func:`_data_point`.
         """
 
