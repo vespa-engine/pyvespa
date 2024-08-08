@@ -7,7 +7,7 @@ shared:
 
 jobs:
   unit-tests:
-    requires: [~commit,~pr]
+    requires: [~commit, ~pr]
     annotations:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
@@ -27,9 +27,7 @@ jobs:
           dnf install -y python39-pip python39-devel gcc gcc-c++ # gcc et al required for pytrec_eval
           dnf install -y --enablerepo=powertools pandoc
           python3 -m pip install --upgrade pip
-          python3 -m pip install -e .[dev]
-          python3 -m pip install -r docs/sphinx/source/requirements.txt
-          python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
+          python3 -m pip install -e .[dev,docs]
       - run-unit-tests: |
           pytest tests/unit
       - run-doc-tests: |
@@ -40,7 +38,7 @@ jobs:
           rm -fr docs/sphinx/build
 
   integration-except-cloud:
-    requires: [~commit,~pr]
+    requires: [~commit, ~pr]
     annotations:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
@@ -64,7 +62,7 @@ jobs:
           pytest tests/integration/test_integration_docker.py -s -v
 
   notebooks-except-cloud:
-    requires: [~commit,~pr]
+    requires: [~commit, ~pr]
     annotations:
       screwdriver.cd/timeout: 120
       screwdriver.cd/cpu: HIGH
@@ -86,9 +84,7 @@ jobs:
       - install-python: |
           dnf install -y python39-pip python39-devel gcc gcc-c++ # gcc required for pytrec_eval
           python3 -m pip install --upgrade pip
-          python3 -m pip install -e .[dev]
-          python3 -m pip install -r docs/sphinx/source/requirements.txt
-          python3 -m pip install -r docs/sphinx/source/notebook_requirements.txt
+          python3 -m pip install -e .[dev,notebooks,docs]
       - install-openmp: |
           # required for using lightgbm
           dnf install -y libgomp zstd
