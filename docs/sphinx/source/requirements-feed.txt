@@ -1,5 +1,0 @@
-sphinx
-ipykernel
-nbsphinx
-sphinx-rtd-theme
-pyvespa
