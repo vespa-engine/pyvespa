@@ -47,8 +47,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -e .[dev]
-          pip install -r docs/sphinx/source/notebook_requirements.txt
+          pip install -e .[dev,notebooks]
 
       - name: Run notebooks tests
         env:
