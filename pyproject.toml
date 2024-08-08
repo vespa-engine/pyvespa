@@ -67,7 +67,6 @@ notebooks = [
     "pandas",
     "plotly",
     "torch",
-    "datasets",
     "openai",
     "ir_datasets",
     "pytrec_eval",
@@ -75,6 +74,7 @@ notebooks = [
 dev = [
     "pre-commit",
     "vespacli",
+    "datasets",
     "pyvespa[unittest]",
     "pyvespa[build]",
 ]
