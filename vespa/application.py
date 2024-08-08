@@ -608,50 +608,96 @@ class Vespa(object):
                     "Not possible to infer schema name. Specify schema parameter."
                 )
 
+        async def handle_result(task: asyncio.Task, id: str):
+            try:
+                response = await task
+            except Exception as e:
+                response = VespaResponse(
+                    status_code=599,
+                    json={
+                        "Exception": str(e),
+                        "id": id,
+                        "message": "Exception during feed_data_point",
+                    },
+                    url="n/a",
+                    operation_type=operation_type,
+                )
+            if callback is not None:
+                try:
+                    callback(response, id)
+                except Exception as e:
+                    print(f"Exception in user callback for id {id}", file=sys.stderr)
+                    traceback.print_exception(
+                        type(e), e, e.__traceback__, file=sys.stderr
+                    )
+
         async def run():
             async with self.asyncio(connections=max_connections) as async_session:
                 semaphore = asyncio.Semaphore(max_workers)
                 tasks = []
                 for doc in iter:
-                    if operation_type == "feed":
-                        task = asyncio.create_task(
-                            async_session.feed_data_point(
+                    id = doc.get("id")
+                    fields = doc.get("fields")
+                    groupname = doc.get("groupname")
+
+                    if id is None:
+                        response = VespaResponse(
+                            status_code=499,
+                            json={"id": id, "message": "Missing id in input dict"},
+                            url="n/a",
+                            operation_type=operation_type,
+                        )
+                        if callback is not None:
+                            callback(response, id)
+                        continue
+                    if fields is None and operation_type != "delete":
+                        response = VespaResponse(
+                            status_code=499,
+                            json={"id": id, "message": "Missing fields in input dict"},
+                            url="n/a",
+                            operation_type=operation_type,
+                        )
+                        if callback is not None:
+                            callback(response, id)
+                        continue
+
+                    async with semaphore:
+                        if operation_type == "feed":
+                            task = async_session.feed_data_point(
                                 schema=schema,
                                 namespace=namespace,
-                                data_id=doc["id"],
-                                fields=doc["fields"],
-                                semaphore=semaphore,
+                                groupname=groupname,
+                                data_id=id,
+                                fields=fields,
                                 **kwargs,
                             )
-                        )
-                    elif operation_type == "update":
-                        task = asyncio.create_task(
-                            async_session.update_data(
+                        elif operation_type == "update":
+                            task = async_session.update_data(
                                 schema=schema,
                                 namespace=namespace,
-                                data_id=doc["id"],
-                                fields=doc["fields"],
+                                groupname=groupname,
+                                data_id=id,
+                                fields=fields,
                                 **kwargs,
                             )
-                        )
-                    elif operation_type == "delete":
-                        task = asyncio.create_task(
-                            async_session.delete_data(
+                        elif operation_type == "delete":
+                            task = async_session.delete_data(
                                 schema=schema,
                                 namespace=namespace,
-                                data_id=doc["id"],
+                                data_id=id,
+                                groupname=groupname,
                                 **kwargs,
                             )
-                        )
-                    tasks.append(task)
-                    # Make sure we don't have too many tasks in flight
-                    # Tried to use queue, but found that batching like this is more efficient
-                    if len(tasks) >= max_queue_size:
-                        await asyncio.gather(*tasks)
-                        tasks = []
+
+                        tasks.append(handle_result(asyncio.create_task(task), id))
+
+                        # Control the number of in-flight tasks
+                        if len(tasks) >= max_queue_size:
+                            await asyncio.gather(*tasks)
+                            tasks = []
+
                 if tasks:
                     await asyncio.gather(*tasks)
-                await asyncio.gather(*tasks)
 
         asyncio.run(run())
         return
