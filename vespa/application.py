@@ -593,6 +593,33 @@ class Vespa(object):
         max_connections: int = 64,
         **kwargs,
     ):
+        """
+        Feed data asynchronously using httpx.AsyncClient with HTTP/2. Feed from an Iterable of Dict with the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
+        The result of each operation is forwarded to the user provided callback function that can process the returned `VespaResponse`.
+
+        Example usage::
+
+                app = Vespa(url="localhost", port=8080)
+                data = [
+                    {"id": "1", "fields": {"field1": "value1"}},
+                    {"id": "2", "fields": {"field1": "value2"}},
+                ]
+                async def callback(response, id):
+                    print(f"Response for id {id}: {response.status_code}")
+                app.feed_async_iterable(data, schema="schema_name", callback=callback)
+
+
+        :param iter: An iterable of Dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`. Note that this 'id' is only the last part of the full document id, that will be generated automatically by pyvespa.
+        :param schema: The Vespa schema name that we are sending data to.
+        :param namespace: The Vespa document id namespace. If no namespace is provided the schema is used.
+        :param callback: A callback function to be called on each result. Signature `callback(response:VespaResponse, id:str)`
+        :param operation_type: The operation to perform. Default to `feed`. Valid are `feed`, `update` or `delete`.
+        :param max_queue_size: The maximum number of tasks waiting to be processed. Useful to limit memory usage. Default is 5000.
+        :param max_workers: Used to initialize a a semaphore to control the number of concurrent requests to the server. Default is 128. Increase if the server is scaled to handle more requests.
+        :param max_connections: The maximum number of persisted connections to the Vespa endpoint. Default is 64.
+        :param kwargs: Additional parameters are passed to the respective operation type specific :func:`_data_point`.
+        """
+
         if operation_type not in ["feed", "update", "delete"]:
             raise ValueError(
                 "Invalid operation type. Valid are `feed`, `update` or `delete`."
@@ -609,6 +636,7 @@ class Vespa(object):
                 )
 
         async def handle_result(task: asyncio.Task, id: str):
+            # Wrapper around the task to handle exceptions and call the user callback
             try:
                 response = await task
             except Exception as e:
@@ -631,6 +659,7 @@ class Vespa(object):
                         type(e), e, e.__traceback__, file=sys.stderr
                     )
 
+        # Wrapping in async function to be able to use asyncio.run, and avoid that the feed_async_iterable have to be async
         async def run():
             async with self.asyncio(connections=max_connections) as async_session:
                 semaphore = asyncio.Semaphore(max_workers)
