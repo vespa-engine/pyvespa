@@ -6,104 +6,104 @@ shared:
     screwdriver.cd/restrictPR: fork
 
 jobs:
-  unit-tests:
-    requires: [~commit, ~pr]
-    annotations:
-      screwdriver.cd/timeout: 120
-      screwdriver.cd/cpu: HIGH
-      screwdriver.cd/ram: HIGH
-      screwdriver.cd/dockerEnabled: true
-      screwdriver.cd/dockerCpu: TURBO
-      screwdriver.cd/dockerRam: TURBO
-      screwdriver.cd/buildPeriodically: H 11 * * *
-    steps:
-      - install-docker: |
-          dnf install -y dnf-plugins-core
-          dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
-          dnf install -y docker-ce-cli
-          docker system info
-          ls -la $SD_DIND_SHARE_PATH
-      - install-python: |
-          dnf install -y python39-pip python39-devel gcc gcc-c++ # gcc et al required for pytrec_eval
-          dnf install -y --enablerepo=powertools pandoc
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -e .[dev,docs]
-      - run-unit-tests: |
-          pytest tests/unit
-      - run-doc-tests: |
-          pytest vespa --doctest-modules
-      - run-doc-linkcheck: |
-          sphinx-build -E -D exclude_patterns=getting-started-pyvespa-cloud.ipynb -b linkcheck docs/sphinx/source docs/sphinx/build
-          sphinx-build -E -D exclude_patterns=getting-started-pyvespa-cloud.ipynb docs/sphinx/source docs/sphinx/build
-          rm -fr docs/sphinx/build
+  # unit-tests:
+  #   requires: [~commit, ~pr]
+  #   annotations:
+  #     screwdriver.cd/timeout: 120
+  #     screwdriver.cd/cpu: HIGH
+  #     screwdriver.cd/ram: HIGH
+  #     screwdriver.cd/dockerEnabled: true
+  #     screwdriver.cd/dockerCpu: TURBO
+  #     screwdriver.cd/dockerRam: TURBO
+  #     screwdriver.cd/buildPeriodically: H 11 * * *
+  #   steps:
+  #     - install-docker: |
+  #         dnf install -y dnf-plugins-core
+  #         dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+  #         dnf install -y docker-ce-cli
+  #         docker system info
+  #         ls -la $SD_DIND_SHARE_PATH
+  #     - install-python: |
+  #         dnf install -y python39-pip python39-devel gcc gcc-c++ # gcc et al required for pytrec_eval
+  #         dnf install -y --enablerepo=powertools pandoc
+  #         python3 -m pip install --upgrade pip
+  #         python3 -m pip install -e .[dev,docs]
+  #     - run-unit-tests: |
+  #         pytest tests/unit
+  #     - run-doc-tests: |
+  #         pytest vespa --doctest-modules
+  #     - run-doc-linkcheck: |
+  #         sphinx-build -E -D exclude_patterns=getting-started-pyvespa-cloud.ipynb -b linkcheck docs/sphinx/source docs/sphinx/build
+  #         sphinx-build -E -D exclude_patterns=getting-started-pyvespa-cloud.ipynb docs/sphinx/source docs/sphinx/build
+  #         rm -fr docs/sphinx/build
 
-  integration-except-cloud:
-    requires: [~commit, ~pr]
-    annotations:
-      screwdriver.cd/timeout: 120
-      screwdriver.cd/cpu: HIGH
-      screwdriver.cd/ram: HIGH
-      screwdriver.cd/dockerEnabled: true
-      screwdriver.cd/dockerCpu: TURBO
-      screwdriver.cd/dockerRam: TURBO
-      screwdriver.cd/buildPeriodically: H 11 * * *
-    steps:
-      - install-docker: |
-          dnf install -y dnf-plugins-core
-          dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
-          dnf install -y docker-ce-cli
-          docker system info
-          ls -la $SD_DIND_SHARE_PATH
-      - install-python: |
-          dnf install -y python39-pip
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -e .[dev]
-      - run-integration-docker: |
-          pytest tests/integration/test_integration_docker.py -s -v
+  # integration-except-cloud:
+  #   requires: [~commit, ~pr]
+  #   annotations:
+  #     screwdriver.cd/timeout: 120
+  #     screwdriver.cd/cpu: HIGH
+  #     screwdriver.cd/ram: HIGH
+  #     screwdriver.cd/dockerEnabled: true
+  #     screwdriver.cd/dockerCpu: TURBO
+  #     screwdriver.cd/dockerRam: TURBO
+  #     screwdriver.cd/buildPeriodically: H 11 * * *
+  #   steps:
+  #     - install-docker: |
+  #         dnf install -y dnf-plugins-core
+  #         dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+  #         dnf install -y docker-ce-cli
+  #         docker system info
+  #         ls -la $SD_DIND_SHARE_PATH
+  #     - install-python: |
+  #         dnf install -y python39-pip
+  #         python3 -m pip install --upgrade pip
+  #         python3 -m pip install -e .[dev]
+  #     - run-integration-docker: |
+  #         pytest tests/integration/test_integration_docker.py -s -v
 
-  notebooks-except-cloud:
-    requires: [~commit, ~pr]
-    annotations:
-      screwdriver.cd/timeout: 120
-      screwdriver.cd/cpu: HIGH
-      screwdriver.cd/ram: HIGH
-      screwdriver.cd/dockerEnabled: true
-      screwdriver.cd/dockerCpu: TURBO
-      screwdriver.cd/dockerRam: TURBO
-      screwdriver.cd/buildPeriodically: H 11 * * *
-    steps:
-      - setup: |
-          dnf install -y git
+  # notebooks-except-cloud:
+  #   requires: [~commit, ~pr]
+  #   annotations:
+  #     screwdriver.cd/timeout: 120
+  #     screwdriver.cd/cpu: HIGH
+  #     screwdriver.cd/ram: HIGH
+  #     screwdriver.cd/dockerEnabled: true
+  #     screwdriver.cd/dockerCpu: TURBO
+  #     screwdriver.cd/dockerRam: TURBO
+  #     screwdriver.cd/buildPeriodically: H 11 * * *
+  #   steps:
+  #     - setup: |
+  #         dnf install -y git
 
-      - install-docker: |
-          dnf install -y dnf-plugins-core
-          dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
-          dnf install -y docker-ce-cli
-          docker system info
-          ls -la $SD_DIND_SHARE_PATH
-      - install-python: |
-          dnf install -y python39-pip python39-devel gcc gcc-c++ # gcc required for pytrec_eval
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -e .[dev,notebooks,docs]
-      - install-openmp: |
-          # required for using lightgbm
-          dnf install -y libgomp zstd
-      - run-notebooks-except-cloud-related: |
-          #
-          # Exclude non-testable notebooks below
-          #
-          dnf install -y tree
-          echo "All non-cloud notebooks:"
+  #     - install-docker: |
+  #         dnf install -y dnf-plugins-core
+  #         dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+  #         dnf install -y docker-ce-cli
+  #         docker system info
+  #         ls -la $SD_DIND_SHARE_PATH
+  #     - install-python: |
+  #         dnf install -y python39-pip python39-devel gcc gcc-c++ # gcc required for pytrec_eval
+  #         python3 -m pip install --upgrade pip
+  #         python3 -m pip install -e .[dev,notebooks,docs]
+  #     - install-openmp: |
+  #         # required for using lightgbm
+  #         dnf install -y libgomp zstd
+  #     - run-notebooks-except-cloud-related: |
+  #         #
+  #         # Exclude non-testable notebooks below
+  #         #
+  #         dnf install -y tree
+  #         echo "All non-cloud notebooks:"
 
-          find docs -name '*.ipynb' ! -name '*cloud*.ipynb' ! -name 'colpali-document-retrieval-vision-language-models.ipynb' | while read f
-          do
-            echo "running: runnb --allow-not-trusted $f"
-            runnb --allow-not-trusted $f
-            if [ $? -ne 0 ]
-            then
-              exit 1
-            fi
-          done
+  #         find docs -name '*.ipynb' ! -name '*cloud*.ipynb' ! -name 'colpali-document-retrieval-vision-language-models.ipynb' | while read f
+  #         do
+  #           echo "running: runnb --allow-not-trusted $f"
+  #           runnb --allow-not-trusted $f
+  #           if [ $? -ne 0 ]
+  #           then
+  #             exit 1
+  #           fi
+  #         done
 
   # integration-cloud:
   #   requires: [~commit]

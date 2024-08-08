@@ -36,4 +36,6 @@ jobs:
       - name: Run linkcheck
         run: |
           sphinx-build -E -D exclude_patterns=getting-started-pyvespa-cloud.ipynb -b linkcheck docs/sphinx/source docs/sphinx/build
+          sphinx-build -E -D exclude_patterns=getting-started-pyvespa-cloud.ipynb docs/sphinx/source docs/sphinx/build
+          rm -fr docs/sphinx/build
 
