@@ -1,20 +1,19 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
-from enum import Enum
 import os
 import sys
-import zipfile
 import warnings
-
-import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
-
+import xml.etree.ElementTree as ET
+import zipfile
+from collections import OrderedDict
+from enum import Enum
+from io import BytesIO
 from pathlib import Path
 from shutil import copyfile
-from typing import List, Literal, Optional, Tuple, TypedDict, Union, Dict
-from collections import OrderedDict
+from typing import Dict, List, Literal, Optional, Tuple, TypedDict, Union
+
 from jinja2 import Environment, PackageLoader, select_autoescape
-from io import BytesIO
 
 if sys.version_info >= (3, 11):
     from typing import Unpack
@@ -2318,7 +2317,7 @@ class ApplicationPackage(object):
         :param validations: Optional list of :class:`Validation` to be overridden.
         :param components: List of :class:`Component` that contains configurations for application components.
         :param clusters: List of :class:`Cluster` that contains configurations for content or container clusters.
-            If clusters is used, any :class: `Component`s must be configured as part of a cluster.
+            If clusters is used, any :class: `Component`\s must be configured as part of a cluster.
         :param auth_clients: List of :class:`AuthClient` that contains configurations for client authorization. If clusters is passed, pass the auth clients to the :class:`ContainerCluster` instead.
         :param deployment_config: DeploymentConfiguration` that contains configurations for production deployments.
 

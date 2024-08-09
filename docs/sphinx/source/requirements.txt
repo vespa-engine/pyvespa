@@ -1,5 +1,0 @@
-.[dev]
-sphinx
-ipykernel
-nbsphinx
-sphinx-rtd-theme>=0.5.0
