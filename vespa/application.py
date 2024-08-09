@@ -1436,13 +1436,13 @@ class VespaAsync(object):
             )
 
     async def __aenter__(self):
-        await self._open_httpx_client()
+        self._open_httpx_client()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self._close_httpx_client()
 
-    async def _open_httpx_client(self):
+    def _open_httpx_client(self):
         if self.httpx_client is not None:
             return
         limits = httpx.Limits(
