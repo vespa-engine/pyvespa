@@ -588,14 +588,15 @@ class Vespa(object):
         namespace: Optional[str] = None,
         callback: Optional[Callable[[VespaResponse, str], None]] = None,
         operation_type: Optional[str] = "feed",
-        max_queue_size: int = 5000,
-        max_workers: int = 128,
+        max_queue_size: int = 1000,
+        max_workers: int = 64,
         max_connections: int = 64,
         **kwargs,
     ):
         """
         Feed data asynchronously using httpx.AsyncClient with HTTP/2. Feed from an Iterable of Dict with the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
         The result of each operation is forwarded to the user provided callback function that can process the returned `VespaResponse`.
+        Prefer using this method over :func:`feed_iterable` when the operation is I/O bound from the client side.
 
         Example usage::
 
@@ -615,7 +616,7 @@ class Vespa(object):
         :param callback: A callback function to be called on each result. Signature `callback(response:VespaResponse, id:str)`
         :param operation_type: The operation to perform. Default to `feed`. Valid are `feed`, `update` or `delete`.
         :param max_queue_size: The maximum number of tasks waiting to be processed. Useful to limit memory usage. Default is 5000.
-        :param max_workers: Used to initialize a a semaphore to control the number of concurrent requests to the server. Default is 128. Increase if the server is scaled to handle more requests.
+        :param max_workers: Maximum number of concurrent requests to have in-flight, bound by an asyncio.Semaphore, that needs to be acquired by a submit task. Increase if the server is scaled to handle more requests.
         :param max_connections: The maximum number of persisted connections passed to httpx.AsyncClient to the Vespa endpoint. Default is 64.
         :param kwargs: Additional parameters are passed to the respective operation type specific :func:`_data_point`.
         """
