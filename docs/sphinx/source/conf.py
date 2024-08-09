@@ -66,5 +66,4 @@ html_sidebars = {
 linkcheck_ignore = [
     r"https://github.com/.*#.*",
     r"http://localhost:\d+/",
-    "https://txt.cohere.com/int8-binary-embeddings/",
 ]
