@@ -31,7 +31,6 @@ jobs:
       group: cloud
       cancel-in-progress: false
     strategy:
-      max-parallel: 8
       matrix:
         notebook: ${{fromJson(needs.get-notebooks-cloud.outputs.notebooks)}}
 
