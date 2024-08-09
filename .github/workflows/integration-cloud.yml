@@ -11,6 +11,9 @@ on:
 jobs:
   integration-cloud:
     runs-on: ubuntu-latest
+    concurrency:
+      group: cloud
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -30,8 +33,10 @@ jobs:
           pytest tests/integration/test_integration_vespa_cloud.py -s -v
 
   integration-cloud-token:
-    needs: integration-cloud
     runs-on: ubuntu-latest
+    concurrency:
+      group: cloud
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -53,8 +58,10 @@ jobs:
           pytest tests/integration/test_integration_vespa_cloud_token.py -s -v
 
   integration-cloud-vector-search:
-    needs: integration-cloud
     runs-on: ubuntu-latest
+    concurrency:
+      group: cloud
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
