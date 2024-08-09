@@ -8,12 +8,13 @@ on:
   schedule:
    - cron: '0 11 * * *'
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   integration-cloud:
     runs-on: ubuntu-latest
-    concurrency:
-      group: cloud
-      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -34,9 +35,7 @@ jobs:
 
   integration-cloud-token:
     runs-on: ubuntu-latest
-    concurrency:
-      group: cloud
-      cancel-in-progress: false
+    needs: integration-cloud
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -59,9 +58,7 @@ jobs:
 
   integration-cloud-vector-search:
     runs-on: ubuntu-latest
-    concurrency:
-      group: cloud
-      cancel-in-progress: false
+    needs: integration-cloud-token
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
