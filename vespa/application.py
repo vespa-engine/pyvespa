@@ -590,7 +590,7 @@ class Vespa(object):
         operation_type: Optional[str] = "feed",
         max_queue_size: int = 1000,
         max_workers: int = 64,
-        max_connections: int = 64,
+        max_connections: int = 1,
         **kwargs,
     ):
         """
@@ -615,9 +615,9 @@ class Vespa(object):
         :param namespace: The Vespa document id namespace. If no namespace is provided the schema is used.
         :param callback: A callback function to be called on each result. Signature `callback(response:VespaResponse, id:str)`
         :param operation_type: The operation to perform. Default to `feed`. Valid are `feed`, `update` or `delete`.
-        :param max_queue_size: The maximum number of tasks waiting to be processed. Useful to limit memory usage. Default is 5000.
+        :param max_queue_size: The maximum number of tasks waiting to be processed. Useful to limit memory usage. Default is 1000.
         :param max_workers: Maximum number of concurrent requests to have in-flight, bound by an asyncio.Semaphore, that needs to be acquired by a submit task. Increase if the server is scaled to handle more requests.
-        :param max_connections: The maximum number of persisted connections passed to httpx.AsyncClient to the Vespa endpoint. Default is 64.
+        :param max_connections: The maximum number of connections passed to httpx.AsyncClient to the Vespa endpoint. As HTTP/2 is used, only one connection is needed.
         :param kwargs: Additional parameters are passed to the respective operation type specific :func:`_data_point`.
         """
 
@@ -1410,7 +1410,7 @@ class VespaSync(object):
 
 class VespaAsync(object):
     def __init__(
-        self, app: Vespa, connections: Optional[int] = 10, total_timeout: int = 10
+        self, app: Vespa, connections: Optional[int] = 1, total_timeout: int = 10
     ) -> None:
         """
         Class to handle async requests to Vespa.
@@ -1418,7 +1418,7 @@ class VespaAsync(object):
 
         Args:
             app (Vespa): Vespa application object.
-            connections (Optional[int], optional): number of connections. Defaults to 10.
+            connections (Optional[int], optional): number of connections. Defaults to 1 as HTTP/2 is multiplexed.
             total_timeout (int, optional): timeout for each individual request in seconds. Defaults to 10.
         """
         self.app = app
@@ -1448,7 +1448,7 @@ class VespaAsync(object):
         limits = httpx.Limits(
             max_keepalive_connections=self.connections,
             max_connections=self.connections,
-            keepalive_expiry=10,
+            keepalive_expiry=10,  # This should NOT exceed the keepalive_timeout on the Server, otherwise we will get ConnectionTerminated errors.
         )
         timeout = httpx.Timeout(pool=5, connect=5, read=5, write=5)
         if self.app.cert is not None:
@@ -1459,7 +1459,7 @@ class VespaAsync(object):
             timeout=timeout,
             headers=self.headers,
             verify=sslcontext,
-            http2=True,
+            http2=True,  # HTTP/2 by default
             http1=False,
             limits=limits,
         )
