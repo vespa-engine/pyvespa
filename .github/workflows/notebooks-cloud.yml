@@ -28,9 +28,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: get-notebooks-cloud
     concurrency:
-      group: cloud
-      cancel-in-progress: false
+      group: ${{ matrix.notebook }}  # Each notebook has its own concurrency group
+      cancel-in-progress: false      # This allows each notebook to run without canceling others
     strategy:
+      max-parallel: 8
       matrix:
         notebook: ${{fromJson(needs.get-notebooks-cloud.outputs.notebooks)}}
 
