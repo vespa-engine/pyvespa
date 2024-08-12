@@ -48,7 +48,7 @@ class VespaDeployment:
         orig_dir = os.getcwd()
         zipf = zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED)
         os.chdir(application_root)  # Workaround to avoid the top-level directory
-        for root, dirs, files in os.walk("."):
+        for root, dirs, files in os.walk(".", followlinks=True):
             for file in files:
                 zipf.write(os.path.join(root, file))
         zipf.close()
