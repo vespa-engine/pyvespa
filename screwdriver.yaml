@@ -1,11 +1,15 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
-# shared:
-#   image: almalinux:8
-#   annotations:
-#     screwdriver.cd/restrictPR: fork
+shared:
+  image: almalinux:8
+  annotations:
+    screwdriver.cd/restrictPR: fork
 
-# jobs:
+jobs:
+    dummy:
+        steps:
+            - setup: |
+                echo "success" 
   # unit-tests:
   #   requires: [~commit, ~pr]
   #   annotations:
