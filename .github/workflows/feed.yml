@@ -1,7 +1,7 @@
 name: pyvespa documentation search feed
 on:
   push:
-    branches: [master, thomasht86/fix-docsearch-feed]
+    branches: [master]
 
 env:
   DATA_PLANE_PUBLIC_KEY: ${{ secrets.VESPA_TEAM_DATA_PLANE_PUBLIC_CERT }}
