@@ -5,6 +5,8 @@ import unittest
 
 import pytest
 from unittest.mock import PropertyMock, patch
+from unittest.mock import MagicMock, AsyncMock
+
 from requests.models import HTTPError, Response
 
 from vespa.package import ApplicationPackage, Schema, Document
@@ -488,3 +490,109 @@ class TestVespaCollectData(unittest.TestCase):
                 ],
             }
         }
+
+
+class TestFeedAsyncIterable(unittest.TestCase):
+    def setUp(self):
+        self.mock_session = AsyncMock()
+        self.mock_asyncio_patcher = patch("vespa.application.VespaAsync")
+        self.mock_asyncio = self.mock_asyncio_patcher.start()
+        self.mock_asyncio.return_value.__aenter__.return_value = self.mock_session
+
+        self.vespa = Vespa(url="http://localhost", port=8080)
+
+    def tearDown(self):
+        self.mock_asyncio_patcher.stop()
+
+    def test_feed_async_iterable_happy_path(self):
+        # Arrange
+        iter_data = [
+            {"id": "doc1", "fields": {"title": "Document 1"}},
+            {"id": "doc2", "fields": {"title": "Document 2"}},
+        ]
+        callback = MagicMock()
+
+        # Act
+        self.vespa.feed_async_iterable(
+            iter=iter_data,
+            schema="test_schema",
+            namespace="test_namespace",
+            callback=callback,
+            max_queue_size=2,
+            max_workers=2,
+            max_connections=2,
+        )
+
+        # Assert
+        self.mock_session.feed_data_point.assert_has_calls(
+            [
+                unittest.mock.call(
+                    schema="test_schema",
+                    namespace="test_namespace",
+                    groupname=None,
+                    data_id="doc1",
+                    fields={"title": "Document 1"},
+                ),
+                unittest.mock.call(
+                    schema="test_schema",
+                    namespace="test_namespace",
+                    groupname=None,
+                    data_id="doc2",
+                    fields={"title": "Document 2"},
+                ),
+            ],
+            any_order=True,
+        )
+        self.assertEqual(callback.call_count, 2)
+
+    def test_feed_async_iterable_missing_id(self):
+        # Arrange
+        iter_data = [
+            {"fields": {"title": "Document 1"}},
+        ]
+        callback = MagicMock()
+
+        # Act
+        self.vespa.feed_async_iterable(
+            iter=iter_data,
+            schema="test_schema",
+            namespace="test_namespace",
+            callback=callback,
+            max_queue_size=1,
+            max_workers=1,
+            max_connections=1,
+        )
+
+        # Assert
+        self.mock_session.feed_data_point.assert_not_called()
+        callback.assert_called_once_with(unittest.mock.ANY, None)
+        self.assertEqual(callback.call_args[0][0].status_code, 499)
+        self.assertEqual(
+            callback.call_args[0][0].json["message"], "Missing id in input dict"
+        )
+
+    def test_feed_async_iterable_missing_fields(self):
+        # Arrange
+        iter_data = [
+            {"id": "doc1"},
+        ]
+        callback = MagicMock()
+
+        # Act
+        self.vespa.feed_async_iterable(
+            iter=iter_data,
+            schema="test_schema",
+            namespace="test_namespace",
+            callback=callback,
+            max_queue_size=1,
+            max_workers=1,
+            max_connections=1,
+        )
+
+        # Assert
+        self.mock_session.feed_data_point.assert_not_called()
+        callback.assert_called_once_with(unittest.mock.ANY, "doc1")
+        self.assertEqual(callback.call_args[0][0].status_code, 499)
+        self.assertEqual(
+            callback.call_args[0][0].json["message"], "Missing fields in input dict"
+        )

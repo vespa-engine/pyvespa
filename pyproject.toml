@@ -18,6 +18,7 @@ dependencies = [
     "jinja2",
     "cryptography",
     "aiohttp",
+    "httpx[http2]",
     "tenacity>=8.4.1",
     "typing_extensions",
     "python-dateutil",
