@@ -10,10 +10,15 @@ import re
 from xml.sax.saxutils import escape
 import tiktoken
 import urllib.parse
+import shutil
+import os
 
-encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
+encoding = tiktoken.encoding_for_model("gpt-4o-mini")
 note_pattern = re.compile(r"{%\s*include.*?%}", flags=re.DOTALL)
 highlight_pattern = re.compile(r"{%\s*.*?\s%}", flags=re.DOTALL)
+
+WRITE_MARKDOWN = True  # Set to True to write content to markdown files for debugging
+MARKDOWN_DIR = "markdown_after"  # Directory to write markdown files to
 
 
 def what_language(el):
@@ -80,6 +85,82 @@ def create_text_doc(doc, paragraph, paragraph_id, header):
     return new_doc
 
 
+def is_function_signature(line: str) -> bool:
+    line = line.replace("\\", "")
+    # Exclude __init__-functions, as these belong with their class.
+    if line.startswith("__init__"):
+        return False
+    # Updated regex pattern to match function signatures in the given HTML
+    pattern = r"^[a-z_]+\s*\(.*"
+    # Check if the line matches the pattern
+    match = re.match(pattern, line)
+    return bool(match)
+
+
+def extract_function_name(line: str) -> str:
+    line = line.replace("\\", "")
+    # Regex pattern to capture the part before the "("
+    pattern = r"^([a-z_]+)\(*"
+    # Search for the pattern in the line
+    match = re.search(pattern, line)
+    # If there's a match, return the captured group (function name)
+    if match:
+        return match.group(1)
+    return ""
+
+
+def split_reference(markdown_text):
+    """
+    Splits the given markdown text into logical chunks based on headers and class definitions.
+
+    Args:
+        markdown_text (str): The markdown text to be split into chunks.
+
+    Returns:
+        list of tuples: Each tuple contains an identifier, header, and the chunk of text.
+    """
+
+    chunks = []  # List to hold the final chunks of text
+    lines = markdown_text.split("\n")  # Split the text into lines
+    current_chunk = []  # Temporary storage for the current chunk of lines
+    current_header = ""  # Store the current header text
+    for line in lines:
+        line = line.rstrip()  # Remove any trailing whitespace
+        if line.startswith("###"):
+            # Handle a new header, finalize the current chunk if it exists
+            if current_chunk:
+                _id = "-".join(
+                    current_header.split()
+                ).lower()  # Create an ID from the header
+                chunks.append((_id, current_header, "\n".join(current_chunk)))
+                current_chunk = []
+            current_header = line.strip("# ").strip()  # Update the current header
+            class_header = current_header
+
+        elif line.startswith("*class*"):
+            # Detect the start of a class definition
+            current_chunk.append(line)
+
+        elif is_function_signature(line):
+            # Handle a class method (not __init__), finalize the current chunk if needed, and initialize a new one
+            if current_chunk:
+                _id = "-".join(current_header.split()).lower()
+                chunks.append((_id, current_header, "\n".join(current_chunk)))
+                current_chunk = []
+                current_header = class_header + "." + extract_function_name(line)
+            current_chunk.append(line)
+        else:
+            # Add the line to the current chunk
+            current_chunk.append(line)
+
+    # Add the final chunk if it exists
+    if current_chunk:
+        _id = "-".join(current_header.split()).lower()
+        chunks.append((_id, current_header, "\n".join(current_chunk)))
+
+    return chunks
+
+
 def split_text(soup, path):
     split_tables(soup)
     split_lists(soup)
@@ -89,31 +170,35 @@ def split_text(soup, path):
         code_language_callback=what_language,
         strip=["img"],
     )
-    lines = md.split("\n")
-    header = ""
-    text = ""
-    id = ""
-    data = []
-    for line in lines:
-        if line.startswith("#"):
-            if text:
-                data.append((id, header, text))
-                text = ""
-            header = line.lstrip("#")
-            # Ugly hack: rst -> html conversion will lowercase the id - put .rst files in set below, with .html suffix
-            if path in {
-                "/",
-                "/examples.html",
-                "/reference-api.html",
-                "/troubleshooting.html",
-            }:
-                id = "-".join(header.split()).lower()
-            else:
-                id = "-".join(header.split())
-        else:
-            text = text + "\n" + line
+    if path == "/reference-api.html":
+        data = split_reference(md)
+    else:
+        lines = md.split("\n")
+        header = ""
+        text = ""
+        id = ""
+        data = []
 
-    data.append((id, header, text))  # Flush any last data
+        for line in lines:
+            if line.startswith("#"):
+                if text:
+                    data.append((id, header, text))
+                    text = ""
+                header = line.lstrip("#")
+                # Ugly hack: rst -> html conversion will lowercase the id - put .rst files in set below, with .html suffix
+                if path in {
+                    "/",
+                    "/examples.html",
+                    "/reference-api.html",
+                    "/troubleshooting.html",
+                }:
+                    id = "-".join(header.split()).lower()
+                else:
+                    id = "-".join(header.split())
+            else:
+                text = text + "\n" + line
+
+        data.append((id, header, text))  # Flush any last data
     return data
 
 
@@ -163,6 +248,26 @@ def move_linkable_item_to_single_entity(soup, item):
         soup.append(new_container)
 
 
+def remove_notebook_cells(text):
+    """Remove pattern matching notebook cells from text. Example: ```\n[1]:\n```"""
+    pattern = r"^\s*```\s*\n\s*\[\d{1,3}\]:\s*\n\s*```\s*$"
+    return re.sub(pattern, "", text, flags=re.MULTILINE)
+
+
+def replace_long_integer_sequences(text):
+    """
+    Some of the notebooks contain prints of vectors, resulting in too many (irrelevant) tokens
+    This function replaces more than 10 consecutive integers in lists with the first 10 and an ellipsis
+    """
+
+    def replace_func(match):
+        numbers = match.group(0).split(",")
+        return ",".join(numbers[:10]) + ",..."
+
+    pattern = r"((?:-?\d+\s*,\s*){10,})-?\d+(?:\s*,\s*-?\d+)*"
+    return re.sub(pattern, replace_func, text)
+
+
 def main():
     with open(sys.argv[1]) as fp:
         random.seed(42)
@@ -174,7 +279,6 @@ def main():
             soup = BeautifulSoup(html_doc, "html5lib")
             remove_notext_tags(soup)
             data = split_text(soup, doc["fields"]["path"])
-
             for paragraph_id, header, paragraph in data:
                 paragraph = paragraph.lstrip("\n").lstrip(" ")
                 paragraph = paragraph.rstrip("\n")
@@ -200,13 +304,23 @@ def main():
                 paragraph = paragraph.replace("```\njava", "```java\n")
                 paragraph = paragraph.replace("\n```\n[ ]:\n```", "\n")
                 paragraph = paragraph.replace("\n```\n[1]:\n```", "\n")
-
+                # Strip backslashes to avoid double escaping
+                paragraph = paragraph.replace(
+                    "\\", ""
+                )  # Necessary backslashes and quotes will be added when json-serialized.
                 paragraph = remove_jekyll(paragraph)
+                paragraph = remove_notebook_cells(paragraph)
+                paragraph = replace_long_integer_sequences(paragraph)
 
                 if paragraph:
                     paragraph_doc = create_text_doc(
                         doc, paragraph, paragraph_id, header
                     )
+                    n_tokens = paragraph_doc["fields"]["content_tokens"]
+                    if n_tokens > 4096:
+                        print(
+                            f"Warning: paragraph with {n_tokens} tokens: {paragraph_doc['fields']['path']}"
+                        )
                     operations.append(paragraph_doc)
 
     # Merge question expansion
@@ -219,8 +333,18 @@ def main():
             if "questions" in fields:
                 questions = fields["questions"]["assign"]
                 questions_expansion[id] = questions
+    # Remove and recreate markdown directory
+    if WRITE_MARKDOWN:
+        shutil.rmtree(MARKDOWN_DIR, ignore_errors=True)
+        os.makedirs(MARKDOWN_DIR, exist_ok=True)
+
     for op in operations:
         id = op["put"]
+        doc_id = op["fields"]["path"]
+        doc_id = doc_id.replace("/", "-")
+        if WRITE_MARKDOWN:
+            with open(f"{MARKDOWN_DIR}/{doc_id}.md", "w") as f:
+                f.write(op["fields"]["content"])
         if id in questions_expansion:
             op["fields"]["questions"] = questions_expansion[id]
         else:

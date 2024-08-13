@@ -7,16 +7,25 @@ require 'kramdown/parser/kramdown'
 module Jekyll
 
     class VespaIndexGenerator < Jekyll::Generator
+        puts "VespaIndexGenerator is being loaded"
         priority :lowest
 
         def generate(site)
             namespace = site.config["search"]["namespace"]
             operations = []
-            site.pages.each do |page|
+            puts "VespaIndexGenerator is processing pages"
+
+            if site.pages.empty?
+                puts "No pages found!"
+            else
+                puts "Pages found: #{site.pages.size}"
+                site.pages.each do |page|
+                puts "Processing page: #{page.url}" # Debugging output
                 next if (page.path.start_with?("search.html") ||
-                         page.path.start_with?("genindex.html") ||
-                         page.url.start_with?("/redirects.json"))
+                        page.path.start_with?("genindex.html") ||
+                        page.url.start_with?("/redirects.json"))
                 if page.data["index"] == true
+                    puts "Indexing page: #{page.url}" # Debugging output
                     title = clean_chars(extract_title(page))
                     text  = clean_chars(extract_text(page))
                     operations.push({
@@ -32,12 +41,15 @@ module Jekyll
                             :outlinks => extract_links(page)
                         }
                     })
+                else
+                    puts "Page not indexed: #{page.url}, index flag: #{page.data['index']}" # Debugging output
                 end
+                end
+            
+                json = JSON.pretty_generate(operations)
+                File.open(namespace + "_index.json", "w") { |f| f.write(json) }
             end
-
-            json = JSON.pretty_generate(operations)
-            File.open(namespace + "_index.json", "w") { |f| f.write(json) }
-        end
+        end # Added missing 'end' keyword to close the 'generate' method
 
         def strip_a_from_headers(htmldoc)
             doc = Nokogiri::HTML(htmldoc)

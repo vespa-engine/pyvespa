@@ -1,86 +1,72 @@
 name: pyvespa documentation search feed
 on:
   push:
-    branches: [ master ]
+    branches: [master]
 
 env:
-  DATA_PLANE_PUBLIC_KEY     : ${{ secrets.VESPA_TEAM_DATA_PLANE_PUBLIC_CERT }}
-  DATA_PLANE_PRIVATE_KEY    : ${{ secrets.VESPA_TEAM_DATA_PLANE_PRIVATE_KEY }}
-  VESPA_CLI_DATA_PLANE_CERT : ${{ secrets.VESPA_TEAM_VESPA_CLI_DATA_PLANE_CERT }}
-  VESPA_CLI_DATA_PLANE_KEY  : ${{ secrets.VESPA_TEAM_VESPA_CLI_DATA_PLANE_KEY }}
+  DATA_PLANE_PUBLIC_KEY: ${{ secrets.VESPA_TEAM_DATA_PLANE_PUBLIC_CERT }}
+  DATA_PLANE_PRIVATE_KEY: ${{ secrets.VESPA_TEAM_DATA_PLANE_PRIVATE_KEY }}
+  VESPA_CLI_DATA_PLANE_CERT: ${{ secrets.VESPA_TEAM_VESPA_CLI_DATA_PLANE_CERT }}
+  VESPA_CLI_DATA_PLANE_KEY: ${{ secrets.VESPA_TEAM_VESPA_CLI_DATA_PLANE_KEY }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
 
-    - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.1
+          bundler-cache: true
 
-    - uses: ruby/setup-ruby@v1
-      with:
-        ruby-version: 3.1
-        bundler-cache: true
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
 
-    - name: Install Sphinx
-      run: |
-        sudo apt-get install -y pandoc
-        python3 -m pip install --upgrade pip
-        python3 -m pip install -r docs/sphinx/source/requirements-feed.txt
+      - name: Install Sphinx
+        run: |
+          sudo apt-get install -y pandoc
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -e .[docs,feed]
 
-    - name: Build site
-      run: |
-        sphinx-build -E -D nbsphinx_allow_errors=True -b html docs/sphinx/source docs/sphinx/build
-        #
-        # strip liquid macros from html files
-        #
-        find docs/sphinx/build -name \*.html | \
-          while read f; do \
-            ( echo -e "---\n---\n"; sed 's/{%/{ %/g; s/%}/% }/g; s/{{/{ {/g; s/}}/} }/g' < ${f} ) >${f}.new; \
-            mv ${f}.new ${f}; \
-          done
-        bundle exec jekyll build -s docs/sphinx/build/ -p _plugins-vespafeed --config _config.yml
+      - name: Build site
+        run: |
+          sphinx-build -E -D nbsphinx_allow_errors=True -b html docs/sphinx/source docs/sphinx/build
 
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.x'
+          # Add front matter and strip liquid macros from html files
+          find docs/sphinx/build -name \*.html | \
+            while read f; do \
+              { echo "---"; echo "---"; sed 's/{%/{ %/g; s/%}/% }/g; s/{{/{ {/g; s/}}/} }/g' < ${f}; } >${f}.new; \
+              mv ${f}.new ${f}; \
+            done
 
-    - name: Install dependencies
-      run: |
-        pip3 install PyYAML spacy mmh3 requests html5lib beautifulsoup4 markdownify tiktoken
+          bundle exec jekyll build -s docs/sphinx/build/ -p _plugins-vespafeed --config _config.yml
 
-    - name: Get Vespa CLI - update to later versions as needed
-      run: |
-        # Workaround: Rename the "vespa" directory in pyvespa, conflicts with the cli install below
-        # This directory is not needed for the feeding anyway
-        mv vespa vespa.org
-        apt update && apt -y install curl
-        curl -SsLo vespa-cli.tar.gz https://github.com/vespa-engine/vespa/releases/download/v8.209.11/vespa-cli_8.209.11_linux_amd64.tar.gz
-        tar -xvf vespa-cli.tar.gz && ln -fs vespa-cli_8.209.11_linux_amd64/bin/vespa
+      - name: Feed site
+        run: |
+          # The python scripts below uses the Vespa CLI for feeding / data access.
+          # See https://docs.vespa.ai/en/vespa-cli.html.
+          # The environment variables below have credentials for endpoint access -
+          # use the key/cert files in .vespa and paste their content into GitHub Secrets.
+          # VESPA_CLI_API_KEY must be set and empty as below.
+          export VESPA_CLI_DATA_PLANE_CERT
+          export VESPA_CLI_DATA_PLANE_KEY
+          export VESPA_CLI_API_KEY=
+          ./feed_to_vespa.py _config.yml
 
-    - name: Feed site
-      run: |
-        # The python scripts below uses the Vespa CLI for feeding / data access.
-        # See https://docs.vespa.ai/en/vespa-cli.html.
-        # The environment variables below have credentials for endpoint access -
-        # use the key/cert files in .vespa and paste their content into GitHub Secrets.
-        # VESPA_CLI_API_KEY must be set and empty as below.
-        export VESPA_CLI_DATA_PLANE_CERT
-        export VESPA_CLI_DATA_PLANE_KEY
-        export VESPA_CLI_API_KEY=
-        ./feed_to_vespa.py _config.yml
+      - name: Feed paragraphs site
+        run: |
+          export VESPA_CLI_DATA_PLANE_CERT
+          export VESPA_CLI_DATA_PLANE_KEY
+          export VESPA_CLI_API_KEY=
+          ./feed-split.py pyvespa_index.json https://pyvespa.readthedocs.io/en/latest questions.jsonl
+          ./feed_to_vespa.py _paragraphs_config.yml
 
-    - name: Feed paragraphs site
-      run: |
-        export VESPA_CLI_DATA_PLANE_CERT
-        export VESPA_CLI_DATA_PLANE_KEY
-        export VESPA_CLI_API_KEY=
-        ./feed-split.py pyvespa_index.json https://pyvespa.readthedocs.io/en/latest questions.jsonl
-        ./feed_to_vespa.py _paragraphs_config.yml
-
-    - name: Feed suggestions 
-      run: |
-        export VESPA_CLI_DATA_PLANE_CERT
-        export VESPA_CLI_DATA_PLANE_KEY
-        export VESPA_CLI_API_KEY=
-        ./feed_to_vespa.py _suggestions_config.yml
+      - name: Feed suggestions
+        run: |
+          export VESPA_CLI_DATA_PLANE_CERT
+          export VESPA_CLI_DATA_PLANE_KEY
+          export VESPA_CLI_API_KEY=
+          ./feed_to_vespa.py _suggestions_config.yml
