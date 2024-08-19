@@ -111,6 +111,29 @@ ApplicationConfiguration
    :members:
    :special-members: __init__
 
+AuthClient
+**********
+.. autoclass:: vespa.package.AuthClient
+   :members:
+   :special-members: __init__
+
+Component
+*********
+.. autoclass:: vespa.package.Component
+   :members:
+   :special-members: __init__
+
+ContainerCluster
+****************
+.. autoclass:: vespa.package.ContainerCluster
+   :members:
+   :special-members: __init__
+
+ContentCluster
+**************
+.. autoclass:: vespa.package.ContentCluster
+   :members:
+   :special-members: __init__
 
 Document
 ********
@@ -167,6 +190,11 @@ ImportedField
    :members:
    :special-members: __init__
 
+Nodes
+*****
+.. autoclass:: vespa.package.Nodes
+   :members:
+   :special-members: __init__
 
 OnnxModel
 *********
