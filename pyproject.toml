@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyvespa"
-version = "0.45.0"
+version = "0.46.0"
 description = "Python API for vespa.ai"
 readme = "README.md"
 keywords = ["vespa", "search engine", "data science"]
@@ -18,6 +18,7 @@ dependencies = [
     "jinja2",
     "cryptography",
     "aiohttp",
+    "httpx[http2]",
     "tenacity>=8.4.1",
     "typing_extensions",
     "python-dateutil",
@@ -40,29 +41,58 @@ repository = "https://github.com/vespa-engine/pyvespa"
 file = "LICENSE"
 
 [project.optional-dependencies]
-dev = [
-    "pytest",
-    "requests-mock",
-    "datasets",
-    "notebook",
-    "nbconvert",
-    "runnb",
-    "ipykernel",
-    "jupytext",
-    "ruff",
-    "pre-commit",
-    "vespacli",
-]
-unittest = ["pytest", "requests-mock", "vespacli"]
+vespacli = ["vespacli"]
 build = [
     "setuptools==69.0.3",
     "build==1.0.3",
     "twine==5.1.1",
     "toml==0.10.2",
-    "requests~=2.32.0",
     "ruff",
 ]
-vespacli = ["vespacli"]
+unittest = [
+    "pytest",
+    "requests-mock",
+    "vespacli",
+]
+docs = [
+    "sphinx",
+    "nbsphinx",
+    "sphinx-rtd-theme>=0.5.0",
+    "ipykernel",
+]
+feed = [
+    "PyYAML", 
+    "spacy", 
+    "mmh3", 
+    "requests<=2.31.0", 
+    "html5lib", 
+    "beautifulsoup4", 
+    "markdownify", 
+    "tiktoken",
+    "vespacli",
+]
+notebooks = [
+    "notebook",
+    "nbconvert<=7.12.0",
+    "ipykernel",
+    "jupytext",
+    "numpy",
+    "pandas",
+    "plotly",
+    "torch",
+    "openai",
+    "ir_datasets",
+    "pytrec_eval",
+    "papermill",
+    "ipywidgets",
+]
+dev = [
+    "pre-commit",
+    "vespacli",
+    "datasets",
+    "pyvespa[unittest]",
+    "pyvespa[build]",
+]
 
 [tool.setuptools]
 package-dir = {vespa = "vespa"}

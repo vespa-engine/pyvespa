@@ -2,8 +2,8 @@ name: pyvespa - Release and upload PyPI
 
 on:
   workflow_dispatch:
-  release:
-    types: [published]
+  # release: Disable auto-release until actions are approved
+  #   types: [published]
 
 jobs:
   update_version:

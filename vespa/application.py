@@ -1,8 +1,6 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import sys
-import ssl
-import aiohttp
 import asyncio
 import requests
 import traceback
@@ -36,6 +34,7 @@ import time
 from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse, VespaVisitResponse
 from vespa.package import ApplicationPackage
+import httpx
 
 
 VESPA_CLOUD_SECRET_TOKEN: str = "VESPA_CLOUD_SECRET_TOKEN"
@@ -581,6 +580,157 @@ class Vespa(object):
                 queue.put(None, block=True)
                 queue.join()
                 consumer_thread.join()
+
+    def feed_async_iterable(
+        self,
+        iter: Iterable[Dict],
+        schema: Optional[str] = None,
+        namespace: Optional[str] = None,
+        callback: Optional[Callable[[VespaResponse, str], None]] = None,
+        operation_type: Optional[str] = "feed",
+        max_queue_size: int = 1000,
+        max_workers: int = 64,
+        max_connections: int = 1,
+        **kwargs,
+    ):
+        """
+        Feed data asynchronously using httpx.AsyncClient with HTTP/2. Feed from an Iterable of Dict with the keys 'id' and 'fields' to be used in the :func:`feed_data_point`.
+        The result of each operation is forwarded to the user provided callback function that can process the returned `VespaResponse`.
+        Prefer using this method over :func:`feed_iterable` when the operation is I/O bound from the client side.
+
+        Example usage::
+
+                app = Vespa(url="localhost", port=8080)
+                data = [
+                    {"id": "1", "fields": {"field1": "value1"}},
+                    {"id": "2", "fields": {"field1": "value2"}},
+                ]
+                async def callback(response, id):
+                    print(f"Response for id {id}: {response.status_code}")
+                app.feed_async_iterable(data, schema="schema_name", callback=callback)
+
+
+        :param iter: An iterable of Dict containing the keys 'id' and 'fields' to be used in the :func:`feed_data_point`. Note that this 'id' is only the last part of the full document id, that will be generated automatically by pyvespa.
+        :param schema: The Vespa schema name that we are sending data to.
+        :param namespace: The Vespa document id namespace. If no namespace is provided the schema is used.
+        :param callback: A callback function to be called on each result. Signature `callback(response:VespaResponse, id:str)`
+        :param operation_type: The operation to perform. Default to `feed`. Valid are `feed`, `update` or `delete`.
+        :param max_queue_size: The maximum number of tasks waiting to be processed. Useful to limit memory usage. Default is 1000.
+        :param max_workers: Maximum number of concurrent requests to have in-flight, bound by an asyncio.Semaphore, that needs to be acquired by a submit task. Increase if the server is scaled to handle more requests.
+        :param max_connections: The maximum number of connections passed to httpx.AsyncClient to the Vespa endpoint. As HTTP/2 is used, only one connection is needed.
+        :param kwargs: Additional parameters are passed to the respective operation type specific :func:`_data_point`.
+        """
+
+        if operation_type not in ["feed", "update", "delete"]:
+            raise ValueError(
+                "Invalid operation type. Valid are `feed`, `update` or `delete`."
+            )
+
+        if namespace is None:
+            namespace = schema
+        if not schema:
+            try:
+                schema = self._infer_schema_name()
+            except ValueError:
+                raise ValueError(
+                    "Not possible to infer schema name. Specify schema parameter."
+                )
+
+        async def handle_result(task: asyncio.Task, id: str):
+            # Wrapper around the task to handle exceptions and call the user callback
+            try:
+                response = await task
+            except Exception as e:
+                response = VespaResponse(
+                    status_code=599,
+                    json={
+                        "Exception": str(e),
+                        "id": id,
+                        "message": "Exception during feed_data_point",
+                    },
+                    url="n/a",
+                    operation_type=operation_type,
+                )
+            if callback is not None:
+                try:
+                    callback(response, id)
+                except Exception as e:
+                    print(f"Exception in user callback for id {id}", file=sys.stderr)
+                    traceback.print_exception(
+                        type(e), e, e.__traceback__, file=sys.stderr
+                    )
+
+        # Wrapping in async function to be able to use asyncio.run, and avoid that the feed_async_iterable have to be async
+        async def run():
+            async with self.asyncio(connections=max_connections) as async_session:
+                semaphore = asyncio.Semaphore(max_workers)
+                tasks = []
+                for doc in iter:
+                    id = doc.get("id")
+                    fields = doc.get("fields")
+                    groupname = doc.get("groupname")
+
+                    if id is None:
+                        response = VespaResponse(
+                            status_code=499,
+                            json={"id": id, "message": "Missing id in input dict"},
+                            url="n/a",
+                            operation_type=operation_type,
+                        )
+                        if callback is not None:
+                            callback(response, id)
+                        continue
+                    if fields is None and operation_type != "delete":
+                        response = VespaResponse(
+                            status_code=499,
+                            json={"id": id, "message": "Missing fields in input dict"},
+                            url="n/a",
+                            operation_type=operation_type,
+                        )
+                        if callback is not None:
+                            callback(response, id)
+                        continue
+
+                    async with semaphore:
+                        if operation_type == "feed":
+                            task = async_session.feed_data_point(
+                                schema=schema,
+                                namespace=namespace,
+                                groupname=groupname,
+                                data_id=id,
+                                fields=fields,
+                                **kwargs,
+                            )
+                        elif operation_type == "update":
+                            task = async_session.update_data(
+                                schema=schema,
+                                namespace=namespace,
+                                groupname=groupname,
+                                data_id=id,
+                                fields=fields,
+                                **kwargs,
+                            )
+                        elif operation_type == "delete":
+                            task = async_session.delete_data(
+                                schema=schema,
+                                namespace=namespace,
+                                data_id=id,
+                                groupname=groupname,
+                                **kwargs,
+                            )
+
+                        tasks.append(handle_result(asyncio.create_task(task), id))
+
+                        # Control the number of in-flight tasks
+                        if len(tasks) >= max_queue_size:
+                            await asyncio.gather(*tasks)
+                            tasks = []
+
+                if tasks:
+                    await asyncio.gather(*tasks)
+
+        asyncio.run(run())
+        return
 
     def delete_data(
         self,
@@ -1260,10 +1410,19 @@ class VespaSync(object):
 
 class VespaAsync(object):
     def __init__(
-        self, app: Vespa, connections: Optional[int] = 10, total_timeout: int = 180
+        self, app: Vespa, connections: Optional[int] = 1, total_timeout: int = 10
     ) -> None:
+        """
+        Class to handle async requests to Vespa.
+        Uses httpx as the async http client, and HTTP/2 by default.
+
+        Args:
+            app (Vespa): Vespa application object.
+            connections (Optional[int], optional): number of connections. Defaults to 1 as HTTP/2 is multiplexed.
+            total_timeout (int, optional): timeout for each individual request in seconds. Defaults to 10.
+        """
         self.app = app
-        self.aiohttp_session = None
+        self.httpx_client = None
         self.connections = connections
         self.total_timeout = total_timeout
         self.app.auth_method = self.app._get_valid_auth_method()
@@ -1277,46 +1436,45 @@ class VespaAsync(object):
             )
 
     async def __aenter__(self):
-        self._open_aiohttp_session()
+        self._open_httpx_client()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._close_aiohttp_session()
+        await self._close_httpx_client()
 
-    def _open_aiohttp_session(self):
-        if self.aiohttp_session is not None and not self.aiohttp_session.closed:
+    def _open_httpx_client(self):
+        if self.httpx_client is not None:
             return
-        sslcontext = False
+        limits = httpx.Limits(
+            max_keepalive_connections=self.connections,
+            max_connections=self.connections,
+            keepalive_expiry=10,  # This should NOT exceed the keepalive_timeout on the Server, otherwise we will get ConnectionTerminated errors.
+        )
+        timeout = httpx.Timeout(pool=5, connect=5, read=5, write=5)
         if self.app.cert is not None:
-            sslcontext = ssl.create_default_context()
-            sslcontext.load_cert_chain(self.app.cert, self.app.key)
-        conn = aiohttp.TCPConnector(ssl=sslcontext, limit=self.connections)
-        if self.app.vespa_cloud_secret_token:
-            self.aiohttp_session = aiohttp.ClientSession(
-                connector=conn,
-                timeout=aiohttp.ClientTimeout(total=self.total_timeout),
-                headers=self.headers,
-            )
+            sslcontext = httpx.create_ssl_context(cert=(self.app.cert, self.app.key))
         else:
-            self.aiohttp_session = aiohttp.ClientSession(
-                connector=conn,
-                timeout=aiohttp.ClientTimeout(total=self.total_timeout),
-                headers={"User-Agent": "pyvespa asyncio client"},
-            )
-        return self.aiohttp_session
+            sslcontext = False
+        self.httpx_client = httpx.AsyncClient(
+            timeout=timeout,
+            headers=self.headers,
+            verify=sslcontext,
+            http2=True,  # HTTP/2 by default
+            http1=False,
+            limits=limits,
+        )
+        return self.httpx_client
 
-    async def _close_aiohttp_session(self):
-        if self.aiohttp_session is None:
+    async def _close_httpx_client(self):
+        if self.httpx_client is None:
             return
-        return await self.aiohttp_session.close()
+        await self.httpx_client.aclose()
 
-    @staticmethod
     async def _wait(f, args, **kwargs):
         tasks = [asyncio.create_task(f(*arg, **kwargs)) for arg in args]
         await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
         return [result for result in map(lambda task: task.result(), tasks)]
 
-    @staticmethod
     def callback_docv1(state: RetryCallState) -> VespaResponse:
         if state.outcome.failed:
             raise state.outcome.exception()
@@ -1328,11 +1486,11 @@ class VespaAsync(object):
     ) -> VespaQueryResponse:
         if groupname:
             kwargs["streaming.groupname"] = groupname
-        r = await self.aiohttp_session.post(
+        r = await self.httpx_client.post(
             self.app.search_end_point, json=body, params=kwargs
         )
         return VespaQueryResponse(
-            json=await r.json(), status_code=r.status, url=str(r.url)
+            json=r.json(), status_code=r.status_code, url=str(r.url)
         )
 
     @retry(
@@ -1345,7 +1503,7 @@ class VespaAsync(object):
         retry_error_callback=callback_docv1,
     )
     @retry(
-        wait=wait_random_exponential(multiplier=1, max=10),
+        wait=wait_random_exponential(multiplier=1, max=3),
         retry=retry_if_result(lambda x: x.get_status_code() == 429),
     )
     async def feed_data_point(
@@ -1355,6 +1513,7 @@ class VespaAsync(object):
         fields: Dict,
         namespace: str = None,
         groupname: str = None,
+        semaphore: asyncio.Semaphore = None,
         **kwargs,
     ) -> VespaResponse:
         path = self.app.get_document_v1_path(
@@ -1362,12 +1521,18 @@ class VespaAsync(object):
         )
         end_point = "{}{}".format(self.app.end_point, path)
         vespa_format = {"fields": fields}
-        response = await self.aiohttp_session.post(
-            end_point, json=vespa_format, params=kwargs
-        )
+        if semaphore:
+            async with semaphore:
+                response = await self.httpx_client.post(
+                    end_point, json=vespa_format, params=kwargs
+                )
+        else:
+            response = await self.httpx_client.post(
+                end_point, json=vespa_format, params=kwargs
+            )
         return VespaResponse(
-            json=await response.json(),
-            status_code=response.status,
+            json=response.json(),
+            status_code=response.status_code,
             url=str(response.url),
             operation_type="feed",
         )
@@ -1391,16 +1556,21 @@ class VespaAsync(object):
         data_id: str,
         namespace: str = None,
         groupname: str = None,
+        semaphore: asyncio.Semaphore = None,
         **kwargs,
     ) -> VespaResponse:
         path = self.app.get_document_v1_path(
             id=data_id, schema=schema, namespace=namespace, group=groupname
         )
         end_point = "{}{}".format(self.app.end_point, path)
-        response = await self.aiohttp_session.delete(end_point, params=kwargs)
+        if semaphore:
+            async with semaphore:
+                response = await self.httpx_client.delete(end_point, params=kwargs)
+        else:
+            response = await self.httpx_client.delete(end_point, params=kwargs)
         return VespaResponse(
-            json=await response.json(),
-            status_code=response.status,
+            json=response.json(),
+            status_code=response.status_code,
             url=str(response.url),
             operation_type="delete",
         )
@@ -1424,16 +1594,21 @@ class VespaAsync(object):
         data_id: str,
         namespace: str = None,
         groupname: str = None,
+        semaphore: asyncio.Semaphore = None,
         **kwargs,
     ) -> VespaResponse:
         path = self.app.get_document_v1_path(
             id=data_id, schema=schema, namespace=namespace, group=groupname
         )
         end_point = "{}{}".format(self.app.end_point, path)
-        response = await self.aiohttp_session.get(end_point, params=kwargs)
+        if semaphore:
+            async with semaphore:
+                response = await self.httpx_client.get(end_point, params=kwargs)
+        else:
+            response = await self.httpx_client.get(end_point, params=kwargs)
         return VespaResponse(
-            json=await response.json(),
-            status_code=response.status,
+            json=response.json(),
+            status_code=response.status_code,
             url=str(response.url),
             operation_type="get",
         )
@@ -1460,6 +1635,7 @@ class VespaAsync(object):
         auto_assign: bool = True,
         namespace: str = None,
         groupname: str = None,
+        semaphore: asyncio.Semaphore = None,
         **kwargs,
     ) -> VespaResponse:
         path = self.app.get_document_v1_path(
@@ -1473,12 +1649,18 @@ class VespaAsync(object):
         else:
             # Can not send 'id' in fields for partial update
             vespa_format = {"fields": {k: v for k, v in fields.items() if k != "id"}}
-        response = await self.aiohttp_session.put(
-            end_point, json=vespa_format, params=kwargs
-        )
+        if semaphore:
+            async with semaphore:
+                response = await self.httpx_client.put(
+                    end_point, json=vespa_format, params=kwargs
+                )
+        else:
+            response = await self.httpx_client.put(
+                end_point, json=vespa_format, params=kwargs
+            )
         return VespaResponse(
-            json=await response.json(),
-            status_code=response.status,
+            json=response.json(),
+            status_code=response.status_code,
             url=str(response.url),
             operation_type="update",
         )

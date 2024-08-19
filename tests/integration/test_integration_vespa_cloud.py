@@ -125,6 +125,12 @@ class TestMsmarcoApplication(TestApplicationCommon):
             for i in range(10)
         ]
 
+    def test_is_using_http2_client(self):
+        asyncio.run(self.async_is_http2_client(app=self.app))
+
+    def test_handle_longlived_connection(self):
+        asyncio.run(self.handle_longlived_connection(app=self.app))
+
     def test_prediction_when_model_not_defined(self):
         self.get_stateless_prediction_when_model_not_defined(
             app=self.app, application_package=self.app_package

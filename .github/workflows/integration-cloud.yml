@@ -2,14 +2,18 @@ name: Integration - cloud
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - master
   pull_request:
     branches:
       - master
+  push:
+    branches:
+      - master
   schedule:
-   - cron: '0 11 * * *'
+   - cron: '0 11 * * 0'
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 
 jobs:
   integration-cloud:
@@ -23,7 +27,6 @@ jobs:
           cache: 'pip'
           cache-dependency-path: |
             pyproject.toml
-            **/notebook_requirements.txt
       - name: Install dependencies
         run: |
           pip install -e .[dev]
@@ -34,8 +37,8 @@ jobs:
           pytest tests/integration/test_integration_vespa_cloud.py -s -v
 
   integration-cloud-token:
-    needs: integration-cloud
     runs-on: ubuntu-latest
+    needs: integration-cloud
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -45,7 +48,6 @@ jobs:
           cache: 'pip'
           cache-dependency-path: |
             pyproject.toml
-            **/notebook_requirements.txt
       - name: Install dependencies
         run: |
           pip install -e .[dev]
@@ -58,8 +60,8 @@ jobs:
           pytest tests/integration/test_integration_vespa_cloud_token.py -s -v
 
   integration-cloud-vector-search:
-    needs: integration-cloud
     runs-on: ubuntu-latest
+    needs: integration-cloud-token
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -69,7 +71,6 @@ jobs:
           cache: 'pip'
           cache-dependency-path: |
             pyproject.toml
-            **/notebook_requirements.txt
       - name: Install dependencies
         run: |
           pip install -e .[dev]

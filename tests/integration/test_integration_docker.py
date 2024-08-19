@@ -7,7 +7,7 @@ import asyncio
 import json
 
 from typing import List, Dict, Optional
-from vespa.io import VespaResponse
+from vespa.io import VespaResponse, VespaQueryResponse
 from vespa.resources import get_resource_path
 from vespa.package import (
     HNSW,
@@ -261,6 +261,27 @@ class TestDockerCommon(unittest.TestCase):
 class TestApplicationCommon(unittest.TestCase):
     # Set maxDiff to None to see full diff
     maxDiff = None
+
+    async def handle_longlived_connection(self, app, n_seconds=10):
+        # Test that the connection can live for at least n_seconds
+        async with app.asyncio(connections=1) as async_app:
+            response = await async_app.httpx_client.get(
+                app.end_point + "/ApplicationStatus"
+            )
+            self.assertEqual(response.status_code, 200)
+            await asyncio.sleep(n_seconds)
+            response = await async_app.httpx_client.get(
+                app.end_point + "/ApplicationStatus"
+            )
+            self.assertEqual(response.status_code, 200)
+
+    async def async_is_http2_client(self, app):
+        async with app.asyncio() as async_app:
+            response = await async_app.httpx_client.get(
+                app.end_point + "/ApplicationStatus"
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.http_version, "HTTP/2")
 
     def execute_data_operations(
         self,
@@ -922,6 +943,12 @@ class TestMsmarcoApplication(TestApplicationCommon):
         ]
         self.queries_first_hit = ["this is title 1", "this is title 2"]
 
+    def test_is_using_http2_client(self):
+        asyncio.run(self.async_is_http2_client(app=self.app))
+
+    def test_handle_longlived_connection(self):
+        asyncio.run(self.handle_longlived_connection(app=self.app))
+
     def test_model_endpoints_when_no_model_is_available(self):
         self.get_model_endpoints_when_no_model_is_available(
             app=self.app,
@@ -1049,6 +1076,32 @@ class TestQaApplication(TestApplicationCommon):
             )
         )
 
+    def test_feed_async_iterable(self):
+        def sentence_to_doc(sentences):
+            for sentence in sentences:
+                yield {
+                    "id": sentence["id"],
+                    "fields": {k: v for k, v in sentence.items() if k != "id"},
+                }
+
+        self.app.feed_async_iterable(
+            sentence_to_doc(self.fields_to_send_sentence),
+            schema="sentence",
+            operation_type="feed",
+        )
+        # check doc count
+        total_docs = []
+        for doc_slice in self.app.visit(
+            schema="sentence", content_cluster_name="qa_content", selection="true"
+        ):
+            for response in doc_slice:
+                total_docs.extend(response.documents)
+        self.assertEqual(
+            len(total_docs),
+            len(self.fields_to_send_sentence),
+        )
+        self.app.delete_all_docs(content_cluster_name="qa_content", schema="sentence")
+
     def tearDown(self) -> None:
         self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
@@ -1115,7 +1168,6 @@ class TestStreamingApplication(unittest.TestCase):
                 print("Id " + id + " + failed : " + response.json)
 
         self.app.feed_iterable(docs, schema="mail", namespace="test", callback=callback)
-        from vespa.io import VespaQueryResponse
 
         response: VespaQueryResponse = self.app.query(
             yql="select * from sources * where title contains 'title'",
@@ -1395,7 +1447,7 @@ class TestRetryApplication(unittest.TestCase):
                 },
             }
 
-    def test_retry(self):
+    def test_retries_sync(self):
         num_docs = 10
         num_429 = 0
 
@@ -1421,6 +1473,43 @@ class TestRetryApplication(unittest.TestCase):
             for response in doc_slice:
                 total_docs.extend(response.documents)
         self.assertEqual(len(total_docs), num_docs)
+        self.app.delete_all_docs(
+            content_cluster_name="retryapplication_content",
+            schema="retryapplication",
+            namespace="retryapplication",
+        )
+
+    def test_retries_async(self):
+        num_docs = 10
+        num_429 = 0
+
+        def callback(response: VespaResponse, id: str):
+            nonlocal num_429
+            if response.status_code == 429:
+                print(f"429 response for id {id}")
+                num_429 += 1
+
+        self.app.feed_async_iterable(
+            self.doc_generator(num_docs),
+            schema="retryapplication",
+            callback=callback,
+        )
+        self.assertEqual(num_429, 0)
+        total_docs = []
+        for doc_slice in self.app.visit(
+            content_cluster_name="retryapplication_content",
+            schema="retryapplication",
+            namespace="retryapplication",
+            selection="true",
+        ):
+            for response in doc_slice:
+                total_docs.extend(response.documents)
+        self.assertEqual(len(total_docs), num_docs)
+        self.app.delete_all_docs(
+            content_cluster_name="retryapplication_content",
+            schema="retryapplication",
+            namespace="retryapplication",
+        )
 
     def tearDown(self) -> None:
         self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
