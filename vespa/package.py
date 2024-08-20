@@ -1787,7 +1787,7 @@ class AuthClient(object):
         """
         Create a Vespa AuthClient.
 
-        Check the `Vespa documentation <https://docs.vespa.ai/en/reference/services-container.html#auth-client>`__
+        Check the `Vespa documentation <https://docs.vespa.ai/en/reference/services-container.html`
 
         :param id: The auth client id.
         :param permissions: List of permissions.

@@ -15,6 +15,7 @@ Vespa python API
 
    getting-started-pyvespa
    getting-started-pyvespa-cloud
+   authenticating-to-vespa-cloud
    application-packages
    query
    reads-writes
