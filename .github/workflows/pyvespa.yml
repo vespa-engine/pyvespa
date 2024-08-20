@@ -43,14 +43,16 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_PYVESPA }} #TODO: this must be added to secrets
         run: python -m twine upload dist/*
 
-      - name: Create Pull Request
+      - name: Commit and PR
         if: github.event_name == 'release'
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "Update pyvespa version to ${{ steps.set_version.outputs.version }}"
-          title: "Update pyvespa version to ${{ steps.set_version.outputs.version }}"
-          body: "This PR updates the pyvespa version to ${{ steps.set_version.outputs.version }}"
-          branch: "update-pyvespa-version-${{ steps.set_version.outputs.version }}"
-          base: "master"
-          labels: "pyvespa"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_BRANCH:  "update-pyvespa-version-${{ steps.set_version.outputs.version }}"
+        run: |
+          git checkout -b "${NEW_BRANCH}"
+          git commit -a -m "Update pyvespa version to ${{ steps.set_version.outputs.version }}"
+          git push --set-upstream origin "${NEW_BRANCH}"
+          gh pr create -B master -H "${NEW_BRANCH}" \
+            -t "Update pyvespa version to ${{ steps.set_version.outputs.version }}" \
+            -b ":robot: This PR updates the pyvespa version to ${{ steps.set_version.outputs.version }}" 
+
