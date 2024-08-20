@@ -54,5 +54,5 @@ jobs:
           git push --set-upstream origin "${NEW_BRANCH}"
           gh pr create -B master -H "${NEW_BRANCH}" \
             -t "Update pyvespa version to ${{ steps.set_version.outputs.version }}" \
-            -b "This PR updates the pyvespa version to ${{ steps.set_version.outputs.version }}" 
+            -b ":robot: This PR updates the pyvespa version to ${{ steps.set_version.outputs.version }}" 
 
