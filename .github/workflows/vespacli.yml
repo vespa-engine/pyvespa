@@ -125,17 +125,20 @@ jobs:
       - name: Update latest version
         run: |
             python utils/update_version.py --version ${{ needs.check-and-update.outputs.version }}
-      
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "Update Vespa CLI version to ${{ needs.check-and-update.outputs.version }}"
-          title: "Update Vespa CLI version to ${{ needs.check-and-update.outputs.version }}"
-          body: "This PR updates the Vespa CLI version to ${{ needs.check-and-update.outputs.version }}"
-          branch: "update-vespa-cli-version-${{ needs.check-and-update.outputs.version }}"
-          base: "master"
-          labels: "vespacli"
+
+      - name: Commit and PR
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_BRANCH:  "update-vespa-cli-version-${{ needs.check-and-update.outputs.version }}"
+        run: |
+          git checkout -b "${NEW_BRANCH}"
+          git commit -a -m "Update Vespa CLI version to ${{ needs.check-and-update.outputs.version }}"
+          git push --set-upstream origin "${NEW_BRANCH}"
+          gh pr create -B master -H "${NEW_BRANCH}" \
+            -t "Update Vespa CLI version to ${{ needs.check-and-update.outputs.version }}" \
+            -b ":robot: This PR updates the Vespa CLI version to ${{ needs.check-and-update.outputs.version }}" \
+            -l "vespacli"
   
   release: 
     needs: create-pr
