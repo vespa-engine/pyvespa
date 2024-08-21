@@ -283,6 +283,32 @@ class TestApplicationCommon(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.http_version, "HTTP/2")
 
+    def sync_client_accept_encoding_gzip(self, app):
+        data = {
+            "yql": "select * from sources * where true",
+            "hits": 10,
+        }
+        with app.syncio() as sync_app:
+            response = sync_app.http_session.post(app.search_end_point, json=data)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.headers["content-encoding"], "gzip")
+            # Check that gzip is in request headers
+            self.assertIn("gzip", response.request.headers["Accept-Encoding"])
+
+    async def async_client_accept_encoding_gzip(self, app):
+        data = {
+            "yql": "select * from sources * where true",
+            "hits": 10,
+        }
+        async with app.asyncio() as async_app:
+            response = await async_app.httpx_client.post(
+                app.search_end_point, json=data
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.headers["content-encoding"], "gzip")
+            # Check that gzip is in request headers
+            self.assertIn("gzip", response.request.headers["Accept-Encoding"])
+
     def execute_data_operations(
         self,
         app,
@@ -946,6 +972,12 @@ class TestMsmarcoApplication(TestApplicationCommon):
     def test_is_using_http2_client(self):
         asyncio.run(self.async_is_http2_client(app=self.app))
 
+    def test_sync_client_accept_encoding(self):
+        self.sync_client_accept_encoding_gzip(app=self.app)
+
+    def test_async_client_accept_encoding(self):
+        asyncio.run(self.async_client_accept_encoding_gzip(app=self.app))
+
     def test_handle_longlived_connection(self):
         asyncio.run(self.handle_longlived_connection(app=self.app))
 
@@ -1101,6 +1133,12 @@ class TestQaApplication(TestApplicationCommon):
             len(self.fields_to_send_sentence),
         )
         self.app.delete_all_docs(content_cluster_name="qa_content", schema="sentence")
+
+    def test_sync_client_accept_encoding(self):
+        self.sync_client_accept_encoding_gzip(app=self.app)
+
+    def test_async_client_accept_encoding(self):
+        asyncio.run(self.async_client_accept_encoding_gzip(app=self.app))
 
     def tearDown(self) -> None:
         self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
