@@ -554,7 +554,7 @@ class VespaCloud(VespaDeployment):
         self.data_key_path = None
         self.data_key, self.data_certificate = self._load_certificate_pair()
         self.connection = http.client.HTTPSConnection(
-            "api.vespa-external.aws.oath.cloud", 4443
+            "api-ctl.vespa-cloud.com", 4443
         )
         self.auth_client_token_id = auth_client_token_id
         if auth_client_token_id is not None:
