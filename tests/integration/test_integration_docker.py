@@ -1135,7 +1135,7 @@ class TestQaApplication(TestApplicationCommon):
         self.app.delete_all_docs(content_cluster_name="qa_content", schema="sentence")
 
     def test_sync_client_accept_encoding(self):
-        self.sync_client_accept_encoding(app=self.app)
+        self.sync_client_accept_encoding_gzip(app=self.app)
 
     def test_async_client_accept_encoding(self):
         asyncio.run(self.async_client_accept_encoding_gzip(app=self.app))
