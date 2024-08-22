@@ -1174,15 +1174,19 @@ class VespaCloud(VespaDeployment):
             data = None
             content = None
         with httpx.Client(
-            base_url=self.base_url, headers=self.base_headers, timeout=10, http2=True
+            base_url=self.base_url,
+            headers=self.base_headers,
+            timeout=10,
+            http1=False,
+            http2=True,
         ) as client:
             response = client.request(
                 method, path, data=data, content=content, headers=headers
             )
-            if response.status_code != 200:
-                raise HTTPError(
-                    f"HTTP {response.status_code} error: {response.reason_phrase} for {path}"
-                )
+            # if response.status_code != 200:
+            #     raise HTTPError(
+            #         f"HTTP {response.status_code} error: {response.reason_phrase} for {path}"
+            #     )
         return response
 
     def _try_get_access_token(self) -> str:
