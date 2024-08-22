@@ -8,6 +8,7 @@ from typing import Optional, Dict, Generator, List, IO, Iterable, Callable, Tupl
 from concurrent.futures import ThreadPoolExecutor, Future, as_completed
 from queue import Queue, Empty
 import threading
+import requests
 from requests import Session
 from requests.models import Response
 from requests.exceptions import ConnectionError, HTTPError, JSONDecodeError
@@ -240,64 +241,57 @@ class Vespa(object):
         :return: Auth method used for Vespa connection. Either 'token','mtls_key_cert','mtls_cert' or 'http'.
 
         :raises ConnectionError: If not able to connect to endpoint using any of the available auth methods.
-
         """
         endpoint = f"{self.end_point}/ApplicationStatus"
+
         if self.auth_method:
             return self.auth_method
-        with httpx.Client(
-            base_url=self.end_point, headers=self.base_headers
-        ) as session:
-            # Plain HTTP
-            response = session.get(endpoint)
+
+        # Plain HTTP
+        response = requests.get(endpoint, headers=self.base_headers)
+        if response.status_code == 200:
+            print(
+                f"Using plain HTTP to connect to Vespa endpoint {self.end_point}",
+                file=self.output_file,
+            )
+            return "http"
+
+        # Vespa Cloud Secret Token
+        if self.vespa_cloud_secret_token is not None:
+            headers = {"Authorization": f"Bearer {self.vespa_cloud_secret_token}"}
+            response = requests.get(endpoint, headers={**self.base_headers, **headers})
             if response.status_code == 200:
                 print(
-                    f"Using plain HTTP to connect to Vespa endpoint {self.end_point}",
+                    f"Using Vespa Cloud Secret Token to connect to Vespa endpoint {self.end_point}",
                     file=self.output_file,
                 )
-                return "http"
-            # Vespa Cloud Secret Token
-            if self.vespa_cloud_secret_token is not None:
-                headers = {"Authorization": f"Bearer {self.vespa_cloud_secret_token}"}
-                response = session.get(endpoint, headers=headers)
-                if response.status_code == 200:
-                    print(
-                        f"Using Vespa Cloud Secret Token to connect to Vespa endpoint {self.end_point}",
-                        file=self.output_file,
-                    )
-                    return "token"
-        # Need new Client instance to add cert, see https://www.python-httpx.org/compatibility/#ssl-configuration
-        if self.key and self.cert:
-            with httpx.Client(
-                base_url=self.end_point,
-                headers=self.base_headers,
-                cert=(self.cert, self.key),
-            ) as session:
-                # Mutual TLS with key and cert
+                return "token"
 
-                response = session.get(endpoint)
-                if response.status_code == 200:
-                    print(
-                        f"Using Mutual TLS with key and cert to connect to Vespa endpoint {self.end_point}",
-                        file=self.output_file,
-                    )
-                    return "mtls_key_cert"
+        # Mutual TLS with key and cert
+        if self.key and self.cert:
+            response = requests.get(
+                endpoint, headers=self.base_headers, cert=(self.cert, self.key)
+            )
+            if response.status_code == 200:
+                print(
+                    f"Using Mutual TLS with key and cert to connect to Vespa endpoint {self.end_point}",
+                    file=self.output_file,
+                )
+                return "mtls_key_cert"
+
         # Mutual TLS with cert
         if self.cert:
-            with httpx.Client(
-                base_url=self.end_point, headers=self.base_headers, cert=self.cert
-            ) as session:
-                response = session.get(endpoint, cert=self.cert)
-                if response.status_code == 200:
-                    print(
-                        f"Using Mutual TLS with cert to connect to Vespa endpoint {self.end_point}",
-                        file=self.output_file,
-                    )
-                    return "mtls_cert"
-        # Could not connect to endpoint using any of the available auth methods.
-        # It might not be available yet. It might also be protected, and /search/ - endpoints may still be available.",
-        # so we will not raise an exception here.
-        return None
+            response = requests.get(endpoint, headers=self.base_headers, cert=self.cert)
+            if response.status_code == 200:
+                print(
+                    f"Using Mutual TLS with cert to connect to Vespa endpoint {self.end_point}",
+                    file=self.output_file,
+                )
+                return "mtls_cert"
+
+        raise ConnectionError(
+            "Unable to connect to endpoint using any of the available auth methods."
+        )
 
     def get_application_status(self) -> Optional[Response]:
         """
