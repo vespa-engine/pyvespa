@@ -15,6 +15,7 @@ from vespa.package import (
     Document,
     Field,
 )
+import vespa
 import random
 from vespa.io import VespaResponse
 from test_integration_docker import (
@@ -124,6 +125,20 @@ class TestMsmarcoApplication(TestApplicationCommon):
             }
             for i in range(10)
         ]
+
+    def test_control_plane_useragent(self):
+        response = self.vespa_cloud.get_connection_response_with_retry("GET", "/")
+        self.assertEqual(
+            response.request.headers["User-Agent"],
+            f"pyvespa/{vespa.__version__}",
+        )
+
+    def test_data_plane_useragent(self):
+        response = self.app.get_data(schema="msmarco", data_id="1")
+        self.assertEqual(
+            response.request.headers["User-Agent"],
+            f"pyvespa/{vespa.__version__}",
+        )
 
     def test_is_using_http2_client(self):
         asyncio.run(self.async_is_http2_client(app=self.app))
