@@ -140,7 +140,9 @@ class TestMsmarcoApplication(TestApplicationCommon):
 
     def test_data_plane_useragent_sync(self):
         with self.app.syncio() as session:
-            response = session.get(self.app.end_point + "/ApplicationStatus")
+            response = session.http_session.get(
+                self.app.end_point + "/ApplicationStatus"
+            )
         self.assertEqual(
             response.request.headers["User-Agent"],
             f"pyvespa/{vespa.__version__}",
@@ -149,7 +151,9 @@ class TestMsmarcoApplication(TestApplicationCommon):
     def test_data_plane_useragent_async(self):
         async def get_resp():
             async with self.app.asyncio() as session:
-                response = await session.get(self.app.end_point + "/ApplicationStatus")
+                response = await session.httpx_client.get(
+                    self.app.end_point + "/ApplicationStatus"
+                )
             return response
 
         response = asyncio.run(get_resp())
