@@ -238,9 +238,7 @@ class Vespa(object):
         """
         Get auth method for Vespa connection.
 
-        :return: Auth method used for Vespa connection. Either 'token','mtls_key_cert','mtls_cert' or 'http'.
-
-        :raises ConnectionError: If not able to connect to endpoint using any of the available auth methods.
+        :return: Auth method used for Vespa connection. Either 'token','mtls_key_cert','mtls_cert' or 'http'. None if not able to authenticate.
         """
         endpoint = f"{self.end_point}/ApplicationStatus"
 
@@ -289,9 +287,8 @@ class Vespa(object):
                 )
                 return "mtls_cert"
 
-        raise ConnectionError(
-            "Unable to connect to endpoint using any of the available auth methods."
-        )
+        # There may be some cases where ApplicationStatus is not available, such as http://api.cord19.vespa.ai
+        return None
 
     def get_application_status(self) -> Optional[Response]:
         """
