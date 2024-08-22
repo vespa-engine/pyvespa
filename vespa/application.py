@@ -973,7 +973,7 @@ class CustomHTTPAdapter(HTTPAdapter):
         super().__init__(*args, **kwargs)
 
         retry_strategy = Retry(
-            total=3,
+            total=10,
             backoff_factor=1,
             raise_on_status=False,
             status_forcelist=[503],
@@ -1015,6 +1015,7 @@ class VespaSync(object):
         self.adapter = CustomHTTPAdapter(
             pool_maxsize=pool_maxsize,
             pool_connections=pool_connections,
+            max_retries=10,
             num_retries_429=10,
             pool_block=True,
         )
