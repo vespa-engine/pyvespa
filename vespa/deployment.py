@@ -1,4 +1,4 @@
-import http.client
+import httpx
 from urllib3.exceptions import HTTPError
 import json
 import os
@@ -31,6 +31,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from vespa.application import Vespa, VESPA_CLOUD_SECRET_TOKEN
 from vespa.package import ApplicationPackage
 from vespa.utils.notebook import is_jupyter_notebook
+import vespa
 
 # Get the Vespa home directory
 VESPA_HOME = Path(os.getenv("VESPA_HOME", Path.home() / ".vespa"))
@@ -553,9 +554,12 @@ class VespaCloud(VespaDeployment):
         self.data_cert_path = None
         self.data_key_path = None
         self.data_key, self.data_certificate = self._load_certificate_pair()
-        self.connection = http.client.HTTPSConnection(
-            "api.vespa-external.aws.oath.cloud", 4443
-        )
+        # self.connection = http.client.HTTPSConnection(
+        #     "api.vespa-external.aws.oath.cloud", 4443
+        # )
+        self.base_url = "https://api-ctl.vespa-cloud.com:4443"
+        self.pyvespa_version = vespa.__version__
+        self.base_headers = {"User-Agent": f"pyvespa/{self.pyvespa_version}"}
         self.auth_client_token_id = auth_client_token_id
         if auth_client_token_id is not None:
             if self.application_package is not None:
@@ -793,22 +797,22 @@ class VespaCloud(VespaDeployment):
             build_no = vespa_cloud.deploy_to_prod()
             status = vespa_cloud.check_production_build_status(build_no)
             # This can yield one of three responses:
-            1. If the revision (build_no), or higher, has successfully converged everywhere, and nothing older has then been deployed on top of that again. Nothing more will happen in this case.
-            {
-                "deployed": True,
-                "status": "done"
-            }
+            # 1. If the revision (build_no), or higher, has successfully converged everywhere, and nothing older has then been deployed on top of that again. Nothing more will happen in this case.
+            # {
+            #     "deployed": True,
+            #     "status": "done"
+            # }
 
-            2. If the revision (build_no), or newer, has not yet converged, but the system is (most likely) still trying to deploy it. There is a point in polling again later when this is the response.
-            {
-                "deployed": False,
-                "status": "deploying"
-            }
-            3. If the revision, or newer, has not yet converged everywhere, and it's never going to, because it was similar to the previous build, or marked obsolete by a user. There is no point in asking again for this revision.
-            {
-                "deployed": False,
-                "status": "done"
-            }
+            # 2. If the revision (build_no), or newer, has not yet converged, but the system is (most likely) still trying to deploy it. There is a point in polling again later when this is the response.
+            # {
+            #     "deployed": False,
+            #     "status": "deploying"
+            # }
+            # 3. If the revision, or newer, has not yet converged everywhere, and it's never going to, because it was similar to the previous build, or marked obsolete by a user. There is no point in asking again for this revision.
+            # {
+            #     "deployed": False,
+            #     "status": "done"
+            # }
 
         :param build_no: The build number to check.
         :return: dict with the aggregated status of all deployment jobs for the given build number.
@@ -902,9 +906,6 @@ class VespaCloud(VespaDeployment):
         print("Finished deployment.", file=self.output)
 
         return app
-
-    def close(self) -> None:
-        self.connection.close()
 
     def delete(self, instance: Optional[str] = "default") -> None:
         """
@@ -1128,7 +1129,7 @@ class VespaCloud(VespaDeployment):
         return
 
     def get_dev_region(self) -> str:
-        return self._request("GET", "/zone/v1/environment/dev/default")["name"]
+        return "aws-us-east-1c"  # Default dev region
 
     def get_prod_region(self):
         regions = self.get_prod_regions()
@@ -1153,12 +1154,19 @@ class VespaCloud(VespaDeployment):
 
     @retry(
         stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, max=2),
+        wait=wait_exponential(multiplier=1, max=3),
         reraise=True,
     )
     def get_connection_response_with_retry(self, method, path, body, headers):
-        self.connection.request(method, path, body, headers)
-        return self.connection.getresponse()
+        with httpx.Client(base_url=self.base_url, headers=self.base_headers) as client:
+            response = client.request(
+                method, path, data=body.getvalue(), headers=headers
+            )
+            if response.status_code != 200:
+                raise HTTPError(
+                    f"HTTP {response.status_code} error: {response.reason_phrase} for {path}"
+                )
+        return response
 
     def _try_get_access_token(self) -> str:
         # Check if auth.json exists
@@ -1206,7 +1214,6 @@ class VespaCloud(VespaDeployment):
     def _request_with_access_token(
         self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
     ) -> dict:
-        url = "https://" + self.connection.host + ":" + str(self.connection.port) + path
         if not self.control_plane_access_token:
             raise ValueError("Access token not set.")
         body.seek(0)
@@ -1219,10 +1226,10 @@ class VespaCloud(VespaDeployment):
             parsed = json.load(response)
         except json.JSONDecodeError:
             parsed = response.read()
-        if response.status != 200:
+        if response.status_code != 200:
             print(parsed)
             raise HTTPError(
-                f"HTTP {response.status} error: {response.reason} for {url}"
+                f"HTTP {response.status_code} error: {response.reason_phrase} for {path}"
             )
         return parsed
 
@@ -1248,7 +1255,7 @@ class VespaCloud(VespaDeployment):
         timestamp = (
             datetime.utcnow().isoformat() + "Z"
         )  # Java's Instant.parse requires the neutral time zone appended
-        url = "https://" + self.connection.host + ":" + str(self.connection.port) + path
+        url = self.base_url + path
 
         canonical_message = method + "\n" + url + "\n" + timestamp + "\n" + content_hash
         signature = self.api_key.sign(
@@ -1456,13 +1463,7 @@ class VespaCloud(VespaDeployment):
 
         # Compute content hash, etc
         if self.control_plane_auth_method == "api_key":
-            url = (
-                "https://"
-                + self.connection.host
-                + ":"
-                + str(self.connection.port)
-                + deploy_path
-            )
+            url = self.base_url + deploy_path
             digest = hashes.Hash(hashes.SHA256(), default_backend())
             digest.update(
                 multipart_data.to_string()
