@@ -557,6 +557,11 @@ class VespaCloud(VespaDeployment):
         self.default_timeout = (
             15  # seconds, default in httpx is 5. Eg. deployment may take longer.
         )
+        self.httpx_limits = httpx.Limits(
+            max_connections=100,
+            max_keepalive_connections=20,
+            keepalive_expiry=10,
+        )
         self.base_url = "https://api-ctl.vespa-cloud.com:4443"
         self.pyvespa_version = vespa.__version__
         self.base_headers = {"User-Agent": f"pyvespa/{self.pyvespa_version}"}
@@ -1179,14 +1184,15 @@ class VespaCloud(VespaDeployment):
             timeout=10,
             http1=False,
             http2=True,
+            limits=self.httpx_limits,
         ) as client:
             response = client.request(
                 method, path, data=data, content=content, headers=headers
             )
-            # if response.status_code != 200:
-            #     raise HTTPError(
-            #         f"HTTP {response.status_code} error: {response.reason_phrase} for {path}"
-            #     )
+            if response.status_code != 200:
+                raise HTTPError(
+                    f"HTTP {response.status_code} error: {response.reason_phrase} for {path}"
+                )
         return response
 
     def _try_get_access_token(self) -> str:
