@@ -1181,7 +1181,7 @@ class VespaCloud(VespaDeployment):
         with httpx.Client(
             base_url=self.base_url,
             headers=self.base_headers,
-            timeout=10,
+            timeout=None,  # Need to set timeout to None to avoid httpx timeout on e.g. deployment requests
             http1=True,
             limits=self.httpx_limits,
         ) as client:
