@@ -554,9 +554,6 @@ class VespaCloud(VespaDeployment):
         self.data_cert_path = None
         self.data_key_path = None
         self.data_key, self.data_certificate = self._load_certificate_pair()
-        # self.connection = http.client.HTTPSConnection(
-        #     "api.vespa-external.aws.oath.cloud", 4443
-        # )
         self.base_url = "https://api-ctl.vespa-cloud.com:4443"
         self.pyvespa_version = vespa.__version__
         self.base_headers = {"User-Agent": f"pyvespa/{self.pyvespa_version}"}
@@ -1158,11 +1155,24 @@ class VespaCloud(VespaDeployment):
         reraise=True,
     )
     def get_connection_response_with_retry(
-        self, method, path, body: Optional[BytesIO] = None, headers: Dict = {}
+        self,
+        method,
+        path,
+        body: Optional[Union[BytesIO, Dict]] = None,
+        headers: Dict = {},
     ) -> httpx.Response:
+        if isinstance(body, dict):
+            data = body
+            content = None
+        elif isinstance(body, BytesIO):
+            data = None
+            content = body.getvalue()
+        else:
+            data = None
+            content = None
         with httpx.Client(base_url=self.base_url, headers=self.base_headers) as client:
             response = client.request(
-                method, path, data=body.getvalue(), headers=headers
+                method, path, data=data, content=content, headers=headers
             )
             if response.status_code != 200:
                 raise HTTPError(
@@ -1214,8 +1224,13 @@ class VespaCloud(VespaDeployment):
         return auth["providers"]["auth0"]["systems"]["public"]["access_token"]
 
     def _request_with_access_token(
-        self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
-    ) -> dict:
+        self,
+        method: str,
+        path: str,
+        body: BytesIO = BytesIO(),
+        headers={},
+        return_raw_response=False,
+    ) -> Union[dict, httpx.Response]:
         if not self.control_plane_access_token:
             raise ValueError("Access token not set.")
         body.seek(0)
@@ -1224,6 +1239,8 @@ class VespaCloud(VespaDeployment):
             **headers,
         }
         response = self.get_connection_response_with_retry(method, path, body, headers)
+        if return_raw_response:
+            return response
         try:
             parsed = json.load(response)
         except json.JSONDecodeError:
@@ -1237,7 +1254,7 @@ class VespaCloud(VespaDeployment):
 
     def _request(
         self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
-    ) -> dict:
+    ) -> Union[dict, httpx.Response]:
         if self.control_plane_auth_method == "access_token":
             return self._request_with_access_token(method, path, body, headers)
         elif self.control_plane_auth_method == "api_key":
@@ -1248,8 +1265,13 @@ class VespaCloud(VespaDeployment):
             )
 
     def _request_with_api_key(
-        self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
-    ) -> dict:
+        self,
+        method: str,
+        path: str,
+        body: BytesIO = BytesIO(),
+        headers={},
+        return_raw_response=False,
+    ) -> Union[dict, httpx.Response]:
         digest = hashes.Hash(hashes.SHA256(), default_backend())
         body.seek(0)
         digest.update(body.read())
@@ -1275,6 +1297,8 @@ class VespaCloud(VespaDeployment):
 
         body.seek(0)
         response = self.get_connection_response_with_retry(method, path, body, headers)
+        if return_raw_response:
+            return response
         parsed = json.load(response)
         if response.status_code != 200:
             print(parsed)
