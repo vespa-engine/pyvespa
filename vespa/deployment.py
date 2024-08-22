@@ -1182,8 +1182,7 @@ class VespaCloud(VespaDeployment):
             base_url=self.base_url,
             headers=self.base_headers,
             timeout=10,
-            http1=False,
-            http2=True,
+            http1=True,
             limits=self.httpx_limits,
         ) as client:
             response = client.request(
