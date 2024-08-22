@@ -1157,7 +1157,9 @@ class VespaCloud(VespaDeployment):
         wait=wait_exponential(multiplier=1, max=3),
         reraise=True,
     )
-    def get_connection_response_with_retry(self, method, path, body, headers):
+    def get_connection_response_with_retry(
+        self, method, path, body: Optional[BytesIO] = None, headers: Dict = {}
+    ) -> httpx.Response:
         with httpx.Client(base_url=self.base_url, headers=self.base_headers) as client:
             response = client.request(
                 method, path, data=body.getvalue(), headers=headers
@@ -1274,10 +1276,10 @@ class VespaCloud(VespaDeployment):
         body.seek(0)
         response = self.get_connection_response_with_retry(method, path, body, headers)
         parsed = json.load(response)
-        if response.status != 200:
+        if response.status_code != 200:
             print(parsed)
             raise HTTPError(
-                f"HTTP {response.status} error: {response.reason} for {url}"
+                f"HTTP {response.status_code} error: {response.reason_phrase} for {url}"
             )
         return parsed
 
