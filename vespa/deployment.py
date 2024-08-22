@@ -554,6 +554,9 @@ class VespaCloud(VespaDeployment):
         self.data_cert_path = None
         self.data_key_path = None
         self.data_key, self.data_certificate = self._load_certificate_pair()
+        self.default_timeout = (
+            15  # seconds, default in httpx is 5. Eg. deployment may take longer.
+        )
         self.base_url = "https://api-ctl.vespa-cloud.com:4443"
         self.pyvespa_version = vespa.__version__
         self.base_headers = {"User-Agent": f"pyvespa/{self.pyvespa_version}"}
@@ -1170,7 +1173,9 @@ class VespaCloud(VespaDeployment):
         else:
             data = None
             content = None
-        with httpx.Client(base_url=self.base_url, headers=self.base_headers) as client:
+        with httpx.Client(
+            base_url=self.base_url, headers=self.base_headers, timeout=10, http2=True
+        ) as client:
             response = client.request(
                 method, path, data=data, content=content, headers=headers
             )
