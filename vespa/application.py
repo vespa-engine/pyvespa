@@ -35,7 +35,7 @@ from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse, VespaVisitResponse
 from vespa.package import ApplicationPackage
 import httpx
-
+import vespa
 
 VESPA_CLOUD_SECRET_TOKEN: str = "VESPA_CLOUD_SECRET_TOKEN"
 
@@ -114,7 +114,8 @@ class Vespa(object):
         self.key = key
         self.vespa_cloud_secret_token = vespa_cloud_secret_token
         self._application_package = application_package
-
+        self.pyvespa_version = vespa.__version__
+        self.base_headers = {"User-Agent": f"pyvespa/{self.pyvespa_version}"}
         if port is None:
             self.end_point = self.url
         else:
@@ -1021,9 +1022,7 @@ class VespaSync(object):
         else:
             self.cert = self.app.cert
         self.app.auth_method = self.app._get_valid_auth_method()
-        self.headers = {
-            "User-Agent": "pyvespa syncio client",
-        }
+        self.headers = self.app.base_headers.copy()
         if self.app.auth_method == "token" and self.app.vespa_cloud_secret_token:
             # Bearer and user-agent
             self.headers.update(
@@ -1050,7 +1049,7 @@ class VespaSync(object):
             return
 
         self.http_session = Session()
-        self.http_session.headers.update({"User-Agent": "pyvespa syncio client"})
+        self.http_session.headers.update(self.headers)
         self.http_session.mount("https://", self.adapter)
         self.http_session.mount("http://", self.adapter)
         if self.app.auth_method == "token" and self.app.vespa_cloud_secret_token:
@@ -1426,9 +1425,7 @@ class VespaAsync(object):
         self.connections = connections
         self.total_timeout = total_timeout
         self.app.auth_method = self.app._get_valid_auth_method()
-        self.headers = {
-            "User-Agent": "pyvespa asyncio client",
-        }
+        self.headers = self.app.base_headers.copy()
         if self.app.auth_method == "token" and self.app.vespa_cloud_secret_token:
             # Bearer and user-agent
             self.headers.update(
