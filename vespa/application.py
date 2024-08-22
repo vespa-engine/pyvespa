@@ -297,8 +297,8 @@ class Vespa(object):
         :return:
         """
         endpoint = f"{self.end_point}/ApplicationStatus"
-        with self.syncio() as sync_app:
-            response = sync_app.http_session.get(endpoint)
+        with self.syncio() as sync_sess:
+            response = sync_sess.get(endpoint)
         return response
 
     def get_model_endpoint(self, model_id: Optional[str] = None) -> Optional[Response]:
