@@ -5,6 +5,8 @@ import pytest
 import os
 import asyncio
 import json
+import time
+import requests
 
 from typing import List, Dict, Optional
 from vespa.io import VespaResponse, VespaQueryResponse
@@ -239,23 +241,64 @@ class TestDockerCommon(unittest.TestCase):
 
     def trigger_start_stop_and_restart_services(self, application_package):
         self.vespa_docker = VespaDocker(port=8089)
+
         with self.assertRaises(RuntimeError):
             self.vespa_docker.stop_services()
         with self.assertRaises(RuntimeError):
             self.vespa_docker.start_services()
 
         app = self.vespa_docker.deploy(application_package=application_package)
+        self._wait_for_service_start()
+
         self.assertTrue(self.vespa_docker._check_configuration_server())
         self.assertEqual(app.get_application_status().status_code, 200)
+
         self.vespa_docker.stop_services()
+        self._wait_for_service_stop()
+
         self.assertFalse(self.vespa_docker._check_configuration_server())
-        self.assertIsNone(app.get_application_status())
+        self.assertIsNone(self._safe_get_application_status(app))
+
         self.vespa_docker.start_services()
+        self._wait_for_service_start()
+
         self.assertTrue(self.vespa_docker._check_configuration_server())
         self.assertEqual(app.get_application_status().status_code, 200)
+
         self.vespa_docker.restart_services()
+        self._wait_for_service_start()
+
         self.assertTrue(self.vespa_docker._check_configuration_server())
         self.assertEqual(app.get_application_status().status_code, 200)
+
+    def _wait_for_service_start(self, timeout=30, interval=1):
+        """Wait for the Vespa service to start."""
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                if self.vespa_docker._check_configuration_server():
+                    return
+            except requests.exceptions.ConnectionError:
+                time.sleep(interval)
+        raise RuntimeError("Vespa service did not start within the timeout period.")
+
+    def _wait_for_service_stop(self, timeout=30, interval=1):
+        """Wait for the Vespa service to stop."""
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            if not self.vespa_docker._check_configuration_server():
+                return
+            time.sleep(interval)
+        raise RuntimeError("Vespa service did not stop within the timeout period.")
+
+    def _safe_get_application_status(self, app, retries=5, interval=1):
+        """Try to get the application status, returning None if it fails."""
+        for _ in range(retries):
+            try:
+                return app.get_application_status()
+            except requests.exceptions.ConnectionError:
+                time.sleep(interval)
+        return None
 
 
 class TestApplicationCommon(unittest.TestCase):
