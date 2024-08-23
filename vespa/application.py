@@ -966,32 +966,44 @@ class Vespa(object):
 
 
 class CustomHTTPAdapter(HTTPAdapter):
-    def __init__(self, *args, **kwargs):
-        self.pool_maxsize = kwargs.pop("pool_maxsize")
-        self.pool_connections = kwargs.pop("pool_connections")
-        self.num_retries_429 = kwargs.pop("num_retries_429", 10)
+    def __init__(
+        self, pool_connections=10, pool_maxsize=10, num_retries_429=10, *args, **kwargs
+    ):
         super().__init__(*args, **kwargs)
+        self.num_retries_429 = num_retries_429
 
-        retry_strategy = Retry(
+        self.retry_strategy = Retry(
             total=10,
             backoff_factor=1,
             raise_on_status=False,
-            status_forcelist=[503],
+            status_forcelist=[429, 503],
             allowed_methods=["POST", "GET", "DELETE", "PUT"],
         )
-        self.retry_strategy = retry_strategy
 
     def send(self, request, **kwargs) -> Response:
-        for attempt in range(self.num_retries_429):
-            response = super().send(request, **kwargs)
-            if response.status_code == 429:
-                wait_time = (
-                    0.1 * 1.618** attempt + random.uniform(0, 1)
-                )  # Exponential backoff with jitter. The 10th retry will sleep for 1024 seconds.
-                time.sleep(wait_time)
-            else:
-                break
+        for attempt in range(self.num_retries_429 + 1):
+            try:
+                response = super().send(request, **kwargs)
+
+                if response.status_code == 429:
+                    self._wait_with_backoff(attempt)
+                else:
+                    return response
+
+            except ConnectionResetError:
+                if attempt < self.num_retries_429:
+                    print(f"ConnectionResetError on attempt {attempt}", file=sys.stderr)
+                    self._wait_with_backoff(attempt)
+                else:
+                    print(f"ConnectionResetError on attempt {attempt}", file=sys.stderr)
+                    raise
+
         return response
+
+    @staticmethod
+    def _wait_with_backoff(attempt):
+        wait_time = 0.1 * 1.618**attempt + random.uniform(0, 1)
+        time.sleep(wait_time)
 
 
 class VespaSync(object):
