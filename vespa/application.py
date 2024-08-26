@@ -131,7 +131,15 @@ class Vespa(object):
         self, connections: Optional[int] = 8, total_timeout: int = 10
     ) -> "VespaAsync":
         """
-        Access Vespa asynchronous connection layer
+        Access Vespa asynchronous connection layer.
+        Should be used as a context manager.
+
+        Example usage::
+
+                async with app.asyncio() as async_app:
+                    response = await async_app.query(body=body)
+
+        See :class:`VespaAsync` for more details.
 
         :param connections: Number of allowed concurrent connections
         :param total_timeout: Total timeout in secs.
@@ -143,7 +151,15 @@ class Vespa(object):
 
     def syncio(self, connections: Optional[int] = 8) -> "VespaSync":
         """
-        Access Vespa synchronous connection layer
+        Access Vespa synchronous connection layer.
+        Should be used as a context manager.
+
+        Example usage::
+
+            with app.syncio() as sync_app:
+                response = sync_app.query(body=body)
+
+        See :class:`VespaSync` for more details.
 
         :param connections: Number of allowed concurrent connections
         :param total_timeout: Total timeout in secs.
@@ -1010,6 +1026,29 @@ class VespaSync(object):
     def __init__(
         self, app: Vespa, pool_maxsize: int = 10, pool_connections: int = 10
     ) -> None:
+        """
+        Class to handle synchronous requests to Vespa.
+        This class is intended to be used as a context manager.
+
+        Example usage::
+
+                with VespaSync(app) as sync_app:
+                    response = sync_app.query(body=body)
+                print(response)
+
+        Can also be accessed directly through :func:`Vespa.syncio` ::
+
+                app = Vespa(url="localhost", port=8080)
+                with app.syncio() as sync_app:
+                    response = sync_app.query(body=body)
+
+        See also :func:`Vespa.feed_iterable` for a convenient way to feed data synchronously.
+
+        Args:
+            app (Vespa): Vespa app object.
+            pool_maxsize (int, optional): The maximum number of connections to save in the pool. Defaults to 10.
+            pool_connections (int, optional): The number of urllib3 connection pools to cache. Defaults to 10.
+        """
         self.app = app
         if self.app.key:
             self.cert = (self.app.cert, self.app.key)
@@ -1407,8 +1446,22 @@ class VespaAsync(object):
         self, app: Vespa, connections: Optional[int] = 1, total_timeout: int = 10
     ) -> None:
         """
-        Class to handle async requests to Vespa.
+        Class to handle async HTTP-connection(s) to Vespa.
         Uses httpx as the async http client, and HTTP/2 by default.
+        This class is intended to be used as a context manager.
+
+        Example usage::
+
+                async with VespaAsync(app) as async_app:
+                    response = await async_app.query(body={"yql": "select * from sources * where title contains 'music';"})
+
+        Can also be accessed directly from :func:`Vespa.asyncio` ::
+
+                app = Vespa(url="localhost", port=8080)
+                async with app.asyncio() as async_app:
+                    response = await async_app.query(body={"yql": "select * from sources * where title contains 'music';"})
+
+        See also :func:`Vespa.feed_async_iterable` for a convenient interface to async data feeding.
 
         Args:
             app (Vespa): Vespa application object.
