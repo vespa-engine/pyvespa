@@ -1045,9 +1045,9 @@ class VespaSync(object):
         See also :func:`Vespa.feed_iterable` for a convenient way to feed data synchronously.
 
         Args:
-            app (Vespa): _description_
-            pool_maxsize (int, optional): _description_. Defaults to 10.
-            pool_connections (int, optional): _description_. Defaults to 10.
+            app (Vespa): Vespa app object.
+            pool_maxsize (int, optional): The maximum number of connections to save in the pool. Defaults to 10.
+            pool_connections (int, optional): The number of urllib3 connection pools to cache. Defaults to 10.
         """
         self.app = app
         if self.app.key:
