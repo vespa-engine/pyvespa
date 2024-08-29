@@ -22,15 +22,17 @@ jobs:
       - name: Set version from ref tag that triggered the workflow (strip prefix 'v' from tag)
         id: set_version
         run: |
-          echo "GITHUB_REF=$GITHUB_REF" 
+          echo "GITHUB_REF=$GITHUB_REF"
           # strip prefix 'v' from version variable
           version=${GITHUB_REF#refs/tags/v}
           echo "version=$version" >> $GITHUB_OUTPUT
 
       - name: Update version
+        env:
+          VERSION: ${{ steps.set_version.outputs.version }}
         run: |
-          echo "Updating pyvespa version to ${{ steps.set_version.outputs.version }}"
-          python vespa/utils/update_version.py --version ${{ steps.set_version.outputs.version }}
+          echo "Updating pyvespa version to ${VERSION}"
+          python vespa/utils/update_version.py --version "${VERSION}"
 
       - name: Build
         run: |
@@ -40,19 +42,6 @@ jobs:
         if: github.event_name == 'release'
         env:
           TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_PYVESPA }} #TODO: this must be added to secrets
-        run: python -m twine upload dist/*
-
-      - name: Commit and PR
-        if: github.event_name == 'release'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NEW_BRANCH:  "update-pyvespa-version-${{ steps.set_version.outputs.version }}"
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_PYVESPA }}
         run: |
-          git checkout -b "${NEW_BRANCH}"
-          git commit -a -m "Update pyvespa version to ${{ steps.set_version.outputs.version }}"
-          git push --set-upstream origin "${NEW_BRANCH}"
-          gh pr create -B master -H "${NEW_BRANCH}" \
-            -t "Update pyvespa version to ${{ steps.set_version.outputs.version }}" \
-            -b ":robot: This PR updates the pyvespa version to ${{ steps.set_version.outputs.version }}" 
-
+          python -m twine upload dist/*
