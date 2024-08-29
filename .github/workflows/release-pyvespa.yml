@@ -7,9 +7,21 @@ on:
 jobs:
   update_version:
     runs-on: ubuntu-latest
+
+    # The environment is reuiqred for OIDC to work.
+    # Ref: https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
+    environment:
+      name: "PyPI - Pyvespa"
+      url: https://pypi.org/p/pyvespa
+
+    permissions:
+      contents: read
+      id-token: write
+
     env:
       # Workaround to ensure that the version is available
       RELEASE_REF: ${{ github.ref || format('{0}{1}', 'refs/tags/', github.event.release.tag_name) }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -40,9 +52,6 @@ jobs:
           python -m build
 
       - name: Upload to PyPI
-        if: github.event_name == 'release'
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN_PYVESPA }}
-        run: |
-          python -m twine upload dist/*
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          print-hash: true
