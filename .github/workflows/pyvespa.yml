@@ -1,13 +1,15 @@
 name: pyvespa - Release and upload PyPI
 
 on:
-  workflow_dispatch:
-  # release: Disable auto-release until actions are approved
-  #   types: [published]
+  release:
+    types: [published]
 
 jobs:
   update_version:
     runs-on: ubuntu-latest
+    env:
+      # Workaround to ensure that the version is available
+      RELEASE_REF: ${{ github.ref || format('{0}{1}', 'refs/tags/', github.event.release.tag_name) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -22,9 +24,8 @@ jobs:
       - name: Set version from ref tag that triggered the workflow (strip prefix 'v' from tag)
         id: set_version
         run: |
-          echo "GITHUB_REF=$GITHUB_REF"
           # strip prefix 'v' from version variable
-          version=${GITHUB_REF#refs/tags/v}
+          version=${RELEASE_REF#refs/tags/v}
           echo "version=$version" >> $GITHUB_OUTPUT
 
       - name: Update version
