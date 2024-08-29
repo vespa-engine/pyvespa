@@ -9,7 +9,11 @@
 </picture>
 
 [![Documentation Status](https://readthedocs.org/projects/pyvespa/badge/?version=latest)](https://pyvespa.readthedocs.io/en/latest/?badge=latest)
-<a href="https://cd.screwdriver.cd/pipelines/7055"><img src="https://cd.screwdriver.cd/pipelines/7055/badge"/></a>
+
+![GitHub Release](https://img.shields.io/github/v/release/vespa-engine/pyvespa)
+![PyPI - Version](https://img.shields.io/pypi/v/pyvespa)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/pyvespa)
+
 
 [pyvespa site / documentation](https://pyvespa.readthedocs.io/en/latest/index.html)
 
