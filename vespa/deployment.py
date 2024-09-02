@@ -619,7 +619,7 @@ class VespaCloud(VespaDeployment):
             folder within user's current working directory.
         :param max_wait: Seconds to wait for the deployment.
 
-        :return: a Vespa connection instance.
+        :return: a Vespa connection instance. Returns a connection to the mtls endpoint. To connect to the token endpoint, use :func:`VespaCloud.get_application(endpoint_type="token")`.
         """
         if not disk_folder:
             disk_folder = os.path.join(os.getcwd(), self.application)
@@ -864,7 +864,7 @@ class VespaCloud(VespaDeployment):
         :param instance: Name of the instance where the application is to be run
         :param application_root: Application package directory root
         :param max_wait: Seconds to wait for the deployment.
-        :return: a Vespa connection instance.
+        :return: a Vespa connection instance.  Returns a connection to the mtls endpoint. To connect to the token endpoint, use :func:`VespaCloud.get_application(endpoint_type="token")`.
         """
         data = BytesIO(self.read_app_package_from_disk(application_root))
 
