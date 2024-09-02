@@ -127,7 +127,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
 
-    # The environment is reuiqred for OIDC to work.
+    # The environment is required for OIDC to work.
     # Ref: https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
     environment:
       name: "PyPI - VespaCLI"
