@@ -1,0 +1,180 @@
+name: vespacli - Check, Update, Test, Create PR, Release
+
+defaults:
+  run:
+    working-directory: ./vespacli
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run at midnight sunday-thursday
+    - cron: "0 0 * * 1-4"
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check_latest_version.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies and this repo
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[build]
+
+      - name: Check latest version and set version variable
+        id: check_latest_version
+        run: |
+          version=$(python utils/check_latest_version.py)
+          echo "Latest version is $version"
+          # Set the output variable
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+
+  check-and-update:
+    runs-on: ubuntu-latest
+    # Only run if we have a new version
+    if: ${{ needs.prepare.outputs.version != 'NA' }}
+    needs:
+      - prepare
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies and this repo
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[build]
+
+      - name: Update the version
+        run: |
+          echo "Updating Vespa CLI version to ${VERSION}"
+          python utils/update_version.py --version "${VERSION}"
+
+      - name: Download latest binaries
+        run: |
+          python utils/download_binaries.py --version "${VERSION}"
+
+      - name: Upload binaries as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: vespacli/vespacli/go-binaries
+
+
+  test:
+    runs-on: ${{ matrix.os }}
+    # Only run if we have a new version
+    if: ${{ needs.prepare.outputs.version != 'NA' }}
+    needs:
+      - prepare
+      - check-and-update
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, ubuntu-latest, windows-latest, macos-13, macos-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: vespacli/vespacli/go-binaries
+
+      - name: Set permissions on all files in go-binaries
+        run: |
+          chmod -R +x vespacli/go-binaries/*
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[build]
+
+      - name: Update latest version
+        run: |
+          python utils/update_version.py --version "${VERSION}"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[build]
+
+      - name: Verify installation
+        run: |
+          vespa version
+
+  release:
+    runs-on: ubuntu-latest
+
+    # The environment is required for OIDC to work.
+    # Ref: https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
+    environment:
+      name: "PyPI - VespaCLI"
+      url: https://pypi.org/p/vespacli
+
+    permissions:
+      contents: read
+      id-token: write
+
+    needs:
+      - prepare
+      - test
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies and this repo
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[build]
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: vespacli/vespacli/go-binaries
+
+      - name: Set permissions on all files in go-binaries
+        run: |
+          chmod -R +x vespacli/go-binaries/*
+
+      - name: Update latest version
+        run: |
+          python utils/update_version.py --version "${VERSION}"
+
+      - name: Build
+        run: |
+          python -m build
+
+      - name: Upload to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          print-hash: true
