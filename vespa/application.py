@@ -8,7 +8,6 @@ from typing import Optional, Dict, Generator, List, IO, Iterable, Callable, Tupl
 from concurrent.futures import ThreadPoolExecutor, Future, as_completed
 from queue import Queue, Empty
 import threading
-import requests
 from requests import Session
 from requests.models import Response
 from requests.exceptions import ConnectionError, HTTPError, JSONDecodeError
@@ -26,7 +25,6 @@ from tenacity import (
     RetryCallState,
 )
 from time import sleep
-from os import environ
 from urllib.parse import quote
 import random
 import time
@@ -121,11 +119,13 @@ class Vespa(object):
         else:
             self.end_point = str(url).rstrip("/") + ":" + str(port)
         self.search_end_point = self.end_point + "/search/"
-        if vespa_cloud_secret_token is None:
-            token = environ.get(VESPA_CLOUD_SECRET_TOKEN, None)
-            if token is not None:
-                self.vespa_cloud_secret_token = token
-        self.auth_method = None
+        if self.vespa_cloud_secret_token is not None:
+            self.auth_method = "token"
+            self.base_headers.update(
+                {"Authorization": f"Bearer {self.vespa_cloud_secret_token}"}
+            )
+        else:
+            self.auth_method = "mtls"
 
     def asyncio(
         self, connections: Optional[int] = 8, total_timeout: int = 10
@@ -249,62 +249,6 @@ class Vespa(object):
                     self.end_point, max_wait
                 )
             )
-
-    def _get_valid_auth_method(self) -> Optional[str]:
-        """
-        Get auth method for Vespa connection.
-
-        :return: Auth method used for Vespa connection. Either 'token','mtls_key_cert','mtls_cert' or 'http'. None if not able to authenticate.
-        """
-        endpoint = f"{self.end_point}/ApplicationStatus"
-
-        if self.auth_method:
-            return self.auth_method
-
-        # Plain HTTP
-        response = requests.get(endpoint, headers=self.base_headers)
-        if response.status_code == 200:
-            print(
-                f"Using plain HTTP to connect to Vespa endpoint {self.end_point}",
-                file=self.output_file,
-            )
-            return "http"
-
-        # Vespa Cloud Secret Token
-        if self.vespa_cloud_secret_token is not None:
-            headers = {"Authorization": f"Bearer {self.vespa_cloud_secret_token}"}
-            response = requests.get(endpoint, headers={**self.base_headers, **headers})
-            if response.status_code == 200:
-                print(
-                    f"Using Vespa Cloud Secret Token to connect to Vespa endpoint {self.end_point}",
-                    file=self.output_file,
-                )
-                return "token"
-
-        # Mutual TLS with key and cert
-        if self.key and self.cert:
-            response = requests.get(
-                endpoint, headers=self.base_headers, cert=(self.cert, self.key)
-            )
-            if response.status_code == 200:
-                print(
-                    f"Using Mutual TLS with key and cert to connect to Vespa endpoint {self.end_point}",
-                    file=self.output_file,
-                )
-                return "mtls_key_cert"
-
-        # Mutual TLS with cert
-        if self.cert:
-            response = requests.get(endpoint, headers=self.base_headers, cert=self.cert)
-            if response.status_code == 200:
-                print(
-                    f"Using Mutual TLS with cert to connect to Vespa endpoint {self.end_point}",
-                    file=self.output_file,
-                )
-                return "mtls_cert"
-
-        # There may be some cases where ApplicationStatus is not available, such as http://api.cord19.vespa.ai
-        return None
 
     def get_application_status(self) -> Optional[Response]:
         """
@@ -1054,7 +998,6 @@ class VespaSync(object):
             self.cert = (self.app.cert, self.app.key)
         else:
             self.cert = self.app.cert
-        self.app.auth_method = self.app._get_valid_auth_method()
         self.headers = self.app.base_headers.copy()
         if self.app.auth_method == "token" and self.app.vespa_cloud_secret_token:
             # Bearer and user-agent
@@ -1472,7 +1415,6 @@ class VespaAsync(object):
         self.httpx_client = None
         self.connections = connections
         self.total_timeout = total_timeout
-        self.app.auth_method = self.app._get_valid_auth_method()
         self.headers = self.app.base_headers.copy()
         if self.app.auth_method == "token" and self.app.vespa_cloud_secret_token:
             # Bearer and user-agent
