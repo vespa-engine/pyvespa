@@ -28,7 +28,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 
-from vespa.application import Vespa, VESPA_CLOUD_SECRET_TOKEN
+from vespa.application import Vespa
 from vespa.package import ApplicationPackage
 from vespa.utils.notebook import is_jupyter_notebook
 import vespa
@@ -876,26 +876,11 @@ class VespaCloud(VespaDeployment):
             instance, job, disk_folder, application_zip_bytes=data
         )
         self._follow_deployment(instance, job, run)
-        mtls_endpoint = self.get_mtls_endpoint(instance=instance, region=region)
-        if self.auth_client_token_id is not None:
-            try:  # May have client_token_id set but the deployed app was not configured to use it
-                token_endpoint = self.get_token_endpoint(
-                    instance=instance, region=region
-                )
-            except Exception as _:
-                token_endpoint = None
-        else:
-            token_endpoint = None
-        app = Vespa(
-            url=token_endpoint or mtls_endpoint,
-            cert=self.data_cert_path,
-            key=self.data_key_path,
-            application_package=self.application_package,
-            vespa_cloud_secret_token=os.environ.get(VESPA_CLOUD_SECRET_TOKEN),
+        run = self._start_deployment(instance, job, disk_folder, None)
+        self._follow_deployment(instance, job, run)
+        app: Vespa = self.get_application(
+            instance=instance, environment="dev", endpoint_type="mtls"
         )
-        app.wait_for_application_up(max_wait=max_wait)
-        print("Finished deployment.", file=self.output)
-
         return app
 
     def delete(self, instance: Optional[str] = "default") -> None:
