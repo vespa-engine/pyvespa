@@ -224,7 +224,10 @@ class TestVespa(unittest.TestCase):
 
         os.environ["VESPA_CLOUD_SECRET_TOKEN"] = "vespa_cloud_str_secret"
         self.assertEqual(
-            Vespa(url="https://cord19.vespa.ai").vespa_cloud_secret_token,
+            Vespa(
+                url="https://cord19.vespa.ai",
+                vespa_cloud_secret_token=os.getenv("VESPA_CLOUD_SECRET_TOKEN"),
+            ).vespa_cloud_secret_token,
             "vespa_cloud_str_secret",
         )
 
