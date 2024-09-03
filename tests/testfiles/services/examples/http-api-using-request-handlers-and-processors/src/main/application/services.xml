@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->
+<services version="1.0">
+    <container id="default" version="1.0">
+        <processing>
+            <chain id="default">
+                <processor id="ai.vespa.examples.AnnotatingProcessor" bundle="http-api-using-request-handlers-and-processors">
+                    <config name="ai.vespa.examples.demo">
+                        <demo>
+                            <item>
+                                <term>smurf</term>
+                            </item>
+                        </demo>
+                    </config>
+                </processor>
+                <processor id="ai.vespa.examples.DataProcessor" bundle="http-api-using-request-handlers-and-processors" />
+            </chain>
+            <renderer id="demo" class="ai.vespa.examples.DemoRenderer" bundle="http-api-using-request-handlers-and-processors" />
+        </processing>
+        <document-processing>
+          <chain id="default">
+            <documentprocessor id="ai.vespa.examples.DemoDocumentProcessor" bundle="http-api-using-request-handlers-and-processors"/>
+          </chain>
+        </document-processing>
+        <handler id="ai.vespa.examples.DemoHandler" bundle="http-api-using-request-handlers-and-processors">
+            <binding>http://*/demo</binding>
+        </handler>
+        <component id="ai.vespa.examples.DemoComponent" bundle="http-api-using-request-handlers-and-processors"/>
+        <component id="ai.vespa.examples.DemoFreezableComponent" bundle="http-api-using-request-handlers-and-processors"/>
+        <document-api/>
+        <nodes>
+            <node hostalias="node1"/>
+        </nodes>
+    </container>
+    <content id="music" version="1.0">
+        <min-redundancy>2</min-redundancy>
+        <documents>
+            <document type="music" mode="index" />
+        </documents>
+        <nodes>
+            <node hostalias="node1" distribution-key="0" />
+        </nodes>
+    </content>
+</services>

@@ -1,0 +1,26 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->
+<services version='1.0'>
+
+  <container id='default' version='1.0'>
+    <search>
+      <chain id="default" inherits="vespa">
+        <searcher id="ai.vespa.examples.SubqueriesSearcher" bundle="predicate-fields"/>
+      </chain>
+    </search>
+    <document-api />
+    <nodes>
+      <node hostalias="node1" />
+    </nodes>
+  </container>
+
+  <content version="1.0" id="users">
+    <min-redundancy>2</min-redundancy>
+    <documents>
+      <document type="user" mode="index" />
+    </documents>
+    <nodes>
+      <node hostalias="node1" distribution-key="0" />
+    </nodes>
+  </content>
+</services>

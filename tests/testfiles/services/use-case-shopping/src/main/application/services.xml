@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->
+<services version="1.0" xmlns:deploy="vespa" xmlns:preprocess="properties">
+
+    <container id="container" version="1.0">
+        <document-api/>
+        <search>
+            <chain id="default" inherits="vespa">
+                <searcher id="ai.vespa.example.shopping.SuggestionSearcher" bundle="use-case-shopping"/>
+            </chain>
+        </search>
+        <document-processing>
+            <chain id="default">
+                <documentprocessor id="ai.vespa.example.shopping.ReviewProcessor" bundle="use-case-shopping"/>
+            </chain>
+        </document-processing>
+        <!-- See https://docs.vespa.ai/en/embedding.html#huggingface-embedder -->
+        <component id="encoder" type="hugging-face-embedder">
+            <transformer-model path="model/e5-small-v2-int8.onnx"/>
+            <tokenizer-model path="model/tokenizer.json"/>
+        </component>
+
+        <handler id="ai.vespa.example.shopping.site.SiteHandler" bundle="use-case-shopping">
+            <binding>http://*/site/*</binding>
+            <binding>http://*/site</binding>
+            <config name="ai.vespa.example.shopping.site.site-handler">
+                <vespaHostName>localhost</vespaHostName>
+                <vespaHostPort>8080</vespaHostPort>
+            </config>
+        </handler>
+
+        <nodes>
+            <node hostalias="node1"/>
+        </nodes>
+
+    </container>
+
+    <content id="shopping" version="1.0">
+        <min-redundancy>2</min-redundancy>
+        <documents>
+            <document type="query" mode="index"/>
+            <document type="item" mode="index"/>
+            <document type="review" mode="index"/>
+        </documents>
+        <nodes>
+            <node hostalias="node1" distribution-key="0"/>
+        </nodes>
+    </content>
+
+</services>
+
