@@ -55,8 +55,14 @@ class TestTokenBasedAuth(unittest.TestCase):
         )
         self.disk_folder = os.path.join(os.getcwd(), "sample_application")
         self.instance_name = "token"
-        self.app: Vespa = self.vespa_cloud.deploy(
+        self.mtls_app: Vespa = self.vespa_cloud.deploy(
             instance=self.instance_name, disk_folder=self.disk_folder
+        )
+        self.app = self.vespa_cloud.get_application(
+            instance=self.instance_name,
+            environment="dev",
+            endpoint_type="token",
+            vespa_cloud_secret_token=os.getenv("VESPA_CLOUD_SECRET_TOKEN"),
         )
         print("Endpoint used " + self.app.url)
 
@@ -111,8 +117,14 @@ class TestMsmarcoApplicationWithTokenAuth(TestApplicationCommon):
         )
         self.disk_folder = os.path.join(os.getcwd(), "sample_application")
         self.instance_name = "token"
-        self.app = self.vespa_cloud.deploy(
+        self.mtls_app = self.vespa_cloud.deploy(
             instance=self.instance_name, disk_folder=self.disk_folder
+        )
+        self.app = self.vespa_cloud.get_application(
+            instance=self.instance_name,
+            environment="dev",
+            endpoint_type="token",
+            vespa_cloud_secret_token=os.getenv("VESPA_CLOUD_SECRET_TOKEN"),
         )
         print("Endpoint used " + self.app.url)
         self.fields_to_send = [
@@ -243,7 +255,10 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
         if not success:
             self.fail("Deployment failed")
         self.app = self.vespa_cloud.get_application(
-            instance=self.instance_name, environment="prod"
+            instance=self.instance_name,
+            environment="prod",
+            endpoint_type="token",
+            vespa_cloud_secret_token=os.getenv("VESPA_CLOUD_SECRET_TOKEN"),
         )
         self.app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
 
