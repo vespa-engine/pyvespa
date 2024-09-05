@@ -67,33 +67,24 @@ jobs:
         run: |
           echo "Running ${{ matrix.notebook }}"
 
-          # Function to extract, modify and save the pip install command
-          function process_pip_installation {
-            # 1. Extract lines that start with '!pip[3] install [optional -U] package1 package2 ...'
-            # 2. Remove the leading "!" and strip 'pyvespa' and 'vespacli'
-            # 3. Write the result to additional_requirements.txt and prefix the original line with "#" in the notebook
+          # Function to extract, modify, and comment out the pip install command
+          function extract_and_modify_pip_installation {
+              # 1. Extract code cells, strip quotes, and search for pip install lines
+              jq '.cells[] | select(.cell_type == "code") | .source[]' "$1" | sed 's/^"//;s/"$//' | grep -E '^!pip(3)? install( -U)? ' | while read -r line ; do
+                  
+                  # 2. Strip the leading "!" and remove 'pyvespa' and 'vespacli'
+                  modified_line=$(echo "$line" | sed 's/^!//' | sed 's/pyvespa//g' | sed 's/vespacli//g' | sed 's/  / /g')
 
-            # Extract all pip install lines and loop through them
-            grep -E '^!pip(3)? install( -U)? ' $1 | while read -r line ; do
-              # Strip the leading "!"
-              modified_line=$(echo "$line" | sed 's/^!//')
-              
-              # Remove 'pyvespa' and 'vespacli' from the line
-              modified_line=$(echo "$modified_line" | sed 's/pyvespa//g' | sed 's/vespacli//g' | sed 's/  / /g')
-
-              # 4. Write the result to additional_requirements.txt
-              echo "$modified_line" >> additional_requirements.txt
-              
-              # Echo the modified command
-              echo "Modified command: $modified_line"
-
-              # 5. Comment out the original line in the notebook by prefixing it with '#'
-              sed -i '' "s|$line|# $line|g" $1
-            done
+                  # 3. Comment out the original line in the notebook
+                  tmpfile=$(mktemp)
+                  jq --arg old "$line" --arg new "# $line" '
+                      (.cells[] | select(.cell_type == "code") | .source[] | select(. == $old)) = $new
+                  ' "$1" > "$tmpfile" && mv "$tmpfile" "$1"
+              done
           }
 
           # Call the function to process pip install lines and modify the notebook
-          process_pip_installation "${{ matrix.notebook }}"
+          extract_and_modify_pip_installation "${{ matrix.notebook }}"
 
           # Install additional requirements with uv
           uv pip install -r additional_requirements.txt
