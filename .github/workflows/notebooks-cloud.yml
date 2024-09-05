@@ -37,6 +37,8 @@ jobs:
     strategy:
       matrix:
         notebook: ${{fromJson(needs.get-notebooks-cloud.outputs.notebooks)}}
+    env:
+      UV_SYSTEM_PYTHON: 1
 
     steps:
       - name: Free disk space
@@ -67,7 +69,6 @@ jobs:
           VESPA_CLOUD_SECRET_TOKEN: ${{ secrets.VESPA_CLOUD_SECRET_TOKEN }}
           CO_API_KEY: ${{ secrets.CO_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          UV_SYSTEM_PYTHON: 1
         run: |
           echo "Running ${{ matrix.notebook }}"
 
