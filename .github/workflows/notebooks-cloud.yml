@@ -81,4 +81,4 @@ jobs:
           uv pip install -r additional_requirements.txt
 
           # Run the modified notebook
-          papermill --log-output ${{ matrix.notebook }} ${{ matrix.notebook }}-out.ipynb
+          uv run papermill --log-output ${{ matrix.notebook }} ${{ matrix.notebook }}-out.ipynb
