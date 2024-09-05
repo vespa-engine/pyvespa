@@ -1,14 +1,5 @@
 #!/bin/bash
 
-# Script to extract and modify pip install commands from a Jupyter notebook
-# Example: If a notebook contains the following line:
-# !pip3 install -U pyvespa sentence-transformers vespacli numpy
-# The script will extract the package names, excluding pyvespa and vespacli (already installed) and save the new packages to additional_requirements.txt
-# The resulting additional_requirements.txt will contain:
-# sentence-transformers 
-# numpy
-# It will also comment out the original line in the notebook
-
 # Check if an argument was provided
 if [ "$#" -ne 1 ]; then
     echo "Usage: $0 path_to_notebook"
@@ -21,8 +12,8 @@ notebook=$1
 # Now you can use the variable $notebook in your script
 echo "The path to the notebook is \"$notebook\""
 
-# Function to extract, modify, and save the pip install command
-function extract_and_modify_pip_installation {
+# Extract, modify, and save the pip install command
+extract_and_modify_pip_installation() {
     echo "Extracting and processing code cells from notebook..."
 
     # Clear or create the additional_requirements.txt file
