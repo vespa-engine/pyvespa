@@ -48,13 +48,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
-          cache: "pip" # caching pip dependencies
-          cache-dependency-path: |
-            pyproject.toml
+
+      - name: Set up uv
+        # Install a specific uv version using the installer
+        run: curl -LsSf https://astral.sh/uv/0.4.5/install.sh | sh
 
       - name: Install dependencies
         run: |
-          pip install -e .[dev,notebooks]
+          uv sync --extra dev --extra notebooks
 
       - name: Run notebooks tests
         env:
@@ -62,6 +63,40 @@ jobs:
           VESPA_CLOUD_SECRET_TOKEN: ${{ secrets.VESPA_CLOUD_SECRET_TOKEN }}
           CO_API_KEY: ${{ secrets.CO_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          UV_SYSTEM_PYTHON: 1
         run: |
           echo "Running ${{ matrix.notebook }}"
+
+          # Function to extract, modify and save the pip install command
+          function process_pip_installation {
+            # 1. Extract lines that start with '!pip[3] install [optional -U] package1 package2 ...'
+            # 2. Remove the leading "!" and strip 'pyvespa' and 'vespacli'
+            # 3. Write the result to additional_requirements.txt and prefix the original line with "#" in the notebook
+
+            # Extract all pip install lines and loop through them
+            grep -E '^!pip(3)? install( -U)? ' $1 | while read -r line ; do
+              # Strip the leading "!"
+              modified_line=$(echo "$line" | sed 's/^!//')
+              
+              # Remove 'pyvespa' and 'vespacli' from the line
+              modified_line=$(echo "$modified_line" | sed 's/pyvespa//g' | sed 's/vespacli//g' | sed 's/  / /g')
+
+              # 4. Write the result to additional_requirements.txt
+              echo "$modified_line" >> additional_requirements.txt
+              
+              # Echo the modified command
+              echo "Modified command: $modified_line"
+
+              # 5. Comment out the original line in the notebook by prefixing it with '#'
+              sed -i '' "s|$line|# $line|g" $1
+            done
+          }
+
+          # Call the function to process pip install lines and modify the notebook
+          process_pip_installation "${{ matrix.notebook }}"
+
+          # Install additional requirements with uv
+          uv pip install -r additional_requirements.txt
+
+          # Run the modified notebook
           papermill --log-output ${{ matrix.notebook }} ${{ matrix.notebook }}-out.ipynb
