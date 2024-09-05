@@ -41,6 +41,10 @@ jobs:
     steps:
       - name: Free disk space
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
+        with:
+          large-packages: false
+          docker-images: false
+          swap-storage: false
 
       - uses: actions/checkout@v4
 
@@ -70,7 +74,7 @@ jobs:
           # Run bash script to extract, modify, and comment out the pip install command in the notebook
           # Will save all packages to be installed (excluding pyvespa and vespacli) to additional_requirements.txt
           echo "Running replace_pip_install_notebook.sh"
-          sh .github/scripts/replace_pip_install_notebook.sh ${{ matrix.notebook }}
+          sh .github/scripts/replace_pip_install_notebooks.sh ${{ matrix.notebook }}
 
           # Install additional requirements with uv
           uv pip install -r additional_requirements.txt
