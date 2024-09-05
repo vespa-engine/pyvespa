@@ -37,8 +37,6 @@ jobs:
     strategy:
       matrix:
         notebook: ${{fromJson(needs.get-notebooks-cloud.outputs.notebooks)}}
-    env:
-      UV_SYSTEM_PYTHON: 1
 
     steps:
       - name: Free disk space
