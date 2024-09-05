@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 
-.. image:: https://assets.vespa.ai/logos/Vespa-logo-black-RGB.svg
+.. image:: https://assets.vespa.ai/logos/Vespa-logo-dark-RGB.svg
 
 
 Vespa python API
