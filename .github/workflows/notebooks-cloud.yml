@@ -67,24 +67,10 @@ jobs:
         run: |
           echo "Running ${{ matrix.notebook }}"
 
-          # Function to extract, modify, and comment out the pip install command
-          function extract_and_modify_pip_installation {
-              # 1. Extract code cells, strip quotes, and search for pip install lines
-              jq '.cells[] | select(.cell_type == "code") | .source[]' "$1" | sed 's/^"//;s/"$//' | grep -E '^!pip(3)? install( -U)? ' | while read -r line ; do
-                  
-                  # 2. Strip the leading "!" and remove 'pyvespa' and 'vespacli'
-                  modified_line=$(echo "$line" | sed 's/^!//' | sed 's/pyvespa//g' | sed 's/vespacli//g' | sed 's/  / /g')
-
-                  # 3. Comment out the original line in the notebook
-                  tmpfile=$(mktemp)
-                  jq --arg old "$line" --arg new "# $line" '
-                      (.cells[] | select(.cell_type == "code") | .source[] | select(. == $old)) = $new
-                  ' "$1" > "$tmpfile" && mv "$tmpfile" "$1"
-              done
-          }
-
-          # Call the function to process pip install lines and modify the notebook
-          extract_and_modify_pip_installation "${{ matrix.notebook }}"
+          # Run bash script to extract, modify, and comment out the pip install command in the notebook
+          # Will save all packages to be installed (excluding pyvespa and vespacli) to additional_requirements.txt
+          echo "Running replace_pip_install_notebook.sh"
+          sh .github/scripts/replace_pip_install_notebook.sh ${{ matrix.notebook }}
 
           # Install additional requirements with uv
           uv pip install -r additional_requirements.txt
