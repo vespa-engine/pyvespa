@@ -81,6 +81,7 @@ notebooks = [
     "plotly",
     "torch",
     "openai",
+    "datasets>=2.19.1",
     "ir_datasets",
     "pytrec_eval",
     "papermill",
@@ -89,7 +90,7 @@ notebooks = [
 dev = [
     "pre-commit",
     "vespacli",
-    "datasets",
+    "datasets>=2.19.1",
     "pyvespa[unittest]",
     "pyvespa[build]",
 ]
