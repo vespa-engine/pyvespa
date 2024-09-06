@@ -2,7 +2,7 @@ Troubleshooting
 ===============
 
 Also see the `Vespa FAQ <https://docs.vespa.ai/en/faq.html>`__
-and `Vespa support <https://vespa.ai/support>`__ for more help resources.
+and `Vespa support <https://cloud.vespa.ai/support>`__ for more help resources.
 
 
 Vespa.ai and pyvespa
