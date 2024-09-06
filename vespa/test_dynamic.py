@@ -10,21 +10,21 @@ xml_structure = Services(
             Configserver(hostalias="node1"),
             Configserver(hostalias="node2"),
         ),
-        ClusterControllers(
-            ClusterController(hostalias="node0", jvm_options="-Xms32M -Xmx64M"),
-            ClusterController(hostalias="node1", jvm_options="-Xms32M -Xmx64M"),
-            ClusterController(hostalias="node2", jvm_options="-Xms32M -Xmx64M"),
+        Clustercontrollers(
+            Clustercontroller(hostalias="node0", jvm_options="-Xms32M -Xmx64M"),
+            Clustercontroller(hostalias="node1", jvm_options="-Xms32M -Xmx64M"),
+            Clustercontroller(hostalias="node2", jvm_options="-Xms32M -Xmx64M"),
         ),
         Slobroks(
             Slobrok(hostalias="node0"),
             Slobrok(hostalias="node1"),
             Slobrok(hostalias="node2"),
         ),
-        AdminServer(hostalias="node3"),
+        Adminserver(hostalias="node3"),
     ),
     Container(id="feed", version="1.0")(
-        DocumentApi(),
-        DocumentProcessing(),
+        Documentapi(),
+        Documentprocessing(),
         Nodes(
             Jvm(options="-Xms32M -Xmx128M"),
             Node(hostalias="node4"),
@@ -40,10 +40,10 @@ xml_structure = Services(
         ),
     ),
     Content(id="music", version="1.0")(
-        MinRedundancy("2"),
+        Minredundancy("2"),
         Documents(
             Document(type="music", mode="index"),
-            DocumentProcessing(cluster="feed"),
+            Documentprocessing(cluster="feed"),
         ),
         Nodes(
             Node(hostalias="node8", distribution_key="0"),
@@ -53,7 +53,7 @@ xml_structure = Services(
 )
 
 # Add XML declaration and print the XML string
-xml_output = f"{xml_declaration()}\n{xml_structure.to_xml()}"
+xml_output = f"{VT()}\n{xml_structure.to_xml()}"
 print(xml_output)
 
 # Construct the XML structure
@@ -62,15 +62,15 @@ xml_structure = Services(
 )(
     Container(id="default", version="1.0")(
         Component(id="splade", type="splade-embedder")(
-            TransformerModel(
+            Transformermodel(
                 url="https://huggingface.co/Qdrant/Splade_PP_en_v1/resolve/main/model.onnx"
             ),
-            TokenizerModel(
+            Tokenizermodel(
                 url="https://huggingface.co/Qdrant/Splade_PP_en_v1/raw/main/tokenizer.json"
             ),
-            TermScoreThreshold("0.8"),
+            Termscorethreshold("0.8"),
         ),
-        DocumentApi(),
+        Documentapi(),
         Search(),
         Nodes(count="1")(
             Resources(vcpu="4", memory="16Gb", disk="125Gb")(
@@ -79,12 +79,12 @@ xml_structure = Services(
         ),
     ),
     Content(id="text", version="1.0")(
-        MinRedundancy("2"),
+        Minredundancy("2"),
         Documents(Document(type="doc", mode="index")),
         Nodes(count="2"),
     ),
 )
 
 # Add XML declaration and print the XML string
-xml_output = f"{xml_declaration()}\n{xml_structure.to_xml()}"
+xml_output = f"{VT()}\n{xml_structure.to_xml()}"
 print(xml_output)
