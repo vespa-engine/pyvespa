@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<grammar xmlns="http://relaxng.org/ns/structure/1.0">
+  <!--
+    Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
+    Schema for processing components and chains
+  -->
+  <define name="ProcessingRenderer">
+    <element name="renderer">
+      <ref name="ComponentDefinition"/>
+    </element>
+  </define>
+  <define name="Processing">
+    <element name="processing">
+      <interleave>
+        <zeroOrMore>
+          <ref name="Processor"/>
+        </zeroOrMore>
+        <zeroOrMore>
+          <ref name="Chain"/>
+        </zeroOrMore>
+        <zeroOrMore>
+          <ref name="ProcessingRenderer"/>
+        </zeroOrMore>
+        <zeroOrMore>
+          <ref name="GenericConfig"/>
+        </zeroOrMore>
+      </interleave>
+    </element>
+  </define>
+  <define name="ChainBaseContent">
+    <interleave>
+      <ref name="ComponentId"/>
+      <ref name="ChainInheritance"/>
+      <zeroOrMore>
+        <ref name="GenericConfig"/>
+      </zeroOrMore>
+    </interleave>
+  </define>
+  <define name="Chain">
+    <element name="chain">
+      <interleave>
+        <ref name="ChainBaseContent"/>
+        <zeroOrMore>
+          <ref name="Processor"/>
+        </zeroOrMore>
+        <zeroOrMore>
+          <ref name="Phase"/>
+        </zeroOrMore>
+      </interleave>
+    </element>
+  </define>
+  <define name="ChainInheritance">
+    <interleave>
+      <optional>
+        <attribute name="inherits"/>
+      </optional>
+      <optional>
+        <attribute name="excludes"/>
+      </optional>
+      <optional>
+        <element name="inherits">
+          <interleave>
+            <zeroOrMore>
+              <element name="chain">
+                <ref name="ComponentSpec"/>
+              </element>
+            </zeroOrMore>
+            <zeroOrMore>
+              <element name="exclude">
+                <ref name="ComponentSpec"/>
+              </element>
+            </zeroOrMore>
+          </interleave>
+        </element>
+      </optional>
+    </interleave>
+  </define>
+  <define name="Processor">
+    <element name="processor">
+      <interleave>
+        <ref name="BundleSpec"/>
+        <ref name="GenericSearcherOrDocumentProcessor"/>
+      </interleave>
+    </element>
+  </define>
+</grammar>

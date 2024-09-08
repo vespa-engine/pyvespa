@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<grammar xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <!-- Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->
+  <include href="common.rng"/>
+  <include href="admin.rng"/>
+  <include href="content.rng"/>
+  <include href="routing.rng"/>
+  <include href="containercluster.rng"/>
+  <start>
+    <choice>
+      <element name="services">
+        <interleave>
+          <optional>
+            <attribute name="version">
+              <value>1.0</value>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="minimum-required-vespa-version"/>
+          </optional>
+          <optional>
+            <attribute name="application-type">
+              <value>hosted-infrastructure</value>
+            </attribute>
+          </optional>
+          <optional>
+            <element name="legacy">
+              <element name="v7-geo-positions">
+                <data type="boolean"/>
+              </element>
+            </element>
+          </optional>
+          <zeroOrMore>
+            <ref name="GenericConfig"/>
+          </zeroOrMore>
+          <optional>
+            <ref name="Admin"/>
+          </optional>
+          <zeroOrMore>
+            <ref name="Content"/>
+          </zeroOrMore>
+          <zeroOrMore>
+            <ref name="ContainerCluster"/>
+          </zeroOrMore>
+          <optional>
+            <ref name="Routing"/>
+          </optional>
+        </interleave>
+      </element>
+      <ref name="Admin"/>
+      <ref name="Content"/>
+      <ref name="ContainerCluster"/>
+    </choice>
+  </start>
+</grammar>
