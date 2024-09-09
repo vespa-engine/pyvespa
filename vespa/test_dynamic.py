@@ -1,10 +1,12 @@
 import unittest
 from lxml import etree
+import xml.etree.ElementTree as ET
+from .dynamic import *
+from .dynamic import _escape, xml_tags, create_tag_function
+# FT, to_xml, attrmap, valmap, create_tag_function, xml_tags, _escape
 
-from .dynamic import FT, to_xml, attrmap, valmap, create_tag_function, xml_tags, _escape
 
-
-class TestXMLSchema(unittest.TestCase):
+class TestFT(unittest.TestCase):
     def test_sanitize_tag_name(self):
         self.assertEqual(FT.sanitize_tag_name("content-node"), "content_node")
         self.assertEqual(FT.sanitize_tag_name("search-engine"), "search_engine")
@@ -33,6 +35,16 @@ class TestXMLSchema(unittest.TestCase):
         # Expecting nested tags with proper newlines and indentation
         expected_output = '<content attr="value"><document></document></content>'
         self.assertEqual(str(xml_output), expected_output)
+
+    def test_nested_tags_with_text(self):
+        nested_tag = FT("content", (FT("document", ("text",)),), {"attr": "value"})
+        xml_output = to_xml(nested_tag, indent=False)
+        # Expecting nested tags with proper newlines and indentation
+        parsed_output = ET.fromstring(str(xml_output))
+        self.assertEqual(parsed_output.tag, "content")
+        self.assertEqual(parsed_output.attrib, {"attr": "value"})
+        self.assertEqual(parsed_output[0].tag, "document")
+        self.assertEqual(parsed_output[0].text, "text")
 
     def test_void_tag(self):
         void_tag = FT("meta", (), void_=True)
@@ -132,9 +144,58 @@ class TestColbertSchema(unittest.TestCase):
         self.assertTrue(self.relaxng.validate(to_validate))
 
     def test_invalid_schema_from_string(self):
-        invalid_xml = self.xml_schema.replace("document-api", "document-api-")
+        invalid_xml = self.xml_schema.replace("document-api", "asdf")
         to_validate = etree.fromstring(invalid_xml.encode("utf-8"))
         self.assertFalse(self.relaxng.validate(to_validate))
+
+    def test_generate_colbert_schema(self):
+        # Generated XML using dynamic tag functions
+        generated_xml = to_xml(
+            services(
+                container(id="default", version="1.0")(
+                    component(id="e5", type="hugging-face-embedder")(
+                        transformer_model(
+                            url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx"
+                        ),
+                        tokenizer_model(
+                            url="https://huggingface.co/intfloat/e5-small-v2/raw/main/tokenizer.json"
+                        ),
+                        prepend(query("query:"), document("passage:")),
+                    ),
+                    component(id="colbert", type="colbert-embedder")(
+                        transformer_model(
+                            url="https://huggingface.co/colbert-ir/colbertv2.0/resolve/main/model.onnx"
+                        ),
+                        tokenizer_model(
+                            url="https://huggingface.co/colbert-ir/colbertv2.0/raw/main/tokenizer.json"
+                        ),
+                    ),
+                    document_api(),
+                    search(),
+                    nodes(count="1")(
+                        resources(vcpu="4", memory="16Gb", disk="125Gb")(
+                            gpu(count="1", memory="16Gb")
+                        )
+                    ),
+                ),
+                content(id="text", version="1.0")(
+                    min_redundancy("2"),
+                    documents(document(type="doc", mode="index")),
+                    nodes(count="2"),
+                ),
+            )
+        )
+        print(generated_xml)
+
+        # Validate against relaxng
+        self.assertTrue(self.relaxng.validate(etree.fromstring(str(generated_xml))))
+        # Check if the generated XML matches the expected XML
+        # tree_original = etree.fromstring(self.xml_schema.encode("utf-8"))
+        # tree_generated = etree.fromstring(str(generated_xml))
+        # self.assertEqual(
+        #     etree.tostring(tree_original, pretty_print=True),
+        #     etree.tostring(tree_generated, pretty_print=True),
+        # )
 
 
 if __name__ == "__main__":
