@@ -25,20 +25,20 @@ class TestXMLSchema(unittest.TestCase):
         content_tag = FT("content", (), {"attr": "value"})
         xml_output = to_xml(content_tag, indent=False)
         # Expecting the compact format without unnecessary newlines
-        self.assertEqual(str(xml_output), '<content attr="value"></content>\n')
+        self.assertEqual(str(xml_output), '<content attr="value"></content>')
 
     def test_nested_tags(self):
         nested_tag = FT("content", (FT("document", ()),), {"attr": "value"})
         xml_output = to_xml(nested_tag, indent=False)
         # Expecting nested tags with proper newlines and indentation
-        expected_output = '<content attr="value"><document></document></content>\n'
+        expected_output = '<content attr="value"><document></document></content>'
         self.assertEqual(str(xml_output), expected_output)
 
     def test_void_tag(self):
         void_tag = FT("meta", (), void_=True)
         xml_output = to_xml(void_tag, indent=False)
         # Expecting a void tag with a newline at the end
-        self.assertEqual(str(xml_output), "<meta />\n")
+        self.assertEqual(str(xml_output), "<meta />")
 
     def test_tag_with_attributes(self):
         tag_with_attr = FT(
@@ -46,7 +46,7 @@ class TestXMLSchema(unittest.TestCase):
         )
         xml_output = to_xml(tag_with_attr, indent=False)
         # Expecting the tag with attributes in compact format
-        expected_output = '<content max-size="100" compression-type="gzip"></content>\n'
+        expected_output = '<content max-size="100" compression-type="gzip"></content>'
         self.assertEqual(str(xml_output), expected_output)
 
     def test_escape(self):

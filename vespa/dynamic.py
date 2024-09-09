@@ -285,7 +285,7 @@ def _to_attr(k, v):
 
 def _to_xml(elm, lvl, indent, do_escape):
     esc_fn = _escape if do_escape else lambda s: s
-    nl = "\n"
+    nl = "\n" if indent else ""
     sp = " " * lvl if indent else ""
 
     if elm is None:
@@ -320,10 +320,11 @@ def _to_xml(elm, lvl, indent, do_escape):
         res += "".join(
             _to_xml(c, lvl=lvl + 2, indent=indent, do_escape=do_escape) for c in cs
         )
-        res += f"{sp}</{stag}>{nl}"
+        res += f"{sp}</{stag}>{nl if indent else ''}"
         return Safe(res)
     else:
-        return f"{sp}<{stag}{attr_str}></{stag}>{nl}"
+        # This is where we remove the newline in the closing tag if indent=False
+        return f"{sp}<{stag}{attr_str}></{stag}>{nl if indent else ''}"
 
 
 def to_xml(elm, lvl=0, indent: bool = True, do_escape: bool = True):
