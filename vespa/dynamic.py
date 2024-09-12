@@ -332,7 +332,7 @@ def to_xml(elm, lvl=0, indent: bool = True, do_escape: bool = True):
     return Safe(_to_xml(elm, lvl, indent, do_escape=do_escape))
 
 
-FT.__html__ = to_xml
+FT.to_xml = to_xml
 
 
 # %% ../nbs/11_xml.ipynb

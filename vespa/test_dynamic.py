@@ -89,7 +89,7 @@ class TestColbertSchema(unittest.TestCase):
         with open("tests/testfiles/relaxng/services.rng", "rb") as schema_file:
             self.relaxng = etree.RelaxNG(etree.parse(schema_file))
         self.xml_schema = """<?xml version="1.0" encoding="utf-8" ?>
-    <services version="1.0" xmlns:deploy="vespa" xmlns:preprocess="properties" minimum-required-vespa-version="8.338.38">
+    <services version="1.0" minimum-required-vespa-version="8.338.38">
 
         <!-- See https://docs.vespa.ai/en/reference/services-container.html -->
         <container id="default" version="1.0">
@@ -150,52 +150,55 @@ class TestColbertSchema(unittest.TestCase):
 
     def test_generate_colbert_schema(self):
         # Generated XML using dynamic tag functions
-        generated_xml = to_xml(
-            services(
-                container(id="default", version="1.0")(
-                    component(id="e5", type="hugging-face-embedder")(
-                        transformer_model(
-                            url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx"
-                        ),
-                        tokenizer_model(
-                            url="https://huggingface.co/intfloat/e5-small-v2/raw/main/tokenizer.json"
-                        ),
-                        prepend(query("query:"), document("passage:")),
+        generated_services = services(
+            container(id="default", version="1.0")(
+                component(id="e5", type="hugging-face-embedder")(
+                    transformer_model(
+                        url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx"
                     ),
-                    component(id="colbert", type="colbert-embedder")(
-                        transformer_model(
-                            url="https://huggingface.co/colbert-ir/colbertv2.0/resolve/main/model.onnx"
-                        ),
-                        tokenizer_model(
-                            url="https://huggingface.co/colbert-ir/colbertv2.0/raw/main/tokenizer.json"
-                        ),
+                    tokenizer_model(
+                        url="https://huggingface.co/intfloat/e5-small-v2/raw/main/tokenizer.json"
                     ),
-                    document_api(),
-                    search(),
-                    nodes(count="1")(
-                        resources(vcpu="4", memory="16Gb", disk="125Gb")(
-                            gpu(count="1", memory="16Gb")
-                        )
+                    prepend(query("query:"), document("passage:")),
+                ),
+                component(id="colbert", type="colbert-embedder")(
+                    transformer_model(
+                        url="https://huggingface.co/colbert-ir/colbertv2.0/resolve/main/model.onnx"
+                    ),
+                    tokenizer_model(
+                        url="https://huggingface.co/colbert-ir/colbertv2.0/raw/main/tokenizer.json"
                     ),
                 ),
-                content(id="text", version="1.0")(
-                    min_redundancy("2"),
-                    documents(document(type="doc", mode="index")),
-                    nodes(count="2"),
+                document_api(),
+                search(),
+                nodes(count="1")(
+                    resources(vcpu="4", memory="16Gb", disk="125Gb")(
+                        gpu(count="1", memory="16Gb")
+                    )
                 ),
-            )
+            ),
+            content(id="text", version="1.0")(
+                min_redundancy("2"),
+                documents(document(type="doc", mode="index")),
+                nodes(count="2"),
+            ),
+            version="1.0",
+            minimum_required_vespa_version="8.338.38",
         )
+        generated_xml = generated_services.to_xml()
         print(generated_xml)
 
         # Validate against relaxng
         self.assertTrue(self.relaxng.validate(etree.fromstring(str(generated_xml))))
         # Check if the generated XML matches the expected XML
-        # tree_original = etree.fromstring(self.xml_schema.encode("utf-8"))
-        # tree_generated = etree.fromstring(str(generated_xml))
-        # self.assertEqual(
-        #     etree.tostring(tree_original, pretty_print=True),
-        #     etree.tostring(tree_generated, pretty_print=True),
-        # )
+        # Check tags, attributes and values
+        tree_original = ET.fromstring(self.xml_schema.encode("utf-8"))
+        tree_generated = ET.fromstring(str(generated_xml))
+        tree_dumps_original = ET.dump(tree_original)
+        tree_dumps_generated = ET.dump(tree_generated)
+        print(f"Generated: {tree_dumps_generated}")
+        print(f"Original: {tree_dumps_original}")
+        self.assertEqual(tree_dumps_original, tree_dumps_generated)
 
 
 if __name__ == "__main__":
