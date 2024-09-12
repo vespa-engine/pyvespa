@@ -7,6 +7,8 @@ import asyncio
 import json
 import time
 import requests
+import random
+import string
 
 from typing import List, Dict, Optional
 from vespa.io import VespaResponse, VespaQueryResponse
@@ -28,7 +30,6 @@ from vespa.package import (
 from vespa.deployment import VespaDocker
 from vespa.application import VespaSync
 from vespa.exceptions import VespaError
-import random
 
 CONTAINER_STOP_TIMEOUT = 10
 RESOURCES_DIR = get_resource_path()
@@ -1011,6 +1012,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
             for i in range(10)
         ]
         self.queries_first_hit = ["this is title 1", "this is title 2"]
+        self.compress_args = [True, False, "auto", None]
 
     def test_is_using_http2_client(self):
         asyncio.run(self.async_is_http2_client(app=self.app))
@@ -1057,26 +1059,34 @@ class TestMsmarcoApplication(TestApplicationCommon):
         )
 
     def test_compress_large_feed_auto(self):
-        with self.app.syncio() as sync_app:
-            sync_app.feed_data_point(
-                schema=self.app_package.name,
-                data_id="1",
-                fields={
-                    "title": "this is a title",
-                    "body": "this is a body" * 1000,
-                },  # Just to make the request large
+        for compress_arg in self.compress_args:
+            with self.app.syncio(compress=compress_arg) as sync_app:
+                response = sync_app.feed_data_point(
+                    schema=self.app_package.schema.name,
+                    data_id="1",
+                    fields={
+                        "title": "this is a title",
+                        "body": "this is a body" * 1000,
+                    },
+                )
+            self.assertEqual(response.status_code, 200)
+
+    def test_compress_large_query_auto(self):
+        def get_random_condition(n=3):
+            return "'title' contains " + "".join(
+                [random.choice(string.ascii_letters) for _ in range(n)]
             )
 
-    def test_compress_large_feed(self):
-        with self.app.syncio() as sync_app:
-            sync_app.feed_data_point(
-                schema=self.app_package.name,
-                data_id="1",
-                fields={
-                    "title": "this is a title",
-                    "body": "this is a body" * 1000,
-                },  # Just to make the request large
-            )
+        for compress_arg in self.compress_args:
+            with self.app.syncio(compress=compress_arg) as sync_app:
+                response = sync_app.query(
+                    body={
+                        "yql": "select * from msmarco where userQuery();",
+                        "hits": 10,
+                        "query": "asdf" * 1000,
+                    }
+                )
+            self.assertEqual(response.status_code, 200)
 
     def tearDown(self) -> None:
         self.app.delete_all_docs(
