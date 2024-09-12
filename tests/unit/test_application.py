@@ -14,6 +14,12 @@ from vespa.application import Vespa, raise_for_status
 from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse
 import requests_mock
+from unittest.mock import Mock
+from requests import Request, Session
+import gzip
+from vespa.application import (
+    CustomHTTPAdapter,
+)  # Adjust the import path according to your setup
 
 
 class TestVespaRequestsUsage(unittest.TestCase):
@@ -599,3 +605,93 @@ class TestFeedAsyncIterable(unittest.TestCase):
         self.assertEqual(
             callback.call_args[0][0].json["message"], "Missing fields in input dict"
         )
+
+
+class TestCustomHTTPAdapterCompression(unittest.TestCase):
+    def setUp(self):
+        """Set up the CustomHTTPAdapter for testing."""
+        self.adapter = CustomHTTPAdapter(compress="auto")
+
+    def test_compression_auto_with_large_body(self):
+        """Test auto compression with a large request body."""
+        request = Request(method="POST", url="http://test.com", data=b"test_data" * 300)
+        self.adapter.check_size = Mock(return_value=5000)  # Simulate large content
+        prepared_request = request.prepare()
+
+        self.adapter._maybe_compress_request(prepared_request)
+        self.assertIn("Content-Encoding", prepared_request.headers)
+        self.assertEqual(prepared_request.headers["Content-Encoding"], "gzip")
+
+    def test_no_compression_auto_with_small_body(self):
+        """Test no compression with a small request body."""
+        request = Request(method="POST", url="http://test.com", data=b"test_data")
+        self.adapter.check_size = Mock(return_value=10)  # Simulate small content
+        prepared_request = request.prepare()
+
+        self.adapter._maybe_compress_request(prepared_request)
+        self.assertNotIn("Content-Encoding", prepared_request.headers)
+
+    def test_force_compression(self):
+        """Test forced compression when compress=True."""
+        self.adapter = CustomHTTPAdapter(compress=True)
+        request = Request(method="POST", url="http://test.com", data=b"test_data")
+        prepared_request = request.prepare()
+
+        self.adapter._maybe_compress_request(prepared_request)
+        self.assertIn("Content-Encoding", prepared_request.headers)
+        self.assertEqual(prepared_request.headers["Content-Encoding"], "gzip")
+
+    def test_disable_compression(self):
+        """Test no compression when compress=False."""
+        self.adapter = CustomHTTPAdapter(compress=False)
+        request = Request(method="POST", url="http://test.com", data=b"test_data")
+        prepared_request = request.prepare()
+
+        self.adapter._maybe_compress_request(prepared_request)
+        self.assertNotIn("Content-Encoding", prepared_request.headers)
+
+    def test_invalid_compression_value(self):
+        """Test invalid compress value raises error."""
+        with self.assertRaises(ValueError):
+            CustomHTTPAdapter(compress="invalid_value")
+
+    def test_compress_request_body(self):
+        """Test if request body is compressed when compress=True."""
+        adapter = CustomHTTPAdapter(compress=True)
+        session = Session()
+        session.mount("http://", adapter)
+
+        request = Request(method="POST", url="http://test.com", data=b"test_data")
+        prepared_request = session.prepare_request(request)
+        # Mock sending the request
+        with patch("requests.adapters.HTTPAdapter.send") as mock_send:
+            adapter.send(prepared_request)
+
+            mock_send.assert_called_once()
+            args, _ = mock_send.call_args
+            self.assertEqual(args[0].body, gzip.compress(b"test_data"))
+
+    def test_retry_on_429_status(self):
+        """Test retry logic when response status is 429."""
+        adapter = CustomHTTPAdapter(num_retries_429=2)
+        session = Session()
+        session.mount("http://", adapter)
+
+        request = Request(method="POST", url="http://test.com", data=b"test_data")
+        prepared_request = session.prepare_request(request)
+
+        with patch.object(adapter, "_wait_with_backoff") as mock_backoff, patch(
+            "requests.adapters.HTTPAdapter.send"
+        ) as mock_send:
+            mock_response = Mock()
+            mock_response.status_code = 429
+            mock_send.side_effect = [mock_response, mock_response, mock_response]
+
+            adapter.send(prepared_request)
+
+            self.assertEqual(mock_send.call_count, 3)
+            self.assertEqual(mock_backoff.call_count, mock_send.call_count)
+
+
+if __name__ == "__main__":
+    unittest.main()
