@@ -1056,6 +1056,28 @@ class TestMsmarcoApplication(TestApplicationCommon):
             )
         )
 
+    def test_compress_large_feed_auto(self):
+        with self.app.syncio() as sync_app:
+            sync_app.feed_data_point(
+                schema=self.app_package.name,
+                data_id="1",
+                fields={
+                    "title": "this is a title",
+                    "body": "this is a body" * 1000,
+                },  # Just to make the request large
+            )
+
+    def test_compress_large_feed(self):
+        with self.app.syncio() as sync_app:
+            sync_app.feed_data_point(
+                schema=self.app_package.name,
+                data_id="1",
+                fields={
+                    "title": "this is a title",
+                    "body": "this is a body" * 1000,
+                },  # Just to make the request large
+            )
+
     def tearDown(self) -> None:
         self.app.delete_all_docs(
             content_cluster_name="content_msmarco", schema=self.app_package.name
