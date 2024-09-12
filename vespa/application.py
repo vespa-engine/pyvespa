@@ -1047,6 +1047,7 @@ class VespaSync(object):
             app (Vespa): Vespa app object.
             pool_maxsize (int, optional): The maximum number of connections to save in the pool. Defaults to 10.
             pool_connections (int, optional): The number of urllib3 connection pools to cache. Defaults to 10.
+            compress (Union[str, bool], optional): Whether to compress the request body. Defaults to "auto", which will compress if the body is larger than 1024 bytes.
         """
         if compress not in ["auto", True, False]:
             raise ValueError(
