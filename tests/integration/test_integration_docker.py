@@ -8,7 +8,6 @@ import json
 import time
 import requests
 import random
-import string
 
 from typing import List, Dict, Optional
 from vespa.io import VespaResponse, VespaQueryResponse
@@ -1072,11 +1071,6 @@ class TestMsmarcoApplication(TestApplicationCommon):
             self.assertEqual(response.status_code, 200)
 
     def test_compress_large_query_auto(self):
-        def get_random_condition(n=3):
-            return "'title' contains " + "".join(
-                [random.choice(string.ascii_letters) for _ in range(n)]
-            )
-
         for compress_arg in self.compress_args:
             with self.app.syncio(compress=compress_arg) as sync_app:
                 response = sync_app.query(
