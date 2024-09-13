@@ -19,7 +19,7 @@ from requests import Request, Session
 import gzip
 from vespa.application import (
     CustomHTTPAdapter,
-)  # Adjust the import path according to your setup
+)
 
 
 class TestVespaRequestsUsage(unittest.TestCase):

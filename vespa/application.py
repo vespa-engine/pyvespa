@@ -1000,7 +1000,6 @@ class CustomHTTPAdapter(HTTPAdapter):
                 self.compress == "auto" and body_size > self.compress_larger_than
             ):
                 # Compress the body
-                # print(f"Compressing request body for {request.url}", file=sys.stderr)
                 compressed_body = self._gzip_compress(request.body)
                 request.body = compressed_body
                 request.headers["Content-Encoding"] = "gzip"
