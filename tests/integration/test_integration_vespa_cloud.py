@@ -1,6 +1,7 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import os
+import httpx
 import asyncio
 import shutil
 import pytest
@@ -15,6 +16,7 @@ from vespa.package import (
     Document,
     Field,
 )
+import vespa
 import random
 from vespa.io import VespaResponse
 from test_integration_docker import (
@@ -124,6 +126,47 @@ class TestMsmarcoApplication(TestApplicationCommon):
             }
             for i in range(10)
         ]
+
+    def test_control_plane_useragent(self):
+        response: httpx.Response = self.vespa_cloud._request_with_api_key(
+            "GET",
+            f"/application/v4/tenant/{self.vespa_cloud.tenant}/application/{self.vespa_cloud.application}/",
+            return_raw_response=True,
+        )
+        self.assertEqual(
+            response.request.headers["User-Agent"],
+            f"pyvespa/{vespa.__version__}",
+        )
+
+    def test_data_plane_useragent_sync(self):
+        with self.app.syncio() as session:
+            response = session.http_session.get(
+                self.app.end_point + "/ApplicationStatus"
+            )
+        self.assertEqual(
+            response.request.headers["User-Agent"],
+            f"pyvespa/{vespa.__version__}",
+        )
+
+    def test_data_plane_useragent_async(self):
+        async def get_resp():
+            async with self.app.asyncio() as session:
+                response = await session.httpx_client.get(
+                    self.app.end_point + "/ApplicationStatus"
+                )
+            return response
+
+        response = asyncio.run(get_resp())
+        self.assertEqual(
+            response.request.headers["User-Agent"],
+            f"pyvespa/{vespa.__version__}",
+        )
+
+    def test_is_using_http2_client(self):
+        asyncio.run(self.async_is_http2_client(app=self.app))
+
+    def test_handle_longlived_connection(self):
+        asyncio.run(self.handle_longlived_connection(app=self.app))
 
     def test_prediction_when_model_not_defined(self):
         self.get_stateless_prediction_when_model_not_defined(

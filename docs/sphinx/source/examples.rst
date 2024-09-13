@@ -20,6 +20,8 @@ Examples
    examples/colbert_standalone_Vespa-cloud.ipynb
    examples/colbert_standalone_long_context_Vespa-cloud.ipynb
    examples/feed_performance.ipynb
+   examples/feed_performance_cloud.ipynb
    examples/cross-encoders-for-global-reranking.ipynb
    examples/evaluating-with-snowflake-arctic-embed.ipynb
    examples/colpali-document-retrieval-vision-language-models.ipynb
+   examples/simplified-retrieval-with-colpali-vlm_Vespa-cloud.ipynb

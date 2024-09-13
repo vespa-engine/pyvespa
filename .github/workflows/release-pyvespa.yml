@@ -1,0 +1,57 @@
+name: pyvespa - Release and upload PyPI
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update_version:
+    runs-on: ubuntu-latest
+
+    # The environment is required for OIDC to work.
+    # Ref: https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
+    environment:
+      name: "PyPI - Pyvespa"
+      url: https://pypi.org/p/pyvespa
+
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      # Workaround to ensure that the version is available
+      RELEASE_REF: ${{ github.ref || format('{0}{1}', 'refs/tags/', github.event.release.tag_name) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[build]
+
+      - name: Set version from ref tag that triggered the workflow (strip prefix 'v' from tag)
+        id: set_version
+        run: |
+          # strip prefix 'v' from version variable
+          version=${RELEASE_REF#refs/tags/v}
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+      - name: Update version
+        env:
+          VERSION: ${{ steps.set_version.outputs.version }}
+        run: |
+          echo "Updating pyvespa version to ${VERSION}"
+          python vespa/utils/update_version.py --version "${VERSION}"
+
+      - name: Build
+        run: |
+          python -m build
+
+      - name: Upload to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          print-hash: true

@@ -206,6 +206,7 @@ class StructFieldConfiguration(TypedDict, total=False):
     match: List[Union[str, Tuple[str, str]]]
     query_command: List[str]
     summary: Summary
+    rank: str
 
 
 class StructField:
@@ -221,18 +222,19 @@ class StructField:
         :key match: Set properties that decide how the matching method for this field operate.
         :key query_command: Add configuration for query-command of the field.
         :key summary: Add configuration for summary of the field.
+        :key rank: Specify property that defines ranking calculations done for a field
 
         >>> StructField(
         ...     name = "first_name",
         ... )
-        StructField('first_name', None, None, None, None, None)
+        StructField('first_name', None, None, None, None, None, None)
 
         >>> StructField(
         ...     name = "first_name",
         ...     indexing = ["attribute"],
         ...     attribute = ["fast-search"],
         ... )
-        StructField('first_name', ['attribute'], ['fast-search'], None, None, None)
+        StructField('first_name', ['attribute'], ['fast-search'], None, None, None, None)
 
         >>> StructField(
         ...     name = "last_name",
@@ -240,7 +242,15 @@ class StructField:
         ...     query_command = ['"exact %%"'],
         ...     summary = Summary(None, None, fields=["dynamic", ("bolding", "on")])
         ... )
-        StructField('last_name', None, None, ['exact', ('exact-terminator', '"@%"')], ['"exact %%"'], Summary(None, None, ['dynamic', ('bolding', 'on')]))
+        StructField('last_name', None, None, ['exact', ('exact-terminator', '"@%"')], ['"exact %%"'], Summary(None, None, ['dynamic', ('bolding', 'on')]), None)
+
+        >>> StructField(
+        ...     name = "first_name",
+        ...     indexing = ["attribute"],
+        ...     attribute = ["fast-search"],
+        ...     rank = "filter",
+        ... )
+        StructField('first_name', ['attribute'], ['fast-search'], None, None, None, 'filter')
         """
         self.name = name
         self.indexing = kwargs.get("indexing", None)
@@ -248,6 +258,7 @@ class StructField:
         self.match = kwargs.get("match", None)
         self.query_command = kwargs.get("query_command", None)
         self.summary = kwargs.get("summary", None)
+        self.rank = kwargs.get("rank", None)
 
     @property
     def indexing_to_text(self) -> Optional[str]:
@@ -264,6 +275,7 @@ class StructField:
             self.match,
             self.query_command,
             self.summary,
+            self.rank,
         ) == (
             other.name,
             other.indexing,
@@ -271,10 +283,11 @@ class StructField:
             other.match,
             other.query_command,
             other.summary,
+            other.rank,
         )
 
     def __repr__(self) -> str:
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.indexing),
@@ -282,6 +295,7 @@ class StructField:
             repr(self.match),
             repr(self.query_command),
             repr(self.summary),
+            repr(self.rank),
         )
 
 
@@ -427,7 +441,7 @@ class Field(object):
         ...         ),
         ...     ],
         ... )
-        Field('abstract', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [StructField('first_name', ['attribute'], ['fast-search'], None, None, None)], None)
+        Field('abstract', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [StructField('first_name', ['attribute'], ['fast-search'], None, None, None, None)], None)
 
         >>> Field(
         ...     name = "artist",
@@ -1787,7 +1801,7 @@ class AuthClient(object):
         """
         Create a Vespa AuthClient.
 
-        Check the `Vespa documentation <https://docs.vespa.ai/en/reference/services-container.html#auth-client>`__
+        Check the `Vespa documentation <https://docs.vespa.ai/en/reference/services-container.html`
 
         :param id: The auth client id.
         :param permissions: List of permissions.

@@ -1,3 +1,3 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
-__version__ = "0.45.0"
+__version__ = "0.dev"

@@ -5,6 +5,8 @@ import unittest
 
 import pytest
 from unittest.mock import PropertyMock, patch
+from unittest.mock import MagicMock, AsyncMock
+
 from requests.models import HTTPError, Response
 
 from vespa.package import ApplicationPackage, Schema, Document
@@ -12,6 +14,12 @@ from vespa.application import Vespa, raise_for_status
 from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse
 import requests_mock
+from unittest.mock import Mock
+from requests import Request, Session
+import gzip
+from vespa.application import (
+    CustomHTTPAdapter,
+)
 
 
 class TestVespaRequestsUsage(unittest.TestCase):
@@ -222,7 +230,10 @@ class TestVespa(unittest.TestCase):
 
         os.environ["VESPA_CLOUD_SECRET_TOKEN"] = "vespa_cloud_str_secret"
         self.assertEqual(
-            Vespa(url="https://cord19.vespa.ai").vespa_cloud_secret_token,
+            Vespa(
+                url="https://cord19.vespa.ai",
+                vespa_cloud_secret_token=os.getenv("VESPA_CLOUD_SECRET_TOKEN"),
+            ).vespa_cloud_secret_token,
             "vespa_cloud_str_secret",
         )
 
@@ -488,3 +499,199 @@ class TestVespaCollectData(unittest.TestCase):
                 ],
             }
         }
+
+
+class TestFeedAsyncIterable(unittest.TestCase):
+    def setUp(self):
+        self.mock_session = AsyncMock()
+        self.mock_asyncio_patcher = patch("vespa.application.VespaAsync")
+        self.mock_asyncio = self.mock_asyncio_patcher.start()
+        self.mock_asyncio.return_value.__aenter__.return_value = self.mock_session
+
+        self.vespa = Vespa(url="http://localhost", port=8080)
+
+    def tearDown(self):
+        self.mock_asyncio_patcher.stop()
+
+    def test_feed_async_iterable_happy_path(self):
+        # Arrange
+        iter_data = [
+            {"id": "doc1", "fields": {"title": "Document 1"}},
+            {"id": "doc2", "fields": {"title": "Document 2"}},
+        ]
+        callback = MagicMock()
+
+        # Act
+        self.vespa.feed_async_iterable(
+            iter=iter_data,
+            schema="test_schema",
+            namespace="test_namespace",
+            callback=callback,
+            max_queue_size=2,
+            max_workers=2,
+            max_connections=2,
+        )
+
+        # Assert
+        self.mock_session.feed_data_point.assert_has_calls(
+            [
+                unittest.mock.call(
+                    schema="test_schema",
+                    namespace="test_namespace",
+                    groupname=None,
+                    data_id="doc1",
+                    fields={"title": "Document 1"},
+                ),
+                unittest.mock.call(
+                    schema="test_schema",
+                    namespace="test_namespace",
+                    groupname=None,
+                    data_id="doc2",
+                    fields={"title": "Document 2"},
+                ),
+            ],
+            any_order=True,
+        )
+        self.assertEqual(callback.call_count, 2)
+
+    def test_feed_async_iterable_missing_id(self):
+        # Arrange
+        iter_data = [
+            {"fields": {"title": "Document 1"}},
+        ]
+        callback = MagicMock()
+
+        # Act
+        self.vespa.feed_async_iterable(
+            iter=iter_data,
+            schema="test_schema",
+            namespace="test_namespace",
+            callback=callback,
+            max_queue_size=1,
+            max_workers=1,
+            max_connections=1,
+        )
+
+        # Assert
+        self.mock_session.feed_data_point.assert_not_called()
+        callback.assert_called_once_with(unittest.mock.ANY, None)
+        self.assertEqual(callback.call_args[0][0].status_code, 499)
+        self.assertEqual(
+            callback.call_args[0][0].json["message"], "Missing id in input dict"
+        )
+
+    def test_feed_async_iterable_missing_fields(self):
+        # Arrange
+        iter_data = [
+            {"id": "doc1"},
+        ]
+        callback = MagicMock()
+
+        # Act
+        self.vespa.feed_async_iterable(
+            iter=iter_data,
+            schema="test_schema",
+            namespace="test_namespace",
+            callback=callback,
+            max_queue_size=1,
+            max_workers=1,
+            max_connections=1,
+        )
+
+        # Assert
+        self.mock_session.feed_data_point.assert_not_called()
+        callback.assert_called_once_with(unittest.mock.ANY, "doc1")
+        self.assertEqual(callback.call_args[0][0].status_code, 499)
+        self.assertEqual(
+            callback.call_args[0][0].json["message"], "Missing fields in input dict"
+        )
+
+
+class TestCustomHTTPAdapterCompression(unittest.TestCase):
+    def setUp(self):
+        """Set up the CustomHTTPAdapter for testing."""
+        self.adapter = CustomHTTPAdapter(compress="auto")
+
+    def test_compression_auto_with_large_body(self):
+        """Test auto compression with a large request body."""
+        request = Request(method="POST", url="http://test.com", data=b"test_data" * 300)
+        self.adapter.check_size = Mock(return_value=5000)  # Simulate large content
+        prepared_request = request.prepare()
+
+        self.adapter._maybe_compress_request(prepared_request)
+        self.assertIn("Content-Encoding", prepared_request.headers)
+        self.assertEqual(prepared_request.headers["Content-Encoding"], "gzip")
+
+    def test_no_compression_auto_with_small_body(self):
+        """Test no compression with a small request body."""
+        request = Request(method="POST", url="http://test.com", data=b"test_data")
+        self.adapter.check_size = Mock(return_value=10)  # Simulate small content
+        prepared_request = request.prepare()
+
+        self.adapter._maybe_compress_request(prepared_request)
+        self.assertNotIn("Content-Encoding", prepared_request.headers)
+
+    def test_force_compression(self):
+        """Test forced compression when compress=True."""
+        self.adapter = CustomHTTPAdapter(compress=True)
+        request = Request(method="POST", url="http://test.com", data=b"test_data")
+        prepared_request = request.prepare()
+
+        self.adapter._maybe_compress_request(prepared_request)
+        self.assertIn("Content-Encoding", prepared_request.headers)
+        self.assertEqual(prepared_request.headers["Content-Encoding"], "gzip")
+
+    def test_disable_compression(self):
+        """Test no compression when compress=False."""
+        self.adapter = CustomHTTPAdapter(compress=False)
+        request = Request(method="POST", url="http://test.com", data=b"test_data")
+        prepared_request = request.prepare()
+
+        self.adapter._maybe_compress_request(prepared_request)
+        self.assertNotIn("Content-Encoding", prepared_request.headers)
+
+    def test_invalid_compression_value(self):
+        """Test invalid compress value raises error."""
+        with self.assertRaises(ValueError):
+            CustomHTTPAdapter(compress="invalid_value")
+
+    def test_compress_request_body(self):
+        """Test if request body is compressed when compress=True."""
+        adapter = CustomHTTPAdapter(compress=True)
+        session = Session()
+        session.mount("http://", adapter)
+
+        request = Request(method="POST", url="http://test.com", data=b"test_data")
+        prepared_request = session.prepare_request(request)
+        # Mock sending the request
+        with patch("requests.adapters.HTTPAdapter.send") as mock_send:
+            adapter.send(prepared_request)
+
+            mock_send.assert_called_once()
+            args, _ = mock_send.call_args
+            self.assertEqual(args[0].body, gzip.compress(b"test_data"))
+
+    def test_retry_on_429_status(self):
+        """Test retry logic when response status is 429."""
+        adapter = CustomHTTPAdapter(num_retries_429=2)
+        session = Session()
+        session.mount("http://", adapter)
+
+        request = Request(method="POST", url="http://test.com", data=b"test_data")
+        prepared_request = session.prepare_request(request)
+
+        with patch.object(adapter, "_wait_with_backoff") as mock_backoff, patch(
+            "requests.adapters.HTTPAdapter.send"
+        ) as mock_send:
+            mock_response = Mock()
+            mock_response.status_code = 429
+            mock_send.side_effect = [mock_response, mock_response, mock_response]
+
+            adapter.send(prepared_request)
+
+            self.assertEqual(mock_send.call_count, 3)
+            self.assertEqual(mock_backoff.call_count, mock_send.call_count)
+
+
+if __name__ == "__main__":
+    unittest.main()

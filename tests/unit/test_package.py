@@ -29,6 +29,8 @@ from vespa.package import (
     ApplicationPackage,
     AuthClient,
     DeploymentConfiguration,
+    Struct,
+    StructField,
 )
 
 
@@ -1648,3 +1650,51 @@ class TestDeploymentConfiguration(unittest.TestCase):
         )
 
         self.assertEqual(expected_result, app_package.deployment_to_text)
+
+
+class TestSchemaStructField(unittest.TestCase):
+    def setUp(self):
+        self.app_package = ApplicationPackage(name="struct")
+
+        mystruct = Struct("mystruct", [Field("key", "string"), Field("value", "int")])
+
+        my_array = Field(
+            "my_array",
+            "array<mystruct>",
+            ["summary"],
+            struct_fields=[
+                StructField(
+                    "key",
+                    indexing=["attribute"],
+                    attribute=["fast-search"],
+                    rank="filter",
+                )
+            ],
+        )
+
+        self.app_package.schema.document = Document([my_array], None, [mystruct])
+
+    def test_schema_to_text(self):
+        expected_result = (
+            "schema struct {\n"
+            "    document struct {\n"
+            "        field my_array type array<mystruct> {\n"
+            "            indexing: summary\n"
+            "            struct-field key {\n"
+            "                indexing: attribute\n"
+            "                attribute {\n"
+            "                    fast-search\n"
+            "                }\n"
+            "                rank: filter\n"
+            "            }\n"
+            "        }\n"
+            "        struct mystruct {\n"
+            "            field key type string {\n"
+            "            }\n"
+            "            field value type int {\n"
+            "            }\n"
+            "        }\n"
+            "    }\n"
+            "}"
+        )
+        self.assertEqual(self.app_package.schema.schema_to_text, expected_result)

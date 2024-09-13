@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyvespa"
-version = "0.45.0"
+version = "0.dev"
 description = "Python API for vespa.ai"
 readme = "README.md"
 keywords = ["vespa", "search engine", "data science"]
@@ -18,6 +18,7 @@ dependencies = [
     "jinja2",
     "cryptography",
     "aiohttp",
+    "httpx[http2]",
     "tenacity>=8.4.1",
     "typing_extensions",
     "python-dateutil",
@@ -57,6 +58,18 @@ docs = [
     "sphinx",
     "nbsphinx",
     "sphinx-rtd-theme>=0.5.0",
+    "ipykernel",
+]
+feed = [
+    "PyYAML",
+    "spacy",
+    "mmh3",
+    "requests<=2.31.0",
+    "html5lib",
+    "beautifulsoup4",
+    "markdownify",
+    "tiktoken",
+    "vespacli",
 ]
 notebooks = [
     "notebook",
@@ -68,6 +81,7 @@ notebooks = [
     "plotly",
     "torch",
     "openai",
+    "datasets>=2.19.1",
     "ir_datasets",
     "pytrec_eval",
     "papermill",
@@ -76,7 +90,7 @@ notebooks = [
 dev = [
     "pre-commit",
     "vespacli",
-    "datasets",
+    "datasets>=2.19.1",
     "pyvespa[unittest]",
     "pyvespa[build]",
 ]

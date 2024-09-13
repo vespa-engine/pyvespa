@@ -1,4 +1,4 @@
-import http.client
+import httpx
 from urllib3.exceptions import HTTPError
 import json
 import os
@@ -28,9 +28,10 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 
-from vespa.application import Vespa, VESPA_CLOUD_SECRET_TOKEN
+from vespa.application import Vespa
 from vespa.package import ApplicationPackage
 from vespa.utils.notebook import is_jupyter_notebook
+import vespa
 
 # Get the Vespa home directory
 VESPA_HOME = Path(os.getenv("VESPA_HOME", Path.home() / ".vespa"))
@@ -553,9 +554,17 @@ class VespaCloud(VespaDeployment):
         self.data_cert_path = None
         self.data_key_path = None
         self.data_key, self.data_certificate = self._load_certificate_pair()
-        self.connection = http.client.HTTPSConnection(
-            "api.vespa-external.aws.oath.cloud", 4443
+        self.default_timeout = (
+            15  # seconds, default in httpx is 5. Eg. deployment may take longer.
         )
+        self.httpx_limits = httpx.Limits(
+            max_connections=100,
+            max_keepalive_connections=20,
+            keepalive_expiry=10,
+        )
+        self.base_url = "https://api-ctl.vespa-cloud.com:4443"
+        self.pyvespa_version = vespa.__version__
+        self.base_headers = {"User-Agent": f"pyvespa/{self.pyvespa_version}"}
         self.auth_client_token_id = auth_client_token_id
         if auth_client_token_id is not None:
             if self.application_package is not None:
@@ -610,7 +619,7 @@ class VespaCloud(VespaDeployment):
             folder within user's current working directory.
         :param max_wait: Seconds to wait for the deployment.
 
-        :return: a Vespa connection instance.
+        :return: a Vespa connection instance. Returns a connection to the mtls endpoint. To connect to the token endpoint, use :func:`VespaCloud.get_application(endpoint_type="token")`.
         """
         if not disk_folder:
             disk_folder = os.path.join(os.getcwd(), self.application)
@@ -620,33 +629,9 @@ class VespaCloud(VespaDeployment):
         job = "dev-" + region
         run = self._start_deployment(instance, job, disk_folder, None)
         self._follow_deployment(instance, job, run)
-
-        mtls_endpoint = self.get_mtls_endpoint(
-            instance=instance,
-            region=region,
-            environment="dev",
+        app: Vespa = self.get_application(
+            instance=instance, environment="dev", endpoint_type="mtls"
         )
-        if self.auth_client_token_id is not None:
-            try:  # May have client_token_id set but the deployed app was not configured to use it
-                token_endpoint = self.get_token_endpoint(
-                    instance=instance,
-                    region=region,
-                    environment="dev",
-                )
-            except Exception as _:
-                token_endpoint = None
-        else:
-            token_endpoint = None
-        print(f"Connecting to {token_endpoint or mtls_endpoint}", file=self.output)
-        app = Vespa(
-            url=token_endpoint or mtls_endpoint,
-            cert=self.data_cert_path,
-            key=self.data_key_path or None,
-            application_package=self.application_package,
-            vespa_cloud_secret_token=os.environ.get(VESPA_CLOUD_SECRET_TOKEN),
-        )
-        app.wait_for_application_up(max_wait=max_wait)
-        print("Finished deployment.", file=self.output)
         return app
 
     def deploy_to_prod(
@@ -719,6 +704,8 @@ class VespaCloud(VespaDeployment):
         self,
         instance: str = "default",
         environment: str = "dev",
+        endpoint_type: str = "mtls",
+        vespa_cloud_secret_token: Optional[str] = None,
         region: Optional[str] = None,
         max_wait: int = 60,
     ) -> Vespa:
@@ -734,11 +721,15 @@ class VespaCloud(VespaDeployment):
 
         :param instance: Name of this instance of the application, in the Vespa Cloud. Default is "default".
         :param environment: Environment of the application. Default is "dev". Options are "dev" or "prod".
+        :param endpoint_type: Type of endpoint to connect to. Default is "mtls". Options are "mtls" or "token".
+        :param vespa_cloud_secret_token: Vespa Cloud Secret Token. Only required if endpoint_type is "token".
         :param region: Region of the application in Vespa cloud, eg "aws-us-east-1c". If not provided, the first region from the environment will be used.
         :param max_wait: Seconds to wait for the application to be up. Default is 60 seconds.
 
         :return: Vespa application instance.
         """
+        if endpoint_type not in ["mtls", "token"]:
+            raise ValueError("Endpoint type must be 'mtls' or 'token'.")
         if environment == "dev":
             region = self.get_dev_region()
             print(
@@ -755,31 +746,35 @@ class VespaCloud(VespaDeployment):
                 region = valid_regions[0]
         else:
             raise ValueError("Environment must be 'dev' or 'prod'.")
-
-        mtls_endpoint = self.get_mtls_endpoint(
-            instance=instance, region=region, environment=environment
-        )
-        if self.auth_client_token_id is not None:
+        if endpoint_type == "mtls":
+            mtls_endpoint = self.get_mtls_endpoint(
+                instance=instance, region=region, environment=environment
+            )
+            app: Vespa = Vespa(
+                url=mtls_endpoint,
+                cert=self.data_cert_path,
+                key=self.data_key_path or None,
+                application_package=self.application_package,
+            )
+        elif endpoint_type == "token":
             try:  # May have client_token_id set but the deployed app was not configured to use it
                 token_endpoint = self.get_token_endpoint(
                     instance=instance, region=region, environment=environment
                 )
             except Exception as _:
-                token_endpoint = None
-        else:
-            token_endpoint = None
-        if token_endpoint is None and mtls_endpoint is None:
-            raise ValueError(
-                "No token endpoint or mtls endpoint found. Please check your deployment."
+                raise ValueError(
+                    "No token endpoint found. Make sure the application is configured with a token endpoint."
+                )
+            if vespa_cloud_secret_token is None:
+                raise ValueError(
+                    "Vespa Cloud Secret Token must be provided for token based authentication."
+                )
+            app: Vespa = Vespa(
+                url=token_endpoint,
+                application_package=self.application_package,
+                vespa_cloud_secret_token=vespa_cloud_secret_token,
             )
-        print(f"Connecting to {token_endpoint or mtls_endpoint}", file=self.output)
-        app: Vespa = Vespa(
-            url=token_endpoint or mtls_endpoint,
-            cert=self.data_cert_path,
-            key=self.data_key_path,
-            application_package=self.application_package,
-            vespa_cloud_secret_token=os.environ.get(VESPA_CLOUD_SECRET_TOKEN),
-        )
+        app.wait_for_application_up(max_wait=max_wait)
         return app
 
     def check_production_build_status(self, build_no: Optional[int]) -> dict:
@@ -793,22 +788,22 @@ class VespaCloud(VespaDeployment):
             build_no = vespa_cloud.deploy_to_prod()
             status = vespa_cloud.check_production_build_status(build_no)
             # This can yield one of three responses:
-            1. If the revision (build_no), or higher, has successfully converged everywhere, and nothing older has then been deployed on top of that again. Nothing more will happen in this case.
-            {
-                "deployed": True,
-                "status": "done"
-            }
+            # 1. If the revision (build_no), or higher, has successfully converged everywhere, and nothing older has then been deployed on top of that again. Nothing more will happen in this case.
+            # {
+            #     "deployed": True,
+            #     "status": "done"
+            # }
 
-            2. If the revision (build_no), or newer, has not yet converged, but the system is (most likely) still trying to deploy it. There is a point in polling again later when this is the response.
-            {
-                "deployed": False,
-                "status": "deploying"
-            }
-            3. If the revision, or newer, has not yet converged everywhere, and it's never going to, because it was similar to the previous build, or marked obsolete by a user. There is no point in asking again for this revision.
-            {
-                "deployed": False,
-                "status": "done"
-            }
+            # 2. If the revision (build_no), or newer, has not yet converged, but the system is (most likely) still trying to deploy it. There is a point in polling again later when this is the response.
+            # {
+            #     "deployed": False,
+            #     "status": "deploying"
+            # }
+            # 3. If the revision, or newer, has not yet converged everywhere, and it's never going to, because it was similar to the previous build, or marked obsolete by a user. There is no point in asking again for this revision.
+            # {
+            #     "deployed": False,
+            #     "status": "done"
+            # }
 
         :param build_no: The build number to check.
         :return: dict with the aggregated status of all deployment jobs for the given build number.
@@ -869,7 +864,7 @@ class VespaCloud(VespaDeployment):
         :param instance: Name of the instance where the application is to be run
         :param application_root: Application package directory root
         :param max_wait: Seconds to wait for the deployment.
-        :return: a Vespa connection instance.
+        :return: a Vespa connection instance.  Returns a connection to the mtls endpoint. To connect to the token endpoint, use :func:`VespaCloud.get_application(endpoint_type="token")`.
         """
         data = BytesIO(self.read_app_package_from_disk(application_root))
 
@@ -881,30 +876,12 @@ class VespaCloud(VespaDeployment):
             instance, job, disk_folder, application_zip_bytes=data
         )
         self._follow_deployment(instance, job, run)
-        mtls_endpoint = self.get_mtls_endpoint(instance=instance, region=region)
-        if self.auth_client_token_id is not None:
-            try:  # May have client_token_id set but the deployed app was not configured to use it
-                token_endpoint = self.get_token_endpoint(
-                    instance=instance, region=region
-                )
-            except Exception as _:
-                token_endpoint = None
-        else:
-            token_endpoint = None
-        app = Vespa(
-            url=token_endpoint or mtls_endpoint,
-            cert=self.data_cert_path,
-            key=self.data_key_path,
-            application_package=self.application_package,
-            vespa_cloud_secret_token=os.environ.get(VESPA_CLOUD_SECRET_TOKEN),
+        run = self._start_deployment(instance, job, disk_folder, None)
+        self._follow_deployment(instance, job, run)
+        app: Vespa = self.get_application(
+            instance=instance, environment="dev", endpoint_type="mtls"
         )
-        app.wait_for_application_up(max_wait=max_wait)
-        print("Finished deployment.", file=self.output)
-
         return app
-
-    def close(self) -> None:
-        self.connection.close()
 
     def delete(self, instance: Optional[str] = "default") -> None:
         """
@@ -1128,7 +1105,7 @@ class VespaCloud(VespaDeployment):
         return
 
     def get_dev_region(self) -> str:
-        return self._request("GET", "/zone/v1/environment/dev/default")["name"]
+        return "aws-us-east-1c"  # Default dev region
 
     def get_prod_region(self):
         regions = self.get_prod_regions()
@@ -1153,12 +1130,40 @@ class VespaCloud(VespaDeployment):
 
     @retry(
         stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, max=2),
+        wait=wait_exponential(multiplier=1, max=3),
         reraise=True,
     )
-    def get_connection_response_with_retry(self, method, path, body, headers):
-        self.connection.request(method, path, body, headers)
-        return self.connection.getresponse()
+    def get_connection_response_with_retry(
+        self,
+        method,
+        path,
+        body: Optional[Union[BytesIO, Dict]] = None,
+        headers: Dict = {},
+    ) -> httpx.Response:
+        if isinstance(body, dict):
+            data = body
+            content = None
+        elif isinstance(body, BytesIO):
+            data = None
+            content = body.getvalue()
+        else:
+            data = None
+            content = None
+        with httpx.Client(
+            base_url=self.base_url,
+            headers=self.base_headers,
+            timeout=None,  # Need to set timeout to None to avoid httpx timeout on e.g. deployment requests
+            http1=True,
+            limits=self.httpx_limits,
+        ) as client:
+            response = client.request(
+                method, path, data=data, content=content, headers=headers
+            )
+            if response.status_code != 200:
+                raise HTTPError(
+                    f"HTTP {response.status_code} error: {response.reason_phrase} for {path}"
+                )
+        return response
 
     def _try_get_access_token(self) -> str:
         # Check if auth.json exists
@@ -1204,9 +1209,13 @@ class VespaCloud(VespaDeployment):
         return auth["providers"]["auth0"]["systems"]["public"]["access_token"]
 
     def _request_with_access_token(
-        self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
-    ) -> dict:
-        url = "https://" + self.connection.host + ":" + str(self.connection.port) + path
+        self,
+        method: str,
+        path: str,
+        body: BytesIO = BytesIO(),
+        headers={},
+        return_raw_response=False,
+    ) -> Union[dict, httpx.Response]:
         if not self.control_plane_access_token:
             raise ValueError("Access token not set.")
         body.seek(0)
@@ -1215,20 +1224,22 @@ class VespaCloud(VespaDeployment):
             **headers,
         }
         response = self.get_connection_response_with_retry(method, path, body, headers)
+        if return_raw_response:
+            return response
         try:
             parsed = json.load(response)
         except json.JSONDecodeError:
             parsed = response.read()
-        if response.status != 200:
+        if response.status_code != 200:
             print(parsed)
             raise HTTPError(
-                f"HTTP {response.status} error: {response.reason} for {url}"
+                f"HTTP {response.status_code} error: {response.reason_phrase} for {path}"
             )
         return parsed
 
     def _request(
         self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
-    ) -> dict:
+    ) -> Union[dict, httpx.Response]:
         if self.control_plane_auth_method == "access_token":
             return self._request_with_access_token(method, path, body, headers)
         elif self.control_plane_auth_method == "api_key":
@@ -1239,8 +1250,13 @@ class VespaCloud(VespaDeployment):
             )
 
     def _request_with_api_key(
-        self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
-    ) -> dict:
+        self,
+        method: str,
+        path: str,
+        body: BytesIO = BytesIO(),
+        headers={},
+        return_raw_response=False,
+    ) -> Union[dict, httpx.Response]:
         digest = hashes.Hash(hashes.SHA256(), default_backend())
         body.seek(0)
         digest.update(body.read())
@@ -1248,7 +1264,7 @@ class VespaCloud(VespaDeployment):
         timestamp = (
             datetime.utcnow().isoformat() + "Z"
         )  # Java's Instant.parse requires the neutral time zone appended
-        url = "https://" + self.connection.host + ":" + str(self.connection.port) + path
+        url = self.base_url + path
 
         canonical_message = method + "\n" + url + "\n" + timestamp + "\n" + content_hash
         signature = self.api_key.sign(
@@ -1266,11 +1282,13 @@ class VespaCloud(VespaDeployment):
 
         body.seek(0)
         response = self.get_connection_response_with_retry(method, path, body, headers)
+        if return_raw_response:
+            return response
         parsed = json.load(response)
-        if response.status != 200:
+        if response.status_code != 200:
             print(parsed)
             raise HTTPError(
-                f"HTTP {response.status} error: {response.reason} for {url}"
+                f"HTTP {response.status_code} error: {response.reason_phrase} for {url}"
             )
         return parsed
 
@@ -1456,13 +1474,7 @@ class VespaCloud(VespaDeployment):
 
         # Compute content hash, etc
         if self.control_plane_auth_method == "api_key":
-            url = (
-                "https://"
-                + self.connection.host
-                + ":"
-                + str(self.connection.port)
-                + deploy_path
-            )
+            url = self.base_url + deploy_path
             digest = hashes.Hash(hashes.SHA256(), default_backend())
             digest.update(
                 multipart_data.to_string()

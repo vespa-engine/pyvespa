@@ -5,8 +5,11 @@ on:
   pull_request:
     branches:
       - master
+  push:
+    branches:
+      - master
   schedule:
-   - cron: '0 11 * * *'
+    - cron: "0 11 * * 0"
 
 concurrency:
   group: ${{ github.workflow }}
@@ -37,27 +40,43 @@ jobs:
 
     steps:
       - name: Free disk space
-        uses: jlumbroso/free-disk-space@main
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
+        with:
+          large-packages: false
+          docker-images: false
+          swap-storage: false
 
       - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.8"
-          cache: "pip" # caching pip dependencies
-          cache-dependency-path: |
-            pyproject.toml
+          python-version: "3.10"
+
+      - name: Set up uv
+        # Install a specific uv version using the installer
+        run: curl -LsSf https://astral.sh/uv/0.4.5/install.sh | sh
 
       - name: Install dependencies
         run: |
-          pip install -e .[dev,notebooks]
+          uv sync --extra dev --extra notebooks
 
       - name: Run notebooks tests
         env:
           VESPA_TEAM_API_KEY: ${{ secrets.VESPA_TEAM_API_KEY }}
+          VESPA_CLOUD_SECRET_TOKEN: ${{ secrets.VESPA_CLOUD_SECRET_TOKEN }}
           CO_API_KEY: ${{ secrets.CO_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           echo "Running ${{ matrix.notebook }}"
-          papermill --log-output ${{ matrix.notebook }} ${{ matrix.notebook }}-out.ipynb
+
+          # Run bash script to extract, modify, and comment out the pip install command in the notebook
+          # Will save all packages to be installed (excluding pyvespa and vespacli) to additional_requirements.txt
+          echo "Running replace_pip_install_notebooks.sh"
+          sh .github/scripts/replace_pip_install_notebooks.sh ${{ matrix.notebook }}
+
+          # Install additional requirements with uv
+          uv pip install -r additional_requirements.txt
+
+          # Run the modified notebook
+          uv run papermill --log-output ${{ matrix.notebook }} ${{ matrix.notebook }}-out.ipynb

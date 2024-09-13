@@ -90,7 +90,7 @@ def vespa_feed(endpoint, feed, namespace, doc_type):
         app_string = splits[3] + "." + splits[2]
         print(
             subprocess.run(
-                ["./vespa", "feed", "-a", app_string, "-t", endpoint, feed],
+                ["vespa", "feed", "-a", app_string, "-t", endpoint, feed],
                 capture_output=True,
             )
         )
