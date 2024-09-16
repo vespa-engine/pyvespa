@@ -3,7 +3,6 @@ from lxml import etree
 import xml.etree.ElementTree as ET
 from vespa.configuration.vt import *
 from vespa.configuration.services import *
-# VT, to_xml, attrmap, valmap, create_tag_function, xml_tags, _escape
 
 
 class TestVT(unittest.TestCase):
@@ -86,8 +85,6 @@ class TestVT(unittest.TestCase):
 
 class TestColbertSchema(unittest.TestCase):
     def setUp(self):
-        with open("tests/testfiles/relaxng/services.rng", "rb") as schema_file:
-            self.relaxng = etree.RelaxNG(etree.parse(schema_file))
         self.xml_schema = """<?xml version="1.0" encoding="utf-8" ?>
     <services version="1.0" minimum-required-vespa-version="8.338.38">
 
@@ -136,17 +133,17 @@ class TestColbertSchema(unittest.TestCase):
     def test_valid_colbert_schema(self):
         to_validate = etree.parse("tests/testfiles/services/colbert/services.xml")
         # Validate against relaxng
-        self.relaxng.validate(to_validate)
-        self.assertTrue(self.relaxng.validate(to_validate))
+        validate_services(to_validate)
+        self.assertTrue(validate_services(to_validate))
 
     def test_valid_schema_from_string(self):
         to_validate = etree.fromstring(self.xml_schema.encode("utf-8"))
-        self.assertTrue(self.relaxng.validate(to_validate))
+        self.assertTrue(validate_services(to_validate))
 
     def test_invalid_schema_from_string(self):
         invalid_xml = self.xml_schema.replace("document-api", "asdf")
         to_validate = etree.fromstring(invalid_xml.encode("utf-8"))
-        self.assertFalse(self.relaxng.validate(to_validate))
+        self.assertFalse(validate_services(to_validate))
 
     def test_generate_colbert_schema(self):
         # Generated XML using dynamic tag functions
@@ -189,7 +186,7 @@ class TestColbertSchema(unittest.TestCase):
         print(generated_xml)
 
         # Validate against relaxng
-        self.assertTrue(self.relaxng.validate(etree.fromstring(str(generated_xml))))
+        self.assertTrue(validate_services(etree.fromstring(str(generated_xml))))
         # Check if the generated XML matches the expected XML
         # Check tags, attributes and values
         tree_original = ET.fromstring(self.xml_schema.encode("utf-8"))

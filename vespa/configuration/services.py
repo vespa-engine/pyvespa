@@ -146,6 +146,9 @@ for tag in services_tags:
     sanitized_name = VT.sanitize_tag_name(tag)
     _g[sanitized_name] = create_tag_function(tag, tag in voids)
 
+with open("tests/testfiles/relaxng/services.rng", "rb") as schema_file:
+    relaxng = etree.RelaxNG(etree.parse(schema_file))
+
 
 def validate_services(xml_schema: str) -> bool:
     """
@@ -157,6 +160,4 @@ def validate_services(xml_schema: str) -> bool:
     Returns:
         bool: True if the XML schema is valid, False otherwise
     """
-    with open("tests/testfiles/relaxng/services.rng", "rb") as schema_file:
-        relaxng = etree.RelaxNG(etree.parse(schema_file))
-    return relaxng.validate(etree.fromstring(xml_schema))
+    return relaxng.validate(xml_schema)
