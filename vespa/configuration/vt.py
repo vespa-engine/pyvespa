@@ -182,7 +182,7 @@ def _to_xml(elm, lvl, indent, do_escape):
 
 
 def to_xml(elm, lvl=0, indent: bool = True, do_escape: bool = True):
-    "Convert `ft` element tree into an XML string"
+    "Convert `vt` element tree into an XML string"
     return Safe(_to_xml(elm, lvl, indent, do_escape=do_escape))
 
 
