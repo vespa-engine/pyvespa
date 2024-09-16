@@ -34,6 +34,9 @@ from vespa.io import VespaQueryResponse, VespaResponse, VespaVisitResponse
 from vespa.package import ApplicationPackage
 import httpx
 import vespa
+import gzip
+from requests.models import PreparedRequest
+from io import BytesIO
 
 VESPA_CLOUD_SECRET_TOKEN: str = "VESPA_CLOUD_SECRET_TOKEN"
 
@@ -149,7 +152,11 @@ class Vespa(object):
             app=self, connections=connections, total_timeout=total_timeout
         )
 
-    def syncio(self, connections: Optional[int] = 8) -> "VespaSync":
+    def syncio(
+        self,
+        connections: Optional[int] = 8,
+        compress: Union[str, bool] = "auto",
+    ) -> "VespaSync":
         """
         Access Vespa synchronous connection layer.
         Should be used as a context manager.
@@ -163,6 +170,7 @@ class Vespa(object):
 
         :param connections: Number of allowed concurrent connections
         :param total_timeout: Total timeout in secs.
+        :param compress (Union[str, bool], optional): Whether to compress the request body. Defaults to "auto", which will compress if the body is larger than 1024 bytes.
         :return: Instance of Vespa asynchronous layer.
         """
         return VespaSync(
@@ -927,11 +935,23 @@ class Vespa(object):
 
 class CustomHTTPAdapter(HTTPAdapter):
     def __init__(
-        self, pool_connections=10, pool_maxsize=10, num_retries_429=10, *args, **kwargs
+        self,
+        pool_connections=10,
+        pool_maxsize=10,
+        num_retries_429=10,
+        compress: Union[str, bool] = "auto",
+        compress_larger_than: int = 1024,
+        *args,
+        **kwargs,
     ):
+        if compress not in ["auto", True, False]:
+            raise ValueError(
+                f"compress must be 'auto', True, or False. Got {compress} instead."
+            )
         super().__init__(*args, **kwargs)
         self.num_retries_429 = num_retries_429
-
+        self.compress = compress
+        self.compress_larger_than = compress_larger_than
         self.retry_strategy = Retry(
             total=10,
             backoff_factor=1,
@@ -940,7 +960,10 @@ class CustomHTTPAdapter(HTTPAdapter):
             allowed_methods=["POST", "GET", "DELETE", "PUT"],
         )
 
-    def send(self, request, **kwargs) -> Response:
+    def send(self, request: PreparedRequest, **kwargs) -> Response:
+        # Automatically handle compression if needed
+        self._maybe_compress_request(request)
+
         for attempt in range(self.num_retries_429 + 1):
             try:
                 response = super().send(request, **kwargs)
@@ -960,6 +983,38 @@ class CustomHTTPAdapter(HTTPAdapter):
 
         return response
 
+    def _maybe_compress_request(self, request: PreparedRequest):
+        # Compress if the method is POST or PUT, body exists, and compression conditions are met
+        if (
+            self.compress in [True, "auto"]
+            and request.method in ["POST", "PUT"]
+            and request.body
+        ):
+            body_size = (
+                len(request.body)
+                if isinstance(request.body, bytes)
+                else len(request.body.encode("utf-8"))
+            )
+
+            if self.compress is True or (
+                self.compress == "auto" and body_size > self.compress_larger_than
+            ):
+                # Compress the body
+                compressed_body = self._gzip_compress(request.body)
+                request.body = compressed_body
+                request.headers["Content-Encoding"] = "gzip"
+                request.headers["Content-Length"] = str(len(compressed_body))
+
+    @staticmethod
+    def _gzip_compress(data: Union[str, bytes]) -> bytes:
+        if isinstance(data, str):
+            data = data.encode("utf-8")
+
+        buf = BytesIO()
+        with gzip.GzipFile(fileobj=buf, mode="wb") as f:
+            f.write(data)
+        return buf.getvalue()
+
     @staticmethod
     def _wait_with_backoff(attempt):
         wait_time = 0.1 * 1.618**attempt + random.uniform(0, 1)
@@ -968,7 +1023,11 @@ class CustomHTTPAdapter(HTTPAdapter):
 
 class VespaSync(object):
     def __init__(
-        self, app: Vespa, pool_maxsize: int = 10, pool_connections: int = 10
+        self,
+        app: Vespa,
+        pool_maxsize: int = 10,
+        pool_connections: int = 10,
+        compress: Union[str, bool] = "auto",
     ) -> None:
         """
         Class to handle synchronous requests to Vespa.
@@ -992,7 +1051,12 @@ class VespaSync(object):
             app (Vespa): Vespa app object.
             pool_maxsize (int, optional): The maximum number of connections to save in the pool. Defaults to 10.
             pool_connections (int, optional): The number of urllib3 connection pools to cache. Defaults to 10.
+            compress (Union[str, bool], optional): Whether to compress the request body. Defaults to "auto", which will compress if the body is larger than 1024 bytes.
         """
+        if compress not in ["auto", True, False]:
+            raise ValueError(
+                f"compress must be 'auto', True, or False. Got {compress} instead."
+            )
         self.app = app
         if self.app.key:
             self.cert = (self.app.cert, self.app.key)
@@ -1004,7 +1068,7 @@ class VespaSync(object):
             self.headers.update(
                 {"Authorization": f"Bearer {self.app.vespa_cloud_secret_token}"}
             )
-
+        self.compress = compress
         self.http_session = None
         self.adapter = CustomHTTPAdapter(
             pool_maxsize=pool_maxsize,
@@ -1012,6 +1076,7 @@ class VespaSync(object):
             max_retries=10,
             num_retries_429=10,
             pool_block=True,
+            compress=compress,
         )
 
     def __enter__(self):
