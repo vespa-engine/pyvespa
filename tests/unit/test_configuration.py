@@ -430,13 +430,17 @@ class TestBillionscaleServiceConfiguration(unittest.TestCase):
                                     store(
                                         cache(
                                             maxsize_percent("5"),
-                                            compression(vt_type("lz4")),
+                                            compression(
+                                                vt_type("lz4")
+                                            ),  # Using vt_type as type is a reserved keyword
                                         ),
                                         logstore(
                                             chunk(
                                                 maxsize("16384"),
                                                 compression(
-                                                    vt_type("zstd"),
+                                                    vt_type(
+                                                        "zstd"
+                                                    ),  # Using vt_type as type is a reserved keyword
                                                     level("3"),
                                                 ),
                                             ),
