@@ -2331,7 +2331,7 @@ class ApplicationPackage(object):
         :param validations: Optional list of :class:`Validation` to be overridden.
         :param components: List of :class:`Component` that contains configurations for application components.
         :param clusters: List of :class:`Cluster` that contains configurations for content or container clusters.
-            If clusters is used, any :class: `Component`\s must be configured as part of a cluster.
+            If clusters is used, any :class: `Component` must be configured as part of a cluster.
         :param auth_clients: List of :class:`AuthClient` that contains configurations for client authorization. If clusters is passed, pass the auth clients to the :class:`ContainerCluster` instead.
         :param deployment_config: DeploymentConfiguration` that contains configurations for production deployments.
 
