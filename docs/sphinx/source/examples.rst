@@ -24,3 +24,4 @@ Examples
    examples/cross-encoders-for-global-reranking.ipynb
    examples/evaluating-with-snowflake-arctic-embed.ipynb
    examples/colpali-document-retrieval-vision-language-models.ipynb
+   examples/simplified-retrieval-with-colpali-vlm_Vespa-cloud.ipynb

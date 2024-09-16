@@ -107,6 +107,9 @@ field {{ field.name }} type {{ field.type }} {
             {% endfor %}
         }
         {% endif %}
+        {% if struct_field.rank %}
+        rank: {{ struct_field.rank }}
+        {% endif %}
     }
     {% endfor %}
     {% endif %}
