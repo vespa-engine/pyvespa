@@ -3,6 +3,14 @@ import types
 from xml.sax.saxutils import escape
 from fastcore.utils import patch
 
+# If the vespa tags correspond to reserved Python keywords, they are replaced with the following:
+replace_reserved = {
+    "type": "vt_type",
+    "class": "cls",
+    "for": "fr",
+}
+restore_reserved = {v: k for k, v in replace_reserved.items()}
+
 
 class VT:
     "A 'Vespa Tag' structure, containing `tag`, `children`, and `attrs`"
@@ -10,12 +18,13 @@ class VT:
     @staticmethod
     def sanitize_tag_name(tag: str) -> str:
         "Convert invalid tag names (with '-') to valid Python identifiers (with '_')"
-        return tag.replace("-", "_")
+        replaced = tag.replace("-", "_")
+        return replace_reserved.get(replaced, replaced)
 
     @staticmethod
     def restore_tag_name(tag: str) -> str:
         "Restore sanitized tag names back to the original names for XML generation"
-        return tag.replace("_", "-")
+        return restore_reserved.get(tag, tag).replace("_", "-")
 
     def __init__(self, tag: str, cs: tuple, attrs: dict = None, void_=False, **kwargs):
         assert isinstance(cs, tuple)
@@ -80,7 +89,7 @@ def _preproc(c, kw, attrmap=attrmap, valmap=valmap):
 
 
 # General XML tag creation function
-def ft(
+def vt(
     tag: str,
     *c,
     void_: bool = False,
@@ -102,7 +111,7 @@ voids = set("".split())
 # Replace the 'partial' based tag creation
 def create_tag_function(tag, void_):
     def tag_function(*c, **kwargs):
-        return ft(tag, *c, void_=void_, **kwargs)
+        return vt(tag, *c, void_=void_, **kwargs)
 
     tag_function.__name__ = VT.sanitize_tag_name(tag)  # Assigning sanitized tag name
     return tag_function
@@ -135,7 +144,8 @@ def _to_xml(elm, lvl, indent, do_escape):
         )
 
     if not isinstance(elm, VT):
-        return f"{esc_fn(elm)}{nl}"
+        # Ensure text content is compact (no trailing newline unless indent=True)
+        return f"{esc_fn(str(elm).strip())}{nl if indent else ''}"
 
     tag, cs, attrs = elm.list
     stag = VT.restore_tag_name(tag)
@@ -151,14 +161,23 @@ def _to_xml(elm, lvl, indent, do_escape):
 
     # Handle non-void tags with children or no children
     if cs:
-        res = f"{sp}<{stag}{attr_str}>{nl if indent else ''}"
-        res += "".join(
-            _to_xml(c, lvl=lvl + 2, indent=indent, do_escape=do_escape) for c in cs
-        )
-        res += f"{sp}</{stag}>{nl if indent else ''}"
+        # Handle the case where children are text or elements
+        res = f"{sp}<{stag}{attr_str}>"
+
+        # If the children are just text, don't introduce newlines
+        if len(cs) == 1 and isinstance(cs[0], str):
+            res += f"{esc_fn(cs[0].strip())}</{stag}>{nl if indent else ''}"
+        else:
+            # If there are multiple children, properly indent them
+            res += f"{nl if indent else ''}"
+            res += "".join(
+                _to_xml(c, lvl=lvl + 2, indent=indent, do_escape=do_escape) for c in cs
+            )
+            res += f"{sp}</{stag}>{nl if indent else ''}"
+
         return Safe(res)
     else:
-        # This is where we remove the newline in the closing tag if indent=False
+        # Non-void tag without children
         return f"{sp}<{stag}{attr_str}></{stag}>{nl if indent else ''}"
 
 
