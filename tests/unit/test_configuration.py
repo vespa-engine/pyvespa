@@ -1,19 +1,19 @@
 import unittest
 from lxml import etree
 import xml.etree.ElementTree as ET
-from .dynamic import *
-from .dynamic import _escape, xml_tags, create_tag_function
-# FT, to_xml, attrmap, valmap, create_tag_function, xml_tags, _escape
+from vespa.configuration.vt import *
+from vespa.configuration.services import *
+# VT, to_xml, attrmap, valmap, create_tag_function, xml_tags, _escape
 
 
-class TestFT(unittest.TestCase):
+class TestVT(unittest.TestCase):
     def test_sanitize_tag_name(self):
-        self.assertEqual(FT.sanitize_tag_name("content-node"), "content_node")
-        self.assertEqual(FT.sanitize_tag_name("search-engine"), "search_engine")
+        self.assertEqual(VT.sanitize_tag_name("content-node"), "content_node")
+        self.assertEqual(VT.sanitize_tag_name("search-engine"), "search_engine")
 
     def test_restore_tag_name(self):
-        self.assertEqual(FT.restore_tag_name("content_node"), "content-node")
-        self.assertEqual(FT.restore_tag_name("search_engine"), "search-engine")
+        self.assertEqual(VT.restore_tag_name("content_node"), "content-node")
+        self.assertEqual(VT.restore_tag_name("search_engine"), "search-engine")
 
     def test_attrmap(self):
         self.assertEqual(attrmap("_max_memory"), "max-memory")
@@ -24,20 +24,20 @@ class TestFT(unittest.TestCase):
         self.assertEqual(valmap([1, 2, 3]), "1 2 3")
 
     def test_single_tag(self):
-        content_tag = FT("content", (), {"attr": "value"})
+        content_tag = VT("content", (), {"attr": "value"})
         xml_output = to_xml(content_tag, indent=False)
         # Expecting the compact format without unnecessary newlines
         self.assertEqual(str(xml_output), '<content attr="value"></content>')
 
     def test_nested_tags(self):
-        nested_tag = FT("content", (FT("document", ()),), {"attr": "value"})
+        nested_tag = VT("content", (VT("document", ()),), {"attr": "value"})
         xml_output = to_xml(nested_tag, indent=False)
         # Expecting nested tags with proper newlines and indentation
         expected_output = '<content attr="value"><document></document></content>'
         self.assertEqual(str(xml_output), expected_output)
 
     def test_nested_tags_with_text(self):
-        nested_tag = FT("content", (FT("document", ("text",)),), {"attr": "value"})
+        nested_tag = VT("content", (VT("document", ("text",)),), {"attr": "value"})
         xml_output = to_xml(nested_tag, indent=False)
         # Expecting nested tags with proper newlines and indentation
         parsed_output = ET.fromstring(str(xml_output))
@@ -47,13 +47,13 @@ class TestFT(unittest.TestCase):
         self.assertEqual(parsed_output[0].text, "text")
 
     def test_void_tag(self):
-        void_tag = FT("meta", (), void_=True)
+        void_tag = VT("meta", (), void_=True)
         xml_output = to_xml(void_tag, indent=False)
         # Expecting a void tag with a newline at the end
         self.assertEqual(str(xml_output), "<meta />")
 
     def test_tag_with_attributes(self):
-        tag_with_attr = FT(
+        tag_with_attr = VT(
             "content", (), {"max-size": "100", "compression-type": "gzip"}
         )
         xml_output = to_xml(tag_with_attr, indent=False)
@@ -63,24 +63,24 @@ class TestFT(unittest.TestCase):
 
     def test_escape(self):
         unescaped_text = "<content>"
-        self.assertEqual(_escape(unescaped_text), "&lt;content&gt;")
+        self.assertEqual(vt_escape(unescaped_text), "&lt;content&gt;")
 
     def test_dynamic_tag_generation(self):
-        for tag in xml_tags:
-            sanitized_name = FT.sanitize_tag_name(tag)
+        for tag in services_tags:
+            sanitized_name = VT.sanitize_tag_name(tag)
             tag_func = create_tag_function(tag, False)
-            self.assertEqual(tag_func().__class__, FT)
+            self.assertEqual(tag_func().__class__, VT)
             self.assertEqual(tag_func().tag, sanitized_name)
 
     def test_tag_addition(self):
-        tag = FT("content", (), {"attr": "value"})
-        new_tag = FT("document", ())
+        tag = VT("content", (), {"attr": "value"})
+        new_tag = VT("document", ())
         tag = tag + new_tag
         self.assertEqual(len(tag.children), 1)
         self.assertEqual(tag.children[0].tag, "document")
 
     def test_repr(self):
-        tag = FT("content", (FT("document", ()),), {"attr": "value"})
+        tag = VT("content", (VT("document", ()),), {"attr": "value"})
         self.assertEqual(repr(tag), "content((document((),{}),),{'attr': 'value'})")
 
 
