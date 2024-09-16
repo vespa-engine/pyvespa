@@ -83,8 +83,9 @@ class TestVT(unittest.TestCase):
         self.assertEqual(repr(tag), "content((document((),{}),),{'attr': 'value'})")
 
 
-class TestColbertSchema(unittest.TestCase):
+class TestColbertServiceConfiguration(unittest.TestCase):
     def setUp(self):
+        self.xml_file_path = "tests/testfiles/services/colbert/services.xml"
         self.xml_schema = """<?xml version="1.0" encoding="utf-8" ?>
     <services version="1.0" minimum-required-vespa-version="8.338.38">
 
@@ -131,9 +132,8 @@ class TestColbertSchema(unittest.TestCase):
     """
 
     def test_valid_colbert_schema(self):
-        to_validate = etree.parse("tests/testfiles/services/colbert/services.xml")
+        to_validate = etree.parse(self.xml_file_path)
         # Validate against relaxng
-        validate_services(to_validate)
         self.assertTrue(validate_services(to_validate))
 
     def test_valid_schema_from_string(self):
@@ -145,7 +145,8 @@ class TestColbertSchema(unittest.TestCase):
         to_validate = etree.fromstring(invalid_xml.encode("utf-8"))
         self.assertFalse(validate_services(to_validate))
 
-    def test_generate_colbert_schema(self):
+    def test_generate_colbert_services(self):
+        self.maxDiff = None
         # Generated XML using dynamic tag functions
         generated_services = services(
             container(id="default", version="1.0")(
@@ -183,19 +184,288 @@ class TestColbertSchema(unittest.TestCase):
             minimum_required_vespa_version="8.338.38",
         )
         generated_xml = generated_services.to_xml()
-        print(generated_xml)
-
         # Validate against relaxng
         self.assertTrue(validate_services(etree.fromstring(str(generated_xml))))
-        # Check if the generated XML matches the expected XML
-        # Check tags, attributes and values
+        # Check all nodes and attributes being equal
         tree_original = ET.fromstring(self.xml_schema.encode("utf-8"))
         tree_generated = ET.fromstring(str(generated_xml))
-        tree_dumps_original = ET.dump(tree_original)
-        tree_dumps_generated = ET.dump(tree_generated)
-        print(f"Generated: {tree_dumps_generated}")
-        print(f"Original: {tree_dumps_original}")
-        self.assertEqual(tree_dumps_original, tree_dumps_generated)
+        for original, generated in zip(tree_original.iter(), tree_generated.iter()):
+            # print(f"Original: {original.tag}, {original.attrib}, {original.text}")
+            # print(f"Generated: {generated.tag}, {generated.attrib}, {generated.text}")
+            self.assertEqual(original.tag, generated.tag)
+            self.assertEqual(original.attrib, generated.attrib)
+            self.assertEqual(
+                original.text.strip() if original.text else None,
+                generated.text.strip() if generated.text else None,
+            )
+
+
+class TestBillionscaleServiceConfiguration(unittest.TestCase):
+    maxDiff = None
+
+    def setUp(self):
+        self.xml_file_path = "tests/testfiles/services/billion-scale-image-search/src/main/application/services.xml"
+        self.xml_schema = """<?xml version="1.0" encoding="utf-8" ?>
+<services version='1.0' xmlns:deploy="vespa" xmlns:preprocess="properties">
+
+  <container id='default' version='1.0'>
+    <nodes count='1'/>
+    <component id='ai.vespa.examples.Centroids' bundle='billion-scale-image-search'/>
+    <component id='ai.vespa.examples.DimensionReducer' bundle='billion-scale-image-search'/>
+    <component id="ai.vespa.examples.BPETokenizer" bundle='billion-scale-image-search'>
+      <config name="ai.vespa.examples.bpe-tokenizer">
+        <contextlength>77</contextlength>
+        <vocabulary>files/bpe_simple_vocab_16e6.txt.gz</vocabulary>
+      </config>
+    </component>
+    <model-evaluation>
+      <onnx>
+        <models>
+          <model name="text_transformer">
+            <intraop-threads>1</intraop-threads>
+          </model>
+          <model name="vespa_innerproduct_ranker">
+            <intraop-threads>1</intraop-threads>
+          </model>
+        </models>
+      </onnx>
+    </model-evaluation>
+    <search>
+      <chain id='default' inherits='vespa'>
+        <searcher id='ai.vespa.examples.searcher.DeDupingSearcher' bundle='billion-scale-image-search'/>
+        <searcher id='ai.vespa.examples.searcher.RankingSearcher' bundle='billion-scale-image-search'/>
+        <searcher id="ai.vespa.examples.searcher.CLIPEmbeddingSearcher" bundle="billion-scale-image-search"/>
+        <searcher id='ai.vespa.examples.searcher.SPANNSearcher' bundle='billion-scale-image-search'/>
+      </chain>
+    </search>
+    <document-api/>
+    <document-processing>
+      <chain id='neighbor-assigner' inherits='indexing'>
+        <documentprocessor id='ai.vespa.examples.docproc.DimensionReductionDocProc'
+                           bundle='billion-scale-image-search'/>
+        <documentprocessor id='ai.vespa.examples.docproc.AssignCentroidsDocProc'
+                           bundle='billion-scale-image-search'/>
+      </chain>
+    </document-processing>
+  </container>
+
+  <content id='graph' version='1.0'>
+    <min-redundancy>1</min-redundancy>
+    <documents>
+      <document mode='index' type='centroid'/>
+      <document-processing cluster='default' chain='neighbor-assigner'/>
+    </documents>
+    <nodes count='1'/>
+    <engine>
+      <proton>
+        <tuning>
+          <searchnode>
+            <feeding>
+              <concurrency>1.0</concurrency>
+            </feeding>
+          </searchnode>
+        </tuning>
+      </proton>
+    </engine>
+  </content>
+
+  <content id='if' version='1.0'>
+    <min-redundancy>1</min-redundancy>
+    <documents>
+      <document mode='index' type='image'/>
+      <document-processing cluster='default' chain='neighbor-assigner'/>
+    </documents>
+    <nodes count='1'/>
+    <engine>
+      <proton>
+        <tuning>
+          <searchnode>
+            <requestthreads>
+              <persearch>2</persearch>
+            </requestthreads>
+            <feeding>
+              <concurrency>1.0</concurrency>
+            </feeding>
+            <summary>
+              <io>
+                <read>directio</read>
+              </io>
+              <store>
+                <cache>
+                  <maxsize-percent>5</maxsize-percent>
+                  <compression>
+                    <type>lz4</type>
+                  </compression>
+                </cache>
+                <logstore>
+                  <chunk>
+                    <maxsize>16384</maxsize>
+                    <compression>
+                      <type>zstd</type>
+                      <level>3</level>
+                    </compression>
+                  </chunk>
+                </logstore>
+              </store>
+            </summary>
+          </searchnode>
+        </tuning>
+      </proton>
+    </engine>
+  </content>
+</services>
+"""
+
+    def test_valid_billion_scale_config(self):
+        to_validate = etree.parse(self.xml_file_path)
+        # Validate against relaxng
+        self.assertTrue(validate_services(to_validate))
+
+    def test_config_from_string(self):
+        to_validate = etree.fromstring(self.xml_schema.encode("utf-8"))
+        self.assertTrue(validate_services(to_validate))
+
+    def test_generate_billion_scale_services(self):
+        # Generated XML using dynamic tag functions
+        generated_services = services(
+            container(id="default", version="1.0")(
+                nodes(count="1"),
+                component(
+                    id="ai.vespa.examples.Centroids",
+                    bundle="billion-scale-image-search",
+                ),
+                component(
+                    id="ai.vespa.examples.DimensionReducer",
+                    bundle="billion-scale-image-search",
+                ),
+                component(
+                    id="ai.vespa.examples.BPETokenizer",
+                    bundle="billion-scale-image-search",
+                )(
+                    config(name="ai.vespa.examples.bpe-tokenizer")(
+                        vt(
+                            "contextlength", "77"
+                        ),  # using vt as this is not a predefined tag
+                        vt(
+                            "vocabulary", "files/bpe_simple_vocab_16e6.txt.gz"
+                        ),  # using vt as this is not a predefined tag
+                    ),
+                ),
+                model_evaluation(
+                    onnx(
+                        models(
+                            model(name="text_transformer")(intraop_threads("1")),
+                            model(name="vespa_innerproduct_ranker")(
+                                intraop_threads("1")
+                            ),
+                        ),
+                    ),
+                ),
+                search(
+                    chain(id="default", inherits="vespa")(
+                        searcher(
+                            id="ai.vespa.examples.searcher.DeDupingSearcher",
+                            bundle="billion-scale-image-search",
+                        ),
+                        searcher(
+                            id="ai.vespa.examples.searcher.RankingSearcher",
+                            bundle="billion-scale-image-search",
+                        ),
+                        searcher(
+                            id="ai.vespa.examples.searcher.CLIPEmbeddingSearcher",
+                            bundle="billion-scale-image-search",
+                        ),
+                        searcher(
+                            id="ai.vespa.examples.searcher.SPANNSearcher",
+                            bundle="billion-scale-image-search",
+                        ),
+                    ),
+                ),
+                document_api(),
+                document_processing(
+                    chain(id="neighbor-assigner", inherits="indexing")(
+                        documentprocessor(
+                            id="ai.vespa.examples.docproc.DimensionReductionDocProc",
+                            bundle="billion-scale-image-search",
+                        ),
+                        documentprocessor(
+                            id="ai.vespa.examples.docproc.AssignCentroidsDocProc",
+                            bundle="billion-scale-image-search",
+                        ),
+                    ),
+                ),
+            ),
+            content(id="graph", version="1.0")(
+                min_redundancy("1"),
+                documents(
+                    document(mode="index", type="centroid"),
+                    document_processing(cluster="default", chain="neighbor-assigner"),
+                ),
+                nodes(count="1"),
+                engine(
+                    proton(
+                        tuning(
+                            searchnode(
+                                feeding(concurrency("1.0")),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            content(id="if", version="1.0")(
+                min_redundancy("1"),
+                documents(
+                    document(mode="index", type="image"),
+                    document_processing(cluster="default", chain="neighbor-assigner"),
+                ),
+                nodes(count="1"),
+                engine(
+                    proton(
+                        tuning(
+                            searchnode(
+                                requestthreads(persearch("2")),
+                                feeding(concurrency("1.0")),
+                                summary(
+                                    io(read("directio")),
+                                    store(
+                                        cache(
+                                            maxsize_percent("5"),
+                                            compression(vt_type("lz4")),
+                                        ),
+                                        logstore(
+                                            chunk(
+                                                maxsize("16384"),
+                                                compression(
+                                                    vt_type("zstd"),
+                                                    level("3"),
+                                                ),
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            version="1.0",
+        )
+
+        generated_xml = generated_services.to_xml()
+        # Validate against relaxng
+        self.assertTrue(validate_services(etree.fromstring(str(generated_xml))))
+        # Check all nodes and attributes being equal
+        tree_original = ET.fromstring(self.xml_schema.encode("utf-8"))
+        tree_generated = ET.fromstring(str(generated_xml))
+        for original, generated in zip(tree_original.iter(), tree_generated.iter()):
+            # print(f"Original: {original.tag}, {original.attrib}, {original.text}")
+            # print(f"Generated: {generated.tag}, {generated.attrib}, {generated.text}")
+            self.assertEqual(original.tag, generated.tag)
+            self.assertEqual(original.attrib, generated.attrib)
+            self.assertEqual(
+                original.text.strip() if original.text else None,
+                generated.text.strip() if generated.text else None,
+            )
 
 
 if __name__ == "__main__":
