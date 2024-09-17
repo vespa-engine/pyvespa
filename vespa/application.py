@@ -174,7 +174,10 @@ class Vespa(object):
         :return: Instance of Vespa asynchronous layer.
         """
         return VespaSync(
-            app=self, pool_connections=connections, pool_maxsize=connections
+            app=self,
+            pool_connections=connections,
+            pool_maxsize=connections,
+            compress=compress,
         )
 
     @staticmethod
@@ -299,6 +302,7 @@ class Vespa(object):
         fields: Dict,
         namespace: str = None,
         groupname: str = None,
+        compress: Union[str, bool] = "auto",
         **kwargs,
     ) -> VespaResponse:
         """
@@ -325,13 +329,16 @@ class Vespa(object):
         :param fields: Dict containing all the fields required by the `schema`.
         :param namespace: The namespace that we are sending data to.
         :param groupname: The groupname that we are sending data
+        :param compress (Union[str, bool], optional): Whether to compress the request body. Defaults to "auto", which will compress if the body is larger than 1024 bytes.
         :return: VespaResponse of the HTTP POST request.
         """
         if not namespace:
             namespace = schema
         # Use low low connection settings to avoid too much overhead for a
         # single data point
-        with VespaSync(app=self, pool_connections=1, pool_maxsize=1) as sync_app:
+        with VespaSync(
+            app=self, pool_connections=1, pool_maxsize=1, compress=compress
+        ) as sync_app:
             return sync_app.feed_data_point(
                 schema=schema,
                 data_id=data_id,
@@ -351,6 +358,7 @@ class Vespa(object):
         max_queue_size: int = 1000,
         max_workers: int = 8,
         max_connections: int = 16,
+        compress: Union[str, bool] = "auto",
         **kwargs,
     ):
         """
@@ -378,6 +386,7 @@ class Vespa(object):
         :param max_queue_size: The maximum size of the blocking queue and max in-flight operations.
         :param max_workers: The maximum number of workers in the threadpool executor.
         :param max_connections: The maximum number of persisted connections to the Vespa endpoint.
+        :param compress (Union[str, bool], optional): Whether to compress the request body. Defaults to "auto", which will compress if the body is larger than 1024 bytes.
         :param kwargs: Additional parameters are passed to the respective operation type specific :func:`_data_point`.
         """
         if operation_type not in ["feed", "update", "delete"]:
@@ -519,6 +528,7 @@ class Vespa(object):
             app=self,
             pool_maxsize=max_connections,
             pool_connections=max_connections,
+            compress=compress,
         ) as session:
             queue = Queue(maxsize=max_queue_size)
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -829,6 +839,7 @@ class Vespa(object):
         create: bool = False,
         namespace: str = None,
         groupname: str = None,
+        compress: Union[str, bool] = "auto",
         **kwargs,
     ) -> VespaResponse:
         """
@@ -852,11 +863,14 @@ class Vespa(object):
         :param auto_assign: Assumes `fields`-parameter is an assignment operation. (https://docs.vespa.ai/en/reference/document-json-format.html#assign). If set to false, the fields parameter should be a dictionary including the update operation.
         :param namespace: The namespace that we are updating data. If no namespace is provided the schema is used.
         :param groupname: The groupname that we are updating data.
+        :param compress (Union[str, bool], optional): Whether to compress the request body. Defaults to "auto", which will compress if the body is larger than 1024 bytes.
         :param kwargs: Additional arguments to be passed to the HTTP PUT request. https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters
         :return: Response of the HTTP PUT request.
         """
 
-        with VespaSync(self, pool_connections=1, pool_maxsize=1) as sync_app:
+        with VespaSync(
+            self, pool_connections=1, pool_maxsize=1, compress=compress
+        ) as sync_app:
             return sync_app.update_data(
                 schema=schema,
                 data_id=data_id,
