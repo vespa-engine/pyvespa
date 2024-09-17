@@ -67,6 +67,7 @@ jobs:
           VESPA_CLOUD_SECRET_TOKEN: ${{ secrets.VESPA_CLOUD_SECRET_TOKEN }}
           CO_API_KEY: ${{ secrets.CO_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: |
           echo "Running ${{ matrix.notebook }}"
 
