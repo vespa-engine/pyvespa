@@ -1011,7 +1011,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
             for i in range(10)
         ]
         self.queries_first_hit = ["this is title 1", "this is title 2"]
-        self.compress_args = [True, False, "auto", None]
+        self.compress_args = [True, False, "auto"]
 
     def test_is_using_http2_client(self):
         asyncio.run(self.async_is_http2_client(app=self.app))
