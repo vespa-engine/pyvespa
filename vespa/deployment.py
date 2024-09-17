@@ -1284,7 +1284,10 @@ class VespaCloud(VespaDeployment):
         response = self.get_connection_response_with_retry(method, path, body, headers)
         if return_raw_response:
             return response
-        parsed = json.load(response)
+        try:
+            parsed = json.load(response)
+        except json.JSONDecodeError:
+            parsed = response.read()
         if response.status_code != 200:
             print(parsed)
             raise HTTPError(
