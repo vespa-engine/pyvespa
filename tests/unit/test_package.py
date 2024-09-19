@@ -32,7 +32,9 @@ from vespa.package import (
     Struct,
     StructField,
     ServicesConfiguration,
+    ApplicationConfiguration,
 )
+from vespa.configuration.vt import compare_xml
 
 
 class TestField(unittest.TestCase):
@@ -1699,6 +1701,18 @@ class TestSchemaStructField(unittest.TestCase):
             "}"
         )
         self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
+
+
+class TestVTequality(unittest.TestCase):
+    def test_application_configuration(self):
+        app_config = ApplicationConfiguration(
+            name="container.handler.observability.application-userdata",
+            value={"version": "my-version"},
+        )
+        app_config_vt = app_config.to_vt()
+        vt_str = str(app_config_vt.to_xml())
+        app_config_str = app_config.to_text
+        self.assertTrue(compare_xml(app_config_str, vt_str))
 
 
 class TestServiceConfig(unittest.TestCase):
