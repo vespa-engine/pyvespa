@@ -31,6 +31,7 @@ from vespa.package import (
     DeploymentConfiguration,
     Struct,
     StructField,
+    ServicesConfiguration,
 )
 
 
@@ -1698,3 +1699,15 @@ class TestSchemaStructField(unittest.TestCase):
             "}"
         )
         self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
+
+
+class TestServiceConfig(unittest.TestCase):
+    def test_default_service_config_to_text(self):
+        self.maxDiff = None
+        application_name = "test"
+        service_config = ServicesConfiguration(application_name=application_name)
+        app_package = ApplicationPackage(
+            name=application_name, services_config=service_config
+        )
+        expected_result = '<?xml version="1.0" encoding="UTF-8" ?>\n<services version="1.0">\n  <container id="test_container" version="1.0"></container>\n</services>\n'
+        self.assertEqual(expected_result, app_package.services_to_text)
