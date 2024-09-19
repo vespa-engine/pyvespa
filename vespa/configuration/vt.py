@@ -2,6 +2,7 @@ from fastcore.utils import tuplify
 import types
 from xml.sax.saxutils import escape
 from fastcore.utils import patch
+import xml.etree.ElementTree as ET
 
 # If the vespa tags correspond to reserved Python keywords, they are replaced with the following:
 replace_reserved = {
@@ -222,3 +223,49 @@ def __call__(self: VT, *c, **kw):
     if kw:
         self.attrs = {**self.attrs, **kw}
     return self
+
+
+def canonicalize(element):
+    """Recursively sort attributes and children to canonicalize the element."""
+    # Sort attributes
+    if element.attrib:
+        element.attrib = dict(sorted(element.attrib.items()))
+    # Sort children by tag and text
+    children = list(element)
+    for child in children:
+        canonicalize(child)
+    element[:] = sorted(children, key=lambda e: (e.tag, (e.text or "").strip()))
+    # Strip whitespace from text and tail
+    if element.text:
+        element.text = element.text.strip()
+    if element.tail:
+        element.tail = element.tail.strip()
+
+
+def elements_equal(e1, e2):
+    """Compare two elements for equality."""
+    if e1.tag != e2.tag:
+        return False
+    if sorted(e1.attrib.items()) != sorted(e2.attrib.items()):
+        return False
+    if (e1.text or "").strip() != (e2.text or "").strip():
+        return False
+    if (e1.tail or "").strip() != (e2.tail or "").strip():
+        return False
+    if len(e1) != len(e2):
+        return False
+    return all(elements_equal(c1, c2) for c1, c2 in zip(e1, e2))
+
+
+def compare_xml(xml_str1, xml_str2):
+    """Compare two XML strings for equality."""
+    try:
+        tree1 = ET.ElementTree(ET.fromstring(xml_str1))
+        tree2 = ET.ElementTree(ET.fromstring(xml_str2))
+    except ET.ParseError:
+        return False
+    root1 = tree1.getroot()
+    root2 = tree2.getroot()
+    canonicalize(root1)
+    canonicalize(root2)
+    return elements_equal(root1, root2)
