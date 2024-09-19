@@ -105,7 +105,7 @@ def vt(
 
 # XML void tags (self-closing)
 # TODO: Add self-closing tags for Vespa configuration
-voids = set("model-evaluation".split())
+voids = set("".split())
 
 
 def Xml(*c, version="1.0", encoding="UTF-8", **kwargs) -> VT:
