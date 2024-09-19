@@ -105,7 +105,13 @@ def vt(
 
 # XML void tags (self-closing)
 # TODO: Add self-closing tags for Vespa configuration
-voids = set("".split())
+voids = set("model-evaluation".split())
+
+
+def Xml(*c, version="1.0", encoding="UTF-8", **kwargs) -> VT:
+    "An top level XML tag, with `encoding` and children `c`"
+    res = vt("?xml", *c, version=version, encoding=encoding, void_="?")
+    return res
 
 
 # Replace the 'partial' based tag creation
@@ -157,6 +163,8 @@ def _to_xml(elm, lvl, indent, do_escape):
 
     # Handle void (self-closing) tags
     if elm.void_:
+        if isinstance(elm.void_, str):
+            return f"{sp}<{stag}{attr_str} {elm.void_}>{nl}"
         return f"{sp}<{stag}{attr_str} />{nl}"
 
     # Handle non-void tags with children or no children
