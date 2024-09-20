@@ -1714,6 +1714,44 @@ class TestVTequality(unittest.TestCase):
         app_config_str = app_config.to_text
         self.assertTrue(compare_xml(app_config_str, vt_str))
 
+    def test_cluster_configuration(self):
+        clusters = [
+            ContainerCluster(
+                id="test_container",
+                nodes=Nodes(
+                    count="1",
+                    parameters=[
+                        Parameter(
+                            "resources",
+                            {"vcpu": "4.0", "memory": "16Gb", "disk": "125Gb"},
+                            [Parameter("gpu", {"count": "1", "memory": "16Gb"})],
+                        ),
+                    ],
+                ),
+                components=[
+                    Component(
+                        id="e5",
+                        type="hugging-face-embedder",
+                        parameters=[
+                            Parameter(
+                                "transformer-model", {"path": "model/model.onnx"}
+                            ),
+                            Parameter(
+                                "tokenizer-model", {"path": "model/tokenizer.json"}
+                            ),
+                        ],
+                    )
+                ],
+            ),
+            ContentCluster(id="test_content", document_name="test"),
+        ]
+        for cluster_config in clusters:
+            vt_str = str(cluster_config.to_vt().to_xml())
+            cluster_config_str = cluster_config.to_xml_string()
+            print(cluster_config_str)
+            print(vt_str)
+            self.assertTrue(compare_xml(cluster_config_str, vt_str))
+
 
 class TestServiceConfig(unittest.TestCase):
     def test_default_service_config_to_text(self):
