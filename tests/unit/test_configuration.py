@@ -471,5 +471,59 @@ class TestBillionscaleServiceConfiguration(unittest.TestCase):
             self.assertEqual(orig_text.strip(), gen_text.strip())
 
 
+class TestDocumentExpiry(unittest.TestCase):
+    def setUp(self):
+        self.xml_schema = """<?xml version="1.0" encoding="UTF-8" ?>
+<services>
+  <container id="music_container">
+    <search></search>
+    <document-api></document-api>
+    <document-processing></document-processing>
+  </container>
+  <content id="music_content">
+    <redundancy>1</redundancy>
+    <documents garbage-collection="true">
+      <document type="music" mode="index" selection="music.timestamp &gt; now() - 86400"></document>
+    </documents>
+    <nodes>
+      <node distribution-key="0" hostalias="node1"></node>
+    </nodes>
+  </content>
+</services>
+"""
+
+    def test_xml_validation(self):
+        to_validate = etree.fromstring(self.xml_schema.encode("utf-8"))
+        # Validate against relaxng
+        self.assertTrue(validate_services(to_validate))
+
+    def test_document_expiry(self):
+        application_name = "music"
+        generated = services(
+            container(
+                search(),
+                document_api(),
+                document_processing(),
+                id=f"{application_name}_container",
+            ),
+            content(
+                redundancy("1"),
+                documents(
+                    document(
+                        type=application_name,
+                        mode="index",
+                        selection="music.timestamp &gt; now() - 86400",
+                    ),
+                    garbage_collection="true",
+                ),
+                nodes(node(distribution_key="0", hostalias="node1")),
+                id=f"{application_name}_content",
+            ),
+        )
+        generated_xml = generated.to_xml()
+        # Validate against relaxng
+        self.assertTrue(validate_services(etree.fromstring(str(generated_xml))))
+
+
 if __name__ == "__main__":
     unittest.main()
