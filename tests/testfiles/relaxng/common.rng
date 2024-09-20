@@ -1,0 +1,575 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<grammar xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <!-- Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->
+  <define name="service.attlist" combine="interleave">
+    <attribute name="hostalias">
+      <data type="NCName"/>
+    </attribute>
+  </define>
+  <define name="service.attlist" combine="interleave">
+    <optional>
+      <attribute name="baseport">
+        <data type="unsignedShort"/>
+      </attribute>
+    </optional>
+  </define>
+  <define name="service.attlist" combine="interleave">
+    <optional>
+      <attribute name="jvm-options"/>
+    </optional>
+  </define>
+  <!-- Remove in Vespa 9 -->
+  <define name="service.attlist" combine="interleave">
+    <optional>
+      <attribute name="jvm-gc-options"/>
+    </optional>
+  </define>
+  <!--
+    Remove in Vespa 9
+    preload is for internal use only
+  -->
+  <define name="service.attlist" combine="interleave">
+    <optional>
+      <attribute name="preload"/>
+    </optional>
+  </define>
+  <define name="anyElement">
+    <element>
+      <anyName/>
+      <zeroOrMore>
+        <choice>
+          <attribute>
+            <anyName/>
+          </attribute>
+          <text/>
+          <ref name="anyElement"/>
+        </choice>
+      </zeroOrMore>
+    </element>
+  </define>
+  <!-- Valid qualified java class name. See http://docs.oracle.com/javase/specs/jls/se8/html/jls-3.html#jls-3.8 -->
+  <define name="JavaId">
+    <data type="string">
+      <param name="pattern">([a-zA-Z_$][a-zA-Z\d_$]*\.)*[a-zA-Z_$][a-zA-Z\d_$]*</param>
+    </data>
+  </define>
+  <define name="Nodes">
+    <element name="nodes">
+      <interleave>
+        <attribute name="count">
+          <choice>
+            <data type="positiveInteger"/>
+            <data type="string"/>
+          </choice>
+        </attribute>
+        <optional>
+          <attribute name="flavor">
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="docker-image">
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <optional>
+          <ref name="Resources"/>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="Resources">
+    <element name="resources">
+      <interleave>
+        <optional>
+          <attribute name="vcpu">
+            <choice>
+              <data type="double">
+                <param name="minExclusive">0.0</param>
+              </data>
+              <data type="string"/>
+            </choice>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="memory">
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="disk">
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="disk-speed">
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="storage-type">
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="architecture">
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <optional>
+          <ref name="GpuResources"/>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="GpuResources">
+    <element name="gpu">
+      <interleave>
+        <attribute name="count">
+          <data type="positiveInteger"/>
+        </attribute>
+        <attribute name="memory">
+          <data type="string"/>
+        </attribute>
+      </interleave>
+    </element>
+  </define>
+  <define name="OptionalDedicatedNodes">
+    <element name="nodes">
+      <interleave>
+        <attribute name="count">
+          <choice>
+            <data type="positiveInteger"/>
+            <data type="string"/>
+          </choice>
+        </attribute>
+        <optional>
+          <attribute name="flavor">
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="required">
+            <data type="boolean"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="docker-image">
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="dedicated">
+            <data type="boolean"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="exclusive">
+            <data type="boolean"/>
+          </attribute>
+        </optional>
+        <optional>
+          <ref name="Resources"/>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="GenericConfig">
+    <element name="config">
+      <attribute name="name"/>
+      <optional>
+        <attribute name="version"/>
+      </optional>
+      <zeroOrMore>
+        <ref name="anyElement"/>
+      </zeroOrMore>
+    </element>
+  </define>
+  <define name="ModelReference">
+    <interleave>
+      <optional>
+        <attribute name="model-id">
+          <data type="string"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="path">
+          <data type="string"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="url">
+          <data type="string"/>
+        </attribute>
+      </optional>
+    </interleave>
+  </define>
+  <define name="ComponentSpec">
+    <choice>
+      <attribute name="id">
+        <choice>
+          <data type="Name"/>
+          <ref name="JavaId"/>
+        </choice>
+      </attribute>
+      <attribute name="idref">
+        <data type="Name"/>
+      </attribute>
+      <attribute name="ident">
+        <data type="Name"/>
+      </attribute>
+    </choice>
+  </define>
+  <define name="ComponentId">
+    <ref name="ComponentSpec"/>
+  </define>
+  <define name="BundleSpec">
+    <interleave>
+      <optional>
+        <attribute name="class">
+          <choice>
+            <data type="Name"/>
+            <ref name="JavaId"/>
+          </choice>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="bundle">
+          <data type="Name"/>
+        </attribute>
+      </optional>
+    </interleave>
+  </define>
+  <define name="Component">
+    <element name="component">
+      <choice>
+        <ref name="ComponentDefinition"/>
+        <ref name="TypedComponentDefinition"/>
+      </choice>
+    </element>
+  </define>
+  <define name="ComponentDefinition">
+    <interleave>
+      <ref name="ComponentId"/>
+      <ref name="BundleSpec"/>
+      <zeroOrMore>
+        <ref name="GenericConfig"/>
+      </zeroOrMore>
+      <zeroOrMore>
+        <ref name="Component"/>
+      </zeroOrMore>
+    </interleave>
+  </define>
+  <define name="TypedComponentDefinition">
+    <interleave>
+      <attribute name="id">
+        <data type="Name"/>
+      </attribute>
+      <choice>
+        <ref name="HuggingFaceEmbedder"/>
+        <ref name="HuggingFaceTokenizer"/>
+        <ref name="BertBaseEmbedder"/>
+        <ref name="ColBertEmbedder"/>
+        <ref name="SpladeEmbedder"/>
+      </choice>
+      <zeroOrMore>
+        <ref name="GenericConfig"/>
+      </zeroOrMore>
+      <zeroOrMore>
+        <ref name="Component"/>
+      </zeroOrMore>
+    </interleave>
+  </define>
+  <define name="HuggingFaceEmbedder">
+    <interleave>
+      <attribute name="type">
+        <value>hugging-face-embedder</value>
+      </attribute>
+      <element name="transformer-model">
+        <ref name="ModelReference"/>
+      </element>
+      <optional>
+        <element name="tokenizer-model">
+          <ref name="ModelReference"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="max-tokens">
+          <data type="positiveInteger"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="transformer-input-ids">
+          <data type="string"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="transformer-attention-mask">
+          <data type="string"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="transformer-token-type-ids">
+          <data type="string"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="transformer-output">
+          <data type="string"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="normalize">
+          <data type="boolean"/>
+        </element>
+      </optional>
+      <optional>
+        <ref name="PrependResources"/>
+      </optional>
+      <ref name="OnnxModelExecutionParams"/>
+      <ref name="EmbedderPoolingStrategy"/>
+    </interleave>
+  </define>
+  <define name="PrependResources">
+    <element name="prepend">
+      <interleave>
+        <optional>
+          <element name="query">
+            <data type="string"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="document">
+            <data type="string"/>
+          </element>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="SpladeEmbedder">
+    <interleave>
+      <attribute name="type">
+        <value>splade-embedder</value>
+      </attribute>
+      <element name="transformer-model">
+        <ref name="ModelReference"/>
+      </element>
+      <optional>
+        <element name="tokenizer-model">
+          <ref name="ModelReference"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="max-tokens">
+          <data type="positiveInteger"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="transformer-input-ids">
+          <data type="string"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="transformer-attention-mask">
+          <data type="string"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="transformer-token-type-ids">
+          <data type="string"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="transformer-output">
+          <data type="string"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="term-score-threshold">
+          <data type="double"/>
+        </element>
+      </optional>
+      <ref name="OnnxModelExecutionParams"/>
+    </interleave>
+  </define>
+  <define name="HuggingFaceTokenizer">
+    <interleave>
+      <attribute name="type">
+        <value>hugging-face-tokenizer</value>
+      </attribute>
+      <oneOrMore>
+        <element name="model">
+          <interleave>
+            <optional>
+              <attribute name="language">
+                <data type="string"/>
+              </attribute>
+            </optional>
+            <ref name="ModelReference"/>
+          </interleave>
+        </element>
+      </oneOrMore>
+    </interleave>
+  </define>
+  <define name="BertBaseEmbedder">
+    <interleave>
+      <attribute name="type">
+        <value>bert-embedder</value>
+      </attribute>
+      <element name="transformer-model">
+        <ref name="ModelReference"/>
+      </element>
+      <element name="tokenizer-vocab">
+        <ref name="ModelReference"/>
+      </element>
+      <optional>
+        <element name="max-tokens">
+          <data type="nonNegativeInteger"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="transformer-input-ids">
+          <data type="string"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="transformer-attention-mask">
+          <data type="string"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="transformer-token-type-ids">
+          <data type="string"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="transformer-output">
+          <data type="string"/>
+        </element>
+      </optional>
+      <ref name="StartOfSequence"/>
+      <ref name="EndOfSequence"/>
+      <ref name="OnnxModelExecutionParams"/>
+      <ref name="EmbedderPoolingStrategy"/>
+    </interleave>
+  </define>
+  <define name="ColBertEmbedder">
+    <interleave>
+      <attribute name="type">
+        <value>colbert-embedder</value>
+      </attribute>
+      <element name="transformer-model">
+        <ref name="ModelReference"/>
+      </element>
+      <optional>
+        <element name="tokenizer-model">
+          <ref name="ModelReference"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="max-tokens">
+          <data type="positiveInteger"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="max-query-tokens">
+          <data type="positiveInteger"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="max-document-tokens">
+          <data type="positiveInteger"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="transformer-mask-token">
+          <data type="integer"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="transformer-input-ids">
+          <data type="string"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="transformer-attention-mask">
+          <data type="string"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="transformer-pad-token">
+          <data type="integer"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="query-token-id">
+          <data type="integer"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="document-token-id">
+          <data type="integer"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="transformer-output">
+          <data type="string"/>
+        </element>
+      </optional>
+      <ref name="OnnxModelExecutionParams"/>
+      <ref name="StartOfSequence"/>
+      <ref name="EndOfSequence"/>
+    </interleave>
+  </define>
+  <define name="OnnxModelExecutionParams">
+    <interleave>
+      <optional>
+        <element name="onnx-execution-mode">
+          <choice>
+            <value>parallel</value>
+            <value>sequential</value>
+          </choice>
+        </element>
+      </optional>
+      <optional>
+        <element name="onnx-interop-threads">
+          <data type="integer"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="onnx-intraop-threads">
+          <data type="integer"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="onnx-gpu-device">
+          <data type="integer"/>
+        </element>
+      </optional>
+    </interleave>
+  </define>
+  <define name="EmbedderPoolingStrategy">
+    <optional>
+      <element name="pooling-strategy">
+        <choice>
+          <value>cls</value>
+          <value>mean</value>
+        </choice>
+      </element>
+    </optional>
+  </define>
+  <define name="StartOfSequence">
+    <optional>
+      <element name="transformer-start-sequence-token">
+        <data type="integer"/>
+      </element>
+    </optional>
+  </define>
+  <define name="EndOfSequence">
+    <optional>
+      <element name="transformer-end-sequence-token">
+        <data type="integer"/>
+      </element>
+    </optional>
+  </define>
+</grammar>

@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<grammar xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <!--
+    Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
+    Schema for common container options
+  -->
+  <include href="processing.rng"/>
+  <define name="Handler">
+    <element name="handler">
+      <interleave>
+        <ref name="ComponentDefinition"/>
+        <ref name="ServerBindings"/>
+      </interleave>
+    </element>
+  </define>
+  <define name="Binding">
+    <element name="binding">
+      <text/>
+    </element>
+  </define>
+  <define name="ServerBindings">
+    <zeroOrMore>
+      <ref name="Binding"/>
+    </zeroOrMore>
+  </define>
+  <define name="Server">
+    <element name="server">
+      <ref name="ComponentDefinition"/>
+    </element>
+  </define>
+  <define name="AccessControl">
+    <element name="access-control">
+      <interleave>
+        <optional>
+          <attribute name="domain">
+            <data type="NCName"/>
+          </attribute>
+        </optional>
+        <optional>
+          <!-- TODO(tokle,bjorncs) Vespa > 8: Remove -->
+          <attribute name="read">
+            <choice>
+              <value type="string" datatypeLibrary="">true</value>
+              <value type="string" datatypeLibrary="">false</value>
+            </choice>
+          </attribute>
+        </optional>
+        <optional>
+          <!-- TODO(tokle,bjorncs) Vespa > 8: Remove -->
+          <attribute name="write">
+            <choice>
+              <value type="string" datatypeLibrary="">true</value>
+              <value type="string" datatypeLibrary="">false</value>
+            </choice>
+          </attribute>
+        </optional>
+        <optional>
+          <!-- TODO(tokle,bjorncs) Vespa > 8: Remove -->
+          <attribute name="tls-handshake-client-auth">
+            <choice>
+              <value type="string" datatypeLibrary="">want</value>
+              <value type="string" datatypeLibrary="">need</value>
+            </choice>
+          </attribute>
+        </optional>
+        <optional>
+          <element name="exclude">
+            <oneOrMore>
+              <ref name="Binding"/>
+            </oneOrMore>
+          </element>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="HttpFilterChain">
+    <interleave>
+      <zeroOrMore>
+        <ref name="HttpFilter"/>
+      </zeroOrMore>
+      <ref name="ChainBaseContent"/>
+      <ref name="ServerBindings"/>
+    </interleave>
+  </define>
+  <define name="HttpFilter">
+    <element name="filter">
+      <interleave>
+        <ref name="ComponentDefinition"/>
+        <optional>
+          <ref name="FilterConfig"/>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="FilterConfig">
+    <element name="filter-config">
+      <zeroOrMore>
+        <ref name="anyElement"/>
+      </zeroOrMore>
+    </element>
+  </define>
+  <define name="Renderer">
+    <element name="renderer">
+      <ref name="ComponentDefinition"/>
+    </element>
+  </define>
+</grammar>

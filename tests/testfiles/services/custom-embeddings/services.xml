@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->
+<services version="1.0" xmlns:deploy="vespa" xmlns:preprocess="properties">
+
+    <!-- See https://docs.vespa.ai/en/reference/services-container.html -->
+    <container id="default" version="1.0">
+
+        <!-- See https://docs.vespa.ai/en/embedding.html#huggingface-embedder -->
+        <component id="frozen" type="hugging-face-embedder">
+            <transformer-model path="models/frozen.onnx"/>
+            <tokenizer-model path="models/tokenizer.json"/>
+        </component>
+
+        <component id="tuned" type="hugging-face-embedder">
+            <transformer-model path="models/tuned.onnx"/>
+            <tokenizer-model path="models/tokenizer.json"/>
+        </component>
+        <document-api/>
+        <search/>
+
+        <nodes>
+            <node hostalias="node1" />
+        </nodes>
+    </container>
+
+    <!-- See https://docs.vespa.ai/en/reference/services-content.html -->
+    <content id="content" version="1.0">
+        <min-redundancy>2</min-redundancy>
+        <documents>
+            <document type="doc" mode="index" />
+        </documents>
+        <nodes>
+            <node hostalias="node1" distribution-key="0" />
+        </nodes>
+    </content>
+
+</services>
