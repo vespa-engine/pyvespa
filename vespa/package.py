@@ -1886,6 +1886,13 @@ class AuthClient(object):
         permissions = f', permissions="{self.permissions}"' if self.permissions else ""
         return f"{self.__class__.__name__}({id}{permissions})"
 
+    def to_vt(self) -> VT:
+        return client(
+            *[p.to_vt() for p in self.parameters or []],
+            id=self.id,
+            permissions=",".join(self.permissions),
+        )
+
 
 class Component(object):
     def __init__(
@@ -2143,7 +2150,7 @@ class ContainerCluster(Cluster):
             *[search(), document_api(), document_processing()],
             *[c.to_vt() for c in self.components or []],
             *[
-                clients(client(id=a.id, *a.parameters) for a in self.auth_clients or [])
+                clients(a.to_vt() for a in self.auth_clients or [])
                 if self.auth_clients
                 else None
             ],
