@@ -1842,6 +1842,7 @@ class TestServiceConfig(unittest.TestCase):
                     document_api(),
                     document_processing(),
                     id=f"{application_name}_container",
+                    version="1.0",
                 ),
                 content(
                     redundancy("1"),
@@ -1855,6 +1856,7 @@ class TestServiceConfig(unittest.TestCase):
                     ),
                     nodes(node(distribution_key="0", hostalias="node1")),
                     id=f"{application_name}_content",
+                    version="1.0",
                 ),
             ),
         )
@@ -1865,12 +1867,12 @@ class TestServiceConfig(unittest.TestCase):
         )
         expected = """<?xml version="1.0" encoding="UTF-8" ?>
 <services>
-  <container id="music_container">
+  <container id="music_container" version="1.0">
     <search></search>
     <document-api></document-api>
     <document-processing></document-processing>
   </container>
-  <content id="music_content">
+  <content id="music_content" version="1.0">
     <redundancy>1</redundancy>
     <documents garbage-collection="true">
       <document type="music" mode="index" selection="music.timestamp &amp;gt; now() - 86400"></document>
@@ -1882,6 +1884,4 @@ class TestServiceConfig(unittest.TestCase):
 </services>
 """
         self.assertEqual(expected, application_package.services_to_text)
-        to_validate = application_package.services_to_text
-        print(to_validate)
-        self.assertTrue(validate_services(to_validate))
+        self.assertTrue(validate_services(application_package.services_to_text))
