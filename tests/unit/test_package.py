@@ -771,6 +771,9 @@ class TestApplicationPackage(unittest.TestCase):
         )
 
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result)
+        )
 
     def test_query_profile_to_text(self):
         expected_result = (
@@ -854,6 +857,9 @@ class TestApplicationPackageStreaming(unittest.TestCase):
             "</services>"
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result)
+        )
 
 
 class TestSchemaInheritance(unittest.TestCase):
@@ -1033,6 +1039,9 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
         )
 
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
 
 class TestSimplifiedApplicationPackage(unittest.TestCase):
@@ -1187,6 +1196,9 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
         )
 
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
     def test_query_profile_to_text(self):
         expected_result = (
@@ -1275,6 +1287,9 @@ class TestSimplifiedApplicationPackageWithMultipleSchemas(unittest.TestCase):
             "</services>"
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
 
 class TestComponentSetup(unittest.TestCase):
@@ -1340,6 +1355,9 @@ class TestComponentSetup(unittest.TestCase):
             "</services>"
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
 
 class TestClientTokenSetup(unittest.TestCase):
@@ -1389,6 +1407,9 @@ class TestClientTokenSetup(unittest.TestCase):
         )
 
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
 
 class TestClientsWithCluster(unittest.TestCase):
@@ -1453,6 +1474,11 @@ class TestClientsWithCluster(unittest.TestCase):
             "</services>"
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        print(self.app_package.services_to_text)
+        print(self.app_package.services_to_text_vt)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
 
 class TestValidAppName(unittest.TestCase):
@@ -1762,8 +1788,6 @@ class TestVTequality(unittest.TestCase):
         for cluster_config in clusters:
             vt_str = str(cluster_config.to_vt().to_xml())
             cluster_config_str = cluster_config.to_xml_string()
-            print(cluster_config_str)
-            print(vt_str)
             self.assertTrue(compare_xml(cluster_config_str, vt_str))
 
 
