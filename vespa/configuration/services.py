@@ -148,6 +148,8 @@ services_tags = [
     "removed-db",
     "max-wait-after-coverage-factor",
     "maxsize",
+    "clients",
+    "client",
 ]
 
 # Fail if any tag is duplicated. Provide feedback of which tags are duplicated.
