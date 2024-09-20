@@ -1803,7 +1803,10 @@ class Parameter(object):
         if self.args:
             vt_func = vt_func(**self.args)
         if self.children:
-            vt_func = vt_func(*[child.to_vt() for child in self.children])
+            if isinstance(self.children, str):
+                vt_func = vt_func(self.children)
+            elif isinstance(self.children, List):
+                vt_func = vt_func(*[child.to_vt() for child in self.children])
         return vt_func
 
 
@@ -2231,7 +2234,9 @@ class ContentCluster(Cluster):
         return content(
             id=self.id,
             version=self.version,
-            *[nodes(node(distribution_key="0", hostalias="node1"))],
+            *self.nodes.to_vt()
+            if self.nodes
+            else [nodes(node(distribution_key="0", hostalias="node1"))],
             *[min_redundancy(self.min_redundancy)],
             *[documents(document(type=self.document_name, mode="index"))],
         )
@@ -2434,7 +2439,7 @@ class ServicesConfiguration(object):
                 for schema in self.schemas:
                     if getattr(schema, "global_document", False):
                         documents_vt += document(
-                            type=schema.name, mode="index", global_="true"
+                            type=schema.name, mode="index", _global="true"
                         )
                     else:
                         documents_vt += document(type=schema.name, mode=schema.mode)
@@ -2636,6 +2641,22 @@ class ApplicationPackage(object):
         return query_profile_type_template.render(
             query_profile_type=self.query_profile_type
         )
+
+    @property
+    def services_to_text_vt(self):
+        if self.services_config:
+            return str(self.services_config)
+        else:
+            self.services_config = ServicesConfiguration(
+                application_name=self.name,
+                schemas=self.schemas or [],
+                configurations=self.configurations or [],
+                stateless_model_evaluation=self.stateless_model_evaluation,
+                components=self.components or [],
+                auth_clients=self.auth_clients or [],
+                clusters=self.clusters or [],
+            )
+            return str(self.services_config)
 
     @property
     def services_to_text(self):
