@@ -1809,6 +1809,7 @@ class TestServiceConfig(unittest.TestCase):
 
     def test_document_expiry(self):
         # Create a Schema with name music and a field with name artist, title and timestamp
+        # Ref https://docs.vespa.ai/en/documents.html#document-expiry
         application_name = "music"
         music_schema = Schema(
             name=application_name,
@@ -1833,7 +1834,7 @@ class TestServiceConfig(unittest.TestCase):
                 ]
             ),
         )
-        # Create a ServicesConfiguration with document-expiry set to 1 day
+        # Create a ServicesConfiguration with document-expiry set to 1 day (timestamp > now() - 86400)
         services_config = ServicesConfiguration(
             application_name=application_name,
             services_config=services(
