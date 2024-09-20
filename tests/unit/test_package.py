@@ -1474,8 +1474,6 @@ class TestClientsWithCluster(unittest.TestCase):
             "</services>"
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
-        print(self.app_package.services_to_text)
-        print(self.app_package.services_to_text_vt)
         self.assertTrue(
             compare_xml(self.app_package.services_to_text_vt, expected_result),
         )
@@ -1610,6 +1608,9 @@ class TestCluster(unittest.TestCase):
             "</services>"
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
 
 class TestAuthClientEquality(unittest.TestCase):
@@ -1801,3 +1802,6 @@ class TestServiceConfig(unittest.TestCase):
         )
         expected_result = '<?xml version="1.0" encoding="UTF-8" ?>\n<services version="1.0">\n  <container id="test_container" version="1.0"></container>\n</services>\n'
         self.assertEqual(expected_result, app_package.services_to_text)
+        self.assertTrue(
+            compare_xml(app_package.services_to_text_vt, expected_result),
+        )
