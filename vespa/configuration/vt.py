@@ -9,6 +9,7 @@ replace_reserved = {
     "type": "vt_type",
     "class": "cls",
     "for": "fr",
+    "time": "tm",
 }
 restore_reserved = {v: k for k, v in replace_reserved.items()}
 
