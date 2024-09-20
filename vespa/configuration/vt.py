@@ -65,6 +65,7 @@ class VT:
 
 
 def attrmap(o):
+    o = dict(_global="global").get(o, o)
     return o.lstrip("_").replace("_", "-")
 
 
@@ -99,9 +100,8 @@ def vt(
     **kw,
 ):
     "Create an `VT` structure for `to_xml()`"
-    return VT(
-        tag.lower(), *_preproc(c, kw, attrmap=attrmap, valmap=valmap), void_=void_
-    )
+    # NB! fastcore.xml uses tag.lower() for tag names. This is not done here.
+    return VT(tag, *_preproc(c, kw, attrmap=attrmap, valmap=valmap), void_=void_)
 
 
 # XML void tags (self-closing)
