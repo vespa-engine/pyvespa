@@ -1742,6 +1742,20 @@ class TestVTequality(unittest.TestCase):
                         ],
                     )
                 ],
+                auth_clients=[
+                    AuthClient(
+                        id="mtls",
+                        permissions=["read", "write"],
+                        parameters=[
+                            Parameter("certificate", {"file": "security/clients.pem"})
+                        ],
+                    ),
+                    AuthClient(
+                        id="token",
+                        permissions=["read"],
+                        parameters=[Parameter("token", {"id": "accessToken"})],
+                    ),
+                ],
             ),
             ContentCluster(id="test_content", document_name="test"),
         ]
