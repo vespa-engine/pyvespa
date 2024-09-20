@@ -1796,6 +1796,16 @@ class Parameter(object):
             and self.children == other.children
         )
 
+    def to_vt(self) -> VT:
+        vt_func = vt(
+            self.name,
+        )
+        if self.args:
+            vt_func = vt_func(**self.args)
+        if self.children:
+            vt_func = vt_func(*[child.to_vt() for child in self.children])
+        return vt_func
+
 
 class AuthClient(object):
     def __init__(
@@ -1953,6 +1963,21 @@ class Component(object):
             [xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]]
         )
 
+    def to_vt(self) -> VT:
+        return component(
+            *[p.to_vt() for p in self.parameters or []],
+            **{
+                k: v
+                for k, v in {
+                    "id": self.id,
+                    "class": self.cls,
+                    "bundle": self.bundle,
+                    "type": self.type,
+                }.items()
+                if v
+            },
+        )
+
 
 class Nodes(object):
     def __init__(
@@ -1996,6 +2021,9 @@ class Nodes(object):
                 param.to_xml(xml)
 
         return root
+
+    def to_vt(self) -> VT:
+        return [nodes(*[p.to_vt() for p in self.parameters or []], count=self.count)]
 
 
 class Cluster(object):
@@ -2107,6 +2135,20 @@ class ContainerCluster(Cluster):
             [xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]]
         )
 
+    def to_vt(self) -> VT:
+        return container(
+            id=self.id,
+            version=self.version,
+            *self.nodes.to_vt(),
+            *[search(), document_api(), document_processing()],
+            *[c.to_vt() for c in self.components or []],
+            *[
+                clients(client(id=a.id, *a.parameters) for a in self.auth_clients or [])
+                if self.auth_clients
+                else None
+            ],
+        )
+
 
 class ContentCluster(Cluster):
     def __init__(
@@ -2176,6 +2218,15 @@ class ContentCluster(Cluster):
         xml_lines = xml_str.strip().split("\n")
         return "\n".join(
             [xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]]
+        )
+
+    def to_vt(self) -> VT:
+        return content(
+            id=self.id,
+            version=self.version,
+            *[nodes(node(distribution_key="0", hostalias="node1"))],
+            *[min_redundancy(self.min_redundancy)],
+            *[documents(document(type=self.document_name, mode="index"))],
         )
 
 
