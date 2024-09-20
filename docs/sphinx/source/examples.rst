@@ -25,3 +25,4 @@ Examples
    examples/evaluating-with-snowflake-arctic-embed.ipynb
    examples/simplified-retrieval-with-colpali-vlm_Vespa-cloud.ipynb
    examples/colpali-document-retrieval-vision-language-models-cloud.ipynb
+   examples/colpali-benchmark-vqa-vlm_Vespa-cloud.ipynb
