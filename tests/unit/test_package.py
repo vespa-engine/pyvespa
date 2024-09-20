@@ -1851,7 +1851,7 @@ class TestServiceConfig(unittest.TestCase):
                         document(
                             type=application_name,
                             mode="index",
-                            selection="music.timestamp &gt; now() - 86400",
+                            selection="music.timestamp > now() - 86400",
                         ),
                         garbage_collection="true",
                     ),
@@ -1876,7 +1876,7 @@ class TestServiceConfig(unittest.TestCase):
   <content id="music_content" version="1.0">
     <redundancy>1</redundancy>
     <documents garbage-collection="true">
-      <document type="music" mode="index" selection="music.timestamp &amp;gt; now() - 86400"></document>
+      <document type="music" mode="index" selection="music.timestamp &gt; now() - 86400"></document>
     </documents>
     <nodes>
       <node distribution-key="0" hostalias="node1"></node>
