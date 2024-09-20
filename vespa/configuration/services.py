@@ -1,5 +1,16 @@
 from vespa.configuration.vt import VT, create_tag_function, voids
 from lxml import etree
+from typing import Union
+import pathlib
+import os
+
+# Load the RelaxNG schema at the module level to avoid reloading it every time
+try:
+    with open("tests/testfiles/relaxng/services.rng", "rb") as schema_file:
+        RELAXNG_SCHEMA = etree.RelaxNG(etree.parse(schema_file))
+except (OSError, etree.XMLSyntaxError) as e:
+    print(f"Error loading RelaxNG schema: {e}")
+    RELAXNG_SCHEMA = None
 
 # List of XML tags (customized for Vespa configuration)
 services_tags = [
@@ -164,18 +175,48 @@ for tag in services_tags:
     sanitized_name = VT.sanitize_tag_name(tag)
     _g[sanitized_name] = create_tag_function(tag, tag in voids)
 
-with open("tests/testfiles/relaxng/services.rng", "rb") as schema_file:
-    relaxng = etree.RelaxNG(etree.parse(schema_file))
 
-
-def validate_services(xml_schema: str) -> bool:
+def validate_services(
+    xml_input: Union[str, pathlib.Path, etree._ElementTree, etree._Element],
+) -> bool:
     """
-    Validate an XML schema against the RelaxNG schema file for services.xml
+    Validate an XML input against the RelaxNG schema file for services.xml
 
     Args:
-        xml_schema (str): XML schema to validate
+        xml_input: XML input to validate. It can be:
+            - A string containing XML data
+            - A string or pathlib.Path pointing to an XML file
+            - An etree._Element or etree._ElementTree instance
 
     Returns:
-        bool: True if the XML schema is valid, False otherwise
+        True if the XML input is valid according to the RelaxNG schema, False otherwise.
     """
-    return relaxng.validate(xml_schema)
+    if RELAXNG_SCHEMA is None:
+        print("RelaxNG schema is not loaded.")
+        return False
+
+    try:
+        # If xml_input is an etree Element or ElementTree, use it directly
+        if isinstance(xml_input, (etree._ElementTree, etree._Element)):
+            xml_doc = xml_input
+        # If it's a Path object or a string that points to an existing file, parse it from the file
+        elif isinstance(xml_input, (str, pathlib.Path)) and os.path.exists(
+            str(xml_input)
+        ):
+            xml_doc = etree.parse(str(xml_input))
+        # Otherwise, try to parse it as an XML string
+        elif isinstance(xml_input, str):
+            xml_doc = etree.fromstring(xml_input.encode("utf-8"))
+        else:
+            print("Invalid input type for xml_input.")
+            return False
+
+        # Validate the XML document against the RelaxNG schema
+        is_valid = RELAXNG_SCHEMA.validate(xml_doc)
+        if not is_valid:
+            print(f"Validation errors:\n{RELAXNG_SCHEMA.error_log}")
+        return is_valid
+
+    except (etree.XMLSyntaxError, OSError) as e:
+        print(f"Error parsing XML input: {e}")
+        return False
