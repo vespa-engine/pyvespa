@@ -71,6 +71,11 @@ def attrmap(o):
 
 
 def valmap(o):
+    # Convert integers to strings and booleans to 'true' or 'false'
+    if isinstance(o, bool):
+        return str(o).lower()
+    elif isinstance(o, int):
+        return str(o)
     return o if isinstance(o, str) else " ".join(map(str, o))
 
 
@@ -174,8 +179,10 @@ def _to_xml(elm, lvl, indent, do_escape):
         # Handle the case where children are text or elements
         res = f"{sp}<{stag}{attr_str}>"
 
-        # If the children are just text, don't introduce newlines
-        if len(cs) == 1 and isinstance(cs[0], str):
+        # If the children are just text or int, don't introduce newlines
+        if len(cs) == 1 and (isinstance(cs[0], str) or isinstance(cs[0], int)):
+            if isinstance(cs[0], int):
+                cs = str(cs[0])
             res += f"{esc_fn(cs[0].strip())}</{stag}>{nl if indent else ''}"
         else:
             # If there are multiple children, properly indent them
