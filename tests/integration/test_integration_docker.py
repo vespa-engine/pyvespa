@@ -1694,16 +1694,16 @@ class TestDocumentExpiry(unittest.TestCase):
             {
                 "id": "1",
                 "fields": {
-                    "artist": "The Beatles",
-                    "title": "Let It Be",
+                    "artist": "Snoop Dogg",
+                    "title": "Gin and Juice",
                     "timestamp": int(time.time()) - 86401,
                 },
             },
             {
                 "id": "2",
                 "fields": {
-                    "artist": "The Beatles",
-                    "title": "Hey Jude",
+                    "artist": "Dr.Dre",
+                    "title": "Still D.R.E",
                     "timestamp": int(time.time()),
                 },
             },
