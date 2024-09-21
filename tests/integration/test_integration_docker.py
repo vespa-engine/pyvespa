@@ -1717,7 +1717,7 @@ class TestDocumentExpiry(unittest.TestCase):
         ):
             for response in slice_:
                 visit_results.append(response.json)
-        # Visit results: [{'pathId': '/document/v1/music/music/docid/', 'documents': [{'id': 'id:music:music::2', 'fields': {'artist': 'The Beatles', 'title': 'Hey Jude', 'timestamp': 1726836495}}], 'documentCount': 1}]
+        # Visit results: [{'pathId': '/document/v1/music/music/docid/', 'documents': [{'id': 'id:music:music::2', 'fields': {'artist': 'Dr. Dre', 'title': 'Still D.R.E', 'timestamp': 1726836495}}], 'documentCount': 1}]
         self.assertEqual(len(visit_results), 1)
         self.assertEqual(visit_results[0]["documentCount"], 1)
 
