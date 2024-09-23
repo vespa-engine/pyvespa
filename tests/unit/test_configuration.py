@@ -454,7 +454,7 @@ class TestBillionscaleServiceConfiguration(unittest.TestCase):
             ),
             version="1.0",
         )
-
+        # print(type(generated_services))
         generated_xml = generated_services.to_xml()
         # Validate against relaxng
         self.assertTrue(validate_services(etree.fromstring(str(generated_xml))))
@@ -466,10 +466,9 @@ class TestBillionscaleServiceConfiguration(unittest.TestCase):
             # print(f"Generated: {generated.tag}, {generated.attrib}, {generated.text}")
             self.assertEqual(original.tag, generated.tag)
             self.assertEqual(original.attrib, generated.attrib)
-            self.assertEqual(
-                original.text.strip() if original.text else None,
-                generated.text.strip() if generated.text else None,
-            )
+            orig_text = original.text or ""
+            gen_text = generated.text or ""
+            self.assertEqual(orig_text.strip(), gen_text.strip())
 
 
 if __name__ == "__main__":
