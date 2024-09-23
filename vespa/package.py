@@ -14,6 +14,9 @@ from shutil import copyfile
 from typing import Dict, List, Literal, Optional, Tuple, TypedDict, Union
 
 from jinja2 import Environment, PackageLoader, select_autoescape
+from vespa.configuration.vt import Xml, vt
+from vespa.configuration.services import services
+from vespa.configuration.services import *
 
 if sys.version_info >= (3, 11):
     from typing import Unpack
@@ -1742,6 +1745,9 @@ class ApplicationConfiguration(object):
                 string += f"{tabs}<{tag}>{value}</{tag}>\n"
         return string
 
+    def to_vt(self) -> VT:
+        return config((vt(k, v) for k, v in self.value.items()), name=self.name)
+
     @property
     def to_text(self) -> str:
         value = (
@@ -1789,6 +1795,19 @@ class Parameter(object):
             and self.args == other.args
             and self.children == other.children
         )
+
+    def to_vt(self) -> VT:
+        vt_func = vt(
+            self.name,
+        )
+        if self.args:
+            vt_func = vt_func(**self.args)
+        if self.children:
+            if isinstance(self.children, str):
+                vt_func = vt_func(self.children)
+            elif isinstance(self.children, List):
+                vt_func = vt_func(*[child.to_vt() for child in self.children])
+        return vt_func
 
 
 class AuthClient(object):
@@ -1870,6 +1889,13 @@ class AuthClient(object):
         permissions = f', permissions="{self.permissions}"' if self.permissions else ""
         return f"{self.__class__.__name__}({id}{permissions})"
 
+    def to_vt(self) -> VT:
+        return client(
+            *[p.to_vt() for p in self.parameters or []],
+            id=self.id,
+            permissions=",".join(self.permissions),
+        )
+
 
 class Component(object):
     def __init__(
@@ -1947,6 +1973,21 @@ class Component(object):
             [xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]]
         )
 
+    def to_vt(self) -> VT:
+        return component(
+            *[p.to_vt() for p in self.parameters or []],
+            **{
+                k: v
+                for k, v in {
+                    "id": self.id,
+                    "class": self.cls,
+                    "bundle": self.bundle,
+                    "type": self.type,
+                }.items()
+                if v
+            },
+        )
+
 
 class Nodes(object):
     def __init__(
@@ -1990,6 +2031,9 @@ class Nodes(object):
                 param.to_xml(xml)
 
         return root
+
+    def to_vt(self) -> VT:
+        return [nodes(*[p.to_vt() for p in self.parameters or []], count=self.count)]
 
 
 class Cluster(object):
@@ -2101,6 +2145,20 @@ class ContainerCluster(Cluster):
             [xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]]
         )
 
+    def to_vt(self) -> VT:
+        return container(
+            id=self.id,
+            version=self.version,
+            *self.nodes.to_vt(),
+            *[search(), document_api(), document_processing()],
+            *[c.to_vt() for c in self.components or []],
+            *[
+                clients(a.to_vt() for a in self.auth_clients or [])
+                if self.auth_clients
+                else None
+            ],
+        )
+
 
 class ContentCluster(Cluster):
     def __init__(
@@ -2170,6 +2228,17 @@ class ContentCluster(Cluster):
         xml_lines = xml_str.strip().split("\n")
         return "\n".join(
             [xml_lines[1]] + [(" " * 4 * indent) + line for line in xml_lines[2:]]
+        )
+
+    def to_vt(self) -> VT:
+        return content(
+            id=self.id,
+            version=self.version,
+            *self.nodes.to_vt()
+            if self.nodes
+            else [nodes(node(distribution_key="0", hostalias="node1"))],
+            *[min_redundancy(self.min_redundancy)],
+            *[documents(document(type=self.document_name, mode="index"))],
         )
 
 
@@ -2292,6 +2361,115 @@ class EmptyDeploymentConfiguration(DeploymentConfiguration):
         return ""
 
 
+class ServicesConfiguration(object):
+    def __init__(
+        self,
+        application_name,
+        schemas: Optional[List[Schema]] = None,
+        configurations: List[ApplicationConfiguration] = [],
+        stateless_model_evaluation: Optional[bool] = False,
+        components: List[Component] = [],
+        auth_clients: List[AuthClient] = [],
+        clusters: List[Cluster] = [],
+        services_config: Optional[VT] = None,
+    ):
+        self.application_name = application_name
+        self.schemas = schemas or []
+        self.configurations = configurations
+        self.stateless_model_evaluation = stateless_model_evaluation
+        self.components = components or []
+        self.auth_clients = auth_clients
+        self.clusters = clusters
+        self.services_config = services_config or self.build_services_vt()
+        """
+        Create a ServicesConfiguration, adopting the VespaTag (VT) approach, rather than Jinja templates.
+        Intended to be used in ApplicationPackage, to generate services.xml based on either:
+        - A passed `services_config` (VT) object, or
+        - A set of configurations, schemas, components, auth_clients, and clusters.
+
+        The latter will be done in code by calling `build_services_vt()` to generate the VT object.
+
+        :param application_name: The name of the application.
+        
+        """
+
+    def build_services_vt(self):
+        services_vt = services(version="1.0")
+
+        # Handle configurations
+        for config in self.configurations:
+            services_vt += config.to_vt()
+
+        # Handle clusters
+        if self.clusters:
+            for cluster in self.clusters:
+                services_vt += cluster.to_vt()
+        else:
+            # Default container
+            container_id = f"{self.application_name}_container"
+            container_vt = container(id=container_id, version="1.0")
+
+            if self.schemas:
+                container_vt += search()
+                container_vt += document_api()
+                container_vt += document_processing()
+
+            for comp in self.components:
+                container_vt += comp.to_vt()
+
+            if self.auth_clients:
+                clients_vt = clients()
+                for client in self.auth_clients:
+                    clients_vt += client.to_vt()
+                container_vt += clients_vt
+
+            if self.stateless_model_evaluation:
+                container_vt += model_evaluation()
+
+            services_vt += container_vt
+
+            # Content cluster
+            if self.schemas:
+                content_id = f"{self.application_name}_content"
+                content_vt = content(id=content_id, version="1.0")
+                content_vt += redundancy("1")
+
+                documents_vt = documents()
+                streaming_modes_total = 0
+                for schema in self.schemas:
+                    if getattr(schema, "global_document", False):
+                        documents_vt += document(
+                            type=schema.name, mode="index", _global="true"
+                        )
+                    else:
+                        documents_vt += document(type=schema.name, mode=schema.mode)
+                    if schema.mode == "streaming":
+                        streaming_modes_total += 1
+                if streaming_modes_total > 0:
+                    documents_vt += document_processing(
+                        chain="indexing", cluster=container_id
+                    )
+
+                content_vt += documents_vt
+
+                nodes_vt = nodes()
+                nodes_vt += node(distribution_key="0", hostalias="node1")
+                content_vt += nodes_vt
+
+                services_vt += content_vt
+
+        return services_vt
+
+    def __str__(self) -> str:
+        return str(Xml().to_xml()) + str(self.services_config.to_xml())
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(services_config={self.services_config})"
+
+    def _repr_markdown_(self):
+        return
+
+
 class ApplicationPackage(object):
     def __init__(
         self,
@@ -2308,6 +2486,7 @@ class ApplicationPackage(object):
         auth_clients: Optional[List[AuthClient]] = None,
         clusters: Optional[List[Cluster]] = None,
         deployment_config: Optional[DeploymentConfiguration] = None,
+        services_config: Optional[ServicesConfiguration] = None,
     ) -> None:
         """
         Create an `Application Package <https://docs.vespa.ai/en/application-packages.html>`__.
@@ -2390,6 +2569,7 @@ class ApplicationPackage(object):
                             cluster.auth_clients = self.auth_clients
 
         self.deployment_config = deployment_config
+        self.services_config = services_config
 
     @property
     def schemas(self) -> List[Schema]:
@@ -2463,27 +2643,47 @@ class ApplicationPackage(object):
         )
 
     @property
+    def services_to_text_vt(self):
+        if self.services_config:
+            return str(self.services_config)
+        else:
+            self.services_config = ServicesConfiguration(
+                application_name=self.name,
+                schemas=self.schemas or [],
+                configurations=self.configurations or [],
+                stateless_model_evaluation=self.stateless_model_evaluation,
+                components=self.components or [],
+                auth_clients=self.auth_clients or [],
+                clusters=self.clusters or [],
+            )
+            return str(self.services_config)
+
+    @property
     def services_to_text(self):
-        env = Environment(
-            loader=PackageLoader("vespa", "templates"),
-            autoescape=select_autoescape(
-                disabled_extensions=("txt",),
-                default_for_string=True,
-                default=True,
-            ),
-        )
-        env.trim_blocks = True
-        env.lstrip_blocks = True
-        services_template = env.get_template("services.xml")
-        return services_template.render(
-            application_name=self.name,
-            schemas=self.schemas,
-            configurations=self.configurations,
-            stateless_model_evaluation=self.stateless_model_evaluation,
-            components=self.components,
-            auth_clients=self.auth_clients,
-            clusters=self.clusters,
-        )
+        """Intention is to only use services_config, but keeping this until 100% compatibility is achieved through tests."""
+        if self.services_config:
+            return str(self.services_config)
+        else:
+            env = Environment(
+                loader=PackageLoader("vespa", "templates"),
+                autoescape=select_autoescape(
+                    disabled_extensions=("txt",),
+                    default_for_string=True,
+                    default=True,
+                ),
+            )
+            env.trim_blocks = True
+            env.lstrip_blocks = True
+            services_template = env.get_template("services.xml")
+            return services_template.render(
+                application_name=self.name,
+                schemas=self.schemas,
+                configurations=self.configurations,
+                stateless_model_evaluation=self.stateless_model_evaluation,
+                components=self.components,
+                auth_clients=self.auth_clients,
+                clusters=self.clusters,
+            )
 
     @property
     def validations_to_text(self):
