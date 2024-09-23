@@ -4,9 +4,12 @@ from typing import Union
 import pathlib
 import os
 
+project_dir = pathlib.Path(__file__).parent.parent.parent
 # Load the RelaxNG schema at the module level to avoid reloading it every time
 try:
-    with open("tests/testfiles/relaxng/services.rng", "rb") as schema_file:
+    with open(
+        project_dir / "tests/testfiles/relaxng/services.rng", "rb"
+    ) as schema_file:
         RELAXNG_SCHEMA = etree.RelaxNG(etree.parse(schema_file))
 except (OSError, etree.XMLSyntaxError) as e:
     print(f"Error loading RelaxNG schema: {e}")
