@@ -4,12 +4,14 @@ from xml.sax.saxutils import escape
 from fastcore.utils import patch
 import xml.etree.ElementTree as ET
 
-# If the vespa tags correspond to reserved Python keywords, they are replaced with the following:
+# If the vespa tags correspond to reserved Python keywords or commonly used names,
+# they are replaced with the following:
 replace_reserved = {
-    "type": "vt_type",
-    "class": "cls",
-    "for": "fr",
-    "time": "tm",
+    "type": "type_",
+    "class": "class_",
+    "for": "for_",
+    "time": "time_",
+    "io": "io_",
 }
 restore_reserved = {v: k for k, v in replace_reserved.items()}
 

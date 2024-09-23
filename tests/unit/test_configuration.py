@@ -426,21 +426,21 @@ class TestBillionscaleServiceConfiguration(unittest.TestCase):
                                 requestthreads(persearch("2")),
                                 feeding(concurrency("1.0")),
                                 summary(
-                                    io(read("directio")),
+                                    io_(read("directio")),
                                     store(
                                         cache(
                                             maxsize_percent("5"),
                                             compression(
-                                                vt_type("lz4")
-                                            ),  # Using vt_type as type is a reserved keyword
+                                                type_("lz4")
+                                            ),  # Using type_ as type is a reserved keyword
                                         ),
                                         logstore(
                                             chunk(
                                                 maxsize("16384"),
                                                 compression(
-                                                    vt_type(
+                                                    type_(
                                                         "zstd"
-                                                    ),  # Using vt_type as type is a reserved keyword
+                                                    ),  # Using type_ as type is a reserved keyword
                                                     level("3"),
                                                 ),
                                             ),
