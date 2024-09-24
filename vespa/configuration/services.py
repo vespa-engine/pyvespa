@@ -1,5 +1,9 @@
 from vespa.configuration.vt import VT, create_tag_function, voids
 from vespa.configuration.relaxng import RELAXNG
+from lxml import etree
+from pathlib import Path
+import os
+from typing import Union
 
 # List of XML tags (customized for Vespa configuration)
 services_tags = [
@@ -165,17 +169,37 @@ for tag in services_tags:
     _g[sanitized_name] = create_tag_function(tag, tag in voids)
 
 
-def validate_services(xml_schema: str) -> bool:
+def validate_services(xml_input: Union[Path, str, etree.Element]) -> bool:
     """
     Validate an XML input against the RelaxNG schema file for services.xml
 
     Args:
-        xml_input: XML input to validate. It can be:
-            - A string containing XML data
-            - A string or pathlib.Path pointing to an XML file
-            - An etree._Element or etree._ElementTree instance
-
+        xml_input (Path or str or etree.Element): The XML input to validate.
     Returns:
         True if the XML input is valid according to the RelaxNG schema, False otherwise.
     """
-    return RELAXNG["services"].validate(xml_schema)
+    try:
+        if isinstance(xml_input, etree._Element):
+            xml_tree = etree.ElementTree(xml_input)
+        elif isinstance(xml_input, etree._ElementTree):
+            xml_tree = xml_input
+        elif isinstance(xml_input, (str, Path)):
+            if isinstance(xml_input, Path) or os.path.exists(xml_input):
+                # Assume it's a file path
+                xml_tree = etree.parse(str(xml_input))
+            elif isinstance(xml_input, str):
+                # May hav unicode string with encoding declaration
+                if "encoding" in xml_input:
+                    xml_tree = etree.ElementTree(etree.fromstring(xml_input.encode()))
+                else:
+                    # Assume it's a string containing XML content
+                    xml_tree = etree.ElementTree(etree.fromstring(xml_input))
+        else:
+            raise TypeError("xml_input must be a Path, str, or etree.Element.")
+    except Exception as e:
+        # Handle parsing exceptions
+        print(f"Error parsing XML input: {e}")
+        return False
+
+    is_valid = RELAXNG["services"].validate(xml_tree)
+    return is_valid
