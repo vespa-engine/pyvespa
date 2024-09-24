@@ -1,5 +1,5 @@
 from vespa.configuration.vt import VT, create_tag_function, voids
-from lxml import etree
+from vespa.configuration.relaxng import RELAXNG
 
 # List of XML tags (customized for Vespa configuration)
 services_tags = [
@@ -164,9 +164,6 @@ for tag in services_tags:
     sanitized_name = VT.sanitize_tag_name(tag)
     _g[sanitized_name] = create_tag_function(tag, tag in voids)
 
-with open("tests/testfiles/relaxng/services.rng", "rb") as schema_file:
-    relaxng = etree.RelaxNG(etree.parse(schema_file))
-
 
 def validate_services(xml_schema: str) -> bool:
     """
@@ -178,4 +175,4 @@ def validate_services(xml_schema: str) -> bool:
     Returns:
         bool: True if the XML schema is valid, False otherwise
     """
-    return relaxng.validate(xml_schema)
+    return RELAXNG["services"].validate(xml_schema)
