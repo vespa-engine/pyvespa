@@ -246,7 +246,7 @@ class Q:
             return condition
 
     @staticmethod
-    def ui(value: str = "", index: Optional[str] = None) -> Condition:
+    def userQuery(value: str = "", index: Optional[str] = None) -> Condition:
         if index is None:
             # Only value provided
             return (
@@ -450,7 +450,9 @@ class QTest(unittest.TestCase):
         self.assertEqual(q, expected)
 
     def test_userInput_with_and_without_defaultIndex(self):
-        condition = Q.ui(value="value1") & Q.ui(index="index", value="value2")
+        condition = Q.userQuery(value="value1") & Q.userQuery(
+            index="index", value="value2"
+        )
         q = Query(select_fields="*").from_("sd1").where(condition).build()
         expected = 'yql=select * from sd1 where userQuery("value1") and ({"defaultIndex": "index"})userQuery("value2")'
         self.assertEqual(q, expected)
@@ -466,7 +468,7 @@ class QTest(unittest.TestCase):
         self.assertEqual(condition, expected)
 
     def test_nearest_neighbor(self):
-        condition_uq = Q.ui()
+        condition_uq = Q.userQuery()
         condition_nn = Q.nearestNeighbor(
             field="dense_rep", query_vector="q_dense", annotations={"targetHits": 10}
         )
