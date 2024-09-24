@@ -1,7 +1,16 @@
 import unittest
 from lxml import etree
 import xml.etree.ElementTree as ET
-from vespa.configuration.vt import *
+from vespa.configuration.vt import (
+    VT,
+    vt,
+    create_tag_function,
+    attrmap,
+    valmap,
+    to_xml,
+    compare_xml,
+    vt_escape,
+)
 from vespa.configuration.services import *
 
 
@@ -186,18 +195,7 @@ class TestColbertServiceConfiguration(unittest.TestCase):
         generated_xml = generated_services.to_xml()
         # Validate against relaxng
         self.assertTrue(validate_services(etree.fromstring(str(generated_xml))))
-        # Check all nodes and attributes being equal
-        tree_original = ET.fromstring(self.xml_schema.encode("utf-8"))
-        tree_generated = ET.fromstring(str(generated_xml))
-        for original, generated in zip(tree_original.iter(), tree_generated.iter()):
-            # print(f"Original: {original.tag}, {original.attrib}, {original.text}")
-            # print(f"Generated: {generated.tag}, {generated.attrib}, {generated.text}")
-            self.assertEqual(original.tag, generated.tag)
-            self.assertEqual(original.attrib, generated.attrib)
-            self.assertEqual(
-                original.text.strip() if original.text else None,
-                generated.text.strip() if generated.text else None,
-            )
+        self.assertTrue(compare_xml(self.xml_schema, str(generated_xml)))
 
 
 class TestBillionscaleServiceConfiguration(unittest.TestCase):
@@ -459,22 +457,12 @@ class TestBillionscaleServiceConfiguration(unittest.TestCase):
         # Validate against relaxng
         self.assertTrue(validate_services(etree.fromstring(str(generated_xml))))
         # Check all nodes and attributes being equal
-        tree_original = ET.fromstring(self.xml_schema.encode("utf-8"))
-        tree_generated = ET.fromstring(str(generated_xml))
-        for original, generated in zip(tree_original.iter(), tree_generated.iter()):
-            # print(f"Original: {original.tag}, {original.attrib}, {original.text}")
-            # print(f"Generated: {generated.tag}, {generated.attrib}, {generated.text}")
-            self.assertEqual(original.tag, generated.tag)
-            self.assertEqual(original.attrib, generated.attrib)
-            orig_text = original.text or ""
-            gen_text = generated.text or ""
-            self.assertEqual(orig_text.strip(), gen_text.strip())
+        self.assertTrue(compare_xml(self.xml_schema, str(generated_xml)))
 
 
 class TestDocumentExpiry(unittest.TestCase):
     def setUp(self):
-        self.xml_schema = """<?xml version="1.0" encoding="UTF-8" ?>
-<services>
+        self.xml_schema = """<services>
   <container id="music_container" version="1.0">
     <search></search>
     <document-api></document-api>
@@ -513,7 +501,7 @@ class TestDocumentExpiry(unittest.TestCase):
                     document(
                         type=application_name,
                         mode="index",
-                        selection="music.timestamp &gt; now() - 86400",
+                        selection="music.timestamp > now() - 86400",
                     ),
                     garbage_collection="true",
                 ),
@@ -525,6 +513,9 @@ class TestDocumentExpiry(unittest.TestCase):
         generated_xml = generated.to_xml()
         # Validate against relaxng
         self.assertTrue(validate_services(etree.fromstring(str(generated_xml))))
+        # Compare the generated XML with the schema
+        print(self.xml_schema)
+        self.assertTrue(compare_xml(self.xml_schema, str(generated_xml)))
 
 
 if __name__ == "__main__":
