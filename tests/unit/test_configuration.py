@@ -11,6 +11,7 @@ from vespa.configuration.vt import (
     compare_xml,
     vt_escape,
 )
+
 from vespa.configuration.services import *
 
 
@@ -460,6 +461,96 @@ class TestBillionscaleServiceConfiguration(unittest.TestCase):
         self.assertTrue(compare_xml(self.xml_schema, str(generated_xml)))
 
 
+class TestValidateServices(unittest.TestCase):
+    def setUp(self):
+        # Prepare some sample valid and invalid XML data
+        self.valid_xml_content = """<services>
+  <container id="music_container" version="1.0">
+    <search></search>
+    <document-api></document-api>
+    <document-processing></document-processing>
+  </container>
+  <content id="music_content" version="1.0">
+    <redundancy>1</redundancy>
+    <documents garbage-collection="true">
+      <document type="music" mode="index" selection="music.timestamp &gt; now() - 86400"></document>
+    </documents>
+    <nodes>
+      <node distribution-key="0" hostalias="node1"></node>
+    </nodes>
+  </content>
+</services>"""
+        self.invalid_xml_content = """<services>
+  <container id="music_container" version="1.0">
+    <search></search>
+    <documents-api></document-api>
+    <document-processing></document-processing>
+  </container>
+  <content id="music_content" version="1.0">
+    <redundancy>1</redundancy>
+    <documents garbage-collection="true">
+      <document type="music" mode="index" selection="music.timestamp &gt; now() - 86400"></document>
+    </documents>
+    <nodes>
+      <node distribution-key="0" hostalias="node1"></node>
+    </nodes>
+  </content>
+</services>"""
+
+        # Create temporary files with valid and invalid XML content
+        self.valid_xml_file = "valid_test.xml"
+        self.invalid_xml_file = "invalid_test.xml"
+
+        with open(self.valid_xml_file, "w") as f:
+            f.write(self.valid_xml_content)
+
+        with open(self.invalid_xml_file, "w") as f:
+            f.write(self.invalid_xml_content)
+
+        # Create etree.Element from valid XML content
+        self.valid_xml_element = etree.fromstring(self.valid_xml_content)
+
+    def tearDown(self):
+        # Clean up temporary files
+        os.remove(self.valid_xml_file)
+        os.remove(self.invalid_xml_file)
+
+    def test_validate_valid_xml_content(self):
+        # Test with valid XML content as string
+        result = validate_services(self.valid_xml_content)
+        self.assertTrue(result)
+
+    def test_validate_invalid_xml_content(self):
+        # Test with invalid XML content as string
+        result = validate_services(self.invalid_xml_content)
+        self.assertFalse(result)
+
+    def test_validate_valid_xml_file(self):
+        # Test with valid XML file path
+        result = validate_services(self.valid_xml_file)
+        self.assertTrue(result)
+
+    def test_validate_invalid_xml_file(self):
+        # Test with invalid XML file path
+        result = validate_services(self.invalid_xml_file)
+        self.assertFalse(result)
+
+    def test_validate_valid_xml_element(self):
+        # Test with valid etree.Element
+        result = validate_services(self.valid_xml_element)
+        self.assertTrue(result)
+
+    def test_validate_nonexistent_file(self):
+        # Test with a non-existent file path
+        result = validate_services("nonexistent.xml")
+        self.assertFalse(result)
+
+    def test_validate_invalid_input_type(self):
+        # Test with invalid input type
+        result = validate_services(123)
+        self.assertFalse(result)
+
+
 class TestDocumentExpiry(unittest.TestCase):
     def setUp(self):
         self.xml_schema = """<services>
@@ -514,7 +605,6 @@ class TestDocumentExpiry(unittest.TestCase):
         # Validate against relaxng
         self.assertTrue(validate_services(etree.fromstring(str(generated_xml))))
         # Compare the generated XML with the schema
-        print(self.xml_schema)
         self.assertTrue(compare_xml(self.xml_schema, str(generated_xml)))
 
 
