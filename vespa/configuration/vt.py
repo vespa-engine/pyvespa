@@ -68,12 +68,13 @@ class VT:
 
 
 def attrmap(o):
+    """This maps the attributes that we don't want to be Python keywords or commonly used names to the replacement names."""
     o = dict(_global="global").get(o, o)
     return o.lstrip("_").replace("_", "-")
 
 
 def valmap(o):
-    # Convert integers to strings and booleans to 'true' or 'false'
+    """Convert values to the string representation for xml. integers to strings and booleans to 'true' or 'false'"""
     if isinstance(o, bool):
         return str(o).lower()
     elif isinstance(o, int):
@@ -92,8 +93,22 @@ def _flatten_tuple(tup):
 
 
 def _preproc(c, kw, attrmap=attrmap, valmap=valmap):
+    """
+    Preprocess the children and attributes of a VT structure.
+
+    :param c: Children of the VT structure
+    :param kw: Attributes of the VT structure
+    :param attrmap: Dict to map attribute names
+    :param valmap: Dict to map attribute values
+
+    :return: Tuple of children and attributes
+    """
+
+    # If the children are a single generator, map, or filter, convert it to a tuple
     if len(c) == 1 and isinstance(c[0], (types.GeneratorType, map, filter)):
         c = tuple(c[0])
+    # Create the attributes dictionary by mapping the keys and values
+    # TODO: Check if any of Vespa supported attributes are camelCase
     attrs = {attrmap(k.lower()): valmap(v) for k, v in kw.items() if v is not None}
     return _flatten_tuple(c), attrs
 
@@ -107,7 +122,7 @@ def vt(
     valmap: callable = valmap,
     **kw,
 ):
-    "Create an `VT` structure for `to_xml()`"
+    "Create a VT structure with `tag`, `children` and `attrs`"
     # NB! fastcore.xml uses tag.lower() for tag names. This is not done here.
     return VT(tag, *_preproc(c, kw, attrmap=attrmap, valmap=valmap), void_=void_)
 
@@ -118,7 +133,7 @@ voids = set("".split())
 
 
 def Xml(*c, version="1.0", encoding="UTF-8", **kwargs) -> VT:
-    "An top level XML tag, with `encoding` and children `c`"
+    "A top level XML tag, with `encoding` and children `c`"
     res = vt("?xml", *c, version=version, encoding=encoding, void_="?")
     return res
 
