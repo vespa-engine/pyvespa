@@ -572,7 +572,7 @@ class G:
         return "summary()"
 
 
-class QTest(unittest.TestCase):
+class TestQueryBuilder(unittest.TestCase):
     def test_dotProduct_with_annotations(self):
         condition = Q.dotProduct(
             "vector_field",
@@ -942,8 +942,6 @@ class QTest(unittest.TestCase):
         expected = "yql=select id, text from m where ({targetHits:10}nearestNeighbor(dense_rep, q_dense))"
         self.assertEqual(q, expected)
 
-
-class TestQueryBuilder(unittest.TestCase):
     def test_phrase(self):
         text = Field("text")
         condition = text.contains(Q.phrase("st", "louis", "blues"))
