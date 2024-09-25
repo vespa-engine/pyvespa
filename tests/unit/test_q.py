@@ -1,5 +1,3 @@
-# test_querybuilder.py
-
 import unittest
 from dataclasses import dataclass
 from typing import Any, List, Union, Optional, Dict
@@ -28,14 +26,45 @@ class Field:
     def __ge__(self, other: Any) -> "Condition":
         return Condition(f"{self.name} >= {self._format_value(other)}")
 
-    def contains(self, value: Any) -> "Condition":
-        return Condition(f"{self.name} contains {self._format_value(value)}")
+    def contains(
+        self, value: Any, annotations: Optional[Dict[str, Any]] = None
+    ) -> "Condition":
+        value_str = self._format_value(value)
+        if annotations:
+            annotations_str = ",".join(
+                f"{k}:{self._format_annotation_value(v)}"
+                for k, v in annotations.items()
+            )
+            return Condition(f"{self.name} contains({{{annotations_str}}}{value_str})")
+        else:
+            return Condition(f"{self.name} contains {value_str}")
 
-    def matches(self, value: Any) -> "Condition":
-        return Condition(f"{self.name} matches {self._format_value(value)}")
+    def matches(
+        self, value: Any, annotations: Optional[Dict[str, Any]] = None
+    ) -> "Condition":
+        value_str = self._format_value(value)
+        if annotations:
+            annotations_str = ",".join(
+                f"{k}:{self._format_annotation_value(v)}"
+                for k, v in annotations.items()
+            )
+            return Condition(f"{self.name} matches({{{annotations_str}}}{value_str})")
+        else:
+            return Condition(f"{self.name} matches {value_str}")
 
-    def in_range(self, start: Any, end: Any) -> "Condition":
-        return Condition(f"range({self.name}, {start}, {end})")
+    def in_range(
+        self, start: Any, end: Any, annotations: Optional[Dict[str, Any]] = None
+    ) -> "Condition":
+        if annotations:
+            annotations_str = ",".join(
+                f"{k}:{self._format_annotation_value(v)}"
+                for k, v in annotations.items()
+            )
+            return Condition(
+                f"({{{annotations_str}}}range({self.name}, {start}, {end}))"
+            )
+        else:
+            return Condition(f"range({self.name}, {start}, {end})")
 
     def le(self, value: Any) -> "Condition":
         return self.__le__(value)
@@ -59,14 +88,10 @@ class Field:
     def _format_value(value: Any) -> str:
         if isinstance(value, str):
             return f'"{value}"'
+        elif isinstance(value, Condition):
+            return value.build()
         else:
             return str(value)
-
-    def annotate(self, annotations: Dict[str, Any]) -> "Condition":
-        annotations_str = ",".join(
-            f"{k}:{Field._format_annotation_value(v)}" for k, v in annotations.items()
-        )
-        return Condition(f"({{{annotations_str}}}){self.name}")
 
     @staticmethod
     def _format_annotation_value(value: Any) -> str:
@@ -91,6 +116,12 @@ class Field:
             )
         else:
             return str(value)
+
+    def annotate(self, annotations: Dict[str, Any]) -> "Condition":
+        annotations_str = ",".join(
+            f"{k}:{self._format_annotation_value(v)}" for k, v in annotations.items()
+        )
+        return Condition(f"({{{annotations_str}}}){self.name}")
 
 
 @dataclass
@@ -286,14 +317,32 @@ class Q:
             return Condition(f'({default_index_json})userQuery("{value}")')
 
     @staticmethod
-    def dotPdt(field: str, vector: Dict[str, int]) -> Condition:
+    def dotProduct(
+        field: str, vector: Dict[str, int], annotations: Optional[Dict[str, Any]] = None
+    ) -> Condition:
         vector_str = "{" + ",".join(f'"{k}":{v}' for k, v in vector.items()) + "}"
-        return Condition(f"dotProduct({field}, {vector_str})")
+        expr = f"dotProduct({field}, {vector_str})"
+        if annotations:
+            annotations_str = ",".join(
+                f"{k}:{Field._format_annotation_value(v)}"
+                for k, v in annotations.items()
+            )
+            expr = f"({{{annotations_str}}}{expr})"
+        return Condition(expr)
 
     @staticmethod
-    def wtdSet(field: str, vector: Dict[str, int]) -> Condition:
+    def weightedSet(
+        field: str, vector: Dict[str, int], annotations: Optional[Dict[str, Any]] = None
+    ) -> Condition:
         vector_str = "{" + ",".join(f'"{k}":{v}' for k, v in vector.items()) + "}"
-        return Condition(f"weightedSet({field}, {vector_str})")
+        expr = f"weightedSet({field}, {vector_str})"
+        if annotations:
+            annotations_str = ",".join(
+                f"{k}:{Field._format_annotation_value(v)}"
+                for k, v in annotations.items()
+            )
+            expr = f"({{{annotations_str}}}{expr})"
+        return Condition(expr)
 
     @staticmethod
     def nonEmpty(condition: Union[Condition, Field]) -> Condition:
@@ -304,7 +353,9 @@ class Q:
         return Condition(f"nonEmpty({expr})")
 
     @staticmethod
-    def wand(field: str, weights, annotations: Dict[str, Any] = None) -> Condition:
+    def wand(
+        field: str, weights, annotations: Optional[Dict[str, Any]] = None
+    ) -> Condition:
         if isinstance(weights, list):
             weights_str = "[" + ",".join(str(item) for item in weights) + "]"
         elif isinstance(weights, dict):
@@ -314,14 +365,14 @@ class Q:
         expr = f"wand({field}, {weights_str})"
         if annotations:
             annotations_str = ",".join(
-                f'"{k}":{Field._format_annotation_value(v)}'
+                f"{k}:{Field._format_annotation_value(v)}"
                 for k, v in annotations.items()
             )
             expr = f"({{{annotations_str}}}{expr})"
         return Condition(expr)
 
     @staticmethod
-    def weakand(*conditions, annotations: Dict[str, Any] = None) -> Condition:
+    def weakAnd(*conditions, annotations: Dict[str, Any] = None) -> Condition:
         conditions_str = ", ".join(cond.build() for cond in conditions)
         expr = f"weakAnd({conditions_str})"
         if annotations:
@@ -333,25 +384,34 @@ class Q:
         return Condition(expr)
 
     @staticmethod
-    def geoLocation(field: str, lat: float, lng: float, radius: str) -> Condition:
-        return Condition(f'geoLocation({field}, {lat}, {lng}, "{radius}")')
-
-    @staticmethod
-    def nearestNeighbor(
-        field: str, query_vector: str, annotations: Dict[str, Any] = None
+    def geoLocation(
+        field: str,
+        lat: float,
+        lng: float,
+        radius: str,
+        annotations: Optional[Dict[str, Any]] = None,
     ) -> Condition:
+        expr = f'geoLocation({field}, {lat}, {lng}, "{radius}")'
         if annotations:
-            if "targetHits" not in annotations:
-                raise ValueError("targetHits annotation is required")
             annotations_str = ",".join(
                 f"{k}:{Field._format_annotation_value(v)}"
                 for k, v in annotations.items()
             )
-            return Condition(
-                f"({{{annotations_str}}}nearestNeighbor({field}, {query_vector}))"
-            )
-        else:
-            raise ValueError("Annotations are required for nearestNeighbor")
+            expr = f"({{{annotations_str}}}{expr})"
+        return Condition(expr)
+
+    @staticmethod
+    def nearestNeighbor(
+        field: str, query_vector: str, annotations: Dict[str, Any]
+    ) -> Condition:
+        if "targetHits" not in annotations:
+            raise ValueError("targetHits annotation is required")
+        annotations_str = ",".join(
+            f"{k}:{Field._format_annotation_value(v)}" for k, v in annotations.items()
+        )
+        return Condition(
+            f"({{{annotations_str}}}nearestNeighbor({field}, {query_vector}))"
+        )
 
     @staticmethod
     def rank(*queries) -> Condition:
@@ -389,33 +449,29 @@ class G:
         return "summary()"
 
 
-class A:
-    @staticmethod
-    def a(*args, **kwargs) -> Dict[str, Any]:
-        if args and isinstance(args[0], dict):
-            return args[0]
-        else:
-            annotations = {}
-            for i in range(0, len(args), 2):
-                annotations[args[i]] = args[i + 1]
-            annotations.update(kwargs)
-            return annotations
-
-    @staticmethod
-    def filter() -> Dict[str, Any]:
-        return {"filter": True}
-
-    @staticmethod
-    def defaultIndex(index: str) -> Dict[str, Any]:
-        return {"defaultIndex": index}
-
-    @staticmethod
-    def append(annotations: Dict[str, Any], other: Dict[str, Any]) -> Dict[str, Any]:
-        annotations.update(other)
-        return annotations
-
-
 class QTest(unittest.TestCase):
+    def test_dotProduct_with_annotations(self):
+        condition = Q.dotProduct(
+            "vector_field",
+            {"feature1": 1, "feature2": 2},
+            annotations={"label": "myDotProduct"},
+        )
+        q = Query(select_fields="*").from_("vectors").where(condition).build()
+        expected = 'yql=select * from vectors where ({label:"myDotProduct"}dotProduct(vector_field, {"feature1":1,"feature2":2}))'
+        self.assertEqual(q, expected)
+
+    def test_geoLocation_with_annotations(self):
+        condition = Q.geoLocation(
+            "location_field",
+            37.7749,
+            -122.4194,
+            "10km",
+            annotations={"targetHits": 100},
+        )
+        q = Query(select_fields="*").from_("places").where(condition).build()
+        expected = 'yql=select * from places where ({targetHits:100}geoLocation(location_field, 37.7749, -122.4194, "10km"))'
+        self.assertEqual(q, expected)
+
     def test_select_specific_fields(self):
         f1 = Field("f1")
         condition = f1.contains("v1")
@@ -596,7 +652,7 @@ class QTest(unittest.TestCase):
 
     def test_custom_ranking_expression(self):
         condition = Q.rank(
-            Q.userQuery(), Q.dotPdt("embedding", {"feature1": 1, "feature2": 2})
+            Q.userQuery(), Q.dotProduct("embedding", {"feature1": 1, "feature2": 2})
         )
         q = Query(select_fields="*").from_("documents").where(condition).build()
         expected = 'yql=select * from documents where rank(userQuery(), dotProduct(embedding, {"feature1":1,"feature2":2}))'
@@ -613,7 +669,7 @@ class QTest(unittest.TestCase):
     def test_weakand(self):
         condition1 = Field("title").contains("Python")
         condition2 = Field("description").contains("Programming")
-        condition = Q.weakand(
+        condition = Q.weakAnd(
             condition1, condition2, annotations={"targetNumHits": 100}
         )
         q = Query(select_fields="*").from_("articles").where(condition).build()
@@ -638,7 +694,7 @@ class QTest(unittest.TestCase):
     def test_order_by_with_annotations(self):
         f1 = "relevance"
         f2 = "price"
-        annotations = A.a("strength", 0.5)
+        annotations = {"strength": 0.5}
         q = (
             Query(select_fields="*")
             .from_("products")
@@ -672,7 +728,7 @@ class QTest(unittest.TestCase):
         self.assertEqual(q, expected)
 
     def test_dotProduct(self):
-        condition = Q.dotPdt("vector_field", {"feature1": 1, "feature2": 2})
+        condition = Q.dotProduct("vector_field", {"feature1": 1, "feature2": 2})
         q = Query(select_fields="*").from_("vectors").where(condition).build()
         expected = 'yql=select * from vectors where dotProduct(vector_field, {"feature1":1,"feature2":2})'
         self.assertEqual(q, expected)
@@ -735,15 +791,15 @@ class QTest(unittest.TestCase):
     def test_rank_multiple_conditions(self):
         condition = Q.rank(
             Q.userQuery(),
-            Q.dotPdt("embedding", {"feature1": 1}),
-            Q.wtdSet("tags", {"tag1": 2}),
+            Q.dotProduct("embedding", {"feature1": 1}),
+            Q.weightedSet("tags", {"tag1": 2}),
         )
         q = Query(select_fields="*").from_("documents").where(condition).build()
         expected = 'yql=select * from documents where rank(userQuery(), dotProduct(embedding, {"feature1":1}), weightedSet(tags, {"tag1":2}))'
         self.assertEqual(q, expected)
 
     def test_nonEmpty_with_annotations(self):
-        annotated_field = Field("comments").annotate(A.filter())
+        annotated_field = Field("comments").annotate({"filter": True})
         condition = Q.nonEmpty(annotated_field)
         q = Query(select_fields="*").from_("posts").where(condition).build()
         expected = "yql=select * from posts where nonEmpty(({filter:true})comments)"
@@ -752,7 +808,7 @@ class QTest(unittest.TestCase):
     def test_weight_annotation(self):
         condition = Field("title").contains("heads", annotations={"weight": 200})
         q = Query(select_fields="*").from_("s1").where(condition).build()
-        expected = "yql=select * from s1 where title contains({weight:200}'heads')"
+        expected = 'yql=select * from s1 where title contains({weight:200}"heads")'
         self.assertEqual(q, expected)
 
     def test_nearest_neighbor_annotations(self):
