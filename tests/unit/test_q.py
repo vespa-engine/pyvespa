@@ -52,6 +52,12 @@ class Field:
         else:
             return Condition(f"{self.name} matches {value_str}")
 
+    def in_(self, *values) -> "Condition":
+        values_str = ", ".join(
+            f'"{v}"' if isinstance(v, str) else str(v) for v in values
+        )
+        return Condition(f"{self.name} in ({values_str})")
+
     def in_range(
         self, start: Any, end: Any, annotations: Optional[Dict[str, Any]] = None
     ) -> "Condition":
@@ -417,6 +423,123 @@ class Q:
     def rank(*queries) -> Condition:
         queries_str = ", ".join(query.build() for query in queries)
         return Condition(f"rank({queries_str})")
+
+    @staticmethod
+    def phrase(*terms, annotations: Optional[Dict[str, Any]] = None) -> Condition:
+        terms_str = ", ".join(f'"{term}"' for term in terms)
+        expr = f"phrase({terms_str})"
+        if annotations:
+            annotations_str = ",".join(
+                f"{k}:{Field._format_annotation_value(v)}"
+                for k, v in annotations.items()
+            )
+            expr = f"({{{annotations_str}}}{expr})"
+        return Condition(expr)
+
+    @staticmethod
+    def near(*terms, annotations: Optional[Dict[str, Any]] = None) -> Condition:
+        terms_str = ", ".join(f'"{term}"' for term in terms)
+        expr = f"near({terms_str})"
+        if annotations:
+            annotations_str = ",".join(
+                f"{k}:{Field._format_annotation_value(v)}"
+                for k, v in annotations.items()
+            )
+            expr = f"({{{annotations_str}}}{expr})"
+        return Condition(expr)
+
+    @staticmethod
+    def onear(*terms, annotations: Optional[Dict[str, Any]] = None) -> Condition:
+        terms_str = ", ".join(f'"{term}"' for term in terms)
+        expr = f"onear({terms_str})"
+        if annotations:
+            annotations_str = ",".join(
+                f"{k}:{Field._format_annotation_value(v)}"
+                for k, v in annotations.items()
+            )
+            expr = f"({{{annotations_str}}}{expr})"
+        return Condition(expr)
+
+    @staticmethod
+    def sameElement(*conditions) -> Condition:
+        conditions_str = ", ".join(cond.build() for cond in conditions)
+        expr = f"sameElement({conditions_str})"
+        return Condition(expr)
+
+    @staticmethod
+    def equiv(*terms) -> Condition:
+        terms_str = ", ".join(f'"{term}"' for term in terms)
+        expr = f"equiv({terms_str})"
+        return Condition(expr)
+
+    @staticmethod
+    def uri(value: str, annotations: Optional[Dict[str, Any]] = None) -> Condition:
+        expr = f'uri("{value}")'
+        if annotations:
+            annotations_str = ",".join(
+                f"{k}:{Field._format_annotation_value(v)}"
+                for k, v in annotations.items()
+            )
+            expr = f"({{{annotations_str}}}{expr})"
+        return Condition(expr)
+
+    @staticmethod
+    def fuzzy(value: str, annotations: Optional[Dict[str, Any]] = None) -> Condition:
+        expr = f'fuzzy("{value}")'
+        if annotations:
+            annotations_str = ",".join(
+                f"{k}:{Field._format_annotation_value(v)}"
+                for k, v in annotations.items()
+            )
+            expr = f"({{{annotations_str}}}{expr})"
+        return Condition(expr)
+
+    @staticmethod
+    def userInput(
+        value: Optional[str] = None, annotations: Optional[Dict[str, Any]] = None
+    ) -> Condition:
+        if value is None:
+            expr = "userInput()"
+        elif value.startswith("@"):
+            expr = f"userInput({value})"
+        else:
+            expr = f'userInput("{value}")'
+        if annotations:
+            annotations_str = ",".join(
+                f"{k}:{Field._format_annotation_value(v)}"
+                for k, v in annotations.items()
+            )
+            expr = f"({{{annotations_str}}}{expr})"
+        return Condition(expr)
+
+    @staticmethod
+    def predicate(
+        field: str,
+        attributes: Optional[Dict[str, Any]] = None,
+        range_attributes: Optional[Dict[str, Any]] = None,
+    ) -> Condition:
+        if attributes is None:
+            attributes_str = "0"
+        else:
+            attributes_str = (
+                "{" + ",".join(f'"{k}":"{v}"' for k, v in attributes.items()) + "}"
+            )
+        if range_attributes is None:
+            range_attributes_str = "0"
+        else:
+            range_attributes_str = (
+                "{" + ",".join(f'"{k}":{v}' for k, v in range_attributes.items()) + "}"
+            )
+        expr = f"predicate({field},{attributes_str},{range_attributes_str})"
+        return Condition(expr)
+
+    @staticmethod
+    def true() -> Condition:
+        return Condition("true")
+
+    @staticmethod
+    def false() -> Condition:
+        return Condition("false")
 
 
 class G:
@@ -818,6 +941,106 @@ class QTest(unittest.TestCase):
         q = Query(select_fields=["id, text"]).from_("m").where(condition).build()
         expected = "yql=select id, text from m where ({targetHits:10}nearestNeighbor(dense_rep, q_dense))"
         self.assertEqual(q, expected)
+
+
+class TestQueryBuilder(unittest.TestCase):
+    def test_phrase(self):
+        text = Field("text")
+        condition = text.contains(Q.phrase("st", "louis", "blues"))
+        query = Q.select("*").where(condition).build()
+        expected = (
+            'yql=select * from * where text contains phrase("st", "louis", "blues")'
+        )
+        self.assertEqual(query, expected)
+
+    def test_near(self):
+        title = Field("title")
+        condition = title.contains(Q.near("madonna", "saint"))
+        query = Q.select("*").where(condition).build()
+        expected = 'yql=select * from * where title contains near("madonna", "saint")'
+        self.assertEqual(query, expected)
+
+    def test_onear(self):
+        title = Field("title")
+        condition = title.contains(Q.onear("madonna", "saint"))
+        query = Q.select("*").where(condition).build()
+        expected = 'yql=select * from * where title contains onear("madonna", "saint")'
+        self.assertEqual(query, expected)
+
+    def test_sameElement(self):
+        persons = Field("persons")
+        first_name = Field("first_name")
+        last_name = Field("last_name")
+        year_of_birth = Field("year_of_birth")
+        condition = persons.contains(
+            Q.sameElement(
+                first_name.contains("Joe"),
+                last_name.contains("Smith"),
+                year_of_birth < 1940,
+            )
+        )
+        query = Q.select("*").where(condition).build()
+        expected = 'yql=select * from * where persons contains sameElement(first_name contains "Joe", last_name contains "Smith", year_of_birth < 1940)'
+        self.assertEqual(query, expected)
+
+    def test_equiv(self):
+        fieldName = Field("fieldName")
+        condition = fieldName.contains(Q.equiv("A", "B"))
+        query = Q.select("*").where(condition).build()
+        expected = 'yql=select * from * where fieldName contains equiv("A", "B")'
+        self.assertEqual(query, expected)
+
+    def test_uri(self):
+        myUrlField = Field("myUrlField")
+        condition = myUrlField.contains(Q.uri("vespa.ai/foo"))
+        query = Q.select("*").where(condition).build()
+        expected = 'yql=select * from * where myUrlField contains uri("vespa.ai/foo")'
+        self.assertEqual(query, expected)
+
+    def test_fuzzy(self):
+        myStringAttribute = Field("myStringAttribute")
+        annotations = {"prefixLength": 1, "maxEditDistance": 2}
+        condition = myStringAttribute.contains(
+            Q.fuzzy("parantesis", annotations=annotations)
+        )
+        query = Q.select("*").where(condition).build()
+        expected = 'yql=select * from * where myStringAttribute contains ({prefixLength:1,maxEditDistance:2}fuzzy("parantesis"))'
+        self.assertEqual(query, expected)
+
+    def test_userInput(self):
+        condition = Q.userInput("@animal")
+        query = Q.select("*").where(condition).param("animal", "panda").build()
+        expected = "yql=select * from * where userInput(@animal)&animal=panda"
+        self.assertEqual(query, expected)
+
+    def test_in_operator(self):
+        integer_field = Field("integer_field")
+        condition = integer_field.in_(10, 20, 30)
+        query = Q.select("*").where(condition).build()
+        expected = "yql=select * from * where integer_field in (10, 20, 30)"
+        self.assertEqual(query, expected)
+
+    def test_predicate(self):
+        condition = Q.predicate(
+            "predicate_field",
+            attributes={"gender": "Female"},
+            range_attributes={"age": "20L"},
+        )
+        query = Q.select("*").where(condition).build()
+        expected = 'yql=select * from * where predicate(predicate_field,{"gender":"Female"},{"age":20L})'
+        self.assertEqual(query, expected)
+
+    def test_true(self):
+        condition = Q.true()
+        query = Q.select("*").where(condition).build()
+        expected = "yql=select * from * where true"
+        self.assertEqual(query, expected)
+
+    def test_false(self):
+        condition = Q.false()
+        query = Q.select("*").where(condition).build()
+        expected = "yql=select * from * where false"
+        self.assertEqual(query, expected)
 
 
 if __name__ == "__main__":
