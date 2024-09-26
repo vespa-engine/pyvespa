@@ -4,11 +4,14 @@ from xml.sax.saxutils import escape
 from fastcore.utils import patch
 import xml.etree.ElementTree as ET
 
-# If the vespa tags correspond to reserved Python keywords, they are replaced with the following:
+# If the vespa tags correspond to reserved Python keywords or commonly used names,
+# they are replaced with the following:
 replace_reserved = {
-    "type": "vt_type",
-    "class": "cls",
-    "for": "fr",
+    "type": "type_",
+    "class": "class_",
+    "for": "for_",
+    "time": "time_",
+    "io": "io_",
 }
 restore_reserved = {v: k for k, v in replace_reserved.items()}
 
@@ -65,11 +68,17 @@ class VT:
 
 
 def attrmap(o):
+    """This maps the attributes that we don't want to be Python keywords or commonly used names to the replacement names."""
     o = dict(_global="global").get(o, o)
     return o.lstrip("_").replace("_", "-")
 
 
 def valmap(o):
+    """Convert values to the string representation for xml. integers to strings and booleans to 'true' or 'false'"""
+    if isinstance(o, bool):
+        return str(o).lower()
+    elif isinstance(o, int):
+        return str(o)
     return o if isinstance(o, str) else " ".join(map(str, o))
 
 
@@ -84,8 +93,22 @@ def _flatten_tuple(tup):
 
 
 def _preproc(c, kw, attrmap=attrmap, valmap=valmap):
+    """
+    Preprocess the children and attributes of a VT structure.
+
+    :param c: Children of the VT structure
+    :param kw: Attributes of the VT structure
+    :param attrmap: Dict to map attribute names
+    :param valmap: Dict to map attribute values
+
+    :return: Tuple of children and attributes
+    """
+
+    # If the children are a single generator, map, or filter, convert it to a tuple
     if len(c) == 1 and isinstance(c[0], (types.GeneratorType, map, filter)):
         c = tuple(c[0])
+    # Create the attributes dictionary by mapping the keys and values
+    # TODO: Check if any of Vespa supported attributes are camelCase
     attrs = {attrmap(k.lower()): valmap(v) for k, v in kw.items() if v is not None}
     return _flatten_tuple(c), attrs
 
@@ -99,7 +122,7 @@ def vt(
     valmap: callable = valmap,
     **kw,
 ):
-    "Create an `VT` structure for `to_xml()`"
+    "Create a VT structure with `tag`, `children` and `attrs`"
     # NB! fastcore.xml uses tag.lower() for tag names. This is not done here.
     return VT(tag, *_preproc(c, kw, attrmap=attrmap, valmap=valmap), void_=void_)
 
@@ -110,7 +133,7 @@ voids = set("".split())
 
 
 def Xml(*c, version="1.0", encoding="UTF-8", **kwargs) -> VT:
-    "An top level XML tag, with `encoding` and children `c`"
+    "A top level XML tag, with `encoding` and children `c`"
     res = vt("?xml", *c, version=version, encoding=encoding, void_="?")
     return res
 
@@ -173,8 +196,10 @@ def _to_xml(elm, lvl, indent, do_escape):
         # Handle the case where children are text or elements
         res = f"{sp}<{stag}{attr_str}>"
 
-        # If the children are just text, don't introduce newlines
-        if len(cs) == 1 and isinstance(cs[0], str):
+        # If the children are just text or int, don't introduce newlines
+        if len(cs) == 1 and (isinstance(cs[0], str) or isinstance(cs[0], int)):
+            if isinstance(cs[0], int):
+                cs = str(cs[0])
             res += f"{esc_fn(cs[0].strip())}</{stag}>{nl if indent else ''}"
         else:
             # If there are multiple children, properly indent them

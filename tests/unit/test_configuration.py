@@ -1,7 +1,17 @@
 import unittest
 from lxml import etree
 import xml.etree.ElementTree as ET
-from vespa.configuration.vt import *
+from vespa.configuration.vt import (
+    VT,
+    vt,
+    create_tag_function,
+    attrmap,
+    valmap,
+    to_xml,
+    compare_xml,
+    vt_escape,
+)
+
 from vespa.configuration.services import *
 
 
@@ -186,18 +196,7 @@ class TestColbertServiceConfiguration(unittest.TestCase):
         generated_xml = generated_services.to_xml()
         # Validate against relaxng
         self.assertTrue(validate_services(etree.fromstring(str(generated_xml))))
-        # Check all nodes and attributes being equal
-        tree_original = ET.fromstring(self.xml_schema.encode("utf-8"))
-        tree_generated = ET.fromstring(str(generated_xml))
-        for original, generated in zip(tree_original.iter(), tree_generated.iter()):
-            # print(f"Original: {original.tag}, {original.attrib}, {original.text}")
-            # print(f"Generated: {generated.tag}, {generated.attrib}, {generated.text}")
-            self.assertEqual(original.tag, generated.tag)
-            self.assertEqual(original.attrib, generated.attrib)
-            self.assertEqual(
-                original.text.strip() if original.text else None,
-                generated.text.strip() if generated.text else None,
-            )
+        self.assertTrue(compare_xml(self.xml_schema, str(generated_xml)))
 
 
 class TestBillionscaleServiceConfiguration(unittest.TestCase):
@@ -426,21 +425,21 @@ class TestBillionscaleServiceConfiguration(unittest.TestCase):
                                 requestthreads(persearch("2")),
                                 feeding(concurrency("1.0")),
                                 summary(
-                                    io(read("directio")),
+                                    io_(read("directio")),
                                     store(
                                         cache(
                                             maxsize_percent("5"),
                                             compression(
-                                                vt_type("lz4")
-                                            ),  # Using vt_type as type is a reserved keyword
+                                                type_("lz4")
+                                            ),  # Using type_ as type is a reserved keyword
                                         ),
                                         logstore(
                                             chunk(
                                                 maxsize("16384"),
                                                 compression(
-                                                    vt_type(
+                                                    type_(
                                                         "zstd"
-                                                    ),  # Using vt_type as type is a reserved keyword
+                                                    ),  # Using type_ as type is a reserved keyword
                                                     level("3"),
                                                 ),
                                             ),
@@ -459,16 +458,154 @@ class TestBillionscaleServiceConfiguration(unittest.TestCase):
         # Validate against relaxng
         self.assertTrue(validate_services(etree.fromstring(str(generated_xml))))
         # Check all nodes and attributes being equal
-        tree_original = ET.fromstring(self.xml_schema.encode("utf-8"))
-        tree_generated = ET.fromstring(str(generated_xml))
-        for original, generated in zip(tree_original.iter(), tree_generated.iter()):
-            # print(f"Original: {original.tag}, {original.attrib}, {original.text}")
-            # print(f"Generated: {generated.tag}, {generated.attrib}, {generated.text}")
-            self.assertEqual(original.tag, generated.tag)
-            self.assertEqual(original.attrib, generated.attrib)
-            orig_text = original.text or ""
-            gen_text = generated.text or ""
-            self.assertEqual(orig_text.strip(), gen_text.strip())
+        self.assertTrue(compare_xml(self.xml_schema, str(generated_xml)))
+
+
+class TestValidateServices(unittest.TestCase):
+    def setUp(self):
+        # Prepare some sample valid and invalid XML data
+        self.valid_xml_content = """<services>
+  <container id="music_container" version="1.0">
+    <search></search>
+    <document-api></document-api>
+    <document-processing></document-processing>
+  </container>
+  <content id="music_content" version="1.0">
+    <redundancy>1</redundancy>
+    <documents garbage-collection="true">
+      <document type="music" mode="index" selection="music.timestamp &gt; now() - 86400"></document>
+    </documents>
+    <nodes>
+      <node distribution-key="0" hostalias="node1"></node>
+    </nodes>
+  </content>
+</services>"""
+        self.invalid_xml_content = """<services>
+  <container id="music_container" version="1.0">
+    <search></search>
+    <documents-api></document-api>
+    <document-processing></document-processing>
+  </container>
+  <content id="music_content" version="1.0">
+    <redundancy>1</redundancy>
+    <documents garbage-collection="true">
+      <document type="music" mode="index" selection="music.timestamp &gt; now() - 86400"></document>
+    </documents>
+    <nodes>
+      <node distribution-key="0" hostalias="node1"></node>
+    </nodes>
+  </content>
+</services>"""
+
+        # Create temporary files with valid and invalid XML content
+        self.valid_xml_file = "valid_test.xml"
+        self.invalid_xml_file = "invalid_test.xml"
+
+        with open(self.valid_xml_file, "w") as f:
+            f.write(self.valid_xml_content)
+
+        with open(self.invalid_xml_file, "w") as f:
+            f.write(self.invalid_xml_content)
+
+        # Create etree.Element from valid XML content
+        self.valid_xml_element = etree.fromstring(self.valid_xml_content)
+
+    def tearDown(self):
+        # Clean up temporary files
+        os.remove(self.valid_xml_file)
+        os.remove(self.invalid_xml_file)
+
+    def test_validate_valid_xml_content(self):
+        # Test with valid XML content as string
+        result = validate_services(self.valid_xml_content)
+        self.assertTrue(result)
+
+    def test_validate_invalid_xml_content(self):
+        # Test with invalid XML content as string
+        result = validate_services(self.invalid_xml_content)
+        self.assertFalse(result)
+
+    def test_validate_valid_xml_file(self):
+        # Test with valid XML file path
+        result = validate_services(self.valid_xml_file)
+        self.assertTrue(result)
+
+    def test_validate_invalid_xml_file(self):
+        # Test with invalid XML file path
+        result = validate_services(self.invalid_xml_file)
+        self.assertFalse(result)
+
+    def test_validate_valid_xml_element(self):
+        # Test with valid etree.Element
+        result = validate_services(self.valid_xml_element)
+        self.assertTrue(result)
+
+    def test_validate_nonexistent_file(self):
+        # Test with a non-existent file path
+        result = validate_services("nonexistent.xml")
+        self.assertFalse(result)
+
+    def test_validate_invalid_input_type(self):
+        # Test with invalid input type
+        result = validate_services(123)
+        self.assertFalse(result)
+
+
+class TestDocumentExpiry(unittest.TestCase):
+    def setUp(self):
+        self.xml_schema = """<services>
+  <container id="music_container" version="1.0">
+    <search></search>
+    <document-api></document-api>
+    <document-processing></document-processing>
+  </container>
+  <content id="music_content" version="1.0">
+    <redundancy>1</redundancy>
+    <documents garbage-collection="true">
+      <document type="music" mode="index" selection="music.timestamp &gt; now() - 86400"></document>
+    </documents>
+    <nodes>
+      <node distribution-key="0" hostalias="node1"></node>
+    </nodes>
+  </content>
+</services>
+"""
+
+    def test_xml_validation(self):
+        to_validate = etree.fromstring(self.xml_schema.encode("utf-8"))
+        # Validate against relaxng
+        self.assertTrue(validate_services(to_validate))
+
+    def test_document_expiry(self):
+        application_name = "music"
+        generated = services(
+            container(
+                search(),
+                document_api(),
+                document_processing(),
+                id=f"{application_name}_container",
+                version="1.0",
+            ),
+            content(
+                redundancy("1"),
+                documents(
+                    document(
+                        type=application_name,
+                        mode="index",
+                        selection="music.timestamp > now() - 86400",
+                    ),
+                    garbage_collection="true",
+                ),
+                nodes(node(distribution_key="0", hostalias="node1")),
+                id=f"{application_name}_content",
+                version="1.0",
+            ),
+        )
+        generated_xml = generated.to_xml()
+        # Validate against relaxng
+        self.assertTrue(validate_services(etree.fromstring(str(generated_xml))))
+        # Compare the generated XML with the schema
+        self.assertTrue(compare_xml(self.xml_schema, str(generated_xml)))
 
 
 if __name__ == "__main__":

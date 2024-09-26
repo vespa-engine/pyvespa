@@ -37,6 +37,9 @@ import vespa
 import gzip
 from requests.models import PreparedRequest
 from io import BytesIO
+import logging
+
+logging.getLogger("urllib3").setLevel(logging.ERROR)
 
 VESPA_CLOUD_SECRET_TOKEN: str = "VESPA_CLOUD_SECRET_TOKEN"
 

@@ -25,7 +25,9 @@ from vespa.package import (
     QueryTypeField,
     AuthClient,
     Struct,
+    ServicesConfiguration,
 )
+from vespa.configuration.services import *
 from vespa.deployment import VespaDocker
 from vespa.application import VespaSync
 from vespa.exceptions import VespaError
@@ -1617,6 +1619,107 @@ class TestRetryApplication(unittest.TestCase):
             schema="retryapplication",
             namespace="retryapplication",
         )
+
+    def tearDown(self) -> None:
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
+        self.vespa_docker.container.remove()
+
+
+class TestDocumentExpiry(unittest.TestCase):
+    def setUp(self) -> None:
+        application_name = "music"
+        self.application_name = application_name
+        music_schema = Schema(
+            name=application_name,
+            document=Document(
+                fields=[
+                    Field(
+                        name="artist",
+                        type="string",
+                        indexing=["attribute", "summary"],
+                    ),
+                    Field(
+                        name="title",
+                        type="string",
+                        indexing=["attribute", "summary"],
+                    ),
+                    Field(
+                        name="timestamp",
+                        type="long",
+                        indexing=["attribute", "summary"],
+                        attribute=["fast-access"],
+                    ),
+                ]
+            ),
+        )
+        # Create a ServicesConfiguration with document-expiry set to 1 day (timestamp > now() - 86400)
+        services_config = ServicesConfiguration(
+            application_name=application_name,
+            services_config=services(
+                container(
+                    search(),
+                    document_api(),
+                    document_processing(),
+                    id=f"{application_name}_container",
+                    version="1.0",
+                ),
+                content(
+                    redundancy("1"),
+                    documents(
+                        document(
+                            type=application_name,
+                            mode="index",
+                            selection="music.timestamp > now() - 86400",
+                        ),
+                        garbage_collection="true",
+                    ),
+                    nodes(node(distribution_key="0", hostalias="node1")),
+                    id=f"{application_name}_content",
+                    version="1.0",
+                ),
+            ),
+        )
+        self.application_package = ApplicationPackage(
+            name=application_name,
+            schema=[music_schema],
+            services_config=services_config,
+        )
+        self.vespa_docker = VespaDocker(port=8089)
+        self.app = self.vespa_docker.deploy(
+            application_package=self.application_package
+        )
+
+    def test_document_expiry(self):
+        docs_to_feed = [
+            {
+                "id": "1",
+                "fields": {
+                    "artist": "Snoop Dogg",
+                    "title": "Gin and Juice",
+                    "timestamp": int(time.time()) - 86401,
+                },
+            },
+            {
+                "id": "2",
+                "fields": {
+                    "artist": "Dr.Dre",
+                    "title": "Still D.R.E",
+                    "timestamp": int(time.time()),
+                },
+            },
+        ]
+        self.app.feed_iterable(docs_to_feed, schema=self.application_name)
+        visit_results = []
+        for slice_ in self.app.visit(
+            schema=self.application_name,
+            content_cluster_name=f"{self.application_name}_content",
+            timeout="5s",
+        ):
+            for response in slice_:
+                visit_results.append(response.json)
+        # Visit results: [{'pathId': '/document/v1/music/music/docid/', 'documents': [{'id': 'id:music:music::2', 'fields': {'artist': 'Dr. Dre', 'title': 'Still D.R.E', 'timestamp': 1726836495}}], 'documentCount': 1}]
+        self.assertEqual(len(visit_results), 1)
+        self.assertEqual(visit_results[0]["documentCount"], 1)
 
     def tearDown(self) -> None:
         self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)

@@ -35,6 +35,7 @@ from vespa.package import (
     ApplicationConfiguration,
 )
 from vespa.configuration.vt import compare_xml
+from vespa.configuration.services import *
 
 
 class TestField(unittest.TestCase):
@@ -1805,3 +1806,83 @@ class TestServiceConfig(unittest.TestCase):
         self.assertTrue(
             compare_xml(app_package.services_to_text_vt, expected_result),
         )
+
+    def test_document_expiry(self):
+        # Create a Schema with name music and a field with name artist, title and timestamp
+        # Ref https://docs.vespa.ai/en/documents.html#document-expiry
+        application_name = "music"
+        music_schema = Schema(
+            name=application_name,
+            document=Document(
+                fields=[
+                    Field(
+                        name="artist",
+                        type="string",
+                        indexing=["attribute", "summary"],
+                    ),
+                    Field(
+                        name="title",
+                        type="string",
+                        indexing=["attribute", "summary"],
+                    ),
+                    Field(
+                        name="timestamp",
+                        type="long",
+                        indexing=["attribute", "summary"],
+                        attribute=["fast-access"],
+                    ),
+                ]
+            ),
+        )
+        # Create a ServicesConfiguration with document-expiry set to 1 day (timestamp > now() - 86400)
+        services_config = ServicesConfiguration(
+            application_name=application_name,
+            services_config=services(
+                container(
+                    search(),
+                    document_api(),
+                    document_processing(),
+                    id=f"{application_name}_container",
+                    version="1.0",
+                ),
+                content(
+                    redundancy("1"),
+                    documents(
+                        document(
+                            type=application_name,
+                            mode="index",
+                            selection="music.timestamp > now() - 86400",
+                        ),
+                        garbage_collection="true",
+                    ),
+                    nodes(node(distribution_key="0", hostalias="node1")),
+                    id=f"{application_name}_content",
+                    version="1.0",
+                ),
+            ),
+        )
+        application_package = ApplicationPackage(
+            name=application_name,
+            schema=[music_schema],
+            services_config=services_config,
+        )
+        expected = """<?xml version="1.0" encoding="UTF-8" ?>
+<services>
+  <container id="music_container" version="1.0">
+    <search></search>
+    <document-api></document-api>
+    <document-processing></document-processing>
+  </container>
+  <content id="music_content" version="1.0">
+    <redundancy>1</redundancy>
+    <documents garbage-collection="true">
+      <document type="music" mode="index" selection="music.timestamp &gt; now() - 86400"></document>
+    </documents>
+    <nodes>
+      <node distribution-key="0" hostalias="node1"></node>
+    </nodes>
+  </content>
+</services>
+"""
+        self.assertEqual(expected, application_package.services_to_text)
+        self.assertTrue(validate_services(application_package.services_to_text))
