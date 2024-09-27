@@ -2364,7 +2364,7 @@ class EmptyDeploymentConfiguration(DeploymentConfiguration):
 class ServicesConfiguration(object):
     def __init__(
         self,
-        application_name,
+        application_name: str,
         schemas: Optional[List[Schema]] = None,
         configurations: List[ApplicationConfiguration] = [],
         stateless_model_evaluation: Optional[bool] = False,
@@ -2385,12 +2385,18 @@ class ServicesConfiguration(object):
         Create a ServicesConfiguration, adopting the VespaTag (VT) approach, rather than Jinja templates.
         Intended to be used in ApplicationPackage, to generate services.xml based on either:
         - A passed `services_config` (VT) object, or
-        - A set of configurations, schemas, components, auth_clients, and clusters.
+        - A set of configurations, schemas, components, auth_clients, and clusters. (the old approach)
 
         The latter will be done in code by calling `build_services_vt()` to generate the VT object.
 
-        :param application_name: The name of the application.
-        
+        :param application_name: str, Application name. 
+        :param schemas: Optional[List[Schema]], List of :class:`Schema`s of the application.
+        :param configurations: Optional[List[ApplicationConfiguration]], List of :class:`ApplicationConfiguration` that contains configurations for the application.
+        :param stateless_model_evaluation: Optional[bool], Enable stateless model evaluation. Default to False.
+        :param components: Optional[List[Component]], List of :class:`Component` that contains configurations for application components.
+        :param auth_clients: Optional[List[AuthClient]], List of :class:`AuthClient
+        :param clusters: Optional[List[Cluster]], List of :class:`Cluster` that contains configurations for content or container clusters.
+        :param services_config: Optional[VT], :class:`VT` object that contains the services configuration.
         """
 
     def build_services_vt(self):
@@ -2468,6 +2474,9 @@ class ServicesConfiguration(object):
 
     def _repr_markdown_(self):
         return
+
+    def validate(self):
+        return validate_services(str(self.services_config.to_xml()))
 
 
 class ApplicationPackage(object):
