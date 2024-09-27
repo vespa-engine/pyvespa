@@ -1114,6 +1114,7 @@ class RankProfile(object):
         match_features: Optional[List] = None,
         second_phase: Optional[SecondPhaseRanking] = None,
         global_phase: Optional[GlobalPhaseRanking] = None,
+        num_threads_per_search: Optional[int] = None,
         **kwargs: Unpack[RankProfileFields],
     ) -> None:
         """
@@ -1146,6 +1147,7 @@ class RankProfile(object):
             See :class:`SecondPhaseRanking`.
         :param global_phase: Optional config specifying the global phase of ranking.
             See :class:`GlobalPhaseRanking`.
+        :param num_threads_per_search: Overrides the global `persearch` value for this rank profile to a **lower** value.
         :key weight: A list of tuples containing the field and their weight
         :key rank_type: A list of tuples containing a field and the rank-type-name.
             `More info <https://docs.vespa.ai/en/reference/schema-reference.html#rank-type>`__ about rank-type.
@@ -1195,21 +1197,21 @@ class RankProfile(object):
         ...     first_phase = "nativeRank(title, body)",
         ...     weight = [("title", 200), ("body", 100)]
         ... )
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, [('title', 200), ('body', 100)], None, None, None, None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, [('title', 200), ('body', 100)], None, None, None)
 
         >>> RankProfile(
         ...     name = "default",
         ...     first_phase = "nativeRank(title, body)",
         ...     rank_type = [("body", "about")]
         ... )
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, [('body', 'about')], None, None, None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, [('body', 'about')], None, None)
 
         >>> RankProfile(
         ...     name = "default",
         ...     first_phase = "nativeRank(title, body)",
         ...     rank_properties = [("fieldMatch(title).maxAlternativeSegmentations", "10")]
         ... )
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, [('fieldMatch(title).maxAlternativeSegmentations', '10')], None, None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, [('fieldMatch(title).maxAlternativeSegmentations', '10')], None)
 
         >>> RankProfile(
         ...    name = "default",
@@ -1217,6 +1219,12 @@ class RankProfile(object):
         ... )
         RankProfile('default', FirstPhaseRanking('nativeRank(title, body)', 50, None), None, None, None, None, None, None, None, None, None, None, None, None)
 
+        >>> RankProfile(
+        ...     name = "default",
+        ...     first_phase = "nativeRank(title, body)",
+        ...     num_threads_per_search = 2
+        ... )
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, 2, None, None, None, None)
         """
         self.name = name
         self.first_phase = first_phase
@@ -1227,6 +1235,9 @@ class RankProfile(object):
         self.match_features = kwargs.get("match_features", match_features)
         self.second_phase = kwargs.get("second_phase", second_phase)
         self.global_phase = kwargs.get("global_phase", global_phase)
+        self.num_threads_per_search = kwargs.get(
+            "num_threads_per_search", num_threads_per_search
+        )
         self.weight = kwargs.get("weight", None)
         self.rank_type = kwargs.get("rank_type", None)
         self.rank_properties = kwargs.get("rank_properties", None)
@@ -1246,6 +1257,7 @@ class RankProfile(object):
             and self.match_features == other.match_features
             and self.second_phase == other.second_phase
             and self.global_phase == other.global_phase
+            and self.num_threads_per_search == other.num_threads_per_search
             and self.weight == other.weight
             and self.rank_type == other.rank_type
             and self.rank_properties == other.rank_properties
@@ -1265,11 +1277,11 @@ class RankProfile(object):
             repr(self.match_features),
             repr(self.second_phase),
             repr(self.global_phase),
+            repr(self.num_threads_per_search),
             repr(self.weight),
             repr(self.rank_type),
             repr(self.rank_properties),
             repr(self.inputs),
-            repr(self.mutate),
         )
 
 
