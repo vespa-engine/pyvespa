@@ -22,6 +22,8 @@ dependencies = [
     "tenacity>=8.4.1",
     "typing_extensions",
     "python-dateutil",
+    "fastcore>=1.7.8",
+    "lxml",
 ]
 
 requires-python = ">=3.8"
@@ -135,7 +137,7 @@ vespa = ["py.typed", "templates/*"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F"]
-ignore = []
+ignore = ["F822", "F405", "F403"]
 fixable = ["ALL"]
 unfixable = []
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"

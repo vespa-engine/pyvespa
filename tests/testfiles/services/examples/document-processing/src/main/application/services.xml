@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->
+<services version="1.0" xmlns:deploy="vespa" xmlns:preprocess="properties">
+
+    <container id="my-processing-cluster" version="1.0">
+        <document-api />
+        <document-processing>
+            <chain id="my-processing-chain" inherits="indexing">
+                <documentprocessor id="ai.vespa.example.album.LyricsDocumentProcessor" bundle="document-processing"/>
+            </chain>
+        </document-processing>
+        <search/>
+        <nodes>
+            <node hostalias="node1" />
+        </nodes>
+    </container>
+
+    <content id="musiccluster" version="1.0">
+        <min-redundancy>2</min-redundancy>
+        <documents>
+            <document type="music"  mode="index" />
+            <document type="lyrics" mode="index" />
+            <document-processing cluster="my-processing-cluster" chain="my-processing-chain" />
+        </documents>
+        <nodes>
+            <node hostalias="node1" distribution-key="0" />
+        </nodes>
+    </content>
+
+</services>

@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<grammar xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <!--
+    Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
+    Schema for search chains and searchers inside the searchchains section.
+  -->
+  <include href="federation.rng"/>
+  <define name="SearchChainInFederation">
+    <interleave>
+      <ref name="ComponentId"/>
+      <ref name="SearchChainInheritanceInFederation"/>
+      <optional>
+        <attribute name="searchers"/>
+      </optional>
+      <zeroOrMore>
+        <ref name="Searcher"/>
+      </zeroOrMore>
+      <zeroOrMore>
+        <ref name="Phase"/>
+      </zeroOrMore>
+      <zeroOrMore>
+        <ref name="GenericConfig"/>
+      </zeroOrMore>
+    </interleave>
+  </define>
+  <define name="SearchChainInheritanceInFederation">
+    <interleave>
+      <optional>
+        <attribute name="inherits"/>
+      </optional>
+      <optional>
+        <attribute name="excludes"/>
+      </optional>
+    </interleave>
+  </define>
+  <define name="Searcher">
+    <choice>
+      <ref name="RegularSearcher"/>
+      <ref name="FederationSearcher"/>
+    </choice>
+  </define>
+  <define name="RegularSearcher">
+    <element name="searcher">
+      <interleave>
+        <ref name="BundleSpec"/>
+        <ref name="GenericSearcherOrDocumentProcessor"/>
+      </interleave>
+    </element>
+  </define>
+  <define name="GenericSearcherOrDocumentProcessor">
+    <interleave>
+      <ref name="ComponentId"/>
+      <ref name="SearcherOrDocumentProcessorDependencies"/>
+      <zeroOrMore>
+        <ref name="GenericConfig"/>
+      </zeroOrMore>
+    </interleave>
+  </define>
+  <define name="SearcherOrDocumentProcessorDependencies">
+    <interleave>
+      <ref name="Dependencies"/>
+      <optional>
+        <attribute name="provides"/>
+      </optional>
+      <zeroOrMore>
+        <element name="provides">
+          <data type="Name"/>
+        </element>
+      </zeroOrMore>
+    </interleave>
+  </define>
+  <define name="Dependencies">
+    <interleave>
+      <optional>
+        <attribute name="before"/>
+      </optional>
+      <optional>
+        <attribute name="after"/>
+      </optional>
+      <zeroOrMore>
+        <element name="before">
+          <data type="Name"/>
+        </element>
+      </zeroOrMore>
+      <zeroOrMore>
+        <element name="after">
+          <data type="Name"/>
+        </element>
+      </zeroOrMore>
+    </interleave>
+  </define>
+  <define name="Phase">
+    <element name="phase">
+      <interleave>
+        <ref name="ComponentId"/>
+        <ref name="Dependencies"/>
+      </interleave>
+    </element>
+  </define>
+</grammar>

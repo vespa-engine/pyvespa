@@ -31,7 +31,11 @@ from vespa.package import (
     DeploymentConfiguration,
     Struct,
     StructField,
+    ServicesConfiguration,
+    ApplicationConfiguration,
 )
+from vespa.configuration.vt import compare_xml
+from vespa.configuration.services import *
 
 
 class TestField(unittest.TestCase):
@@ -768,6 +772,9 @@ class TestApplicationPackage(unittest.TestCase):
         )
 
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result)
+        )
 
     def test_query_profile_to_text(self):
         expected_result = (
@@ -851,6 +858,9 @@ class TestApplicationPackageStreaming(unittest.TestCase):
             "</services>"
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result)
+        )
 
 
 class TestSchemaInheritance(unittest.TestCase):
@@ -1030,6 +1040,9 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
         )
 
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
 
 class TestSimplifiedApplicationPackage(unittest.TestCase):
@@ -1184,6 +1197,9 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
         )
 
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
     def test_query_profile_to_text(self):
         expected_result = (
@@ -1272,6 +1288,9 @@ class TestSimplifiedApplicationPackageWithMultipleSchemas(unittest.TestCase):
             "</services>"
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
 
 class TestComponentSetup(unittest.TestCase):
@@ -1337,6 +1356,9 @@ class TestComponentSetup(unittest.TestCase):
             "</services>"
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
 
 class TestClientTokenSetup(unittest.TestCase):
@@ -1386,6 +1408,9 @@ class TestClientTokenSetup(unittest.TestCase):
         )
 
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
 
 class TestClientsWithCluster(unittest.TestCase):
@@ -1450,6 +1475,9 @@ class TestClientsWithCluster(unittest.TestCase):
             "</services>"
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
 
 class TestValidAppName(unittest.TestCase):
@@ -1581,6 +1609,9 @@ class TestCluster(unittest.TestCase):
             "</services>"
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
 
 class TestAuthClientEquality(unittest.TestCase):
@@ -1698,3 +1729,160 @@ class TestSchemaStructField(unittest.TestCase):
             "}"
         )
         self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
+
+
+class TestVTequality(unittest.TestCase):
+    def test_application_configuration(self):
+        app_config = ApplicationConfiguration(
+            name="container.handler.observability.application-userdata",
+            value={"version": "my-version"},
+        )
+        app_config_vt = app_config.to_vt()
+        vt_str = str(app_config_vt.to_xml())
+        app_config_str = app_config.to_text
+        self.assertTrue(compare_xml(app_config_str, vt_str))
+
+    def test_cluster_configuration(self):
+        clusters = [
+            ContainerCluster(
+                id="test_container",
+                nodes=Nodes(
+                    count="1",
+                    parameters=[
+                        Parameter(
+                            "resources",
+                            {"vcpu": "4.0", "memory": "16Gb", "disk": "125Gb"},
+                            [Parameter("gpu", {"count": "1", "memory": "16Gb"})],
+                        ),
+                    ],
+                ),
+                components=[
+                    Component(
+                        id="e5",
+                        type="hugging-face-embedder",
+                        parameters=[
+                            Parameter(
+                                "transformer-model", {"path": "model/model.onnx"}
+                            ),
+                            Parameter(
+                                "tokenizer-model", {"path": "model/tokenizer.json"}
+                            ),
+                        ],
+                    )
+                ],
+                auth_clients=[
+                    AuthClient(
+                        id="mtls",
+                        permissions=["read", "write"],
+                        parameters=[
+                            Parameter("certificate", {"file": "security/clients.pem"})
+                        ],
+                    ),
+                    AuthClient(
+                        id="token",
+                        permissions=["read"],
+                        parameters=[Parameter("token", {"id": "accessToken"})],
+                    ),
+                ],
+            ),
+            ContentCluster(id="test_content", document_name="test"),
+        ]
+        for cluster_config in clusters:
+            vt_str = str(cluster_config.to_vt().to_xml())
+            cluster_config_str = cluster_config.to_xml_string()
+            self.assertTrue(compare_xml(cluster_config_str, vt_str))
+
+
+class TestServiceConfig(unittest.TestCase):
+    def test_default_service_config_to_text(self):
+        self.maxDiff = None
+        application_name = "test"
+        service_config = ServicesConfiguration(application_name=application_name)
+        app_package = ApplicationPackage(
+            name=application_name, services_config=service_config
+        )
+        expected_result = '<?xml version="1.0" encoding="UTF-8" ?>\n<services version="1.0">\n  <container id="test_container" version="1.0"></container>\n</services>\n'
+        self.assertEqual(expected_result, app_package.services_to_text)
+        self.assertTrue(
+            compare_xml(app_package.services_to_text_vt, expected_result),
+        )
+
+    def test_document_expiry(self):
+        # Create a Schema with name music and a field with name artist, title and timestamp
+        # Ref https://docs.vespa.ai/en/documents.html#document-expiry
+        application_name = "music"
+        music_schema = Schema(
+            name=application_name,
+            document=Document(
+                fields=[
+                    Field(
+                        name="artist",
+                        type="string",
+                        indexing=["attribute", "summary"],
+                    ),
+                    Field(
+                        name="title",
+                        type="string",
+                        indexing=["attribute", "summary"],
+                    ),
+                    Field(
+                        name="timestamp",
+                        type="long",
+                        indexing=["attribute", "summary"],
+                        attribute=["fast-access"],
+                    ),
+                ]
+            ),
+        )
+        # Create a ServicesConfiguration with document-expiry set to 1 day (timestamp > now() - 86400)
+        services_config = ServicesConfiguration(
+            application_name=application_name,
+            services_config=services(
+                container(
+                    search(),
+                    document_api(),
+                    document_processing(),
+                    id=f"{application_name}_container",
+                    version="1.0",
+                ),
+                content(
+                    redundancy("1"),
+                    documents(
+                        document(
+                            type=application_name,
+                            mode="index",
+                            selection="music.timestamp > now() - 86400",
+                        ),
+                        garbage_collection="true",
+                    ),
+                    nodes(node(distribution_key="0", hostalias="node1")),
+                    id=f"{application_name}_content",
+                    version="1.0",
+                ),
+            ),
+        )
+        application_package = ApplicationPackage(
+            name=application_name,
+            schema=[music_schema],
+            services_config=services_config,
+        )
+        expected = """<?xml version="1.0" encoding="UTF-8" ?>
+<services>
+  <container id="music_container" version="1.0">
+    <search></search>
+    <document-api></document-api>
+    <document-processing></document-processing>
+  </container>
+  <content id="music_content" version="1.0">
+    <redundancy>1</redundancy>
+    <documents garbage-collection="true">
+      <document type="music" mode="index" selection="music.timestamp &gt; now() - 86400"></document>
+    </documents>
+    <nodes>
+      <node distribution-key="0" hostalias="node1"></node>
+    </nodes>
+  </content>
+</services>
+"""
+        self.assertEqual(expected, application_package.services_to_text)
+        self.assertTrue(validate_services(application_package.services_to_text))

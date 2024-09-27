@@ -1,0 +1,1337 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->
+<grammar xmlns:a="http://relaxng.org/ns/compatibility/annotations/1.0" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <include href="container.rng"/>
+  <include href="searchchains.rng"/>
+  <define name="Redundancy">
+    <element name="redundancy">
+      <interleave>
+        <optional>
+          <attribute name="reply-after">
+            <data type="nonNegativeInteger"/>
+          </attribute>
+        </optional>
+        <data type="integer">
+          <param name="minInclusive">1</param>
+          <param name="maxInclusive">65534</param>
+        </data>
+      </interleave>
+    </element>
+  </define>
+  <define name="MinRedundancy">
+    <element name="min-redundancy">
+      <data type="integer">
+        <param name="minInclusive">1</param>
+        <param name="maxInclusive">65534</param>
+      </data>
+    </element>
+  </define>
+  <define name="DistributionType">
+    <element name="distribution">
+      <attribute name="type">
+        <choice>
+          <value type="string" datatypeLibrary="">strict</value>
+          <value type="string" datatypeLibrary="">loose</value>
+          <value type="string" datatypeLibrary="">legacy</value>
+        </choice>
+      </attribute>
+    </element>
+  </define>
+  <define name="BucketSplitting">
+    <element name="bucket-splitting">
+      <interleave>
+        <optional>
+          <attribute name="max-documents">
+            <data type="nonNegativeInteger"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="max-size">
+            <data type="nonNegativeInteger"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="minimum-bits">
+            <data type="nonNegativeInteger"/>
+          </attribute>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="MergeTuning">
+    <element name="merges">
+      <interleave>
+        <optional>
+          <attribute name="max-per-node">
+            <data type="nonNegativeInteger"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="max-queue-size">
+            <data type="nonNegativeInteger"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="max-nodes-per-merge">
+            <data type="nonNegativeInteger">
+              <param name="minInclusive">2</param>
+              <param name="maxInclusive">16</param>
+            </data>
+          </attribute>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="VisitorMaxConcurrent">
+    <element name="max-concurrent">
+      <interleave>
+        <optional>
+          <attribute name="fixed">
+            <data type="nonNegativeInteger"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="variable">
+            <data type="nonNegativeInteger"/>
+          </attribute>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="VisitorTuning">
+    <element name="visitors">
+      <interleave>
+        <optional>
+          <attribute name="thread-count">
+            <data type="nonNegativeInteger"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="max-queue-size">
+            <data type="nonNegativeInteger"/>
+          </attribute>
+        </optional>
+        <optional>
+          <ref name="VisitorMaxConcurrent"/>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="Maintenance">
+    <element name="maintenance">
+      <attribute name="start">
+        <data type="string">
+          <param name="pattern">[0-9]{2}:[0-9]{2}</param>
+        </data>
+      </attribute>
+      <attribute name="stop">
+        <data type="string">
+          <param name="pattern">[0-9]{2}:[0-9]{2}</param>
+        </data>
+      </attribute>
+      <attribute name="high">
+        <choice>
+          <value type="string" datatypeLibrary="">monday</value>
+          <value type="string" datatypeLibrary="">tuesday</value>
+          <value type="string" datatypeLibrary="">wednesday</value>
+          <value type="string" datatypeLibrary="">thursday</value>
+          <value type="string" datatypeLibrary="">friday</value>
+          <value type="string" datatypeLibrary="">saturday</value>
+          <value type="string" datatypeLibrary="">sunday</value>
+        </choice>
+      </attribute>
+    </element>
+  </define>
+  <define name="PersistenceThread">
+    <element name="thread">
+      <interleave>
+        <optional>
+          <attribute name="lowest-priority">
+            <a:documentation>The lowest priority this thread should handle.</a:documentation>
+            <choice>
+              <value type="string" datatypeLibrary="">HIGHEST</value>
+              <value type="string" datatypeLibrary="">VERY_HIGH</value>
+              <value type="string" datatypeLibrary="">HIGH_1</value>
+              <value type="string" datatypeLibrary="">HIGH_2</value>
+              <value type="string" datatypeLibrary="">HIGH_3</value>
+              <value type="string" datatypeLibrary="">NORMAL_1</value>
+              <value type="string" datatypeLibrary="">NORMAL_2</value>
+              <value type="string" datatypeLibrary="">NORMAL_3</value>
+              <value type="string" datatypeLibrary="">NORMAL_4</value>
+              <value type="string" datatypeLibrary="">NORMAL_5</value>
+              <value type="string" datatypeLibrary="">NORMAL_6</value>
+              <value type="string" datatypeLibrary="">LOW_1</value>
+              <value type="string" datatypeLibrary="">LOW_2</value>
+              <value type="string" datatypeLibrary="">LOW_3</value>
+              <value type="string" datatypeLibrary="">VERY_LOW</value>
+            </choice>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="count">
+            <a:documentation>The number of threads of this type to create</a:documentation>
+            <data type="integer"/>
+          </attribute>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="PersistenceThreads">
+    <a:documentation>Declare which storage threads each disk should have.</a:documentation>
+    <element name="persistence-threads">
+      <interleave>
+        <optional>
+          <attribute name="count">
+            <a:documentation>The number of threads to create</a:documentation>
+            <data type="integer"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="highest-priority-to-block">
+            <a:documentation>All of the below settings are deprecated.
+Operations with priority worse than this can be blocked</a:documentation>
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="lowest-priority-to-block-others">
+            <a:documentation>Operations with priority better than this can block others</a:documentation>
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <zeroOrMore>
+          <ref name="Thread"/>
+        </zeroOrMore>
+      </interleave>
+    </element>
+  </define>
+  <define name="MinNodeRatioPerGroup">
+    <element name="min-node-ratio-per-group">
+      <data type="double">
+        <param name="minInclusive">0</param>
+        <param name="maxInclusive">1</param>
+      </data>
+    </element>
+  </define>
+  <define name="ClusterControllerTuning">
+    <element name="cluster-controller">
+      <interleave>
+        <optional>
+          <element name="init-progress-time">
+            <data type="string">
+              <param name="pattern">([0-9\.]+)\s*([a-z]+)?</param>
+            </data>
+          </element>
+        </optional>
+        <optional>
+          <element name="transition-time">
+            <data type="string">
+              <param name="pattern">([0-9\.]+)\s*([a-z]+)?</param>
+            </data>
+          </element>
+        </optional>
+        <optional>
+          <element name="max-premature-crashes">
+            <data type="nonNegativeInteger"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="stable-state-period">
+            <data type="string">
+              <param name="pattern">([0-9\.]+)\s*([a-z]+)?</param>
+            </data>
+          </element>
+        </optional>
+        <optional>
+          <element name="min-distributor-up-ratio">
+            <data type="double"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="min-storage-up-ratio">
+            <data type="double"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="groups-allowed-down-ratio">
+            <data type="double">
+              <param name="minInclusive">0</param>
+              <param name="maxInclusive">1</param>
+            </data>
+          </element>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="DispatchTuning">
+    <element name="dispatch">
+      <interleave>
+        <optional>
+          <element name="max-hits-per-partition">
+            <data type="nonNegativeInteger"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="dispatch-policy">
+            <choice>
+              <value type="string" datatypeLibrary="">round-robin</value>
+              <value type="string" datatypeLibrary="">adaptive</value>
+              <value type="string" datatypeLibrary="">random</value>
+              <value>best-of-random-2</value>
+              <value>latency-amortized-over-requests</value>
+              <value>latency-amortized-over-time</value>
+            </choice>
+          </element>
+        </optional>
+        <optional>
+          <element name="min-active-docs-coverage">
+            <data type="double"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="top-k-probability">
+            <data type="double"/>
+          </element>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="ClusterTuning">
+    <element name="tuning">
+      <interleave>
+        <optional>
+          <ref name="DispatchTuning"/>
+        </optional>
+        <optional>
+          <ref name="DistributionType"/>
+        </optional>
+        <optional>
+          <ref name="BucketSplitting"/>
+        </optional>
+        <optional>
+          <ref name="MergeTuning"/>
+        </optional>
+        <optional>
+          <ref name="VisitorTuning"/>
+        </optional>
+        <optional>
+          <ref name="ClusterControllerTuning"/>
+        </optional>
+        <optional>
+          <ref name="Maintenance"/>
+        </optional>
+        <optional>
+          <ref name="PersistenceThreads"/>
+        </optional>
+        <optional>
+          <ref name="MinNodeRatioPerGroup"/>
+        </optional>
+        <optional>
+          <ref name="ResourceLimits"/>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="Content">
+    <element name="content">
+      <interleave>
+        <attribute name="version">
+          <value>1.0</value>
+        </attribute>
+        <optional>
+          <attribute name="id">
+            <data type="NCName"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="distributor-base-port">
+            <data type="unsignedShort"/>
+          </attribute>
+        </optional>
+        <optional>
+          <ref name="Redundancy"/>
+        </optional>
+        <optional>
+          <ref name="MinRedundancy"/>
+        </optional>
+        <optional>
+          <ref name="ContentSearch"/>
+        </optional>
+        <optional>
+          <ref name="Dispatch"/>
+        </optional>
+        <optional>
+          <ref name="ClusterTuning"/>
+        </optional>
+        <zeroOrMore>
+          <!-- Can be used for caches and feedbatching. -->
+          <ref name="GenericConfig"/>
+        </zeroOrMore>
+        <optional>
+          <ref name="Engine"/>
+        </optional>
+        <optional>
+          <!--
+            Here you can add document definitions that you also want to handle.
+            Search might want to know of them in advance.
+          -->
+          <ref name="Documents"/>
+        </optional>
+        <optional>
+          <ref name="ContentNodes"/>
+        </optional>
+        <optional>
+          <ref name="TopGroup"/>
+        </optional>
+        <optional>
+          <ref name="Controllers"/>
+        </optional>
+      </interleave>
+      <!--
+        Contains experimental feature switches
+        Experimental?
+      -->
+    </element>
+  </define>
+  <define name="Controllers">
+    <element name="controllers">
+      <ref name="OptionalDedicatedNodes"/>
+    </element>
+  </define>
+  <define name="ContentSearch">
+    <element name="search">
+      <interleave>
+        <optional>
+          <element name="query-timeout">
+            <data type="double">
+              <param name="minInclusive">0</param>
+            </data>
+          </element>
+        </optional>
+        <optional>
+          <element name="visibility-delay">
+            <data type="double">
+              <param name="minInclusive">0</param>
+            </data>
+          </element>
+        </optional>
+        <optional>
+          <ref name="SearchCoverage"/>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="SearchCoverage">
+    <element name="coverage">
+      <interleave>
+        <optional>
+          <element name="minimum">
+            <data type="double">
+              <param name="minInclusive">0</param>
+              <param name="maxInclusive">1</param>
+            </data>
+          </element>
+        </optional>
+        <optional>
+          <element name="min-wait-after-coverage-factor">
+            <data type="double">
+              <param name="minInclusive">0</param>
+              <param name="maxInclusive">1</param>
+            </data>
+          </element>
+        </optional>
+        <optional>
+          <element name="max-wait-after-coverage-factor">
+            <data type="double">
+              <param name="minInclusive">0</param>
+              <param name="maxInclusive">1</param>
+            </data>
+          </element>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <!-- TODO: Deprecated, remove in Vespa 9 -->
+  <define name="Dispatch">
+    <element name="dispatch">
+      <interleave>
+        <optional>
+          <element name="num-dispatch-groups">
+            <data type="nonNegativeInteger"/>
+          </element>
+        </optional>
+        <zeroOrMore>
+          <ref name="DispatchGroup"/>
+        </zeroOrMore>
+      </interleave>
+    </element>
+  </define>
+  <!-- TODO: Deprecated, remove in Vespa 9 -->
+  <define name="DispatchGroup">
+    <element name="group">
+      <oneOrMore>
+        <ref name="DispatchNode"/>
+      </oneOrMore>
+    </element>
+  </define>
+  <!-- TODO: Deprecated, remove in Vespa 9 -->
+  <define name="DispatchNode">
+    <element name="node">
+      <attribute name="distribution-key">
+        <data type="nonNegativeInteger"/>
+      </attribute>
+    </element>
+  </define>
+  <define name="DocumentProcessing">
+    <a:documentation>Specification of what document processing should be done for indexing.</a:documentation>
+    <element name="document-processing">
+      <interleave>
+        <optional>
+          <attribute name="cluster"/>
+        </optional>
+        <optional>
+          <attribute name="chain"/>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="Engine">
+    <a:documentation>Config for the persistence providers.</a:documentation>
+    <element name="engine">
+      <choice>
+        <ref name="Proton"/>
+        <ref name="Dummy"/>
+      </choice>
+    </element>
+  </define>
+  <define name="Proton">
+    <element name="proton">
+      <interleave>
+        <optional>
+          <element name="flush-on-shutdown">
+            <data type="string"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="sync-transactionlog">
+            <data type="string"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="visibility-delay">
+            <data type="double">
+              <param name="minInclusive">0.0</param>
+            </data>
+          </element>
+        </optional>
+        <optional>
+          <element name="query-timeout">
+            <data type="double">
+              <param name="minInclusive">0.0</param>
+            </data>
+          </element>
+        </optional>
+        <optional>
+          <element name="searchable-copies">
+            <data type="integer">
+              <param name="minInclusive">0</param>
+            </data>
+          </element>
+        </optional>
+        <optional>
+          <ref name="ResourceLimits"/>
+        </optional>
+        <optional>
+          <ref name="Tuning"/>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="ResourceLimits">
+    <element name="resource-limits">
+      <interleave>
+        <optional>
+          <element name="disk">
+            <data type="double">
+              <param name="minInclusive">0.0</param>
+              <param name="maxInclusive">1.0</param>
+            </data>
+          </element>
+        </optional>
+        <optional>
+          <element name="memory">
+            <data type="double">
+              <param name="minInclusive">0.0</param>
+              <param name="maxInclusive">1.0</param>
+            </data>
+          </element>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="Dummy">
+    <element name="dummy">
+      <text/>
+    </element>
+  </define>
+  <define name="Documents">
+    <element name="documents">
+      <interleave>
+        <optional>
+          <attribute name="selection">
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="garbage-collection">
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="garbage-collection-interval">
+            <data type="nonNegativeInteger"/>
+          </attribute>
+        </optional>
+        <optional>
+          <ref name="DocumentProcessing"/>
+        </optional>
+        <oneOrMore>
+          <element name="document">
+            <interleave>
+              <attribute name="type">
+                <data type="string"/>
+              </attribute>
+              <optional>
+                <attribute name="selection">
+                  <data type="string"/>
+                </attribute>
+              </optional>
+              <attribute name="mode">
+                <choice>
+                  <value type="string" datatypeLibrary="">index</value>
+                  <value type="string" datatypeLibrary="">streaming</value>
+                  <value type="string" datatypeLibrary="">store-only</value>
+                </choice>
+              </attribute>
+              <optional>
+                <attribute name="global">
+                  <data type="boolean"/>
+                </attribute>
+              </optional>
+            </interleave>
+          </element>
+        </oneOrMore>
+      </interleave>
+    </element>
+  </define>
+  <define name="ContentNode">
+    <element name="node">
+      <interleave>
+        <zeroOrMore>
+          <ref name="GenericConfig"/>
+        </zeroOrMore>
+        <ref name="service.attlist"/>
+        <attribute name="distribution-key">
+          <data type="nonNegativeInteger">
+            <param name="maxInclusive">65534</param>
+          </data>
+        </attribute>
+        <optional>
+          <attribute name="capacity">
+            <data type="double">
+              <param name="minExclusive">0.0</param>
+            </data>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="mmap-core-limit">
+            <data type="nonNegativeInteger"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="core-on-oom">
+            <data type="boolean"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="no-vespamalloc">
+            <data type="NMTOKENS"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="vespamalloc">
+            <data type="NMTOKENS"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="vespamalloc-debug">
+            <data type="NMTOKENS"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="vespamalloc-debug-stacktrace">
+            <data type="NMTOKENS"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="cpu-socket">
+            <data type="nonNegativeInteger"/>
+          </attribute>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="ContentNodes">
+    <element name="nodes">
+      <interleave>
+        <optional>
+          <ref name="Resources"/>
+        </optional>
+        <optional>
+          <attribute name="cpu-socket-affinity">
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="mmap-core-limit">
+            <data type="nonNegativeInteger"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="core-on-oom">
+            <data type="boolean"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="no-vespamalloc">
+            <data type="NMTOKENS"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="vespamalloc">
+            <data type="NMTOKENS"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="vespamalloc-debug">
+            <data type="NMTOKENS"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="vespamalloc-debug-stacktrace">
+            <data type="NMTOKENS"/>
+          </attribute>
+        </optional>
+        <choice>
+          <interleave>
+            <attribute name="count">
+              <choice>
+                <data type="positiveInteger"/>
+                <data type="string"/>
+              </choice>
+            </attribute>
+            <optional>
+              <attribute name="flavor">
+                <data type="string"/>
+              </attribute>
+            </optional>
+            <optional>
+              <attribute name="required">
+                <data type="boolean"/>
+              </attribute>
+            </optional>
+            <optional>
+              <attribute name="exclusive">
+                <data type="boolean"/>
+              </attribute>
+            </optional>
+            <optional>
+              <attribute name="docker-image">
+                <data type="string"/>
+              </attribute>
+            </optional>
+            <optional>
+              <attribute name="groups">
+                <choice>
+                  <data type="positiveInteger"/>
+                  <data type="string"/>
+                </choice>
+              </attribute>
+            </optional>
+            <optional>
+              <attribute name="group-size">
+                <choice>
+                  <data type="positiveInteger"/>
+                  <data type="string"/>
+                </choice>
+              </attribute>
+            </optional>
+          </interleave>
+          <oneOrMore>
+            <ref name="ContentNode"/>
+          </oneOrMore>
+        </choice>
+      </interleave>
+    </element>
+  </define>
+  <define name="TopGroup">
+    <element name="group">
+      <interleave>
+        <optional>
+          <!--
+            Neither name nor distribution key makes any sense for the top group. There has to be
+            a top group so it never needs referring to, and it's only one group to choose from so
+            it has no use of a distribution key. Leaving it allowed to set them for now to not
+            break all system tests and backward compatibility.
+          -->
+          <attribute name="name">
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="cpu-socket-affinity">
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="mmap-core-limit">
+            <data type="nonNegativeInteger"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="core-on-oom">
+            <data type="boolean"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="no-vespamalloc">
+            <data type="NMTOKENS"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="vespamalloc">
+            <data type="NMTOKENS"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="vespamalloc-debug">
+            <data type="NMTOKENS"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="vespamalloc-debug-stacktrace">
+            <data type="NMTOKENS"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="distribution-key">
+            <data type="nonNegativeInteger"/>
+          </attribute>
+        </optional>
+        <choice>
+          <oneOrMore>
+            <ref name="ContentNode"/>
+          </oneOrMore>
+          <interleave>
+            <element name="distribution">
+              <attribute name="partitions">
+                <data type="string"/>
+              </attribute>
+            </element>
+            <oneOrMore>
+              <ref name="Group"/>
+            </oneOrMore>
+          </interleave>
+        </choice>
+      </interleave>
+    </element>
+  </define>
+  <define name="Group">
+    <element name="group">
+      <interleave>
+        <attribute name="distribution-key">
+          <data type="nonNegativeInteger"/>
+        </attribute>
+        <attribute name="name">
+          <data type="string"/>
+        </attribute>
+        <choice>
+          <oneOrMore>
+            <ref name="ContentNode"/>
+          </oneOrMore>
+          <element name="nodes">
+            <interleave>
+              <attribute name="count">
+                <choice>
+                  <data type="positiveInteger"/>
+                  <data type="string"/>
+                </choice>
+              </attribute>
+              <optional>
+                <attribute name="flavor">
+                  <data type="string"/>
+                </attribute>
+              </optional>
+              <optional>
+                <attribute name="required">
+                  <data type="boolean"/>
+                </attribute>
+              </optional>
+              <optional>
+                <attribute name="exclusive">
+                  <data type="boolean"/>
+                </attribute>
+              </optional>
+              <optional>
+                <attribute name="docker-image">
+                  <data type="string"/>
+                </attribute>
+              </optional>
+              <optional>
+                <attribute name="groups">
+                  <choice>
+                    <data type="positiveInteger"/>
+                    <data type="string"/>
+                  </choice>
+                </attribute>
+              </optional>
+            </interleave>
+          </element>
+          <interleave>
+            <element name="distribution">
+              <attribute name="partitions">
+                <data type="string"/>
+              </attribute>
+            </element>
+            <oneOrMore>
+              <ref name="Group"/>
+            </oneOrMore>
+          </interleave>
+        </choice>
+      </interleave>
+    </element>
+  </define>
+  <define name="Tuning">
+    <element name="tuning">
+      <interleave>
+        <optional>
+          <!--
+            TODO: Deprecated, remove in Vespa 9
+            Use the one under the content tag.
+          -->
+          <element name="dispatch">
+            <optional>
+              <element name="max-hits-per-partition">
+                <data type="nonNegativeInteger"/>
+              </element>
+            </optional>
+          </element>
+        </optional>
+        <optional>
+          <element name="searchnode">
+            <interleave>
+              <optional>
+                <element name="requestthreads">
+                  <interleave>
+                    <optional>
+                      <element name="search">
+                        <data type="nonNegativeInteger"/>
+                      </element>
+                    </optional>
+                    <optional>
+                      <element name="persearch">
+                        <data type="nonNegativeInteger"/>
+                      </element>
+                    </optional>
+                    <optional>
+                      <element name="summary">
+                        <data type="nonNegativeInteger"/>
+                      </element>
+                    </optional>
+                  </interleave>
+                </element>
+              </optional>
+              <optional>
+                <element name="lidspace">
+                  <optional>
+                    <element name="max-bloat-factor">
+                      <data type="double">
+                        <param name="minInclusive">0.0</param>
+                        <param name="maxInclusive">1.0</param>
+                      </data>
+                    </element>
+                  </optional>
+                </element>
+              </optional>
+              <optional>
+                <element name="flushstrategy">
+                  <optional>
+                    <element name="native">
+                      <interleave>
+                        <optional>
+                          <element name="total">
+                            <interleave>
+                              <optional>
+                                <element name="maxmemorygain">
+                                  <data type="nonNegativeInteger"/>
+                                </element>
+                              </optional>
+                              <optional>
+                                <element name="diskbloatfactor">
+                                  <data type="double">
+                                    <param name="minInclusive">0.0</param>
+                                  </data>
+                                </element>
+                              </optional>
+                            </interleave>
+                          </element>
+                        </optional>
+                        <optional>
+                          <element name="component">
+                            <interleave>
+                              <optional>
+                                <element name="maxmemorygain">
+                                  <data type="nonNegativeInteger"/>
+                                </element>
+                              </optional>
+                              <optional>
+                                <element name="diskbloatfactor">
+                                  <data type="double">
+                                    <param name="minInclusive">0.0</param>
+                                  </data>
+                                </element>
+                              </optional>
+                              <optional>
+                                <element name="maxage">
+                                  <data type="nonNegativeInteger"/>
+                                </element>
+                              </optional>
+                            </interleave>
+                          </element>
+                        </optional>
+                        <optional>
+                          <element name="transactionlog">
+                            <optional>
+                              <element name="maxsize">
+                                <data type="nonNegativeInteger"/>
+                              </element>
+                            </optional>
+                          </element>
+                        </optional>
+                        <optional>
+                          <element name="conservative">
+                            <interleave>
+                              <optional>
+                                <element name="memory-limit-factor">
+                                  <data type="double">
+                                    <param name="minInclusive">0.0</param>
+                                    <param name="maxInclusive">1.0</param>
+                                  </data>
+                                </element>
+                              </optional>
+                              <optional>
+                                <element name="disk-limit-factor">
+                                  <data type="double">
+                                    <param name="minInclusive">0.0</param>
+                                    <param name="maxInclusive">1.0</param>
+                                  </data>
+                                </element>
+                              </optional>
+                            </interleave>
+                          </element>
+                        </optional>
+                      </interleave>
+                    </element>
+                  </optional>
+                </element>
+              </optional>
+              <optional>
+                <element name="resizing">
+                  <interleave>
+                    <optional>
+                      <!-- resizing is deprecated and will be gone on vespa 9 -->
+                      <element name="initialdocumentcount">
+                        <data type="nonNegativeInteger"/>
+                      </element>
+                    </optional>
+                    <optional>
+                      <element name="amortize-count">
+                        <data type="nonNegativeInteger"/>
+                      </element>
+                    </optional>
+                  </interleave>
+                </element>
+              </optional>
+              <optional>
+                <element name="index">
+                  <interleave>
+                    <optional>
+                      <element name="io">
+                        <interleave>
+                          <optional>
+                            <!-- io.read and io.write is deprecated and will be gone on vespa 9 -->
+                            <element name="write">
+                              <ref name="TuningIoOptionsLight"/>
+                            </element>
+                          </optional>
+                          <optional>
+                            <element name="read">
+                              <ref name="TuningIoOptionsLight"/>
+                            </element>
+                          </optional>
+                          <optional>
+                            <element name="search">
+                              <ref name="TuningIoOptionsSearch"/>
+                            </element>
+                          </optional>
+                        </interleave>
+                      </element>
+                    </optional>
+                    <optional>
+                      <element name="warmup">
+                        <interleave>
+                          <optional>
+                            <element name="time">
+                              <data type="double">
+                                <param name="minInclusive">0.0</param>
+                              </data>
+                            </element>
+                          </optional>
+                          <optional>
+                            <element name="unpack">
+                              <data type="boolean"/>
+                            </element>
+                          </optional>
+                        </interleave>
+                      </element>
+                    </optional>
+                  </interleave>
+                </element>
+              </optional>
+              <optional>
+                <element name="attribute">
+                  <!-- attribute element is deprecated and will be gone on vespa 9 -->
+                  <element name="io">
+                    <optional>
+                      <element name="write">
+                        <ref name="TuningIoOptionsLight"/>
+                      </element>
+                    </optional>
+                  </element>
+                </element>
+              </optional>
+              <optional>
+                <element name="summary">
+                  <interleave>
+                    <optional>
+                      <element name="io">
+                        <interleave>
+                          <optional>
+                            <!-- summary.io.write is deprecated and will be gone on vespa 9 -->
+                            <element name="write">
+                              <ref name="TuningIoOptionsLight"/>
+                            </element>
+                          </optional>
+                          <optional>
+                            <element name="read">
+                              <ref name="TuningIoOptionsFull"/>
+                            </element>
+                          </optional>
+                        </interleave>
+                      </element>
+                    </optional>
+                    <optional>
+                      <element name="store">
+                        <interleave>
+                          <optional>
+                            <element name="cache">
+                              <interleave>
+                                <optional>
+                                  <element name="maxsize">
+                                    <data type="nonNegativeInteger"/>
+                                  </element>
+                                </optional>
+                                <optional>
+                                  <element name="maxsize-percent">
+                                    <data type="double">
+                                      <param name="minInclusive">0.0</param>
+                                      <param name="maxInclusive">50.0</param>
+                                    </data>
+                                  </element>
+                                </optional>
+                                <optional>
+                                  <!-- initialentries is deprecated and will be gone on vespa 9 -->
+                                  <element name="initialentries">
+                                    <data type="nonNegativeInteger"/>
+                                  </element>
+                                </optional>
+                                <optional>
+                                  <ref name="TuningCompression"/>
+                                </optional>
+                              </interleave>
+                            </element>
+                          </optional>
+                          <optional>
+                            <element name="logstore">
+                              <interleave>
+                                <optional>
+                                  <element name="maxfilesize">
+                                    <data type="nonNegativeInteger"/>
+                                  </element>
+                                </optional>
+                                <optional>
+                                  <element name="minfilesizefactor">
+                                    <data type="double">
+                                      <param name="minInclusive">0.10</param>
+                                      <param name="maxInclusive">1.0</param>
+                                    </data>
+                                  </element>
+                                </optional>
+                                <optional>
+                                  <element name="chunk">
+                                    <interleave>
+                                      <optional>
+                                        <element name="maxsize">
+                                          <data type="nonNegativeInteger"/>
+                                        </element>
+                                      </optional>
+                                      <optional>
+                                        <ref name="TuningCompression"/>
+                                      </optional>
+                                    </interleave>
+                                  </element>
+                                </optional>
+                              </interleave>
+                            </element>
+                          </optional>
+                        </interleave>
+                      </element>
+                    </optional>
+                  </interleave>
+                </element>
+              </optional>
+              <optional>
+                <element name="initialize">
+                  <optional>
+                    <element name="threads">
+                      <data type="nonNegativeInteger"/>
+                    </element>
+                  </optional>
+                </element>
+              </optional>
+              <optional>
+                <element name="feeding">
+                  <interleave>
+                    <optional>
+                      <element name="concurrency">
+                        <data type="double">
+                          <param name="minInclusive">0.0</param>
+                          <param name="maxInclusive">1.0</param>
+                        </data>
+                      </element>
+                    </optional>
+                    <optional>
+                      <element name="niceness">
+                        <data type="double">
+                          <param name="minInclusive">0.0</param>
+                          <param name="maxInclusive">1.0</param>
+                        </data>
+                      </element>
+                    </optional>
+                  </interleave>
+                </element>
+              </optional>
+              <optional>
+                <element name="removed-db">
+                  <optional>
+                    <element name="prune">
+                      <interleave>
+                        <optional>
+                          <element name="age">
+                            <data type="double">
+                              <param name="minInclusive">0.0</param>
+                            </data>
+                          </element>
+                        </optional>
+                        <optional>
+                          <element name="interval">
+                            <data type="double">
+                              <param name="minInclusive">60.0</param>
+                            </data>
+                          </element>
+                        </optional>
+                      </interleave>
+                    </element>
+                  </optional>
+                </element>
+              </optional>
+            </interleave>
+          </element>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="TuningIoOptionsLight">
+    <choice>
+      <value type="string" datatypeLibrary="">normal</value>
+      <value type="string" datatypeLibrary="">directio</value>
+    </choice>
+  </define>
+  <define name="TuningIoOptionsFull">
+    <choice>
+      <value type="string" datatypeLibrary="">normal</value>
+      <value type="string" datatypeLibrary="">directio</value>
+      <value type="string" datatypeLibrary="">mmap</value>
+      <value type="string" datatypeLibrary="">populate</value>
+    </choice>
+  </define>
+  <define name="TuningIoOptionsSearch">
+    <choice>
+      <value type="string" datatypeLibrary="">mmap</value>
+      <value type="string" datatypeLibrary="">populate</value>
+    </choice>
+  </define>
+  <define name="TuningCompression">
+    <element name="compression">
+      <interleave>
+        <optional>
+          <element name="type">
+            <choice>
+              <value type="string" datatypeLibrary="">none</value>
+              <value type="string" datatypeLibrary="">lz4</value>
+              <value type="string" datatypeLibrary="">zstd</value>
+            </choice>
+          </element>
+        </optional>
+        <optional>
+          <element name="level">
+            <data type="nonNegativeInteger"/>
+          </element>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <!--
+    Experimental = element experimental {
+    Put experimental flags here
+    }
+  -->
+  <define name="Thread">
+    <element name="thread">
+      <interleave>
+        <optional>
+          <attribute name="lowest-priority">
+            <a:documentation>The lowest priority this thread should handle.</a:documentation>
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="count">
+            <a:documentation>The number of threads of this type to create</a:documentation>
+            <data type="integer"/>
+          </attribute>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+</grammar>

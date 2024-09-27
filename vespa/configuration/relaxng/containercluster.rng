@@ -1,0 +1,950 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<grammar xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <!-- Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->
+  <define name="ContainerCluster">
+    <element name="container">
+      <interleave>
+        <attribute name="version">
+          <value>1.0</value>
+        </attribute>
+        <optional>
+          <attribute name="id">
+            <data type="NCName"/>
+          </attribute>
+        </optional>
+        <zeroOrMore>
+          <ref name="Include"/>
+        </zeroOrMore>
+        <ref name="ContainerServices"/>
+        <zeroOrMore>
+          <ref name="DocumentBinding"/>
+        </zeroOrMore>
+        <optional>
+          <ref name="NodesOfContainerCluster"/>
+        </optional>
+        <optional>
+          <ref name="ClientAuthorize"/>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="ContainerServices">
+    <interleave>
+      <optional>
+        <ref name="SearchInContainer"/>
+      </optional>
+      <optional>
+        <ref name="DocprocInContainer"/>
+      </optional>
+      <optional>
+        <ref name="ProcessingInContainer"/>
+      </optional>
+      <optional>
+        <ref name="ModelEvaluation"/>
+      </optional>
+      <optional>
+        <ref name="DocumentApi"/>
+      </optional>
+      <zeroOrMore>
+        <ref name="Components"/>
+      </zeroOrMore>
+      <zeroOrMore>
+        <ref name="Component"/>
+      </zeroOrMore>
+      <zeroOrMore>
+        <ref name="Handler"/>
+      </zeroOrMore>
+      <zeroOrMore>
+        <ref name="Server"/>
+      </zeroOrMore>
+      <optional>
+        <ref name="Http"/>
+      </optional>
+      <zeroOrMore>
+        <ref name="AccessLog"/>
+      </zeroOrMore>
+      <optional>
+        <ref name="SecretStore"/>
+      </optional>
+      <optional>
+        <ref name="ZooKeeper"/>
+      </optional>
+      <zeroOrMore>
+        <ref name="GenericConfig"/>
+      </zeroOrMore>
+      <optional>
+        <ref name="Clients"/>
+      </optional>
+    </interleave>
+  </define>
+  <!-- TODO(ogronnesby): Change this configuration syntax -->
+  <define name="ClientAuthorize">
+    <element name="client-authorize">
+      <empty/>
+    </element>
+  </define>
+  <define name="Components">
+    <element name="components">
+      <interleave>
+        <zeroOrMore>
+          <ref name="Include"/>
+        </zeroOrMore>
+        <zeroOrMore>
+          <ref name="Component"/>
+        </zeroOrMore>
+      </interleave>
+    </element>
+  </define>
+  <define name="Include">
+    <element name="include">
+      <attribute name="dir"/>
+    </element>
+  </define>
+  <define name="Http">
+    <element name="http">
+      <choice>
+        <interleave>
+          <ref name="Filtering"/>
+          <oneOrMore>
+            <ref name="HttpServer"/>
+          </oneOrMore>
+        </interleave>
+        <oneOrMore>
+          <ref name="HttpServer"/>
+        </oneOrMore>
+        <empty/>
+      </choice>
+    </element>
+  </define>
+  <define name="Filtering">
+    <element name="filtering">
+      <interleave>
+        <optional>
+          <attribute name="strict-mode">
+            <data type="boolean"/>
+          </attribute>
+        </optional>
+        <zeroOrMore>
+          <ref name="HttpFilter"/>
+        </zeroOrMore>
+        <optional>
+          <ref name="AccessControl"/>
+        </optional>
+        <zeroOrMore>
+          <element name="request-chain">
+            <ref name="HttpFilterChain"/>
+          </element>
+        </zeroOrMore>
+        <zeroOrMore>
+          <element name="response-chain">
+            <ref name="HttpFilterChain"/>
+          </element>
+        </zeroOrMore>
+      </interleave>
+    </element>
+  </define>
+  <define name="HttpServer">
+    <element name="server">
+      <interleave>
+        <optional>
+          <attribute name="port">
+            <data type="nonNegativeInteger"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="required">
+            <data type="boolean"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="default-request-chain">
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="default-response-chain">
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <ref name="ComponentId"/>
+        <optional>
+          <choice>
+            <ref name="Ssl"/>
+            <ref name="SslProvider"/>
+          </choice>
+        </optional>
+        <zeroOrMore>
+          <ref name="GenericConfig"/>
+        </zeroOrMore>
+      </interleave>
+    </element>
+  </define>
+  <define name="AccessLog">
+    <element name="accesslog">
+      <interleave>
+        <optional>
+          <attribute name="type">
+            <choice>
+              <value type="string" datatypeLibrary="">yapache</value>
+              <value type="string" datatypeLibrary="">vespa</value>
+              <value type="string" datatypeLibrary="">json</value>
+              <value type="string" datatypeLibrary="">disabled</value>
+            </choice>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="fileNamePattern">
+            <data type="string" datatypeLibrary=""/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="compressOnRotation">
+            <data type="boolean"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="symlinkName">
+            <data type="string" datatypeLibrary=""/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="compressionType">
+            <choice>
+              <value type="string" datatypeLibrary="">gzip</value>
+              <value type="string" datatypeLibrary="">zstd</value>
+            </choice>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="queueSize">
+            <data type="nonNegativeInteger"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="bufferSize">
+            <data type="nonNegativeInteger"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="rotationInterval">
+            <data type="string" datatypeLibrary=""/>
+          </attribute>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="SecretStore">
+    <element name="secret-store">
+      <interleave>
+        <attribute name="type">
+          <choice>
+            <value type="string" datatypeLibrary="">oath-ckms</value>
+            <value type="string" datatypeLibrary="">cloud</value>
+          </choice>
+        </attribute>
+        <zeroOrMore>
+          <element name="group">
+            <interleave>
+              <attribute name="name">
+                <data type="string" datatypeLibrary=""/>
+              </attribute>
+              <attribute name="environment">
+                <choice>
+                  <value type="string" datatypeLibrary="">alpha</value>
+                  <value type="string" datatypeLibrary="">corp</value>
+                  <value type="string" datatypeLibrary="">prod</value>
+                  <value type="string" datatypeLibrary="">aws</value>
+                  <value type="string" datatypeLibrary="">aws_stage</value>
+                </choice>
+              </attribute>
+            </interleave>
+          </element>
+        </zeroOrMore>
+        <optional>
+          <element name="store">
+            <interleave>
+              <attribute name="id">
+                <data type="string" datatypeLibrary=""/>
+              </attribute>
+              <zeroOrMore>
+                <element name="aws-parameter-store">
+                  <interleave>
+                    <attribute name="account">
+                      <data type="string" datatypeLibrary=""/>
+                    </attribute>
+                    <attribute name="aws-region">
+                      <data type="string" datatypeLibrary=""/>
+                    </attribute>
+                  </interleave>
+                </element>
+              </zeroOrMore>
+            </interleave>
+          </element>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="ZooKeeper">
+    <element name="zookeeper">
+      <optional>
+        <attribute name="session-timeout-seconds">
+          <data type="string" datatypeLibrary=""/>
+        </attribute>
+      </optional>
+    </element>
+  </define>
+  <define name="ModelEvaluation">
+    <element name="model-evaluation">
+      <optional>
+        <element name="onnx">
+          <optional>
+            <element name="models">
+              <zeroOrMore>
+                <element name="model">
+                  <interleave>
+                    <attribute name="name">
+                      <data type="string" datatypeLibrary=""/>
+                    </attribute>
+                    <optional>
+                      <element name="intraop-threads">
+                        <data type="nonNegativeInteger"/>
+                      </element>
+                    </optional>
+                    <optional>
+                      <element name="interop-threads">
+                        <data type="nonNegativeInteger"/>
+                      </element>
+                    </optional>
+                    <optional>
+                      <element name="execution-mode">
+                        <choice>
+                          <value type="string" datatypeLibrary="">sequential</value>
+                          <value type="string" datatypeLibrary="">parallel</value>
+                        </choice>
+                      </element>
+                    </optional>
+                    <optional>
+                      <element name="gpu-device">
+                        <data type="nonNegativeInteger"/>
+                      </element>
+                    </optional>
+                  </interleave>
+                </element>
+              </zeroOrMore>
+            </element>
+          </optional>
+        </element>
+      </optional>
+    </element>
+  </define>
+  <define name="Ssl">
+    <element name="ssl">
+      <interleave>
+        <element name="private-key-file">
+          <data type="string" datatypeLibrary=""/>
+        </element>
+        <element name="certificate-file">
+          <data type="string" datatypeLibrary=""/>
+        </element>
+        <optional>
+          <element name="ca-certificates-file">
+            <data type="string" datatypeLibrary=""/>
+          </element>
+        </optional>
+        <optional>
+          <element name="client-authentication">
+            <choice>
+              <value type="string" datatypeLibrary="">disabled</value>
+              <value type="string" datatypeLibrary="">want</value>
+              <value type="string" datatypeLibrary="">need</value>
+            </choice>
+          </element>
+        </optional>
+        <optional>
+          <element name="cipher-suites">
+            <data type="string" datatypeLibrary=""/>
+          </element>
+        </optional>
+        <optional>
+          <element name="protocols">
+            <data type="string" datatypeLibrary=""/>
+          </element>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="SslProvider">
+    <element name="ssl-provider">
+      <ref name="BundleSpec"/>
+    </element>
+  </define>
+  <define name="Threadpool">
+    <element name="threadpool">
+      <choice>
+        <interleave>
+          <!-- TODO Vespa 9 Remove max-threads / min-threads / queue-size -->
+          <element name="max-threads">
+            <data type="nonNegativeInteger"/>
+          </element>
+          <element name="min-threads">
+            <data type="nonNegativeInteger"/>
+          </element>
+          <element name="queue-size">
+            <data type="nonNegativeInteger"/>
+          </element>
+        </interleave>
+        <interleave>
+          <optional>
+            <element name="threads">
+              <interleave>
+                <data type="double">
+                  <param name="minExclusive">0.0</param>
+                </data>
+                <optional>
+                  <attribute name="boost">
+                    <data type="double">
+                      <param name="minExclusive">0.0</param>
+                    </data>
+                  </attribute>
+                </optional>
+              </interleave>
+            </element>
+          </optional>
+          <optional>
+            <element name="queue">
+              <data type="double">
+                <param name="minInclusive">0.0</param>
+              </data>
+            </element>
+          </optional>
+        </interleave>
+      </choice>
+    </element>
+  </define>
+  <define name="Significance">
+    <element name="significance">
+      <zeroOrMore>
+        <element name="model">
+          <ref name="ModelReference"/>
+        </element>
+      </zeroOrMore>
+    </element>
+  </define>
+  <define name="Clients">
+    <element name="clients">
+      <zeroOrMore>
+        <ref name="Client"/>
+      </zeroOrMore>
+    </element>
+  </define>
+  <define name="Client">
+    <element name="client">
+      <interleave>
+        <ref name="ComponentId"/>
+        <attribute name="permissions">
+          <data type="string" datatypeLibrary=""/>
+        </attribute>
+        <choice>
+          <oneOrMore>
+            <element name="certificate">
+              <attribute name="file">
+                <data type="string" datatypeLibrary=""/>
+              </attribute>
+            </element>
+          </oneOrMore>
+          <oneOrMore>
+            <element name="token">
+              <attribute name="id">
+                <data type="string" datatypeLibrary=""/>
+              </attribute>
+            </element>
+          </oneOrMore>
+        </choice>
+      </interleave>
+    </element>
+  </define>
+  <!-- SEARCH: -->
+  <define name="SearchInContainer">
+    <element name="search">
+      <interleave>
+        <zeroOrMore>
+          <ref name="Include"/>
+        </zeroOrMore>
+        <optional>
+          <ref name="ServerBindings"/>
+        </optional>
+        <zeroOrMore>
+          <ref name="Searcher"/>
+        </zeroOrMore>
+        <zeroOrMore>
+          <ref name="SearchChain"/>
+        </zeroOrMore>
+        <zeroOrMore>
+          <ref name="Provider"/>
+        </zeroOrMore>
+        <zeroOrMore>
+          <ref name="Renderer"/>
+        </zeroOrMore>
+        <zeroOrMore>
+          <ref name="GenericConfig"/>
+        </zeroOrMore>
+        <optional>
+          <ref name="Threadpool"/>
+        </optional>
+        <optional>
+          <ref name="Significance"/>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="SearchChain">
+    <element name="chain">
+      <ref name="GenericSearchChain"/>
+    </element>
+  </define>
+  <define name="GenericSearchChain">
+    <interleave>
+      <ref name="ComponentId"/>
+      <ref name="SearchChainInheritance"/>
+      <optional>
+        <attribute name="searchers"/>
+      </optional>
+      <zeroOrMore>
+        <ref name="Searcher"/>
+      </zeroOrMore>
+      <zeroOrMore>
+        <ref name="Phase"/>
+      </zeroOrMore>
+      <zeroOrMore>
+        <ref name="GenericConfig"/>
+      </zeroOrMore>
+    </interleave>
+  </define>
+  <define name="SearchChainInheritance">
+    <interleave>
+      <optional>
+        <attribute name="inherits"/>
+      </optional>
+      <optional>
+        <attribute name="excludes"/>
+      </optional>
+      <optional>
+        <element name="inherits">
+          <interleave>
+            <zeroOrMore>
+              <element name="chain">
+                <ref name="ComponentSpec"/>
+              </element>
+            </zeroOrMore>
+            <zeroOrMore>
+              <element name="exclude">
+                <ref name="ComponentSpec"/>
+              </element>
+            </zeroOrMore>
+          </interleave>
+        </element>
+      </optional>
+    </interleave>
+  </define>
+  <!-- DOCPROC: -->
+  <define name="DocprocInContainer">
+    <element name="document-processing">
+      <interleave>
+        <zeroOrMore>
+          <ref name="Include"/>
+        </zeroOrMore>
+        <optional>
+          <ref name="DocprocClusterAttributes"/>
+        </optional>
+        <zeroOrMore>
+          <ref name="DocumentProcessorV3"/>
+        </zeroOrMore>
+        <zeroOrMore>
+          <ref name="ChainInDocprocInContainerCluster"/>
+        </zeroOrMore>
+        <zeroOrMore>
+          <ref name="GenericConfig"/>
+        </zeroOrMore>
+      </interleave>
+    </element>
+  </define>
+  <define name="ChainInDocprocInContainerCluster">
+    <element name="chain">
+      <ref name="DocprocChainV3Contents"/>
+    </element>
+  </define>
+  <define name="SchemaMapping">
+    <element name="map">
+      <oneOrMore>
+        <element name="field">
+          <optional>
+            <attribute name="doctype"/>
+          </optional>
+          <attribute name="in-document"/>
+          <attribute name="in-processor"/>
+        </element>
+      </oneOrMore>
+    </element>
+  </define>
+  <!-- TODO Here we need a thorough cleaning -->
+  <define name="DocprocClusterAttributes">
+    <interleave>
+      <optional>
+        <attribute name="compressdocuments">
+          <data type="boolean"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="numnodesperclient">
+          <data type="positiveInteger"/>
+        </attribute>
+      </optional>
+      <optional>
+        <!-- TODO: Remove in Vespa 9 -->
+        <attribute name="preferlocalnode">
+          <data type="boolean"/>
+        </attribute>
+      </optional>
+      <optional>
+        <!-- TODO: Remove in Vespa 9 -->
+        <attribute name="maxmessagesinqueue">
+          <data type="nonNegativeInteger"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="maxqueuebytesize">
+          <data type="string">
+            <param name="minLength">1</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <!-- TODO: Remove in Vespa 9 -->
+        <attribute name="maxqueuewait">
+          <data type="positiveInteger"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="maxconcurrentfactor">
+          <data type="double">
+            <param name="minExclusive">0.0</param>
+            <param name="maxExclusive">1.0</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="documentexpansionfactor">
+          <data type="double">
+            <param name="minExclusive">0.0</param>
+          </data>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="containercorememory">
+          <data type="nonNegativeInteger"/>
+        </attribute>
+      </optional>
+    </interleave>
+  </define>
+  <define name="DocprocChainV3Contents">
+    <interleave>
+      <optional>
+        <attribute name="name">
+          <data type="NCName"/>
+        </attribute>
+      </optional>
+      <ref name="ComponentId"/>
+      <optional>
+        <ref name="SchemaMapping"/>
+      </optional>
+      <ref name="DocprocChainInheritance"/>
+      <optional>
+        <attribute name="documentprocessors"/>
+      </optional>
+      <zeroOrMore>
+        <ref name="DocumentProcessorV3"/>
+      </zeroOrMore>
+      <zeroOrMore>
+        <ref name="Phase"/>
+      </zeroOrMore>
+      <zeroOrMore>
+        <ref name="GenericConfig"/>
+      </zeroOrMore>
+    </interleave>
+  </define>
+  <define name="DocprocChainInheritance">
+    <interleave>
+      <optional>
+        <attribute name="inherits"/>
+      </optional>
+      <optional>
+        <attribute name="excludes"/>
+      </optional>
+      <optional>
+        <element name="inherits">
+          <interleave>
+            <zeroOrMore>
+              <element name="docprocchain">
+                <ref name="ComponentSpec"/>
+              </element>
+            </zeroOrMore>
+            <zeroOrMore>
+              <element name="exclude">
+                <ref name="ComponentSpec"/>
+              </element>
+            </zeroOrMore>
+          </interleave>
+        </element>
+      </optional>
+    </interleave>
+  </define>
+  <define name="DocumentProcessorV3">
+    <element name="documentprocessor">
+      <interleave>
+        <ref name="BundleSpec"/>
+        <optional>
+          <ref name="SchemaMapping"/>
+        </optional>
+        <ref name="GenericSearcherOrDocumentProcessor"/>
+      </interleave>
+    </element>
+  </define>
+  <!-- PROCESSING: -->
+  <define name="ProcessingInContainer">
+    <element name="processing">
+      <interleave>
+        <zeroOrMore>
+          <ref name="Include"/>
+        </zeroOrMore>
+        <optional>
+          <ref name="ServerBindings"/>
+        </optional>
+        <zeroOrMore>
+          <ref name="Processor"/>
+        </zeroOrMore>
+        <zeroOrMore>
+          <ref name="Chain"/>
+        </zeroOrMore>
+        <zeroOrMore>
+          <ref name="ProcessingRenderer"/>
+        </zeroOrMore>
+        <zeroOrMore>
+          <ref name="GenericConfig"/>
+        </zeroOrMore>
+      </interleave>
+    </element>
+  </define>
+  <!-- DOCUMENT API: -->
+  <define name="DocumentApi">
+    <element name="document-api">
+      <interleave>
+        <ref name="ServerBindings"/>
+        <zeroOrMore>
+          <ref name="GenericConfig"/>
+        </zeroOrMore>
+        <optional>
+          <element name="ignore-undefined-fields">
+            <data type="boolean"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="abortondocumenterror">
+            <data type="boolean"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="retryenabled">
+            <data type="boolean"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="route">
+            <text/>
+          </element>
+        </optional>
+        <optional>
+          <element name="maxpendingdocs">
+            <data type="positiveInteger"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="maxpendingbytes">
+            <data type="positiveInteger"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="retrydelay">
+            <data type="double">
+              <param name="minInclusive">0.0</param>
+            </data>
+          </element>
+        </optional>
+        <optional>
+          <element name="timeout">
+            <data type="double">
+              <param name="minInclusive">0.0</param>
+            </data>
+          </element>
+        </optional>
+        <optional>
+          <element name="tracelevel">
+            <data type="positiveInteger"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="mbusport">
+            <data type="positiveInteger"/>
+          </element>
+        </optional>
+        <optional>
+          <ref name="DocumentRestApi"/>
+        </optional>
+        <optional>
+          <ref name="HttpClientApi"/>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="DocumentRestApi">
+    <element name="rest-api">
+      <empty/>
+    </element>
+  </define>
+  <define name="HttpClientApi">
+    <element name="http-client-api">
+      <optional>
+        <ref name="Threadpool"/>
+      </optional>
+    </element>
+  </define>
+  <!-- NODES: -->
+  <define name="NodesOfContainerCluster">
+    <element name="nodes">
+      <interleave>
+        <optional>
+          <attribute name="jvm-options"/>
+        </optional>
+        <optional>
+          <!-- Remove in Vespa 9 -->
+          <attribute name="jvm-gc-options"/>
+        </optional>
+        <optional>
+          <!-- Remove in Vespa 9 -->
+          <attribute name="preload"/>
+        </optional>
+        <optional>
+          <attribute name="allocated-memory"/>
+        </optional>
+        <optional>
+          <!-- Remove in Vespa 9 -->
+          <attribute name="cpu-socket-affinity">
+            <data type="boolean"/>
+          </attribute>
+        </optional>
+        <optional>
+          <element name="jvm">
+            <interleave>
+              <optional>
+                <attribute name="options"/>
+              </optional>
+              <optional>
+                <attribute name="gc-options"/>
+              </optional>
+              <optional>
+                <attribute name="allocated-memory"/>
+              </optional>
+            </interleave>
+          </element>
+        </optional>
+        <optional>
+          <ref name="Resources"/>
+        </optional>
+        <optional>
+          <element name="environment-variables">
+            <oneOrMore>
+              <ref name="anyElement"/>
+            </oneOrMore>
+          </element>
+        </optional>
+        <choice>
+          <interleave>
+            <attribute name="of">
+              <data type="string"/>
+            </attribute>
+            <optional>
+              <attribute name="required">
+                <data type="boolean"/>
+              </attribute>
+            </optional>
+          </interleave>
+          <attribute name="type">
+            <data type="string"/>
+          </attribute>
+          <interleave>
+            <optional>
+              <attribute name="count">
+                <choice>
+                  <data type="positiveInteger"/>
+                  <data type="string"/>
+                </choice>
+              </attribute>
+            </optional>
+            <optional>
+              <attribute name="flavor">
+                <data type="string"/>
+              </attribute>
+            </optional>
+            <optional>
+              <attribute name="required">
+                <data type="boolean"/>
+              </attribute>
+            </optional>
+            <optional>
+              <attribute name="exclusive">
+                <data type="boolean"/>
+              </attribute>
+            </optional>
+            <optional>
+              <attribute name="docker-image">
+                <data type="string"/>
+              </attribute>
+            </optional>
+          </interleave>
+          <oneOrMore>
+            <element name="node">
+              <interleave>
+                <attribute name="hostalias">
+                  <data type="NCName"/>
+                </attribute>
+                <optional>
+                  <attribute name="cpu-socket">
+                    <data type="positiveInteger"/>
+                  </attribute>
+                </optional>
+                <zeroOrMore>
+                  <ref name="GenericConfig"/>
+                </zeroOrMore>
+              </interleave>
+            </element>
+          </oneOrMore>
+        </choice>
+      </interleave>
+    </element>
+  </define>
+  <!-- DOCUMENT BINDINGS: -->
+  <define name="DocumentBinding">
+    <element name="document">
+      <interleave>
+        <attribute name="type">
+          <data type="NCName"/>
+        </attribute>
+        <attribute name="class">
+          <data type="NCName"/>
+        </attribute>
+        <attribute name="bundle">
+          <data type="NCName"/>
+        </attribute>
+      </interleave>
+    </element>
+  </define>
+</grammar>

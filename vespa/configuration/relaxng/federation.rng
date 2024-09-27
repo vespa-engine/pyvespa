@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<grammar xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <!--
+    Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
+    Schema for federation configuration inside the searchchains section.
+  -->
+  <define name="GenericSource">
+    <interleave>
+      <ref name="SearchChainInFederation"/>
+      <optional>
+        <ref name="FederationOptions"/>
+      </optional>
+    </interleave>
+  </define>
+  <define name="Source">
+    <element name="source">
+      <ref name="GenericSource"/>
+    </element>
+  </define>
+  <define name="Provider">
+    <element name="provider">
+      <interleave>
+        <ref name="GenericSource"/>
+        <optional>
+          <attribute name="cachesize">
+            <data type="string">
+              <param name="pattern">\d+(\.\d*)?\s*[kmgKMG]?</param>
+            </data>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="type">
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="cluster">
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <zeroOrMore>
+          <ref name="Source"/>
+        </zeroOrMore>
+      </interleave>
+    </element>
+  </define>
+  <define name="FederationOptions">
+    <element name="federationoptions">
+      <interleave>
+        <optional>
+          <attribute name="optional">
+            <data type="boolean"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="timeout">
+            <data type="string">
+              <param name="pattern">\d+(\.\d*)?\s*m?s</param>
+            </data>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="requestTimeout">
+            <data type="string">
+              <param name="pattern">\d+(\.\d*)?\s*m?s</param>
+            </data>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="default">
+            <data type="boolean"/>
+          </attribute>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="FederationSearcher">
+    <element name="federation">
+      <interleave>
+        <ref name="GenericSearcherOrDocumentProcessor"/>
+        <zeroOrMore>
+          <element name="source">
+            <interleave>
+              <ref name="ComponentSpec"/>
+              <optional>
+                <ref name="FederationOptions"/>
+              </optional>
+            </interleave>
+          </element>
+        </zeroOrMore>
+        <optional>
+          <element name="target-selector">
+            <ref name="ComponentDefinition"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="source-set">
+            <attribute name="inherits">
+              <value type="string" datatypeLibrary="">default</value>
+            </attribute>
+          </element>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+</grammar>
