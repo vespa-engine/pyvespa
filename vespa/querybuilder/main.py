@@ -4,7 +4,7 @@ import json
 
 
 @dataclass
-class Field:
+class Queryfield:
     name: str
 
     def __eq__(self, other: Any) -> "Condition":
@@ -108,7 +108,7 @@ class Field:
             return (
                 "{"
                 + ",".join(
-                    f'"{k}":{Field._format_annotation_value(v)}'
+                    f'"{k}":{Queryfield._format_annotation_value(v)}'
                     for k, v in value.items()
                 )
                 + "}"
@@ -116,7 +116,7 @@ class Field:
         elif isinstance(value, list):
             return (
                 "["
-                + ",".join(f"{Field._format_annotation_value(v)}" for v in value)
+                + ",".join(f"{Queryfield._format_annotation_value(v)}" for v in value)
                 + "]"
             )
         else:
@@ -158,7 +158,8 @@ class Condition:
 
     def annotate(self, annotations: Dict[str, Any]) -> "Condition":
         annotations_str = ",".join(
-            f"{k}:{Field._format_annotation_value(v)}" for k, v in annotations.items()
+            f"{k}:{Queryfield._format_annotation_value(v)}"
+            for k, v in annotations.items()
         )
         return Condition(f"({{{annotations_str}}}){self.expression}")
 
@@ -193,7 +194,7 @@ class Condition:
 
 
 class Query:
-    def __init__(self, select_fields: Union[str, List[str], List[Field]]):
+    def __init__(self, select_fields: Union[str, List[str], List[Queryfield]]):
         self.select_fields = (
             ", ".join(select_fields)
             if isinstance(select_fields, List)
@@ -213,8 +214,8 @@ class Query:
         self.sources = ", ".join(sources)
         return self
 
-    def where(self, condition: Union[Condition, Field]) -> "Query":
-        if isinstance(condition, Field):
+    def where(self, condition: Union[Condition, Queryfield]) -> "Query":
+        if isinstance(condition, Queryfield):
             self.condition = condition
         else:
             self.condition = condition
@@ -229,7 +230,7 @@ class Query:
         direction = "asc" if ascending else "desc"
         if annotations:
             annotations_str = ",".join(
-                f'"{k}":{Field._format_annotation_value(v)}'
+                f'"{k}":{Queryfield._format_annotation_value(v)}'
                 for k, v in annotations.items()
             )
             self.order_by_clauses.append(f"{{{annotations_str}}}{field} {direction}")
@@ -331,7 +332,7 @@ class Q:
         expr = f"dotProduct({field}, {vector_str})"
         if annotations:
             annotations_str = ",".join(
-                f"{k}:{Field._format_annotation_value(v)}"
+                f"{k}:{Queryfield._format_annotation_value(v)}"
                 for k, v in annotations.items()
             )
             expr = f"({{{annotations_str}}}{expr})"
@@ -345,15 +346,15 @@ class Q:
         expr = f"weightedSet({field}, {vector_str})"
         if annotations:
             annotations_str = ",".join(
-                f"{k}:{Field._format_annotation_value(v)}"
+                f"{k}:{Queryfield._format_annotation_value(v)}"
                 for k, v in annotations.items()
             )
             expr = f"({{{annotations_str}}}{expr})"
         return Condition(expr)
 
     @staticmethod
-    def nonEmpty(condition: Union[Condition, Field]) -> Condition:
-        if isinstance(condition, Field):
+    def nonEmpty(condition: Union[Condition, Queryfield]) -> Condition:
+        if isinstance(condition, Queryfield):
             expr = str(condition)
         else:
             expr = condition.build()
@@ -372,7 +373,7 @@ class Q:
         expr = f"wand({field}, {weights_str})"
         if annotations:
             annotations_str = ",".join(
-                f"{k}:{Field._format_annotation_value(v)}"
+                f"{k}:{Queryfield._format_annotation_value(v)}"
                 for k, v in annotations.items()
             )
             expr = f"({{{annotations_str}}}{expr})"
@@ -384,7 +385,7 @@ class Q:
         expr = f"weakAnd({conditions_str})"
         if annotations:
             annotations_str = ",".join(
-                f'"{k}":{Field._format_annotation_value(v)}'
+                f'"{k}":{Queryfield._format_annotation_value(v)}'
                 for k, v in annotations.items()
             )
             expr = f"({{{annotations_str}}}{expr})"
@@ -401,7 +402,7 @@ class Q:
         expr = f'geoLocation({field}, {lat}, {lng}, "{radius}")'
         if annotations:
             annotations_str = ",".join(
-                f"{k}:{Field._format_annotation_value(v)}"
+                f"{k}:{Queryfield._format_annotation_value(v)}"
                 for k, v in annotations.items()
             )
             expr = f"({{{annotations_str}}}{expr})"
@@ -414,7 +415,8 @@ class Q:
         if "targetHits" not in annotations:
             raise ValueError("targetHits annotation is required")
         annotations_str = ",".join(
-            f"{k}:{Field._format_annotation_value(v)}" for k, v in annotations.items()
+            f"{k}:{Queryfield._format_annotation_value(v)}"
+            for k, v in annotations.items()
         )
         return Condition(
             f"({{{annotations_str}}}nearestNeighbor({field}, {query_vector}))"
@@ -431,7 +433,7 @@ class Q:
         expr = f"phrase({terms_str})"
         if annotations:
             annotations_str = ",".join(
-                f"{k}:{Field._format_annotation_value(v)}"
+                f"{k}:{Queryfield._format_annotation_value(v)}"
                 for k, v in annotations.items()
             )
             expr = f"({{{annotations_str}}}{expr})"
@@ -443,7 +445,7 @@ class Q:
         expr = f"near({terms_str})"
         if annotations:
             annotations_str = ",".join(
-                f"{k}:{Field._format_annotation_value(v)}"
+                f"{k}:{Queryfield._format_annotation_value(v)}"
                 for k, v in annotations.items()
             )
             expr = f"({{{annotations_str}}}{expr})"
@@ -455,7 +457,7 @@ class Q:
         expr = f"onear({terms_str})"
         if annotations:
             annotations_str = ",".join(
-                f"{k}:{Field._format_annotation_value(v)}"
+                f"{k}:{Queryfield._format_annotation_value(v)}"
                 for k, v in annotations.items()
             )
             expr = f"({{{annotations_str}}}{expr})"
@@ -478,7 +480,7 @@ class Q:
         expr = f'uri("{value}")'
         if annotations:
             annotations_str = ",".join(
-                f"{k}:{Field._format_annotation_value(v)}"
+                f"{k}:{Queryfield._format_annotation_value(v)}"
                 for k, v in annotations.items()
             )
             expr = f"({{{annotations_str}}}{expr})"
@@ -489,7 +491,7 @@ class Q:
         expr = f'fuzzy("{value}")'
         if annotations:
             annotations_str = ",".join(
-                f"{k}:{Field._format_annotation_value(v)}"
+                f"{k}:{Queryfield._format_annotation_value(v)}"
                 for k, v in annotations.items()
             )
             expr = f"({{{annotations_str}}}{expr})"
@@ -507,7 +509,7 @@ class Q:
             expr = f'userInput("{value}")'
         if annotations:
             annotations_str = ",".join(
-                f"{k}:{Field._format_annotation_value(v)}"
+                f"{k}:{Queryfield._format_annotation_value(v)}"
                 for k, v in annotations.items()
             )
             expr = f"({{{annotations_str}}}{expr})"
