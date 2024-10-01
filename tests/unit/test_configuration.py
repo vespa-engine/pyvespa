@@ -461,6 +461,105 @@ class TestBillionscaleServiceConfiguration(unittest.TestCase):
         self.assertTrue(compare_xml(self.xml_schema, str(generated_xml)))
 
 
+class TestColbertLongServicesConfiguration(unittest.TestCase):
+    def setUp(self):
+        self.xml_file_path = "tests/testfiles/services/colbert-long/services.xml"
+        self.xml_schema = """<?xml version="1.0" encoding="utf-8" ?>
+
+<services version="1.0" xmlns:deploy="vespa" xmlns:preprocess="properties" minimum-required-vespa-version="8.311.28">
+
+    <!-- See https://docs.vespa.ai/en/reference/services-container.html -->
+    <container id="default" version="1.0">
+
+        <!-- See https://docs.vespa.ai/en/embedding.html#colbert-embedder -->
+        <component id="colbert" type="colbert-embedder">
+            <transformer-model url="https://huggingface.co/colbert-ir/colbertv2.0/resolve/main/model.onnx"/>
+            <tokenizer-model url="https://huggingface.co/colbert-ir/colbertv2.0/raw/main/tokenizer.json"/>
+        </component>
+        <document-api/>
+        <search/>
+        <nodes count="1">
+            <resources vcpu="4" memory="16Gb" disk="125Gb">
+                <gpu count="1" memory="16Gb"/>
+            </resources>
+        </nodes>
+        
+    </container>
+
+    <!-- See https://docs.vespa.ai/en/reference/services-content.html -->
+    <content id="text" version="1.0">
+        <min-redundancy>2</min-redundancy>
+        <documents>
+            <document type="doc" mode="index" />
+        </documents>
+        <nodes count="2"/>
+        <engine>
+            <proton>
+                <tuning>
+                    <searchnode>
+                        <requestthreads>
+                            <persearch>4</persearch> <!-- Change the number of threads per search here -->
+                        </requestthreads>
+                    </searchnode>
+                </tuning>
+            </proton>
+        </engine>
+    </content>
+
+</services>
+"""
+
+    def test_valid_config_from_file(self):
+        self.assertTrue(validate_services(self.xml_file_path))
+
+    def test_valid_config_from_string(self):
+        self.assertTrue(validate_services(self.xml_schema))
+
+    def test_valid_from_etree(self):
+        to_validate = etree.parse(self.xml_file_path)
+        self.assertTrue(validate_services(to_validate))
+
+    def test_generate_colbert_long_services(self):
+        # Generated XML using dynamic tag functions
+        generated_services = services(
+            container(id="default", version="1.0")(
+                component(id="colbert", type="colbert-embedder")(
+                    transformer_model(
+                        url="https://huggingface.co/colbert-ir/colbertv2.0/resolve/main/model.onnx"
+                    ),
+                    tokenizer_model(
+                        url="https://huggingface.co/colbert-ir/colbertv2.0/raw/main/tokenizer.json"
+                    ),
+                ),
+                document_api(),
+                search(),
+                nodes(count="1")(
+                    resources(vcpu="4", memory="16Gb", disk="125Gb")(
+                        gpu(count="1", memory="16Gb")
+                    ),
+                ),
+            ),
+            content(id="text", version="1.0")(
+                min_redundancy("2"),
+                documents(document(type="doc", mode="index")),
+                nodes(count="2"),
+                engine(
+                    proton(
+                        tuning(
+                            searchnode(requestthreads(persearch("4"))),
+                        ),
+                    ),
+                ),
+            ),
+            version="1.0",
+            minimum_required_vespa_version="8.311.28",
+        )
+        generated_xml = generated_services.to_xml()
+        # Validate against relaxng
+        self.assertTrue(validate_services(str(generated_xml)))
+        self.assertTrue(compare_xml(self.xml_schema, str(generated_xml)))
+
+
 class TestValidateServices(unittest.TestCase):
     def setUp(self):
         # Prepare some sample valid and invalid XML data
@@ -572,9 +671,7 @@ class TestDocumentExpiry(unittest.TestCase):
 """
 
     def test_xml_validation(self):
-        to_validate = etree.fromstring(self.xml_schema.encode("utf-8"))
-        # Validate against relaxng
-        self.assertTrue(validate_services(to_validate))
+        self.assertTrue(validate_services(self.xml_schema))
 
     def test_document_expiry(self):
         application_name = "music"
@@ -603,7 +700,7 @@ class TestDocumentExpiry(unittest.TestCase):
         )
         generated_xml = generated.to_xml()
         # Validate against relaxng
-        self.assertTrue(validate_services(etree.fromstring(str(generated_xml))))
+        self.assertTrue(validate_services((str(generated_xml))))
         # Compare the generated XML with the schema
         self.assertTrue(compare_xml(self.xml_schema, str(generated_xml)))
 

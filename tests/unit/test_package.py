@@ -525,6 +525,7 @@ class TestApplicationPackage(unittest.TestCase):
                     name="bm25",
                     first_phase="bm25(title) + bm25(body)",
                     inherits="default",
+                    num_threads_per_search=4,
                 ),
                 RankProfile(
                     name="bert",
@@ -672,6 +673,7 @@ class TestApplicationPackage(unittest.TestCase):
             "                bm25(title) + bm25(body)\n"
             "            }\n"
             "        }\n"
+            "        num-threads-per-search: 4\n"
             "    }\n"
             "    rank-profile bert inherits default {\n"
             "        constants {\n"
