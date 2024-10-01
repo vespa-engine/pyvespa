@@ -1114,6 +1114,7 @@ class RankProfile(object):
         match_features: Optional[List] = None,
         second_phase: Optional[SecondPhaseRanking] = None,
         global_phase: Optional[GlobalPhaseRanking] = None,
+        num_threads_per_search: Optional[int] = None,
         **kwargs: Unpack[RankProfileFields],
     ) -> None:
         """
@@ -1146,6 +1147,7 @@ class RankProfile(object):
             See :class:`SecondPhaseRanking`.
         :param global_phase: Optional config specifying the global phase of ranking.
             See :class:`GlobalPhaseRanking`.
+        :param num_threads_per_search: Overrides the global `persearch` value for this rank profile to a **lower** value.
         :key weight: A list of tuples containing the field and their weight
         :key rank_type: A list of tuples containing a field and the rank-type-name.
             `More info <https://docs.vespa.ai/en/reference/schema-reference.html#rank-type>`__ about rank-type.
@@ -1195,21 +1197,21 @@ class RankProfile(object):
         ...     first_phase = "nativeRank(title, body)",
         ...     weight = [("title", 200), ("body", 100)]
         ... )
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, [('title', 200), ('body', 100)], None, None, None, None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, [('title', 200), ('body', 100)], None, None, None)
 
         >>> RankProfile(
         ...     name = "default",
         ...     first_phase = "nativeRank(title, body)",
         ...     rank_type = [("body", "about")]
         ... )
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, [('body', 'about')], None, None, None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, [('body', 'about')], None, None)
 
         >>> RankProfile(
         ...     name = "default",
         ...     first_phase = "nativeRank(title, body)",
         ...     rank_properties = [("fieldMatch(title).maxAlternativeSegmentations", "10")]
         ... )
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, [('fieldMatch(title).maxAlternativeSegmentations', '10')], None, None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, [('fieldMatch(title).maxAlternativeSegmentations', '10')], None)
 
         >>> RankProfile(
         ...    name = "default",
@@ -1217,6 +1219,12 @@ class RankProfile(object):
         ... )
         RankProfile('default', FirstPhaseRanking('nativeRank(title, body)', 50, None), None, None, None, None, None, None, None, None, None, None, None, None)
 
+        >>> RankProfile(
+        ...     name = "default",
+        ...     first_phase = "nativeRank(title, body)",
+        ...     num_threads_per_search = 2
+        ... )
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, 2, None, None, None, None)
         """
         self.name = name
         self.first_phase = first_phase
@@ -1227,6 +1235,9 @@ class RankProfile(object):
         self.match_features = kwargs.get("match_features", match_features)
         self.second_phase = kwargs.get("second_phase", second_phase)
         self.global_phase = kwargs.get("global_phase", global_phase)
+        self.num_threads_per_search = kwargs.get(
+            "num_threads_per_search", num_threads_per_search
+        )
         self.weight = kwargs.get("weight", None)
         self.rank_type = kwargs.get("rank_type", None)
         self.rank_properties = kwargs.get("rank_properties", None)
@@ -1246,6 +1257,7 @@ class RankProfile(object):
             and self.match_features == other.match_features
             and self.second_phase == other.second_phase
             and self.global_phase == other.global_phase
+            and self.num_threads_per_search == other.num_threads_per_search
             and self.weight == other.weight
             and self.rank_type == other.rank_type
             and self.rank_properties == other.rank_properties
@@ -1265,11 +1277,11 @@ class RankProfile(object):
             repr(self.match_features),
             repr(self.second_phase),
             repr(self.global_phase),
+            repr(self.num_threads_per_search),
             repr(self.weight),
             repr(self.rank_type),
             repr(self.rank_properties),
             repr(self.inputs),
-            repr(self.mutate),
         )
 
 
@@ -2364,7 +2376,7 @@ class EmptyDeploymentConfiguration(DeploymentConfiguration):
 class ServicesConfiguration(object):
     def __init__(
         self,
-        application_name,
+        application_name: str,
         schemas: Optional[List[Schema]] = None,
         configurations: List[ApplicationConfiguration] = [],
         stateless_model_evaluation: Optional[bool] = False,
@@ -2385,12 +2397,18 @@ class ServicesConfiguration(object):
         Create a ServicesConfiguration, adopting the VespaTag (VT) approach, rather than Jinja templates.
         Intended to be used in ApplicationPackage, to generate services.xml based on either:
         - A passed `services_config` (VT) object, or
-        - A set of configurations, schemas, components, auth_clients, and clusters.
+        - A set of configurations, schemas, components, auth_clients, and clusters. (the old approach)
 
         The latter will be done in code by calling `build_services_vt()` to generate the VT object.
 
-        :param application_name: The name of the application.
-        
+        :param application_name: str, Application name. 
+        :param schemas: Optional[List[Schema]], List of :class:`Schema`s of the application.
+        :param configurations: Optional[List[ApplicationConfiguration]], List of :class:`ApplicationConfiguration` that contains configurations for the application.
+        :param stateless_model_evaluation: Optional[bool], Enable stateless model evaluation. Default to False.
+        :param components: Optional[List[Component]], List of :class:`Component` that contains configurations for application components.
+        :param auth_clients: Optional[List[AuthClient]], List of :class:`AuthClient
+        :param clusters: Optional[List[Cluster]], List of :class:`Cluster` that contains configurations for content or container clusters.
+        :param services_config: Optional[VT], :class:`VT` object that contains the services configuration.
         """
 
     def build_services_vt(self):
@@ -2468,6 +2486,9 @@ class ServicesConfiguration(object):
 
     def _repr_markdown_(self):
         return
+
+    def validate(self):
+        return validate_services(str(self.services_config.to_xml()))
 
 
 class ApplicationPackage(object):
