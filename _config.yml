@@ -60,9 +60,13 @@ search:
     - url: https://vespacloud-docsearch.vespa-team.aws-eu-west-1a.z.vespa-app.cloud/
       indexes:
         - pyvespa_index.json
+    # vespacloud-docsearch.cloud-enclave
+    # prod.aws-us-east-1c
     - url: https://c967e4f5.b68a8c0d.z.vespa-app.cloud/
       indexes:
         - pyvespa_index.json
+    # vespacloud-docsearch.cloud-enclave
+    # prod.gcp-us-central1-f
     - url: https://d13733c3.b68a8c0d.z.vespa-app.cloud/
       indexes:
         - pyvespa_index.json
