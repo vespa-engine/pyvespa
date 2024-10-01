@@ -2078,7 +2078,9 @@ class TestCrossencoderPersearchThreads(unittest.TestCase):
         )
 
         self.vespa_docker = VespaDocker(port=8089)
-        self.app = self.vespa_docker.deploy(application_package=self.app_package)
+        self.app = self.vespa_docker.deploy(
+            application_package=self.app_package, max_wait_deployment=600
+        )
 
     def test_crossencoder_threads(self):
         # Feed sample documents to the application
