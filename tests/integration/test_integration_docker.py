@@ -2078,7 +2078,9 @@ class TestCrossencoderPersearchThreads(unittest.TestCase):
         )
 
         self.vespa_docker = VespaDocker(port=8089)
-        self.app = self.vespa_docker.deploy(application_package=self.app_package)
+        self.app = self.vespa_docker.deploy(
+            application_package=self.app_package, max_wait_deployment=600
+        )
 
     def test_crossencoder_threads(self):
         # Feed sample documents to the application
@@ -2105,13 +2107,15 @@ class TestCrossencoderPersearchThreads(unittest.TestCase):
         }
 
         # Warm-up query
-        self.app.query(body=query_body)
+        with self.app.syncio() as sess:
+            _ = sess.query(body=query_body)
         query_body_reranking = {
             **query_body,
             "ranking.profile": "reranking",
         }
         # Query with default persearch threads (set to 4)
-        response_default = self.app.query(body=query_body_reranking)
+        with self.app.syncio() as sess:
+            response_default = sess.query(body=query_body_reranking)
 
         # Query with num-threads-per-search overridden to 1
         query_body_one_thread = {
@@ -2119,7 +2123,8 @@ class TestCrossencoderPersearchThreads(unittest.TestCase):
             "ranking.profile": "one-thread-profile",
             "ranking.matching.numThreadsPerSearch": 1,
         }
-        response_one_thread = self.app.query(body=query_body_one_thread)
+        with self.app.syncio() as sess:
+            response_one_thread = sess.query(body=query_body_one_thread)
 
         # Extract query times
         timing_default = response_default.json["timing"]
