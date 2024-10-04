@@ -3353,7 +3353,7 @@ requires-dist = [
     { name = "pyvespa", extras = ["build"], marker = "extra == 'dev'" },
     { name = "pyvespa", extras = ["unittest"], marker = "extra == 'dev'" },
     { name = "pyyaml", marker = "extra == 'feed'" },
-    { name = "requests", specifier = "==2.31" },
+    { name = "requests" },
     { name = "requests", marker = "extra == 'feed'", specifier = "<=2.31.0" },
     { name = "requests-mock", marker = "extra == 'unittest'" },
     { name = "requests-toolbelt" },
