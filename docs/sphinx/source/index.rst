@@ -15,6 +15,7 @@ Vespa python API
 
    getting-started-pyvespa
    getting-started-pyvespa-cloud
+   advanced-configuration
    authenticating-to-vespa-cloud
    application-packages
    query
