@@ -251,6 +251,11 @@ SecondPhaseRanking
    :members:
    :special-members: __init__
 
+ServicesConfiguration
+*********************
+.. autoclass:: vespa.package.ServicesConfiguration
+   :members:
+   :special-members: __init__
 
 Struct
 ******
