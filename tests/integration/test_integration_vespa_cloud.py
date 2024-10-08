@@ -294,6 +294,16 @@ class TestDeployProdWithTests(unittest.TestCase):
             / "testapps"
             / "production-deployment-with-tests"
         )
+        # Vespa won't deploy without validation override for certificate-removal
+        tomorrow = datetime.now() + timedelta(days=1)
+        formatted_date = tomorrow.strftime("%Y-%m-%d")
+        app_package = ApplicationPackage(name="empty")
+        app_package.validations = [
+            Validation(ValidationID("certificate-removal"), until=formatted_date)
+        ]
+        # Write validations_to_text to "validation-overrides.xml"
+        with open(self.application_root / "validation-overrides.xml", "w") as f:
+            f.write(app_package.validations_to_text)
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
             application="pyvespa-integration",
