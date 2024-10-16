@@ -12,6 +12,7 @@ replace_reserved = {
     "for": "for_",
     "time": "time_",
     "io": "io_",
+    "from": "from_",
 }
 restore_reserved = {v: k for k, v in replace_reserved.items()}
 
@@ -25,19 +26,29 @@ class VT:
         replaced = tag.replace("-", "_")
         return replace_reserved.get(replaced, replaced)
 
-    @staticmethod
-    def restore_tag_name(tag: str) -> str:
-        "Restore sanitized tag names back to the original names for XML generation"
-        return restore_reserved.get(tag, tag).replace("_", "-")
-
-    def __init__(self, tag: str, cs: tuple, attrs: dict = None, void_=False, **kwargs):
+    def __init__(
+        self,
+        tag: str,
+        cs: tuple,
+        attrs: dict = None,
+        void_=False,
+        replace_underscores: bool = True,
+        **kwargs,
+    ):
         assert isinstance(cs, tuple)
         self.tag = self.sanitize_tag_name(tag)  # Sanitize tag name
         self.children, self.attrs = cs, attrs or {}
         self.void_ = void_
+        self.replace_underscores = replace_underscores
 
     def __setattr__(self, k, v):
-        if k.startswith("__") or k in ("tag", "children", "attrs", "void_"):
+        if k.startswith("__") or k in (
+            "tag",
+            "children",
+            "attrs",
+            "void_",
+            "replace_underscores",
+        ):
             return super().__setattr__(k, v)
         self.attrs[k.lstrip("_").replace("_", "-")] = v
 
@@ -52,6 +63,15 @@ class VT:
 
     def get(self, k, default=None):
         return self.attrs.get(k.lstrip("_").replace("_", "-"), default)
+
+    def restore_tag_name(
+        self,
+    ) -> str:
+        "Restore sanitized tag names back to the original names for XML generation"
+        restored = restore_reserved.get(self.tag, self.tag)
+        if self.replace_underscores:
+            return restored.replace("_", "-")
+        return restored
 
     def __repr__(self):
         return f"{self.tag}({self.children},{self.attrs})"
@@ -120,11 +140,17 @@ def vt(
     void_: bool = False,
     attrmap: callable = attrmap,
     valmap: callable = valmap,
+    replace_underscores: bool = True,
     **kw,
 ):
     "Create a VT structure with `tag`, `children` and `attrs`"
     # NB! fastcore.xml uses tag.lower() for tag names. This is not done here.
-    return VT(tag, *_preproc(c, kw, attrmap=attrmap, valmap=valmap), void_=void_)
+    return VT(
+        tag,
+        *_preproc(c, kw, attrmap=attrmap, valmap=valmap),
+        void_=void_,
+        replace_underscores=replace_underscores,
+    )
 
 
 # XML void tags (self-closing)
@@ -178,7 +204,8 @@ def _to_xml(elm, lvl, indent, do_escape):
         return f"{esc_fn(str(elm).strip())}{nl if indent else ''}"
 
     tag, cs, attrs = elm.list
-    stag = VT.restore_tag_name(tag)
+
+    stag = elm.restore_tag_name()
 
     # Prepare the attribute string only once
     attr_str = ""
