@@ -1161,7 +1161,7 @@ class VespaCloud(VespaDeployment):
             )
             if response.status_code != 200:
                 raise HTTPError(
-                    f"HTTP {response.status_code} error: {response.reason_phrase} for {path}"
+                    f"HTTP {response.status_code} reason: {response.reason_phrase} error_text: {response.text} for {path}"
                 )
         return response
 
