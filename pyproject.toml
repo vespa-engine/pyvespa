@@ -55,6 +55,7 @@ unittest = [
     "pytest",
     "requests-mock",
     "vespacli",
+    "pytest-asyncio",
 ]
 docs = [
     "sphinx",
