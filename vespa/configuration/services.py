@@ -154,6 +154,8 @@ services_tags = [
     "maxsize",
     "clients",
     "client",
+    "certificate",
+    "token",
 ]
 
 # Fail if any tag is duplicated. Provide feedback of which tags are duplicated.
