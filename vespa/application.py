@@ -4,6 +4,7 @@ import sys
 import asyncio
 import traceback
 import concurrent.futures
+import warnings
 from typing import Optional, Dict, Generator, List, IO, Iterable, Callable, Tuple, Union
 from concurrent.futures import ThreadPoolExecutor, Future, as_completed
 from queue import Queue, Empty
@@ -134,7 +135,11 @@ class Vespa(object):
             self.auth_method = "mtls"
 
     def asyncio(
-        self, connections: Optional[int] = 8, total_timeout: int = 10
+        self,
+        connections: Optional[int] = 1,
+        total_timeout: Optional[int] = None,
+        timeout: Union[httpx.Timeout, int] = httpx.Timeout(5),
+        **kwargs,
     ) -> "VespaAsync":
         """
         Access Vespa asynchronous connection layer.
@@ -145,14 +150,26 @@ class Vespa(object):
                 async with app.asyncio() as async_app:
                     response = await async_app.query(body=body)
 
-        See :class:`VespaAsync` for more details.
+                # passing kwargs
+                limits = httpx.Limits(max_keepalive_connections=5, max_connections=5, keepalive_expiry=15)
+                timeout = httpx.Timeout(connect=3, read=4, write=2, pool=5)
+                async with app.asyncio(connections=5, timeout=timeout, limits=limits) as async_app:
+                    response = await async_app.query(body=body)
 
-        :param connections: Number of allowed concurrent connections
-        :param total_timeout: Total timeout in secs.
+        See :class:`VespaAsync` for more details on the parameters.
+
+        :param connections: Number of maximum_keepalive_connections.
+        :param total_timeout: Deprecated. Will be ignored. Use timeout instead.
+        :param timeout: httpx.Timeout object. See https://www.python-httpx.org/advanced/timeouts/. Defaults to 5 seconds.
+        :param kwargs: Additional arguments to be passed to the httpx.AsyncClient.
         :return: Instance of Vespa asynchronous layer.
         """
         return VespaAsync(
-            app=self, connections=connections, total_timeout=total_timeout
+            app=self,
+            connections=connections,
+            total_timeout=total_timeout,
+            timeout=timeout,
+            **kwargs,
         )
 
     def syncio(
@@ -1468,36 +1485,95 @@ class VespaSync(object):
 
 class VespaAsync(object):
     def __init__(
-        self, app: Vespa, connections: Optional[int] = 1, total_timeout: int = 10
+        self,
+        app: Vespa,
+        connections: Optional[int] = 1,
+        total_timeout: Optional[int] = None,
+        timeout: Union[httpx.Timeout, int] = httpx.Timeout(5),
+        **kwargs,
     ) -> None:
         """
-        Class to handle async HTTP-connection(s) to Vespa.
-        Uses httpx as the async http client, and HTTP/2 by default.
+        Class to handle asynchronous HTTP connections to Vespa.
+
+        Uses `httpx` as the async HTTP client, and HTTP/2 by default.
         This class is intended to be used as a context manager.
 
-        Example usage::
+        **Basic usage**::
 
-                async with VespaAsync(app) as async_app:
-                    response = await async_app.query(body={"yql": "select * from sources * where title contains 'music';"})
+            async with VespaAsync(app) as async_app:
+                response = await async_app.query(
+                    body={"yql": "select * from sources * where title contains 'music';"}
+                )
 
-        Can also be accessed directly from :func:`Vespa.asyncio` ::
+        **Passing custom timeout and limits**::
 
-                app = Vespa(url="localhost", port=8080)
-                async with app.asyncio() as async_app:
-                    response = await async_app.query(body={"yql": "select * from sources * where title contains 'music';"})
+            import httpx
+
+            timeout = httpx.Timeout(10.0, connect=5.0)
+            limits = httpx.Limits(max_connections=10, max_keepalive_connections=5)
+
+            async with VespaAsync(app, timeout=timeout, limits=limits) as async_app:
+                response = await async_app.query(
+                    body={"yql": "select * from sources * where title contains 'music';"}
+                )
+
+        **Using additional kwargs (e.g., proxies)**::
+
+            proxies = "http://localhost:8080"
+
+            async with VespaAsync(app, proxies=proxies) as async_app:
+                response = await async_app.query(
+                    body={"yql": "select * from sources * where title contains 'music';"}
+                )
+
+        **Accessing via :func:`Vespa.asyncio`**::
+
+            app = Vespa(url="localhost", port=8080)
+            async with app.asyncio(timeout=timeout, limits=limits) as async_app:
+                response = await async_app.query(
+                    body={"yql": "select * from sources * where title contains 'music';"}
+                )
 
         See also :func:`Vespa.feed_async_iterable` for a convenient interface to async data feeding.
 
         Args:
             app (Vespa): Vespa application object.
-            connections (Optional[int], optional): number of connections. Defaults to 1 as HTTP/2 is multiplexed.
-            total_timeout (int, optional): timeout for each individual request in seconds. Defaults to 10.
+            connections (Optional[int], optional): Number of connections. Defaults to 1 as HTTP/2 is multiplexed.
+            total_timeout (int, optional): **Deprecated**. Will be ignored and removed in future versions.
+                Use `timeout` to pass an `httpx.Timeout` object instead.
+            timeout (httpx.Timeout, optional): Timeout settings for the `httpx.AsyncClient`. Defaults to `httpx.Timeout(5)`.
+            **kwargs: Additional arguments to be passed to the `httpx.AsyncClient`. See
+                [HTTPX AsyncClient documentation](https://www.python-httpx.org/api/#asyncclient) for more details.
+
+        Note:
+            - Passing `timeout` allows you to configure timeouts for connect, read, write, and overall request time.
+            - The `limits` parameter can be used to control connection pooling behavior, such as the maximum number of concurrent connections.
+            - See https://www.python-httpx.org/ for more information on `httpx` and its features.
         """
         self.app = app
         self.httpx_client = None
         self.connections = connections
         self.total_timeout = total_timeout
+        if self.total_timeout is not None:
+            # issue DeprecationWarning
+            warnings.warn(
+                "total_timeout is deprecated, will be ignored and will be removed in future versions. Use timeout to pass a httpx.Timeout object instead.",
+                category=DeprecationWarning,
+            )
+        self.timeout = timeout
+        if isinstance(self.timeout, int):
+            self.timeout = httpx.Timeout(timeout)
+        self.kwargs = kwargs
         self.headers = self.app.base_headers.copy()
+        self.limits = kwargs.get(
+            "limits", httpx.Limits(max_keepalive_connections=self.connections)
+        )
+        # Warn if limits.keepalive_expiry is higher than 30 seconds
+        if self.limits.keepalive_expiry and self.limits.keepalive_expiry > 30:
+            warnings.warn(
+                "Keepalive expiry is set to more than 30 seconds. Vespa server resets idle connections, so this may cause ConnectionResetError.",
+                category=UserWarning,
+            )
         if self.app.auth_method == "token" and self.app.vespa_cloud_secret_token:
             # Bearer and user-agent
             self.headers.update(
@@ -1514,23 +1590,18 @@ class VespaAsync(object):
     def _open_httpx_client(self):
         if self.httpx_client is not None:
             return
-        limits = httpx.Limits(
-            max_keepalive_connections=self.connections,
-            max_connections=self.connections,
-            keepalive_expiry=10,  # This should NOT exceed the keepalive_timeout on the Server, otherwise we will get ConnectionTerminated errors.
-        )
-        timeout = httpx.Timeout(pool=5, connect=5, read=5, write=5)
+
         if self.app.cert is not None:
             sslcontext = httpx.create_ssl_context(cert=(self.app.cert, self.app.key))
         else:
             sslcontext = False
         self.httpx_client = httpx.AsyncClient(
-            timeout=timeout,
+            timeout=self.timeout,
             headers=self.headers,
             verify=sslcontext,
             http2=True,  # HTTP/2 by default
             http1=False,
-            limits=limits,
+            **self.kwargs,
         )
         return self.httpx_client
 
