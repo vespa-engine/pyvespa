@@ -18,11 +18,19 @@ from vespa.configuration.services import *
 class TestVT(unittest.TestCase):
     def test_sanitize_tag_name(self):
         self.assertEqual(VT.sanitize_tag_name("content-node"), "content_node")
-        self.assertEqual(VT.sanitize_tag_name("search-engine"), "search_engine")
+        self.assertEqual(VT.sanitize_tag_name("from"), "from_")
 
     def test_restore_tag_name(self):
-        self.assertEqual(VT.restore_tag_name("content_node"), "content-node")
-        self.assertEqual(VT.restore_tag_name("search_engine"), "search-engine")
+        self.assertEqual(vt("content_node").restore_tag_name(), "content-node")
+        self.assertEqual(vt("search_engine").restore_tag_name(), "search-engine")
+
+    def test_restore_with_underscores(self):
+        self.assertEqual(
+            vt("content_node", replace_underscores=False).tag, "content_node"
+        )
+        self.assertEqual(
+            vt("search_engine", replace_underscores=False).tag, "search_engine"
+        )
 
     def test_attrmap(self):
         self.assertEqual(attrmap("_max_memory"), "max-memory")
@@ -39,7 +47,7 @@ class TestVT(unittest.TestCase):
         self.assertEqual(str(xml_output), '<content attr="value"></content>')
 
     def test_nested_tags(self):
-        nested_tag = VT("content", (VT("document", ()),), {"attr": "value"})
+        nested_tag = vt("content", attr="value")(vt("document"))
         xml_output = to_xml(nested_tag, indent=False)
         # Expecting nested tags with proper newlines and indentation
         expected_output = '<content attr="value"><document></document></content>'
@@ -702,6 +710,115 @@ class TestDocumentExpiry(unittest.TestCase):
         # Validate against relaxng
         self.assertTrue(validate_services((str(generated_xml))))
         # Compare the generated XML with the schema
+        self.assertTrue(compare_xml(self.xml_schema, str(generated_xml)))
+
+
+class TestUnderscoreAttributes(unittest.TestCase):
+    def setUp(self):
+        self.xml_schema = """<services version="1.0">
+    <container id="colpalidemo_container" version="1.0">
+        <search></search>
+        <document-api></document-api>
+        <document-processing></document-processing>
+        <clients>
+            <client id="mtls" permissions="read,write">
+                <certificate file="security/clients.pem" />
+            </client>
+            <client id="token_write" permissions="read,write">
+                <token id="colpalidemo_write" />
+            </client>
+            <client id="token_read" permissions="read">
+                <token id="colpalidemo_read" />
+            </client>
+        </clients>
+        <config name="container.qr-searchers">
+            <tag>
+                <bold>
+                    <open>&lt;strong&gt;</open>
+                    <close>&lt;/strong&gt;</close>
+                </bold>
+                <separator>...</separator>
+            </tag>
+        </config>
+    </container>
+    <content id="colpalidemo_content" version="1.0">
+        <redundancy>1</redundancy>
+        <documents>
+            <document type="pdf_page" mode="index"></document>
+        </documents>
+        <nodes>
+            <node distribution-key="0" hostalias="node1"></node>
+        </nodes>
+        <config name="vespa.config.search.summary.juniperrc">
+            <max_matches>2</max_matches>
+            <length>1000</length>
+            <surround_max>500</surround_max>
+            <min_length>300</min_length>
+        </config>
+    </content>
+</services>
+"""
+
+    def test_valid_config_from_string(self):
+        self.assertTrue(validate_services(self.xml_schema))
+
+    def test_generate_schema(self):
+        generated = services(
+            container(
+                search(),
+                document_api(),
+                document_processing(),
+                clients(
+                    client(
+                        certificate(file="security/clients.pem"),
+                        id="mtls",
+                        permissions="read,write",
+                    ),
+                    client(
+                        token(id="colpalidemo_write"),
+                        id="token_write",
+                        permissions="read,write",
+                    ),
+                    client(
+                        token(id="colpalidemo_read"),
+                        id="token_read",
+                        permissions="read",
+                    ),
+                ),
+                config(
+                    vt("tag")(
+                        vt("bold")(
+                            vt("open", "<strong>"),
+                            vt("close", "</strong>"),
+                        ),
+                        vt("separator", "..."),
+                    ),
+                    name="container.qr-searchers",
+                ),
+                id="colpalidemo_container",
+                version="1.0",
+            ),
+            content(
+                redundancy("1"),
+                documents(document(type="pdf_page", mode="index")),
+                nodes(node(distribution_key="0", hostalias="node1")),
+                config(
+                    vt("max_matches", "2", replace_underscores=False),
+                    vt("length", "1000"),
+                    vt("surround_max", "500", replace_underscores=False),
+                    vt("min_length", "300", replace_underscores=False),
+                    name="vespa.config.search.summary.juniperrc",
+                ),
+                id="colpalidemo_content",
+                version="1.0",
+            ),
+            version="1.0",
+        )
+        generated_xml = generated.to_xml()
+        # Validate against relaxng
+        print(self.xml_schema)
+        print(generated_xml)
+        self.assertTrue(validate_services(str(generated_xml)))
         self.assertTrue(compare_xml(self.xml_schema, str(generated_xml)))
 
 
