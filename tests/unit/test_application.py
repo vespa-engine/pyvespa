@@ -4,7 +4,7 @@ import json
 import unittest
 
 import pytest
-from unittest.mock import PropertyMock, patch, ANY
+from unittest.mock import PropertyMock, patch
 from unittest.mock import MagicMock, AsyncMock
 
 from requests.models import HTTPError, Response
@@ -22,7 +22,6 @@ from vespa.application import (
     VespaAsync,
 )
 import httpx
-import tenacity
 
 
 class TestVespaRequestsUsage(unittest.TestCase):
@@ -696,202 +695,65 @@ class TestCustomHTTPAdapterCompression(unittest.TestCase):
             self.assertEqual(mock_backoff.call_count, mock_send.call_count)
 
 
-class TestAsyncClient:
-    @pytest.mark.asyncio
-    async def test_total_timeout(self):
-        app = Vespa(url="http://localhost", port=8080)
-        total_timeout = 1  # seconds
-        vespa_async = VespaAsync(app=app, total_timeout=total_timeout)
+class MockVespa:
+    def __init__(
+        self,
+        base_headers=None,
+        auth_method=None,
+        vespa_cloud_secret_token=None,
+        cert=None,
+        key=None,
+    ):
+        self.base_headers = base_headers or {}
+        self.auth_method = auth_method
+        self.vespa_cloud_secret_token = vespa_cloud_secret_token
+        self.cert = cert
+        self.key = key
 
-        # Patch httpx.AsyncClient in the module where VespaAsync is defined
-        with patch(
-            "vespa.application.httpx.AsyncClient", autospec=True
-        ) as MockAsyncClient:
-            # Create an instance of the mock AsyncClient
-            mock_client_instance = MockAsyncClient.return_value
-            # Ensure that 'post' is an AsyncMock
-            mock_client_instance.post = AsyncMock(
-                side_effect=httpx.ReadTimeout("Read timeout")
-            )
 
-            with pytest.raises(tenacity.RetryError) as exc_info:
-                async with vespa_async:
-                    await vespa_async.query(
-                        body={
-                            "yql": "select * from sources * where title contains 'music';"
-                        }
-                    )
+# Test class
+class TestVespaAsync:
+    def test_init_default(self):
+        app = MockVespa()
+        vespa_async = VespaAsync(app)
+        assert vespa_async.app == app
+        assert vespa_async.httpx_client is None
+        assert vespa_async.connections == 1
+        assert vespa_async.total_timeout is None
+        assert vespa_async.timeout == httpx.Timeout(5)
+        assert vespa_async.kwargs == {}
+        assert vespa_async.headers == app.base_headers
+        assert vespa_async.limits == httpx.Limits(max_keepalive_connections=1)
 
-            assert isinstance(
-                exc_info.value.last_attempt.exception(), httpx.ReadTimeout
-            )
+    def test_init_total_timeout_warns(self):
+        app = MockVespa()
+        with pytest.warns(DeprecationWarning, match="total_timeout is deprecated"):
+            vespa_async = VespaAsync(app, total_timeout=10)
+        assert vespa_async.total_timeout == 10
 
-    @pytest.mark.asyncio
-    async def test_read_timeout(self):
-        app = Vespa(url="http://localhost", port=8080)
-        read_timeout = 1  # seconds
-        vespa_async = VespaAsync(app=app, total_timeout=None, read_timeout=read_timeout)
+    def test_init_timeout_int(self):
+        app = MockVespa()
+        vespa_async = VespaAsync(app, timeout=10)
+        assert vespa_async.timeout == httpx.Timeout(10)
 
-        with patch(
-            "vespa.application.httpx.AsyncClient", autospec=True
-        ) as MockAsyncClient:
-            mock_client_instance = MockAsyncClient.return_value
-            mock_client_instance.post = AsyncMock(
-                side_effect=httpx.ReadTimeout("Read timeout")
-            )
+    def test_init_timeout_timeout(self):
+        app = MockVespa()
+        timeout = httpx.Timeout(connect=5, read=10, write=15, pool=20)
+        vespa_async = VespaAsync(app, timeout=timeout)
+        assert vespa_async.timeout == timeout
 
-            with pytest.raises(tenacity.RetryError) as exc_info:
-                async with vespa_async:
-                    await vespa_async.query(
-                        body={
-                            "yql": "select * from sources * where title contains 'music';"
-                        }
-                    )
-
-            assert isinstance(
-                exc_info.value.last_attempt.exception(), httpx.ReadTimeout
-            )
-
-    @pytest.mark.asyncio
-    async def test_write_timeout(self):
-        app = Vespa(url="http://localhost", port=8080)
-        write_timeout = 1  # seconds
-        vespa_async = VespaAsync(
-            app=app, total_timeout=None, write_timeout=write_timeout
-        )
-
-        with patch(
-            "vespa.application.httpx.AsyncClient", autospec=True
-        ) as MockAsyncClient:
-            mock_client_instance = MockAsyncClient.return_value
-            mock_client_instance.post = AsyncMock(
-                side_effect=httpx.WriteTimeout("Write timeout")
-            )
-
-            with pytest.raises(tenacity.RetryError) as exc_info:
-                async with vespa_async:
-                    await vespa_async.query(
-                        body={
-                            "yql": "select * from sources * where title contains 'music';"
-                        }
-                    )
-
-            assert isinstance(
-                exc_info.value.last_attempt.exception(), httpx.WriteTimeout
-            )
-
-    @pytest.mark.asyncio
-    async def test_connect_timeout(self):
-        app = Vespa(url="http://10.255.255.1", port=8080)  # Non-routable IP address
-        connect_timeout = 1  # seconds
-        vespa_async = VespaAsync(
-            app=app, total_timeout=None, connect_timeout=connect_timeout
-        )
-
-        with patch(
-            "vespa.application.httpx.AsyncClient", autospec=True
-        ) as MockAsyncClient:
-            mock_client_instance = MockAsyncClient.return_value
-            mock_client_instance.post = AsyncMock(
-                side_effect=httpx.ConnectTimeout("Connect timeout")
-            )
-
-            with pytest.raises(tenacity.RetryError) as exc_info:
-                async with vespa_async:
-                    await vespa_async.query(
-                        body={
-                            "yql": "select * from sources * where title contains 'music';"
-                        }
-                    )
-
-            assert isinstance(
-                exc_info.value.last_attempt.exception(), httpx.ConnectTimeout
-            )
-
-    def test_keepalive_expiry_warning(self):
-        app = Vespa(url="http://localhost", port=8080)
+    def test_init_keepalive_expiry_warning(self):
+        app = MockVespa()
+        limits = httpx.Limits(keepalive_expiry=31)
         with pytest.warns(
-            UserWarning,
-            match="Setting keepalive_expiry higher than 30 seconds may cause the Vespa server to reset idle connection.",
+            UserWarning, match="Keepalive expiry is set to more than 30 seconds"
         ):
-            VespaAsync(app=app, keepalive_expiry=31)
+            _vespa_async = VespaAsync(app, limits=limits)
 
-    def test_client_initialization(self):
-        app = Vespa(url="http://localhost", port=8080)
-        with patch(
-            "vespa.application.httpx.AsyncClient", autospec=True
-        ) as MockAsyncClient:
-            vespa_async = VespaAsync(
-                app=app,
-                connections=5,
-                total_timeout=10,
-                connect_timeout=3,
-                read_timeout=4,
-                write_timeout=2,
-                pool_timeout=5,
-                keepalive_expiry=15,
-                proxies={
-                    "http": "http://localhost:8000"
-                },  # passing kwarg (must be valid)
-            )
-            vespa_async._open_httpx_client()
-
-            expected_limits = httpx.Limits(
-                max_keepalive_connections=5,
-                max_connections=5,
-                keepalive_expiry=15,
-            )
-            expected_timeout = httpx.Timeout(10)
-
-            MockAsyncClient.assert_called_with(
-                timeout=expected_timeout,
-                headers=vespa_async.headers,
-                verify=False,
-                http2=True,
-                http1=False,
-                limits=expected_limits,
-                proxies={"http": "http://localhost:8000"},
-            )
-
-    def test_connections(self):
-        app = Vespa(url="http://localhost", port=8080)
-        connections = 5
-        with patch(
-            "vespa.application.httpx.AsyncClient", autospec=True
-        ) as MockAsyncClient:
-            vespa_async = VespaAsync(app=app, connections=connections)
-            vespa_async._open_httpx_client()
-
-            MockAsyncClient.assert_called_with(
-                timeout=ANY,
-                headers=ANY,
-                verify=ANY,
-                http2=ANY,
-                http1=ANY,
-                limits=httpx.Limits(
-                    max_keepalive_connections=connections,
-                    max_connections=connections,
-                    keepalive_expiry=vespa_async.keepalive_expiry,
-                ),
-            )
-
-    def test_custom_kwargs(self):
-        app = Vespa(url="http://localhost", port=8080)
-        with patch(
-            "vespa.application.httpx.AsyncClient", autospec=True
-        ) as MockAsyncClient:
-            vespa_async = VespaAsync(app=app, proxies={"http": "http://localhost:8000"})
-            vespa_async._open_httpx_client()
-
-            MockAsyncClient.assert_called_with(
-                timeout=ANY,
-                headers=ANY,
-                verify=ANY,
-                http2=ANY,
-                http1=ANY,
-                limits=ANY,
-                proxies={"http": "http://localhost:8000"},
-            )
+    def test_init_no_keepalive_expiry_warning(self):
+        app = MockVespa()
+        limits = httpx.Limits(keepalive_expiry=1)
+        _vespa_async = VespaAsync(app, limits=limits)
 
 
 if __name__ == "__main__":
