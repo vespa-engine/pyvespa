@@ -194,7 +194,9 @@ class Condition:
 
 
 class Query:
-    def __init__(self, select_fields: Union[str, List[str], List[Queryfield]]):
+    def __init__(
+        self, select_fields: Union[str, List[str], List[Queryfield]], prepend_yql=False
+    ):
         self.select_fields = (
             ", ".join(select_fields)
             if isinstance(select_fields, List)
@@ -209,6 +211,19 @@ class Query:
         self.timeout_value = None
         self.parameters = {}
         self.grouping = None
+        self.prepend_yql = prepend_yql
+
+    def __str__(self) -> str:
+        return self.build(self.prepend_yql)
+
+    def __eq__(self, other: Any) -> bool:
+        return self.build() == other
+
+    def __ne__(self, other: Any) -> bool:
+        return self.build() != other
+
+    def __repr__(self) -> str:
+        return str(self)
 
     def from_(self, *sources: str) -> "Query":
         self.sources = ", ".join(sources)
@@ -271,7 +286,7 @@ class Query:
         self.grouping = group_expression
         return self
 
-    def build(self, prepend_yql=True) -> str:
+    def build(self, prepend_yql=False) -> str:
         query = f"select {self.select_fields} from {self.sources}"
         if prepend_yql:
             query = f"yql={query}"
