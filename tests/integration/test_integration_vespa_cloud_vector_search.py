@@ -3,6 +3,7 @@
 import os
 import shutil
 import unittest
+import pytest
 import time
 from vespa.application import Vespa, ApplicationPackage
 from vespa.package import (
@@ -238,7 +239,7 @@ class TestVectorSearch(unittest.TestCase):
         self.vespa_cloud.delete()
 
 
-class TestProdDeploymentFromDisk(TestVectorSearch):
+class TestProdDeploymentFromDisk(unittest.TestCase):
     def setUp(self) -> None:
         self.app_package = create_vector_ada_application_package()
         prod_region = "aws-us-east-1c"
@@ -285,6 +286,14 @@ class TestProdDeploymentFromDisk(TestVectorSearch):
             instance=self.instance_name,
             application_root=self.application_root,
         )
+
+    def test_deployment_status(self):
+        with pytest.raises(TimeoutError):
+            success = self.vespa_cloud.wait_for_prod_deployment(
+                build_no=self.build_no,
+                max_wait=1,  # Can take very long. Set to 10 seconds for testing. Will raise TimeoutError if not done.
+            )
+            print(success)
 
     @unittest.skip(
         "This test is too slow for normal testing. Can be used for manual testing if related code is changed."
