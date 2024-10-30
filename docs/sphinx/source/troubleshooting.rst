@@ -18,7 +18,7 @@ Docker Memory
 -------------
 pyvespa will start a Docker container with 4G memory by default -
 make sure Docker settings have at least this.
-Use the Docker Desktop settings or ``docker info | grep "Total Memory"`` to validate.
+Use the Docker Desktop settings or ``docker info | grep "Total Memory"`` or ``podman info | grep "memTotal"`` to validate.
 
 
 Port conflicts / Docker
