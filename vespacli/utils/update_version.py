@@ -3,12 +3,10 @@
 
 import toml
 import sys
-import re
 from pathlib import Path
 import argparse
 
 PYPROJECT_TOML_PATH = Path(__file__).parent.parent / "pyproject.toml"
-VERSION_FILE_PATH = Path(__file__).parent.parent / "vespacli" / "_version_generated.py"
 
 
 def update_version(new_version: str):
@@ -19,14 +17,6 @@ def update_version(new_version: str):
     with open("pyproject.toml", "w") as f:
         toml.dump(data, f)
 
-    # Update version in vespacli/_version_generated.py
-    with open(VERSION_FILE_PATH, "r") as f:
-        content = f.read()
-    new_content = re.sub(
-        r'vespa_version = ".*"', f'vespa_version = "{new_version}"', content
-    )
-    with open("vespacli/_version_generated.py", "w") as f:
-        f.write(new_content)
     print(f"Updated version to {new_version}")
 
 
