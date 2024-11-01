@@ -29,8 +29,11 @@ extract_and_modify_pip_installation() {
             # Strip the leading "!" and remove 'pip(3) install' and '-U' flags
             modified_line=$(echo "$line" | sed 's/^!pip[3]* install -U //;s/^!pip[3]* install //')
 
-            # Remove 'pyvespa' and 'vespacli' from the line
-            modified_line=$(echo "$modified_line" | sed 's/pyvespa//g' | sed 's/vespacli//g' | sed 's/  / /g')
+            # Remove 'pyvespa' and 'vespacli' along with any following characters until a space
+            modified_line=$(echo "$modified_line" | sed 's/\bpyvespa[^ ]*//g; s/\bvespacli[^ ]*//g; s/  / /g')
+
+            # Trim leading and trailing whitespace
+            modified_line=$(echo "$modified_line" | sed 's/^[ \t]*//;s/[ \t]*$//')
 
             # Write each package to additional_requirements.txt without adding extra new lines
             echo "$modified_line" | tr ' ' '\n' | sed '/^$/d' >> additional_requirements.txt
