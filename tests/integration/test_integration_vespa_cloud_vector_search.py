@@ -76,7 +76,7 @@ class TestVectorSearch(unittest.TestCase):
         self.app_package = create_vector_ada_application_package()
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
-            application="pyvespa-int-vsearch-dev",
+            application="pyvespa-vsearch-dev",
             key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
         )
