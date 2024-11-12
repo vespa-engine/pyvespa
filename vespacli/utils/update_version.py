@@ -1,5 +1,4 @@
 # This script should modify top level pyproject.toml to update the version of vespacli
-# And modify vespacli/_version_generated.py to update the version of vespacli
 
 import toml
 import sys
