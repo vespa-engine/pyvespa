@@ -2,8 +2,19 @@ import os
 import platform
 import subprocess
 import sys
+import toml
+from pathlib import Path
 
-from vespacli._version_generated import vespa_version
+PYPROJECT_TOML_PATH = Path(__file__).parent.parent / "pyproject.toml"
+
+
+def get_version():
+    with open(PYPROJECT_TOML_PATH, "r") as f:
+        data = toml.load(f)
+    return data["project"]["version"]
+
+
+vespa_version = get_version()
 
 
 def get_binary_path():
@@ -22,7 +33,6 @@ def get_binary_path():
         arch = "386" if arch == "x86" else "amd64"
     else:
         raise OSError("Unsupported operating system")
-
     binary_dir_name = f"vespa-cli_{vespa_version}_{os_name}_{arch}"
     binary_path = os.path.join(go_binaries_path, binary_dir_name, "bin")
 
