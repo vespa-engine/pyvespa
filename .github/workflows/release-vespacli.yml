@@ -37,7 +37,6 @@ jobs:
           # Set the output variable
           echo "version=$version" >> $GITHUB_OUTPUT
 
-
   check-and-update:
     runs-on: ubuntu-latest
     # Only run if we have a new version
@@ -74,7 +73,6 @@ jobs:
           name: binaries
           path: vespacli/vespacli/go-binaries
 
-
   test:
     runs-on: ${{ matrix.os }}
     # Only run if we have a new version
@@ -86,7 +84,8 @@ jobs:
       VERSION: ${{ needs.prepare.outputs.version }}
     strategy:
       matrix:
-        os: [ubuntu-24.04, ubuntu-latest, windows-latest, macos-13, macos-latest]
+        os:
+          [ubuntu-24.04, ubuntu-latest, windows-latest, macos-13, macos-latest]
         python-version: ["3.10", "3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
@@ -114,6 +113,7 @@ jobs:
       - name: Update latest version
         run: |
           python utils/update_version.py --version "${VERSION}"
+        shell: bash
 
       - name: Install dependencies
         run: |
