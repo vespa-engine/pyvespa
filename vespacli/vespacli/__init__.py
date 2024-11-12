@@ -1,17 +1,32 @@
 import os
+import sys
 import platform
 import subprocess
-import sys
-import toml
-from pathlib import Path
-
-PYPROJECT_TOML_PATH = Path(__file__).parent.parent / "pyproject.toml"
+import re
 
 
 def get_version():
-    with open(PYPROJECT_TOML_PATH, "r") as f:
-        data = toml.load(f)
-    return data["project"]["version"]
+    # Get binary path first
+    base_path = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+    go_binaries_path = os.path.join(base_path, "vespacli", "go-binaries")
+
+    # List directories and find vespa-cli directory
+    try:
+        dirs = os.listdir(go_binaries_path)
+        version_dirs = [d for d in dirs if d.startswith("vespa-cli_")]
+        if not version_dirs:
+            raise FileNotFoundError("No vespa-cli directory found")
+
+        # Extract version from directory name (format: vespa-cli_X.YYY.Z_os_arch)
+        version = version_dirs[0].split("_")[1]
+
+        # Validate version format
+        if not re.match(r"^\d+\.\d{3}\.\d{1,3}$", version):
+            raise ValueError(f"Invalid version format: {version}")
+
+        return version
+    except (FileNotFoundError, IndexError):
+        raise FileNotFoundError("Cannot determine version from binary path")
 
 
 vespa_version = get_version()
@@ -33,10 +48,10 @@ def get_binary_path():
         arch = "386" if arch == "x86" else "amd64"
     else:
         raise OSError("Unsupported operating system")
+
     binary_dir_name = f"vespa-cli_{vespa_version}_{os_name}_{arch}"
     binary_path = os.path.join(go_binaries_path, binary_dir_name, "bin")
 
-    # Assuming the executable name is consistent and known
     executable_name = "vespa" if os_name != "windows" else "vespa.exe"
     full_executable_path = os.path.join(binary_path, executable_name)
 
