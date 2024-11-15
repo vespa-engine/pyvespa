@@ -609,6 +609,7 @@ class VespaCloud(VespaDeployment):
         self,
         instance: Optional[str] = "default",
         disk_folder: Optional[str] = None,
+        version: Optional[str] = None,
         max_wait: int = 300,
     ) -> Vespa:
         """
@@ -617,6 +618,7 @@ class VespaCloud(VespaDeployment):
         :param instance: Name of this instance of the application, in the Vespa Cloud.
         :param disk_folder: Disk folder to save the required Vespa config files. Default to application name
             folder within user's current working directory.
+        :param version: Vespa version to use for deployment. Default is None, which means the latest version. Must be a valid Vespa version, e.g. "8.435.13".
         :param max_wait: Seconds to wait for the deployment.
 
         :return: a Vespa connection instance. Returns a connection to the mtls endpoint. To connect to the token endpoint, use :func:`VespaCloud.get_application(endpoint_type="token")`.
@@ -627,7 +629,13 @@ class VespaCloud(VespaDeployment):
 
         region = self.get_dev_region()
         job = "dev-" + region
-        run = self._start_deployment(instance, job, disk_folder, None)
+        run = self._start_deployment(
+            instance=instance,
+            job=job,
+            disk_folder=disk_folder,
+            application_zip_bytes=None,
+            version=version,
+        )
         self._follow_deployment(instance, job, run)
         app: Vespa = self.get_application(
             instance=instance, environment="dev", endpoint_type="mtls"
@@ -854,7 +862,11 @@ class VespaCloud(VespaDeployment):
         raise TimeoutError(f"Deployment did not finish within {max_wait} seconds. ")
 
     def deploy_from_disk(
-        self, instance: str, application_root: Path, max_wait: int = 300
+        self,
+        instance: str,
+        application_root: Path,
+        max_wait: int = 300,
+        version: Optional[str] = None,
     ) -> Vespa:
         """
         Deploy to dev from a directory tree.
@@ -864,6 +876,7 @@ class VespaCloud(VespaDeployment):
         :param instance: Name of the instance where the application is to be run
         :param application_root: Application package directory root
         :param max_wait: Seconds to wait for the deployment.
+        :param version: Vespa version to use for deployment. Default is None, which means the latest version. Must be a valid Vespa version, e.g. "8.435.13".
         :return: a Vespa connection instance.  Returns a connection to the mtls endpoint. To connect to the token endpoint, use :func:`VespaCloud.get_application(endpoint_type="token")`.
         """
         data = BytesIO(self.read_app_package_from_disk(application_root))
@@ -873,10 +886,12 @@ class VespaCloud(VespaDeployment):
         region = self.get_dev_region()
         job = "dev-" + region
         run = self._start_deployment(
-            instance, job, disk_folder, application_zip_bytes=data
+            instance=instance,
+            job=job,
+            disk_folder=disk_folder,
+            application_zip_bytes=data,
+            version=version,
         )
-        self._follow_deployment(instance, job, run)
-        run = self._start_deployment(instance, job, disk_folder, None)
         self._follow_deployment(instance, job, run)
         app: Vespa = self.get_application(
             instance=instance, environment="dev", endpoint_type="mtls"
@@ -1538,6 +1553,7 @@ class VespaCloud(VespaDeployment):
         job: str,
         disk_folder: str,
         application_zip_bytes: Optional[BytesIO] = None,
+        version: Optional[str] = None,
     ) -> int:
         deploy_path = (
             "/application/v4/tenant/{}/application/{}/instance/{}/deploy/{}".format(
@@ -1551,11 +1567,33 @@ class VespaCloud(VespaDeployment):
         if not application_zip_bytes:
             application_zip_bytes = self._to_application_zip(disk_folder=disk_folder)
 
+        if version is not None:
+            # Create multipart form data
+            form_data = {
+                "applicationZip": (
+                    "application.zip",
+                    application_zip_bytes,
+                    "application/zip",
+                ),
+                "deployOptions": (
+                    "",
+                    json.dumps({"vespaVersion": version}),
+                    "application/json",
+                ),
+            }
+            multipart = MultipartEncoder(fields=form_data)
+            headers = {"Content-Type": multipart.content_type}
+            payload = multipart
+        else:
+            # Use existing direct zip upload
+            headers = {"Content-Type": "application/zip"}
+            payload = application_zip_bytes
+
         response = self._request(
             "POST",
             deploy_path,
-            application_zip_bytes,
-            {"Content-Type": "application/zip"},
+            payload,
+            headers,
         )
         message = response.get("message", "No message provided")
         print(message, file=self.output)
@@ -1616,9 +1654,12 @@ class VespaCloud(VespaDeployment):
 
         return buffer
 
-    def _follow_deployment(self, instance: str, job: str, run: int) -> None:
+    def _follow_deployment(
+        self, instance: str, job: str, run: int, max_wait: int = 600
+    ) -> None:
         last = -1
-        while True:
+        start = time.time()
+        while time.time() - start < max_wait:
             try:
                 status, last = self._get_deployment_status(instance, job, run, last)
             except RuntimeError:
@@ -1630,6 +1671,7 @@ class VespaCloud(VespaDeployment):
                 return
             else:
                 raise RuntimeError("Unexpected status: {}".format(status))
+        raise TimeoutError(f"Deployment did not finish within {max_wait} seconds.")
 
     def _get_deployment_status(
         self, instance: str, job: str, run: int, last: int
