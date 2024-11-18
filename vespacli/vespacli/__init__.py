@@ -2,34 +2,9 @@ import os
 import sys
 import platform
 import subprocess
-import re
+from ._version_generated import __version__
 
-
-def get_version():
-    # Get binary path first
-    base_path = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-    go_binaries_path = os.path.join(base_path, "vespacli", "go-binaries")
-
-    # List directories and find vespa-cli directory
-    try:
-        dirs = os.listdir(go_binaries_path)
-        version_dirs = [d for d in dirs if d.startswith("vespa-cli_")]
-        if not version_dirs:
-            raise FileNotFoundError("No vespa-cli directory found")
-
-        # Extract version from directory name (format: vespa-cli_X.YYY.Z_os_arch)
-        version = version_dirs[0].split("_")[1]
-
-        # Validate version format
-        if not re.match(r"^\d+\.\d{3}\.\d{1,3}$", version):
-            raise ValueError(f"Invalid version format: {version}")
-
-        return version
-    except (FileNotFoundError, IndexError):
-        raise FileNotFoundError("Cannot determine version from binary path")
-
-
-vespa_version = get_version()
+vespa_version = __version__
 
 
 def get_binary_path():
@@ -67,6 +42,3 @@ def run_vespa_cli():
     full_cmd = [binary_path, *args]
     _result = subprocess.run(full_cmd)
     return
-
-
-__version__ = vespa_version
