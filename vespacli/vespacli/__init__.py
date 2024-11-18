@@ -1,9 +1,10 @@
 import os
+import sys
 import platform
 import subprocess
-import sys
+from ._version_generated import __version__
 
-from vespacli._version_generated import vespa_version
+vespa_version = __version__
 
 
 def get_binary_path():
@@ -26,7 +27,6 @@ def get_binary_path():
     binary_dir_name = f"vespa-cli_{vespa_version}_{os_name}_{arch}"
     binary_path = os.path.join(go_binaries_path, binary_dir_name, "bin")
 
-    # Assuming the executable name is consistent and known
     executable_name = "vespa" if os_name != "windows" else "vespa.exe"
     full_executable_path = os.path.join(binary_path, executable_name)
 
@@ -42,6 +42,3 @@ def run_vespa_cli():
     full_cmd = [binary_path, *args]
     _result = subprocess.run(full_cmd)
     return
-
-
-__version__ = vespa_version
