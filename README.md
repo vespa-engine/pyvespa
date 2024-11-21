@@ -27,10 +27,7 @@ The main goal of the library is to allow for faster prototyping and get familiar
 
 ## Prerequisites
 
-This project is built based on Python. Make sure you have the following installed before proceeding:
-
-- Python (recommended version: 3.7 or later)
-- [Vespa CLI](https://docs.vespa.ai/en/vespa-cli)
+This project is built based on Python. Make sure you have installed Python before proceeding:
 
 ## Installation Steps
 
@@ -80,6 +77,11 @@ This workflow can also be dispatched manually, but note that steps 3 and 4 will 
 ## License
 
 Code is licensed under the Apache 2.0 license. See [LICENSE](LICENSE) for terms.
+
+## vespacli
+
+This repo also contains the python wrapper for the [Vespa CLI](https://docs.vespa.ai/en/vespa-cli).
+See [README](https://github.com/vespa-engine/pyvespa/tree/master/vespacli).
 
 ## External Documents
 
