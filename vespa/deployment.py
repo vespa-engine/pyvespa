@@ -636,7 +636,7 @@ class VespaCloud(VespaDeployment):
             application_zip_bytes=None,
             version=version,
         )
-        self._follow_deployment(instance, job, run)
+        self._follow_deployment(instance, job, run, max_wait)
         app: Vespa = self.get_application(
             instance=instance, environment="dev", endpoint_type="mtls"
         )
