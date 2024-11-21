@@ -1316,9 +1316,8 @@ class VespaCloud(VespaDeployment):
         else:
             if hasattr(body, "seek"):
                 body.seek(0)
-            content = body.read()
-            digest.update(content)
-            body_data = content
+            digest.update(body.read())
+            body_data = body
         # Create signature
         content_hash = standard_b64encode(digest.finalize()).decode("UTF-8")
         timestamp = datetime.utcnow().isoformat() + "Z"
