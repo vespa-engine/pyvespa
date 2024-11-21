@@ -618,7 +618,7 @@ class VespaCloud(VespaDeployment):
         :param instance: Name of this instance of the application, in the Vespa Cloud.
         :param disk_folder: Disk folder to save the required Vespa config files. Default to application name
             folder within user's current working directory.
-        :param version: Vespa version to use for deployment. Default is None, which means the latest version. Must be a valid Vespa version, e.g. "8.435.13".
+        :param version: Vespa version to use for deployment. Default is None, which means the latest version. Should only be set on instructions from Vespa team. Must be a valid Vespa version, e.g. "8.435.13".
         :param max_wait: Seconds to wait for the deployment.
 
         :return: a Vespa connection instance. Returns a connection to the mtls endpoint. To connect to the token endpoint, use :func:`VespaCloud.get_application(endpoint_type="token")`.
