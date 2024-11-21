@@ -1223,28 +1223,21 @@ class VespaCloud(VespaDeployment):
 
         return auth["providers"]["auth0"]["systems"]["public"]["access_token"]
 
-    def _request_with_access_token(
+    def _handle_response(
         self,
-        method: str,
-        path: str,
-        body: BytesIO = BytesIO(),
-        headers={},
-        return_raw_response=False,
+        response: httpx.Response,
+        return_raw_response: bool = False,
+        path: str = "",
     ) -> Union[dict, httpx.Response]:
-        if not self.control_plane_access_token:
-            raise ValueError("Access token not set.")
-        body.seek(0)
-        headers = {
-            "Authorization": "Bearer " + self.control_plane_access_token,
-            **headers,
-        }
-        response = self.get_connection_response_with_retry(method, path, body, headers)
+        """Common response handling logic"""
         if return_raw_response:
             return response
+
         try:
             parsed = json.load(response)
         except json.JSONDecodeError:
             parsed = response.read()
+
         if response.status_code != 200:
             print(parsed)
             raise HTTPError(
@@ -1252,8 +1245,41 @@ class VespaCloud(VespaDeployment):
             )
         return parsed
 
+    def _get_auth_headers(self, additional_headers: dict = {}) -> dict:
+        """Create authorization headers"""
+        if not self.control_plane_access_token:
+            raise ValueError("Access token not set.")
+
+        return {
+            "Authorization": f"Bearer {self.control_plane_access_token}",
+            **additional_headers,
+        }
+
+    def _request_with_access_token(
+        self,
+        method: str,
+        path: str,
+        body: Union[BytesIO, MultipartEncoder] = BytesIO(),
+        headers: dict = {},
+        return_raw_response: bool = False,
+    ) -> Union[dict, httpx.Response]:
+        """Make authenticated request with access token"""
+        if hasattr(body, "seek"):
+            body.seek(0)
+
+        auth_headers = self._get_auth_headers(headers)
+        response = self.get_connection_response_with_retry(
+            method, path, body, auth_headers
+        )
+
+        return self._handle_response(response, return_raw_response, path)
+
     def _request(
-        self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
+        self,
+        method: str,
+        path: str,
+        body: Union[BytesIO, MultipartEncoder] = BytesIO(),
+        headers: dict = {},
     ) -> Union[dict, httpx.Response]:
         if self.control_plane_auth_method == "access_token":
             return self._request_with_access_token(method, path, body, headers)
@@ -1268,47 +1294,55 @@ class VespaCloud(VespaDeployment):
         self,
         method: str,
         path: str,
-        body: BytesIO = BytesIO(),
-        headers={},
-        return_raw_response=False,
+        body: Union[BytesIO, MultipartEncoder] = BytesIO(),
+        headers: dict = {},
+        return_raw_response: bool = False,
     ) -> Union[dict, httpx.Response]:
         digest = hashes.Hash(hashes.SHA256(), default_backend())
-        body.seek(0)
-        digest.update(body.read())
+
+        # Handle different body types
+        if isinstance(body, MultipartEncoder):
+            # Use the encoded data for hash computation
+            digest = hashes.Hash(hashes.SHA256(), default_backend())
+            digest.update(body.to_string())  # This moves the buffer position to the end
+            body._buffer.seek(0)  # Needs to be reset. Otherwise, no data will be sent
+            # Update the headers to include the Content-Type
+            headers.update({"Content-Type": body.content_type})
+            # Read the content of multipart_data into a bytes object
+            multipart_data_bytes: bytes = body.to_string()
+            headers.update({"Content-Length": str(len(multipart_data_bytes))})
+            # Convert multipart_data_bytes to type BytesIO
+            body_data: BytesIO = BytesIO(multipart_data_bytes)
+        else:
+            if hasattr(body, "seek"):
+                body.seek(0)
+            content = body.read()
+            digest.update(content)
+            body_data = content
+        # Create signature
         content_hash = standard_b64encode(digest.finalize()).decode("UTF-8")
-        timestamp = (
-            datetime.utcnow().isoformat() + "Z"
-        )  # Java's Instant.parse requires the neutral time zone appended
+        timestamp = datetime.utcnow().isoformat() + "Z"
         url = self.base_url + path
 
         canonical_message = method + "\n" + url + "\n" + timestamp + "\n" + content_hash
         signature = self.api_key.sign(
             canonical_message.encode("UTF-8"), ec.ECDSA(hashes.SHA256())
         )
+        signature_b64 = standard_b64encode(signature).decode("UTF-8")
 
         headers = {
             "X-Timestamp": timestamp,
             "X-Content-Hash": content_hash,
-            "X-Key-Id": self.tenant + ":" + self.application + ":" + "default",
+            "X-Key-Id": f"{self.tenant}:{self.application}:default",
             "X-Key": self.api_public_key_bytes,
-            "X-Authorization": standard_b64encode(signature),
+            "X-Authorization": signature_b64,
             **headers,
         }
 
-        body.seek(0)
-        response = self.get_connection_response_with_retry(method, path, body, headers)
-        if return_raw_response:
-            return response
-        try:
-            parsed = json.load(response)
-        except json.JSONDecodeError:
-            parsed = response.read()
-        if response.status_code != 200:
-            print(parsed)
-            raise HTTPError(
-                f"HTTP {response.status_code} error: {response.reason_phrase} for {url}"
-            )
-        return parsed
+        response = self.get_connection_response_with_retry(
+            method, path, body_data, headers
+        )
+        return self._handle_response(response, return_raw_response, path)
 
     def get_all_endpoints(
         self,
@@ -1590,10 +1624,7 @@ class VespaCloud(VespaDeployment):
             payload = application_zip_bytes
 
         response = self._request(
-            "POST",
-            deploy_path,
-            payload,
-            headers,
+            method="POST", path=deploy_path, body=payload, headers=headers
         )
         message = response.get("message", "No message provided")
         print(message, file=self.output)
@@ -1655,7 +1686,7 @@ class VespaCloud(VespaDeployment):
         return buffer
 
     def _follow_deployment(
-        self, instance: str, job: str, run: int, max_wait: int = 600
+        self, instance: str, job: str, run: int, max_wait: int = 1800
     ) -> None:
         last = -1
         start = time.time()
