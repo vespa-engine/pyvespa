@@ -610,7 +610,7 @@ class VespaCloud(VespaDeployment):
         instance: Optional[str] = "default",
         disk_folder: Optional[str] = None,
         version: Optional[str] = None,
-        max_wait: int = 300,
+        max_wait: int = 1800,
     ) -> Vespa:
         """
         Deploy the given application package as the given instance in the Vespa Cloud dev environment.
