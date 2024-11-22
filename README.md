@@ -25,10 +25,6 @@ compute and rank big data at user serving time.
 It allows users to create, modify, deploy and interact with running Vespa instances.
 The main goal of the library is to allow for faster prototyping and get familiar with Vespa features.
 
-## Prerequisites
-
-This project is built based on Python. Make sure you have installed Python before proceeding:
-
 ## Installation Steps
 
 ### Using Package Manager
@@ -46,6 +42,9 @@ To verify the successful installation, run the following command:
 ```python
 python -m pip show pyvespa
 ```
+
+### Additional Information
+Please refer to the [official document](https://pyvespa.readthedocs.io/en/stable/) for more installation details.
 
 ## Development Environment
 
