@@ -108,6 +108,10 @@ class TestVectorSearch(unittest.TestCase):
         docs = list(
             pyvespa_feed_format
         )  # we have enough memory to page everything into memory with list()
+        # seems like we sometimes can get more than sample_size docs
+        if len(docs) > sample_size:
+            docs = docs[:sample_size]
+        self.assertEqual(len(docs), sample_size)
         ok = 0
         callbacks = 0
         start_time = time.time()
@@ -126,9 +130,6 @@ class TestVectorSearch(unittest.TestCase):
             schema="vector",
             namespace="benchmark",
             callback=callback,
-            max_workers=48,
-            max_connections=48,
-            max_queue_size=4000,
         )
         self.assertEqual(ok, sample_size)
         duration = time.time() - start
@@ -171,13 +172,14 @@ class TestVectorSearch(unittest.TestCase):
             }
         )
         faulty_docs = list(feed_with_wrong_field)
+        if len(faulty_docs) > sample_size:
+            faulty_docs = faulty_docs[:sample_size]
+        self.assertEqual(len(faulty_docs), sample_size)
         self.app.feed_iterable(
             iter=faulty_docs,
             schema="vector",
             namespace="benchmark",
             callback=callback,
-            max_workers=48,
-            max_connections=48,
         )
         self.assertEqual(ok, 0)
         self.assertEqual(callbacks, 100)
