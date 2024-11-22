@@ -5,7 +5,8 @@ on:
   push:
     branches:
       - master
-      - thomasht86/fix-integrationtest-vectorsearch
+  pull_request:
+    paths: [".github/workflows/integration-cloud.yml"]
   schedule:
     - cron: "0 11 * * 0"
 
