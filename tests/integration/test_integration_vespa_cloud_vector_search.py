@@ -21,7 +21,6 @@ from vespa.package import (
     ContainerCluster,
     Nodes,
     DeploymentConfiguration,
-    EmptyDeploymentConfiguration,
     Validation,
     ValidationID,
 )
@@ -298,32 +297,33 @@ class TestProdDeploymentFromDisk(unittest.TestCase):
     def test_vector_indexing_and_query(self):
         super().test_vector_indexing_and_query()
 
-    @unittest.skip("Do not run when not waiting for deployment.")
-    def tearDown(self) -> None:
-        self.app.delete_all_docs(
-            content_cluster_name="vector_content",
-            schema="vector",
-            namespace="benchmark",
-        )
-        time.sleep(5)
-        with self.app.syncio() as sync_session:
-            response: VespaResponse = sync_session.query(
-                {"yql": "select id from sources * where true", "hits": 10}
-            )
-            self.assertEqual(response.get_status_code(), 200)
-            self.assertEqual(len(response.hits), 0)
-            print(response.get_json())
+    # DO NOT skip tearDown-method, as test will not exit.
+    # @unittest.skip("Do not run when not waiting for deployment.")
+    # def tearDown(self) -> None:
+    #     self.app.delete_all_docs(
+    #         content_cluster_name="vector_content",
+    #         schema="vector",
+    #         namespace="benchmark",
+    #     )
+    #     time.sleep(5)
+    #     with self.app.syncio() as sync_session:
+    #         response: VespaResponse = sync_session.query(
+    #             {"yql": "select id from sources * where true", "hits": 10}
+    #         )
+    #         self.assertEqual(response.get_status_code(), 200)
+    #         self.assertEqual(len(response.hits), 0)
+    #         print(response.get_json())
 
-        # Deployment is deleted by deploying with an empty deployment.xml file.
-        self.app_package.deployment_config = EmptyDeploymentConfiguration()
+    #     # Deployment is deleted by deploying with an empty deployment.xml file.
+    #     self.app_package.deployment_config = EmptyDeploymentConfiguration()
 
-        # Vespa won't push the deleted deployment.xml file unless we add a validation override
-        tomorrow = datetime.now() + timedelta(days=1)
-        formatted_date = tomorrow.strftime("%Y-%m-%d")
-        self.app_package.validations = [
-            Validation(ValidationID("deployment-removal"), formatted_date)
-        ]
-        self.app_package.to_files(self.application_root)
-        # This will delete the deployment
-        self.vespa_cloud._start_prod_deployment(self.application_root)
-        shutil.rmtree(self.application_root, ignore_errors=True)
+    #     # Vespa won't push the deleted deployment.xml file unless we add a validation override
+    #     tomorrow = datetime.now() + timedelta(days=1)
+    #     formatted_date = tomorrow.strftime("%Y-%m-%d")
+    #     self.app_package.validations = [
+    #         Validation(ValidationID("deployment-removal"), formatted_date)
+    #     ]
+    #     self.app_package.to_files(self.application_root)
+    #     # This will delete the deployment
+    #     self.vespa_cloud._start_prod_deployment(self.application_root)
+    #     shutil.rmtree(self.application_root, ignore_errors=True)
