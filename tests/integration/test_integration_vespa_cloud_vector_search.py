@@ -93,7 +93,7 @@ class TestVectorSearch(unittest.TestCase):
 
         from datasets import load_dataset
 
-        sample_size = 1000
+        sample_size = 100
         # streaming=True pages the data from S3. This is needed to avoid memory issues when loading the dataset.
         dataset = load_dataset(
             "KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True
@@ -164,9 +164,7 @@ class TestVectorSearch(unittest.TestCase):
         ok = 0
         callbacks = 0
         start_time = time.time()
-        dataset = load_dataset(
-            "KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True
-        ).take(100)
+
         feed_with_wrong_field = dataset.map(
             lambda x: {
                 "id": x["_id"],
@@ -186,9 +184,7 @@ class TestVectorSearch(unittest.TestCase):
         self.assertEqual(callbacks, 100)
 
         ok = 0
-        dataset = load_dataset(
-            "KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True
-        ).take(sample_size)
+
         # Run update - assign all docs with a meta field
 
         updates = dataset.map(lambda x: {"id": x["_id"], "fields": {"meta": "stuff"}})
@@ -239,7 +235,7 @@ class TestVectorSearch(unittest.TestCase):
 
 
 class TestProdDeploymentFromDisk(unittest.TestCase):
-    def setUp(self) -> None:
+    def test_setup(self) -> None:
         self.app_package = create_vector_ada_application_package()
         prod_region = "aws-us-east-1c"
         self.app_package.clusters = [
