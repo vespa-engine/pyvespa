@@ -12,7 +12,7 @@ readme = "README.md"
 keywords = ["vespa", "search engine", "data science"]
 classifiers = ["License :: OSI Approved :: Apache Software License"]
 dependencies = [
-    "requests==2.31",
+    "requests",
     "requests_toolbelt",
     "docker",
     "jinja2",
@@ -55,6 +55,7 @@ unittest = [
     "pytest",
     "requests-mock",
     "vespacli",
+    "pytest-asyncio",
 ]
 docs = [
     "sphinx",

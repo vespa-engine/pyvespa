@@ -525,6 +525,7 @@ class TestApplicationPackage(unittest.TestCase):
                     name="bm25",
                     first_phase="bm25(title) + bm25(body)",
                     inherits="default",
+                    num_threads_per_search=4,
                 ),
                 RankProfile(
                     name="bert",
@@ -672,6 +673,7 @@ class TestApplicationPackage(unittest.TestCase):
             "                bm25(title) + bm25(body)\n"
             "            }\n"
             "        }\n"
+            "        num-threads-per-search: 4\n"
             "    }\n"
             "    rank-profile bert inherits default {\n"
             "        constants {\n"
@@ -1801,7 +1803,7 @@ class TestServiceConfig(unittest.TestCase):
         app_package = ApplicationPackage(
             name=application_name, services_config=service_config
         )
-        expected_result = '<?xml version="1.0" encoding="UTF-8" ?>\n<services version="1.0">\n  <container id="test_container" version="1.0"></container>\n</services>\n'
+        expected_result = '<?xml version="1.0" encoding="UTF-8" ?>\n<services version="1.0">\n  <container id="test_container" version="1.0"></container>\n</services>'
         self.assertEqual(expected_result, app_package.services_to_text)
         self.assertTrue(
             compare_xml(app_package.services_to_text_vt, expected_result),
@@ -1882,7 +1884,6 @@ class TestServiceConfig(unittest.TestCase):
       <node distribution-key="0" hostalias="node1"></node>
     </nodes>
   </content>
-</services>
-"""
+</services>"""
         self.assertEqual(expected, application_package.services_to_text)
         self.assertTrue(validate_services(application_package.services_to_text))

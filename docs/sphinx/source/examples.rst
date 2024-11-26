@@ -26,3 +26,4 @@ Examples
    examples/simplified-retrieval-with-colpali-vlm_Vespa-cloud.ipynb
    examples/colpali-document-retrieval-vision-language-models-cloud.ipynb
    examples/colpali-benchmark-vqa-vlm_Vespa-cloud.ipynb
+   examples/pdf-retrieval-with-ColQwen2-vlm_Vespa-cloud.ipynb

@@ -19,7 +19,9 @@ from requests import Request, Session
 import gzip
 from vespa.application import (
     CustomHTTPAdapter,
+    VespaAsync,
 )
+import httpx
 
 
 class TestVespaRequestsUsage(unittest.TestCase):
@@ -691,6 +693,67 @@ class TestCustomHTTPAdapterCompression(unittest.TestCase):
 
             self.assertEqual(mock_send.call_count, 3)
             self.assertEqual(mock_backoff.call_count, mock_send.call_count)
+
+
+class MockVespa:
+    def __init__(
+        self,
+        base_headers=None,
+        auth_method=None,
+        vespa_cloud_secret_token=None,
+        cert=None,
+        key=None,
+    ):
+        self.base_headers = base_headers or {}
+        self.auth_method = auth_method
+        self.vespa_cloud_secret_token = vespa_cloud_secret_token
+        self.cert = cert
+        self.key = key
+
+
+# Test class
+class TestVespaAsync:
+    def test_init_default(self):
+        app = MockVespa()
+        vespa_async = VespaAsync(app)
+        assert vespa_async.app == app
+        assert vespa_async.httpx_client is None
+        assert vespa_async.connections == 1
+        assert vespa_async.total_timeout is None
+        assert vespa_async.timeout == httpx.Timeout(5)
+        assert vespa_async.kwargs == {}
+        assert vespa_async.headers == app.base_headers
+        assert vespa_async.limits == httpx.Limits(max_keepalive_connections=1)
+
+    def test_init_total_timeout_warns(self):
+        app = MockVespa()
+        with pytest.warns(DeprecationWarning, match="total_timeout is deprecated"):
+            vespa_async = VespaAsync(app, total_timeout=10)
+        assert vespa_async.total_timeout == 10
+
+    def test_init_timeout_int(self):
+        app = MockVespa()
+        vespa_async = VespaAsync(app, timeout=10)
+        assert vespa_async.timeout == httpx.Timeout(10)
+
+    def test_init_timeout_timeout(self):
+        app = MockVespa()
+        timeout = httpx.Timeout(connect=5, read=10, write=15, pool=20)
+        vespa_async = VespaAsync(app, timeout=timeout)
+        assert vespa_async.timeout == timeout
+
+    def test_init_keepalive_expiry_warning(self):
+        app = MockVespa()
+        limits = httpx.Limits(keepalive_expiry=31)
+        with pytest.warns(
+            UserWarning, match="Keepalive expiry is set to more than 30 seconds"
+        ):
+            _vespa_async = VespaAsync(app, limits=limits)
+
+    def test_init_no_keepalive_expiry_warning(self):
+        app = MockVespa()
+        limits = httpx.Limits(keepalive_expiry=1)
+        _vespa_async = VespaAsync(app, limits=limits)
 
 
 if __name__ == "__main__":

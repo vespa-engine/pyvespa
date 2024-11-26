@@ -18,11 +18,19 @@ from vespa.configuration.services import *
 class TestVT(unittest.TestCase):
     def test_sanitize_tag_name(self):
         self.assertEqual(VT.sanitize_tag_name("content-node"), "content_node")
-        self.assertEqual(VT.sanitize_tag_name("search-engine"), "search_engine")
+        self.assertEqual(VT.sanitize_tag_name("from"), "from_")
 
     def test_restore_tag_name(self):
-        self.assertEqual(VT.restore_tag_name("content_node"), "content-node")
-        self.assertEqual(VT.restore_tag_name("search_engine"), "search-engine")
+        self.assertEqual(vt("content_node").restore_tag_name(), "content-node")
+        self.assertEqual(vt("search_engine").restore_tag_name(), "search-engine")
+
+    def test_restore_with_underscores(self):
+        self.assertEqual(
+            vt("content_node", replace_underscores=False).tag, "content_node"
+        )
+        self.assertEqual(
+            vt("search_engine", replace_underscores=False).tag, "search_engine"
+        )
 
     def test_attrmap(self):
         self.assertEqual(attrmap("_max_memory"), "max-memory")
@@ -39,7 +47,7 @@ class TestVT(unittest.TestCase):
         self.assertEqual(str(xml_output), '<content attr="value"></content>')
 
     def test_nested_tags(self):
-        nested_tag = VT("content", (VT("document", ()),), {"attr": "value"})
+        nested_tag = vt("content", attr="value")(vt("document"))
         xml_output = to_xml(nested_tag, indent=False)
         # Expecting nested tags with proper newlines and indentation
         expected_output = '<content attr="value"><document></document></content>'
@@ -461,6 +469,105 @@ class TestBillionscaleServiceConfiguration(unittest.TestCase):
         self.assertTrue(compare_xml(self.xml_schema, str(generated_xml)))
 
 
+class TestColbertLongServicesConfiguration(unittest.TestCase):
+    def setUp(self):
+        self.xml_file_path = "tests/testfiles/services/colbert-long/services.xml"
+        self.xml_schema = """<?xml version="1.0" encoding="utf-8" ?>
+
+<services version="1.0" xmlns:deploy="vespa" xmlns:preprocess="properties" minimum-required-vespa-version="8.311.28">
+
+    <!-- See https://docs.vespa.ai/en/reference/services-container.html -->
+    <container id="default" version="1.0">
+
+        <!-- See https://docs.vespa.ai/en/embedding.html#colbert-embedder -->
+        <component id="colbert" type="colbert-embedder">
+            <transformer-model url="https://huggingface.co/colbert-ir/colbertv2.0/resolve/main/model.onnx"/>
+            <tokenizer-model url="https://huggingface.co/colbert-ir/colbertv2.0/raw/main/tokenizer.json"/>
+        </component>
+        <document-api/>
+        <search/>
+        <nodes count="1">
+            <resources vcpu="4" memory="16Gb" disk="125Gb">
+                <gpu count="1" memory="16Gb"/>
+            </resources>
+        </nodes>
+        
+    </container>
+
+    <!-- See https://docs.vespa.ai/en/reference/services-content.html -->
+    <content id="text" version="1.0">
+        <min-redundancy>2</min-redundancy>
+        <documents>
+            <document type="doc" mode="index" />
+        </documents>
+        <nodes count="2"/>
+        <engine>
+            <proton>
+                <tuning>
+                    <searchnode>
+                        <requestthreads>
+                            <persearch>4</persearch> <!-- Change the number of threads per search here -->
+                        </requestthreads>
+                    </searchnode>
+                </tuning>
+            </proton>
+        </engine>
+    </content>
+
+</services>
+"""
+
+    def test_valid_config_from_file(self):
+        self.assertTrue(validate_services(self.xml_file_path))
+
+    def test_valid_config_from_string(self):
+        self.assertTrue(validate_services(self.xml_schema))
+
+    def test_valid_from_etree(self):
+        to_validate = etree.parse(self.xml_file_path)
+        self.assertTrue(validate_services(to_validate))
+
+    def test_generate_colbert_long_services(self):
+        # Generated XML using dynamic tag functions
+        generated_services = services(
+            container(id="default", version="1.0")(
+                component(id="colbert", type="colbert-embedder")(
+                    transformer_model(
+                        url="https://huggingface.co/colbert-ir/colbertv2.0/resolve/main/model.onnx"
+                    ),
+                    tokenizer_model(
+                        url="https://huggingface.co/colbert-ir/colbertv2.0/raw/main/tokenizer.json"
+                    ),
+                ),
+                document_api(),
+                search(),
+                nodes(count="1")(
+                    resources(vcpu="4", memory="16Gb", disk="125Gb")(
+                        gpu(count="1", memory="16Gb")
+                    ),
+                ),
+            ),
+            content(id="text", version="1.0")(
+                min_redundancy("2"),
+                documents(document(type="doc", mode="index")),
+                nodes(count="2"),
+                engine(
+                    proton(
+                        tuning(
+                            searchnode(requestthreads(persearch("4"))),
+                        ),
+                    ),
+                ),
+            ),
+            version="1.0",
+            minimum_required_vespa_version="8.311.28",
+        )
+        generated_xml = generated_services.to_xml()
+        # Validate against relaxng
+        self.assertTrue(validate_services(str(generated_xml)))
+        self.assertTrue(compare_xml(self.xml_schema, str(generated_xml)))
+
+
 class TestValidateServices(unittest.TestCase):
     def setUp(self):
         # Prepare some sample valid and invalid XML data
@@ -572,9 +679,7 @@ class TestDocumentExpiry(unittest.TestCase):
 """
 
     def test_xml_validation(self):
-        to_validate = etree.fromstring(self.xml_schema.encode("utf-8"))
-        # Validate against relaxng
-        self.assertTrue(validate_services(to_validate))
+        self.assertTrue(validate_services(self.xml_schema))
 
     def test_document_expiry(self):
         application_name = "music"
@@ -603,8 +708,117 @@ class TestDocumentExpiry(unittest.TestCase):
         )
         generated_xml = generated.to_xml()
         # Validate against relaxng
-        self.assertTrue(validate_services(etree.fromstring(str(generated_xml))))
+        self.assertTrue(validate_services((str(generated_xml))))
         # Compare the generated XML with the schema
+        self.assertTrue(compare_xml(self.xml_schema, str(generated_xml)))
+
+
+class TestUnderscoreAttributes(unittest.TestCase):
+    def setUp(self):
+        self.xml_schema = """<services version="1.0">
+    <container id="colpalidemo_container" version="1.0">
+        <search></search>
+        <document-api></document-api>
+        <document-processing></document-processing>
+        <clients>
+            <client id="mtls" permissions="read,write">
+                <certificate file="security/clients.pem" />
+            </client>
+            <client id="token_write" permissions="read,write">
+                <token id="colpalidemo_write" />
+            </client>
+            <client id="token_read" permissions="read">
+                <token id="colpalidemo_read" />
+            </client>
+        </clients>
+        <config name="container.qr-searchers">
+            <tag>
+                <bold>
+                    <open>&lt;strong&gt;</open>
+                    <close>&lt;/strong&gt;</close>
+                </bold>
+                <separator>...</separator>
+            </tag>
+        </config>
+    </container>
+    <content id="colpalidemo_content" version="1.0">
+        <redundancy>1</redundancy>
+        <documents>
+            <document type="pdf_page" mode="index"></document>
+        </documents>
+        <nodes>
+            <node distribution-key="0" hostalias="node1"></node>
+        </nodes>
+        <config name="vespa.config.search.summary.juniperrc">
+            <max_matches>2</max_matches>
+            <length>1000</length>
+            <surround_max>500</surround_max>
+            <min_length>300</min_length>
+        </config>
+    </content>
+</services>
+"""
+
+    def test_valid_config_from_string(self):
+        self.assertTrue(validate_services(self.xml_schema))
+
+    def test_generate_schema(self):
+        generated = services(
+            container(
+                search(),
+                document_api(),
+                document_processing(),
+                clients(
+                    client(
+                        certificate(file="security/clients.pem"),
+                        id="mtls",
+                        permissions="read,write",
+                    ),
+                    client(
+                        token(id="colpalidemo_write"),
+                        id="token_write",
+                        permissions="read,write",
+                    ),
+                    client(
+                        token(id="colpalidemo_read"),
+                        id="token_read",
+                        permissions="read",
+                    ),
+                ),
+                config(
+                    vt("tag")(
+                        vt("bold")(
+                            vt("open", "<strong>"),
+                            vt("close", "</strong>"),
+                        ),
+                        vt("separator", "..."),
+                    ),
+                    name="container.qr-searchers",
+                ),
+                id="colpalidemo_container",
+                version="1.0",
+            ),
+            content(
+                redundancy("1"),
+                documents(document(type="pdf_page", mode="index")),
+                nodes(node(distribution_key="0", hostalias="node1")),
+                config(
+                    vt("max_matches", "2", replace_underscores=False),
+                    vt("length", "1000"),
+                    vt("surround_max", "500", replace_underscores=False),
+                    vt("min_length", "300", replace_underscores=False),
+                    name="vespa.config.search.summary.juniperrc",
+                ),
+                id="colpalidemo_content",
+                version="1.0",
+            ),
+            version="1.0",
+        )
+        generated_xml = generated.to_xml()
+        # Validate against relaxng
+        print(self.xml_schema)
+        print(generated_xml)
+        self.assertTrue(validate_services(str(generated_xml)))
         self.assertTrue(compare_xml(self.xml_schema, str(generated_xml)))
 
 

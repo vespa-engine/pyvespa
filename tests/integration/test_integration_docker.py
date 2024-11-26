@@ -26,11 +26,16 @@ from vespa.package import (
     AuthClient,
     Struct,
     ServicesConfiguration,
+    FirstPhaseRanking,
+    SecondPhaseRanking,
+    Function,
+    OnnxModel,
 )
 from vespa.configuration.services import *
 from vespa.deployment import VespaDocker
 from vespa.application import VespaSync
 from vespa.exceptions import VespaError
+from pathlib import Path
 
 CONTAINER_STOP_TIMEOUT = 10
 RESOURCES_DIR = get_resource_path()
@@ -1720,6 +1725,421 @@ class TestDocumentExpiry(unittest.TestCase):
         # Visit results: [{'pathId': '/document/v1/music/music/docid/', 'documents': [{'id': 'id:music:music::2', 'fields': {'artist': 'Dr. Dre', 'title': 'Still D.R.E', 'timestamp': 1726836495}}], 'documentCount': 1}]
         self.assertEqual(len(visit_results), 1)
         self.assertEqual(visit_results[0]["documentCount"], 1)
+
+    def tearDown(self) -> None:
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
+        self.vespa_docker.container.remove()
+
+
+class TestColBERTLong(unittest.TestCase):
+    # Also tests ServiceConfiguration with setting requestthreads persearch
+    def setUp(self) -> None:
+        application_name = "colbert"
+        schema = Schema(
+            name="doc",
+            document=Document(
+                fields=[
+                    Field(
+                        name="id",
+                        type="string",
+                        indexing=["summary"],
+                    ),
+                    Field(
+                        name="text",
+                        type="array<string>",
+                        indexing=["index", "summary"],
+                        index="enable-bm25",
+                    ),
+                    Field(
+                        name="colbert",
+                        type="tensor<int8>(context{}, token{}, v[16])",
+                        indexing=[
+                            "input text",
+                            "embed colbert context",
+                            "attribute",
+                        ],
+                        attribute=["paged"],
+                        is_document_field=False,
+                    ),
+                ],
+            ),
+            fieldsets=[FieldSet(name="default", fields=["text"])],
+            rank_profiles=[
+                RankProfile(
+                    name="bm25",
+                    inputs=[("query(qt)", "tensor<float>(querytoken{}, v[128])")],
+                    first_phase="bm25(text)",
+                    rank_properties=[
+                        ("bm25(text).k1", 0.9),
+                        ("bm25(text).b", 0.4),
+                    ],
+                ),
+                RankProfile(
+                    name="colbert-max-sim-context-level",
+                    inputs=[("query(qt)", "tensor<float>(querytoken{}, v[128])")],
+                    first_phase="bm25(text)",
+                    second_phase=SecondPhaseRanking(
+                        rerank_count=400,
+                        expression="reduce(max_sim_per_context, max, context)",
+                    ),
+                    inherits="bm25",
+                    functions=[
+                        Function(
+                            name="max_sim_per_context",
+                            expression="""
+                            sum(
+                                reduce(
+                                    sum(
+                                        query(qt) * unpack_bits(attribute(colbert)) , v
+                                    ),
+                                    max, token
+                                ),
+                                querytoken
+                            )
+                            """,
+                        )
+                    ],
+                ),
+                RankProfile(
+                    name="colbert-max-sim-cross-context",
+                    first_phase="bm25(text)",
+                    inputs=[("query(qt)", "tensor<float>(querytoken{}, v[128])")],
+                    second_phase=SecondPhaseRanking(
+                        rerank_count=400, expression="cross_max_sim"
+                    ),
+                    inherits="bm25",
+                    functions=[
+                        Function(
+                            name="cross_max_sim",
+                            expression="""
+                                        sum(
+                                            reduce(
+                                                sum(
+                                                    query(qt) * unpack_bits(attribute(colbert)) , v
+                                                ),
+                                                max, token, context
+                                            ),
+                                            querytoken
+                                        )
+                                        """,
+                        )
+                    ],
+                ),
+                RankProfile(
+                    name="one-thread-profile",
+                    first_phase="bm25(text)",
+                    inputs=[("query(qt)", "tensor<float>(querytoken{}, v[128])")],
+                    second_phase=SecondPhaseRanking(
+                        rerank_count=400, expression="cross_max_sim"
+                    ),
+                    inherits="bm25",
+                    functions=[
+                        Function(
+                            name="cross_max_sim",
+                            expression="""
+                                        sum(
+                                            reduce(
+                                                sum(
+                                                    query(qt) * unpack_bits(attribute(colbert)) , v
+                                                ),
+                                                max, token, context
+                                            ),
+                                            querytoken
+                                        )
+                                        """,
+                        )
+                    ],
+                    rank_properties=[("num-threads-per-search", 1)],
+                ),
+            ],
+        )
+        services_config = ServicesConfiguration(
+            application_name=f"{application_name}",
+            services_config=services(
+                container(id=f"{application_name}_default", version="1.0")(
+                    component(id="colbert", type="colbert-embedder")(
+                        transformer_model(
+                            url="https://huggingface.co/colbert-ir/colbertv2.0/resolve/main/model.onnx"
+                        ),
+                        tokenizer_model(
+                            url="https://huggingface.co/colbert-ir/colbertv2.0/raw/main/tokenizer.json"
+                        ),
+                    ),
+                    document_api(),
+                    search(),
+                ),
+                content(id=f"{application_name}", version="1.0")(
+                    min_redundancy("2"),
+                    documents(document(type="doc", mode="index")),
+                    engine(
+                        proton(
+                            tuning(
+                                searchnode(requestthreads(persearch("4"))),
+                            ),
+                        ),
+                    ),
+                ),
+                version="1.0",
+                minimum_required_vespa_version="8.311.28",
+            ),
+        )
+        self.app_package = ApplicationPackage(
+            name=f"{application_name}",
+            schema=[schema],
+            services_config=services_config,
+        )
+        self.app_package.to_files("deleteme")
+        self.vespa_docker = VespaDocker(port=8089)
+        self.app = self.vespa_docker.deploy(application_package=self.app_package)
+
+    def test_colbert_long(self):
+        texts = [
+            "Consider a query example is cdg airport in main paris? from the MS Marco Passage Ranking query set. If we run this query over the 8.8M passage documents using OR we retrieve and rank 7,926,256 documents out of 8,841,823 documents.",
+            "If we instead change to the boolean retrieval logic to AND, we only retrieve 2 documents and fail to retrieve the relevant document(s).",
+            "The WAND algorithm tries to address this problem by starting the search for candidate documents using OR,",
+            "but then re-ranking the documents using AND. The WAND algorithm is a two-stage algorithm that first retrieves documents using OR and then re-ranks the documents using AND.",
+        ]
+        docs_to_feed = [
+            {
+                "id": i,
+                "fields": {
+                    "text": [text],
+                },
+            }
+            for i, text in enumerate(texts)
+        ]
+
+        def callback(response, id):
+            print(response.json)
+
+        query = "this is a test"
+        self.app.feed_iterable(docs_to_feed, schema="doc", callback=callback)
+        # Response with 4 threads (set by requestthreads persearch)
+        query_body = {
+            "yql": "select * from doc where true;",
+            "input.query(qt)": f"embed({query})",
+            "presentation.timing": True,
+            "tracelevel": 3,
+        }
+        _response_warmup = self.app.query(
+            body={
+                **query_body,
+                "ranking": "colbert-max-sim-context-level",
+            }
+        )
+        response_default = self.app.query(
+            body={
+                **query_body,
+                "ranking": "colbert-max-sim-context-level",
+            }
+        )
+        # Response with single thread, overriding the default setting to 1.
+        response_single_thread = self.app.query(
+            body={
+                **query_body,
+                "ranking": "one-thread-profile",
+                "ranking.matching.numThreadsPerSearch": 1,
+            }
+        )
+        self.assertEqual(response_default.number_documents_retrieved, len(texts))
+        self.assertEqual(response_single_thread.number_documents_retrieved, len(texts))
+
+    def tearDown(self) -> None:
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
+        self.vespa_docker.container.remove()
+
+
+class TestCrossencoderPersearchThreads(unittest.TestCase):
+    def setUp(self) -> None:
+        application_name = "crossencoder"
+        # Download the model if it doesn't exist
+        url = "https://huggingface.co/mixedbread-ai/mxbai-rerank-xsmall-v1/resolve/main/onnx/model_quantized.onnx"
+        local_model_path = "model/model.onnx"
+        if not Path(local_model_path).exists():
+            print("Downloading the mxbai-rerank model...")
+            r = requests.get(url)
+            Path(local_model_path).parent.mkdir(parents=True, exist_ok=True)
+            with open(local_model_path, "wb") as f:
+                f.write(r.content)
+                print(f"Downloaded model to {local_model_path}")
+        else:
+            print("Model already exists, skipping download.")
+
+        reranking = FirstPhaseRanking(
+            keep_rank_count=8,
+            expression="sigmoid(onnx(crossencoder).logits{d0:0,d1:0})",
+        )
+
+        # Define the schema
+        schema = Schema(
+            name="doc",
+            document=Document(
+                fields=[
+                    Field(name="id", type="string", indexing=["summary", "attribute"]),
+                    Field(
+                        name="text",
+                        type="string",
+                        indexing=["index", "summary"],
+                        index="enable-bm25",
+                    ),
+                    Field(
+                        name="body_tokens",
+                        type="tensor<float>(d0[512])",
+                        indexing=[
+                            "input text",
+                            "embed tokenizer",
+                            "attribute",
+                            "summary",
+                        ],
+                        is_document_field=False,  # Indicates a synthetic field
+                    ),
+                ],
+            ),
+            fieldsets=[FieldSet(name="default", fields=["text"])],
+            models=[
+                OnnxModel(
+                    model_name="crossencoder",
+                    model_file_path=f"{local_model_path}",
+                    inputs={
+                        "input_ids": "input_ids",
+                        "attention_mask": "attention_mask",
+                    },
+                    outputs={"logits": "logits"},
+                )
+            ],
+            rank_profiles=[
+                RankProfile(name="bm25", first_phase="bm25(text)"),
+                RankProfile(
+                    name="reranking",
+                    inherits="default",
+                    inputs=[("query(q)", "tensor<float>(d0[64])")],
+                    functions=[
+                        Function(
+                            name="input_ids",
+                            expression="customTokenInputIds(1, 2, 512, query(q), attribute(body_tokens))",
+                        ),
+                        Function(
+                            name="attention_mask",
+                            expression="tokenAttentionMask(512, query(q), attribute(body_tokens))",
+                        ),
+                    ],
+                    first_phase=reranking,
+                    summary_features=[
+                        "query(q)",
+                        "input_ids",
+                        "attention_mask",
+                        "onnx(crossencoder).logits",
+                    ],
+                ),
+                RankProfile(
+                    name="one-thread-profile",
+                    first_phase=reranking,
+                    inherits="reranking",
+                    rank_properties=[("num-threads-per-search", 1)],
+                ),
+            ],
+        )
+
+        # Define services configuration with persearch threads set to 4
+        services_config = ServicesConfiguration(
+            application_name=f"{application_name}",
+            services_config=services(
+                container(id=f"{application_name}_default", version="1.0")(
+                    component(
+                        model(
+                            url="https://huggingface.co/mixedbread-ai/mxbai-rerank-xsmall-v1/raw/main/tokenizer.json"
+                        ),
+                        id="tokenizer",
+                        type="hugging-face-tokenizer",
+                    ),
+                    document_api(),
+                    search(),
+                ),
+                content(id=f"{application_name}", version="1.0")(
+                    min_redundancy("1"),
+                    documents(document(type="doc", mode="index")),
+                    engine(
+                        proton(
+                            tuning(
+                                searchnode(requestthreads(persearch("4"))),
+                            ),
+                        ),
+                    ),
+                ),
+                version="1.0",
+                minimum_required_vespa_version="8.311.28",
+            ),
+        )
+
+        self.app_package = ApplicationPackage(
+            name=f"{application_name}",
+            schema=[schema],
+            services_config=services_config,
+        )
+
+        self.vespa_docker = VespaDocker(port=8089)
+        self.app = self.vespa_docker.deploy(
+            application_package=self.app_package, max_wait_deployment=600
+        )
+
+    def test_crossencoder_threads(self):
+        # Feed sample documents to the application
+        sample_docs = [
+            {"id": i, "fields": {"text": text}}
+            for i, text in enumerate(
+                [
+                    "'To Kill a Mockingbird' is a novel by Harper Lee published in 1960. It was immediately successful, winning the Pulitzer Prize, and has become a classic of modern American literature. The novel 'Moby-Dick' was written by Herman Melville and first published in 1851. Harper Lee, an American novelist widely known for her novel 'To Kill a Mockingbird'. It is considered a masterpiece of American literature and deals with complex themes of obsession, revenge, and the conflict between good and evil.",
+                    "was born in 1926 in Monroeville, Alabama. She received the Pulitzer Prize for Fiction in 1961. Jane Austen was an English novelist known primarily for her six major novels, ",
+                    "which interpret, critique and comment upon the British landed gentry at the end of the 18th century. The 'Harry Potter' series, which consists of seven fantasy novels written by British author J.K. Rowling, ",
+                    "is among the most popular and critically acclaimed books of the modern era. 'The Great Gatsby', a novel written by American author F. Scott Fitzgerald, was published in 1925. The story is set in the Jazz Age and follows the life of millionaire Jay Gatsby and his pursuit of Daisy Buchanan.",
+                ]
+            )
+        ]
+        self.app.feed_iterable(sample_docs, schema="doc")
+
+        # Define the query body
+        query_body = {
+            "yql": "select * from sources * where userQuery();",
+            "query": "who wrote to kill a mockingbird?",
+            "timeout": "5s",
+            "input.query(q)": "embed(tokenizer, @query)",
+            "presentation.timing": "true",
+        }
+
+        # Warm-up query
+        with self.app.syncio() as sess:
+            _ = sess.query(body=query_body)
+        query_body_reranking = {
+            **query_body,
+            "ranking.profile": "reranking",
+        }
+        # Query with default persearch threads (set to 4)
+        with self.app.syncio() as sess:
+            response_default = sess.query(body=query_body_reranking)
+
+        # Query with num-threads-per-search overridden to 1
+        query_body_one_thread = {
+            **query_body,
+            "ranking.profile": "one-thread-profile",
+            "ranking.matching.numThreadsPerSearch": 1,
+        }
+        with self.app.syncio() as sess:
+            response_one_thread = sess.query(body=query_body_one_thread)
+
+        # Extract query times
+        timing_default = response_default.json["timing"]
+        timing_one_thread = response_one_thread.json["timing"]
+
+        print("Default threads timing:", timing_default)
+        print("One thread timing:", timing_one_thread)
+        print("Response default:", response_default.json)
+        print("Response one thread:", response_one_thread.json)
+
+        # Assert that the query time with one thread is greater
+        self.assertGreater(
+            timing_one_thread["querytime"],
+            timing_default["querytime"],
+        )
 
     def tearDown(self) -> None:
         self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)

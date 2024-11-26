@@ -201,6 +201,9 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
             {% endfor %}
         }
         {% endif %}
+        {% if value.num_threads_per_search %}
+        num-threads-per-search: {{ value.num_threads_per_search }}
+        {% endif %}
         {% if value.mutate %}
         mutate {
             {% if value.mutate.on_match %}

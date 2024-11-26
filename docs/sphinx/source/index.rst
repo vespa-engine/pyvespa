@@ -15,6 +15,7 @@ Vespa python API
 
    getting-started-pyvespa
    getting-started-pyvespa-cloud
+   advanced-configuration
    authenticating-to-vespa-cloud
    application-packages
    query
@@ -70,5 +71,7 @@ minimum memory requirement is 4 Gb unless other documented:
 .. code:: bash
 
     $ docker info | grep "Total Memory"
+    or
+    $ podman info | grep "memTotal"
 
 One can also use :doc:`Vespa Cloud <getting-started-pyvespa-cloud>` to run the notebooks.

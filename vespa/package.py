@@ -1114,6 +1114,7 @@ class RankProfile(object):
         match_features: Optional[List] = None,
         second_phase: Optional[SecondPhaseRanking] = None,
         global_phase: Optional[GlobalPhaseRanking] = None,
+        num_threads_per_search: Optional[int] = None,
         **kwargs: Unpack[RankProfileFields],
     ) -> None:
         """
@@ -1146,6 +1147,7 @@ class RankProfile(object):
             See :class:`SecondPhaseRanking`.
         :param global_phase: Optional config specifying the global phase of ranking.
             See :class:`GlobalPhaseRanking`.
+        :param num_threads_per_search: Overrides the global `persearch` value for this rank profile to a **lower** value.
         :key weight: A list of tuples containing the field and their weight
         :key rank_type: A list of tuples containing a field and the rank-type-name.
             `More info <https://docs.vespa.ai/en/reference/schema-reference.html#rank-type>`__ about rank-type.
@@ -1195,21 +1197,21 @@ class RankProfile(object):
         ...     first_phase = "nativeRank(title, body)",
         ...     weight = [("title", 200), ("body", 100)]
         ... )
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, [('title', 200), ('body', 100)], None, None, None, None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, [('title', 200), ('body', 100)], None, None, None)
 
         >>> RankProfile(
         ...     name = "default",
         ...     first_phase = "nativeRank(title, body)",
         ...     rank_type = [("body", "about")]
         ... )
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, [('body', 'about')], None, None, None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, [('body', 'about')], None, None)
 
         >>> RankProfile(
         ...     name = "default",
         ...     first_phase = "nativeRank(title, body)",
         ...     rank_properties = [("fieldMatch(title).maxAlternativeSegmentations", "10")]
         ... )
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, [('fieldMatch(title).maxAlternativeSegmentations', '10')], None, None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, [('fieldMatch(title).maxAlternativeSegmentations', '10')], None)
 
         >>> RankProfile(
         ...    name = "default",
@@ -1217,6 +1219,12 @@ class RankProfile(object):
         ... )
         RankProfile('default', FirstPhaseRanking('nativeRank(title, body)', 50, None), None, None, None, None, None, None, None, None, None, None, None, None)
 
+        >>> RankProfile(
+        ...     name = "default",
+        ...     first_phase = "nativeRank(title, body)",
+        ...     num_threads_per_search = 2
+        ... )
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, 2, None, None, None, None)
         """
         self.name = name
         self.first_phase = first_phase
@@ -1227,6 +1235,9 @@ class RankProfile(object):
         self.match_features = kwargs.get("match_features", match_features)
         self.second_phase = kwargs.get("second_phase", second_phase)
         self.global_phase = kwargs.get("global_phase", global_phase)
+        self.num_threads_per_search = kwargs.get(
+            "num_threads_per_search", num_threads_per_search
+        )
         self.weight = kwargs.get("weight", None)
         self.rank_type = kwargs.get("rank_type", None)
         self.rank_properties = kwargs.get("rank_properties", None)
@@ -1246,6 +1257,7 @@ class RankProfile(object):
             and self.match_features == other.match_features
             and self.second_phase == other.second_phase
             and self.global_phase == other.global_phase
+            and self.num_threads_per_search == other.num_threads_per_search
             and self.weight == other.weight
             and self.rank_type == other.rank_type
             and self.rank_properties == other.rank_properties
@@ -1265,11 +1277,11 @@ class RankProfile(object):
             repr(self.match_features),
             repr(self.second_phase),
             repr(self.global_phase),
+            repr(self.num_threads_per_search),
             repr(self.weight),
             repr(self.rank_type),
             repr(self.rank_properties),
             repr(self.inputs),
-            repr(self.mutate),
         )
 
 
@@ -2364,7 +2376,7 @@ class EmptyDeploymentConfiguration(DeploymentConfiguration):
 class ServicesConfiguration(object):
     def __init__(
         self,
-        application_name,
+        application_name: str,
         schemas: Optional[List[Schema]] = None,
         configurations: List[ApplicationConfiguration] = [],
         stateless_model_evaluation: Optional[bool] = False,
@@ -2372,7 +2384,117 @@ class ServicesConfiguration(object):
         auth_clients: List[AuthClient] = [],
         clusters: List[Cluster] = [],
         services_config: Optional[VT] = None,
-    ):
+    ) -> None:
+        """
+        Create a ServicesConfiguration, adopting the VespaTag (VT) approach, rather than Jinja templates.
+        Intended to be used in ApplicationPackage, to generate services.xml, based on either:
+        - A passed `services_config` (VT) object, or
+        - A set of configurations, schemas, components, auth_clients, and clusters. (equvialent to the old approach)
+
+        The latter will be done in code by calling `build_services_vt()` to generate the VT object.
+
+        Example:
+
+        >>> config = ServicesConfiguration( # Old approach
+        ...        application_name="myapp",
+        ...        schemas=[Schema(name="myschema",document=Document())],
+        ...        configurations=[ApplicationConfiguration(name="container.handler.observability.application-userdata", value={"version": "my-version"})],
+        ...        components=[
+        ...            Component(id="hf-embedder", type="huggingface-embedder")
+        ...            ],
+        ...        stateless_model_evaluation=True,
+        ... )
+        >>> print(str(config))
+        <?xml version="1.0" encoding="UTF-8" ?>
+        <services version="1.0">
+          <config name="container.handler.observability.application-userdata">
+            <version>my-version</version>
+          </config>
+          <container id="myapp_container" version="1.0">
+            <search></search>
+            <document-api></document-api>
+            <document-processing></document-processing>
+            <component id="hf-embedder" type="huggingface-embedder"></component>
+            <model-evaluation></model-evaluation>
+          </container>
+          <content id="myapp_content" version="1.0">
+            <redundancy>1</redundancy>
+            <documents>
+              <document type="myschema" mode="index"></document>
+            </documents>
+            <nodes>
+              <node distribution-key="0" hostalias="node1"></node>
+            </nodes>
+          </content>
+        </services>
+        >>> application_name = "myapp"
+        >>> services_config = ServicesConfiguration( # New approach
+        ...    application_name=f"{application_name}",
+        ...    services_config=services(
+        ...        container(id=f"{application_name}_default", version="1.0")(
+        ...            component(
+        ...                model(
+        ...                    url="https://huggingface.co/mixedbread-ai/mxbai-rerank-xsmall-v1/raw/main/tokenizer.json"
+        ...                ),
+        ...                id="tokenizer",
+        ...                type="hugging-face-tokenizer",
+        ...            ),
+        ...            document_api(),
+        ...            search(),
+        ...        ),
+        ...        content(id=f"{application_name}", version="1.0")(
+        ...            min_redundancy("1"),
+        ...            documents(document(type="doc", mode="index")),
+        ...            engine(
+        ...                proton(
+        ...                    tuning(
+        ...                        searchnode(requestthreads(persearch("4"))),
+        ...                    ),
+        ...                ),
+        ...            ),
+        ...        ),
+        ...        version="1.0",
+        ...        minimum_required_vespa_version="8.311.28",
+        ...    ),
+        ... )
+        >>> print(str(services_config))
+        <?xml version="1.0" encoding="UTF-8" ?>
+        <services version="1.0" minimum-required-vespa-version="8.311.28">
+          <container id="myapp_default" version="1.0">
+            <component id="tokenizer" type="hugging-face-tokenizer">
+              <model url="https://huggingface.co/mixedbread-ai/mxbai-rerank-xsmall-v1/raw/main/tokenizer.json"></model>
+            </component>
+            <document-api></document-api>
+            <search></search>
+          </container>
+          <content id="myapp" version="1.0">
+            <min-redundancy>1</min-redundancy>
+            <documents>
+              <document type="doc" mode="index"></document>
+            </documents>
+            <engine>
+              <proton>
+                <tuning>
+                  <searchnode>
+                    <requestthreads>
+                      <persearch>4</persearch>
+                    </requestthreads>
+                  </searchnode>
+                </tuning>
+              </proton>
+            </engine>
+          </content>
+        </services>
+
+        :param application_name: str, Application name.
+        :param schemas: Optional[List[Schema]], List of :class:`Schema`s of the application.
+        :param configurations: Optional[List[ApplicationConfiguration]], List of :class:`ApplicationConfiguration` that contains configurations for the application.
+        :param stateless_model_evaluation: Optional[bool], Enable stateless model evaluation. Default to False.
+        :param components: Optional[List[Component]], List of :class:`Component` that contains configurations for application components.
+        :param auth_clients: Optional[List[AuthClient]], List of :class:`AuthClient
+        :param clusters: Optional[List[Cluster]], List of :class:`Cluster` that contains configurations for content or container clusters.
+        :param services_config: Optional[VT], :class:`VT` object that contains the services configuration.
+        """
         self.application_name = application_name
         self.schemas = schemas or []
         self.configurations = configurations
@@ -2381,17 +2503,6 @@ class ServicesConfiguration(object):
         self.auth_clients = auth_clients
         self.clusters = clusters
         self.services_config = services_config or self.build_services_vt()
-        """
-        Create a ServicesConfiguration, adopting the VespaTag (VT) approach, rather than Jinja templates.
-        Intended to be used in ApplicationPackage, to generate services.xml based on either:
-        - A passed `services_config` (VT) object, or
-        - A set of configurations, schemas, components, auth_clients, and clusters.
-
-        The latter will be done in code by calling `build_services_vt()` to generate the VT object.
-
-        :param application_name: The name of the application.
-        
-        """
 
     def build_services_vt(self):
         services_vt = services(version="1.0")
@@ -2422,7 +2533,6 @@ class ServicesConfiguration(object):
                 for client in self.auth_clients:
                     clients_vt += client.to_vt()
                 container_vt += clients_vt
-
             if self.stateless_model_evaluation:
                 container_vt += model_evaluation()
 
@@ -2461,13 +2571,16 @@ class ServicesConfiguration(object):
         return services_vt
 
     def __str__(self) -> str:
-        return str(Xml().to_xml()) + str(self.services_config.to_xml())
+        return (str(Xml().to_xml()) + str(self.services_config.to_xml())).rstrip("\n")
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(services_config={self.services_config})"
 
     def _repr_markdown_(self):
         return
+
+    def validate(self):
+        return validate_services(str(self.services_config.to_xml()))
 
 
 class ApplicationPackage(object):
