@@ -24,6 +24,12 @@ class Queryfield:
     def __ge__(self, other: Any) -> "Condition":
         return Condition(f"{self.name} >= {self._format_value(other)}")
 
+    def __and__(self, other: Any) -> "Condition":
+        return Condition(f"{self.name} and {self._format_value(other)}")
+
+    def __or__(self, other: Any) -> "Condition":
+        return Condition(f"{self.name} or {self._format_value(other)}")
+
     def contains(
         self, value: Any, annotations: Optional[Dict[str, Any]] = None
     ) -> "Condition":
@@ -367,15 +373,17 @@ class Q:
         field: str, weights, annotations: Optional[Dict[str, Any]] = None
     ) -> Condition:
         if isinstance(weights, list):
-            weights_str = "[" + ",".join(str(item) for item in weights) + "]"
+            weights_str = "[" + ", ".join(str(item) for item in weights) + "]"
         elif isinstance(weights, dict):
-            weights_str = "{" + ",".join(f'"{k}":{v}' for k, v in weights.items()) + "}"
+            weights_str = (
+                "{" + ", ".join(f'"{k}":{v}' for k, v in weights.items()) + "}"
+            )
         else:
             raise ValueError("Invalid weights for wand")
         expr = f"wand({field}, {weights_str})"
         if annotations:
-            annotations_str = ",".join(
-                f"{k}:{Queryfield._format_annotation_value(v)}"
+            annotations_str = ", ".join(
+                f"{k}: {Queryfield._format_annotation_value(v)}"
                 for k, v in annotations.items()
             )
             expr = f"({{{annotations_str}}}{expr})"
@@ -387,7 +395,7 @@ class Q:
         expr = f"weakAnd({conditions_str})"
         if annotations:
             annotations_str = ",".join(
-                f'"{k}":{Queryfield._format_annotation_value(v)}'
+                f'"{k}": {Queryfield._format_annotation_value(v)}'
                 for k, v in annotations.items()
             )
             expr = f"({{{annotations_str}}}{expr})"

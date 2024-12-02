@@ -212,7 +212,30 @@ class TestQueryBuilder(unittest.TestCase):
     def test_wand(self):
         condition = Q.wand("keywords", {"apple": 10, "banana": 20})
         q = Query(select_fields="*").from_("fruits").where(condition)
-        expected = 'select * from fruits where wand(keywords, {"apple":10,"banana":20})'
+        expected = (
+            'select * from fruits where wand(keywords, {"apple":10, "banana":20})'
+        )
+        self.assertEqual(q, expected)
+        return q
+
+    def test_wand_numeric(self):
+        condition = Q.wand("description", [[11, 1], [37, 2]])
+        q = Query(select_fields="*").from_("fruits").where(condition)
+        expected = "select * from fruits where wand(description, [[11, 1], [37, 2]])"
+        self.assertEqual(q, expected)
+        return q
+
+    def test_wand_annotations(self):
+        self.maxDiff = None
+        condition = Q.wand(
+            "description",
+            weights={"a": 1, "b": 2},
+            annotations={"scoreThreshold": 0.13, "targetHits": 7},
+        )
+        q = Query(select_fields="*").from_("fruits").where(condition)
+        expected = 'select * from fruits where ({scoreThreshold: 0.13, targetHits: 7}wand(description, {"a":1, "b":2}))'
+        print(q)
+        print(expected)
         self.assertEqual(q, expected)
         return q
 
@@ -223,7 +246,7 @@ class TestQueryBuilder(unittest.TestCase):
             condition1, condition2, annotations={"targetNumHits": 100}
         )
         q = Query(select_fields="*").from_("articles").where(condition)
-        expected = 'select * from articles where ({"targetNumHits":100}weakAnd(title contains "Python", description contains "Programming"))'
+        expected = 'select * from articles where ({"targetNumHits": 100}weakAnd(title contains "Python", description contains "Programming"))'
         self.assertEqual(q, expected)
         return q
 
@@ -260,11 +283,19 @@ class TestQueryBuilder(unittest.TestCase):
         self.assertEqual(q, expected)
         return q
 
-    def test_field_comparison_methods(self):
+    def test_field_comparison_methods_builtins(self):
         f1 = Queryfield("age")
-        condition = f1.ge(18) & f1.lt(30)
+        condition = (f1 >= 18) & (f1 < 30)
         q = Query(select_fields="*").from_("users").where(condition)
         expected = "select * from users where age >= 18 and age < 30"
+        self.assertEqual(q, expected)
+        return q
+
+    def test_field_comparison_methods(self):
+        f1 = Queryfield("age")
+        condition = (f1.ge(18) & f1.lt(30)) | f1.eq(40)
+        q = Query(select_fields="*").from_("users").where(condition)
+        expected = "select * from users where (age >= 18 and age < 30) or age = 40"
         self.assertEqual(q, expected)
         return q
 
