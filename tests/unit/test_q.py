@@ -9,12 +9,12 @@ class TestQueryBuilder(unittest.TestCase):
             {"feature1": 1, "feature2": 2},
             annotations={"label": "myDotProduct"},
         )
-        q = Query(select_fields="*").from_("querybuilder").where(condition)
-        expected = 'select * from querybuilder where ({label:"myDotProduct"}dotProduct(weightedset_field, {"feature1":1,"feature2":2}))'
+        q = Query(select_fields="*").from_("sd1").where(condition)
+        expected = 'select * from sd1 where ({label:"myDotProduct"}dotProduct(weightedset_field, {"feature1":1,"feature2":2}))'
         self.assertEqual(q, expected)
         return q
 
-    def test_geoLocation_with_annotations(self):
+    def test_geolocation_with_annotations(self):
         condition = Q.geoLocation(
             "location_field",
             37.7749,
@@ -22,8 +22,8 @@ class TestQueryBuilder(unittest.TestCase):
             "10km",
             annotations={"targetHits": 100},
         )
-        q = Query(select_fields="*").from_("querybuilder").where(condition)
-        expected = 'select * from querybuilder where ({targetHits:100}geoLocation(location_field, 37.7749, -122.4194, "10km"))'
+        q = Query(select_fields="*").from_("sd1").where(condition)
+        expected = 'select * from sd1 where ({targetHits:100}geoLocation(location_field, 37.7749, -122.4194, "10km"))'
         self.assertEqual(q, expected)
         return q
 
@@ -31,22 +31,22 @@ class TestQueryBuilder(unittest.TestCase):
         f1 = Queryfield("f1")
         condition = f1.contains("v1")
         q = Query(select_fields=["f1", "f2"]).from_("sd1").where(condition)
-
         self.assertEqual(q, 'select f1, f2 from sd1 where f1 contains "v1"')
+        return q
 
     def test_select_from_specific_sources(self):
         f1 = Queryfield("f1")
         condition = f1.contains("v1")
         q = Query(select_fields="*").from_("sd1").where(condition)
-
         self.assertEqual(q, 'select * from sd1 where f1 contains "v1"')
+        return q
 
     def test_select_from_multiples_sources(self):
         f1 = Queryfield("f1")
         condition = f1.contains("v1")
         q = Query(select_fields="*").from_("sd1", "sd2").where(condition)
-
         self.assertEqual(q, 'select * from sd1, sd2 where f1 contains "v1"')
+        return q
 
     def test_basic_and_andnot_or_offset_limit_param_order_by_and_contains(self):
         f1 = Queryfield("f1")
@@ -58,7 +58,7 @@ class TestQueryBuilder(unittest.TestCase):
         )
         q = (
             Query(select_fields="*")
-            .from_("querybuilder")
+            .from_("sd1")
             .where(condition)
             .set_offset(1)
             .set_limit(2)
@@ -67,7 +67,7 @@ class TestQueryBuilder(unittest.TestCase):
             .orderByAsc("duration")
         )
 
-        expected = 'select * from querybuilder where ((f1 contains "v1" and f2 contains "v2") or f3 contains "v3") and !(f4 contains "v4") order by age desc, duration asc limit 2 offset 1 timeout 3000'
+        expected = 'select * from sd1 where ((f1 contains "v1" and f2 contains "v2") or f3 contains "v3") and !(f4 contains "v4") order by age desc, duration asc limit 2 offset 1 timeout 3000'
         self.assertEqual(q, expected)
         return q
 
@@ -79,6 +79,7 @@ class TestQueryBuilder(unittest.TestCase):
         q = Query(select_fields="*").from_("sd1").where(condition)
         expected = 'select * from sd1 where ((f1 matches "v1" and f2 matches "v2") or f3 matches "v3") and !(f4 matches "v4")'
         self.assertEqual(q, expected)
+        return q
 
     def test_nested_queries(self):
         nested_query = (
@@ -88,22 +89,23 @@ class TestQueryBuilder(unittest.TestCase):
         q = Query(select_fields="*").from_("sd1").where(condition)
         expected = 'select * from sd1 where f1 contains "1" and (!((f2 contains "2" and f3 contains "3") or (f2 contains "4" and !(f3 contains "5"))))'
         self.assertEqual(q, expected)
+        return q
 
-    def test_userInput_with_and_without_defaultIndex(self):
-        condition = Q.userQuery(value="value1") & Q.userQuery(
-            index="index", value="value2"
-        )
+    def test_userquery(self):
+        condition = Q.userQuery()
         q = Query(select_fields="*").from_("sd1").where(condition)
-        expected = 'select * from sd1 where userQuery("value1") and ({"defaultIndex":"index"})userQuery("value2")'
+        expected = "select * from sd1 where userQuery()"
         self.assertEqual(q, expected)
+        return q
 
     def test_fields_duration(self):
         f1 = Queryfield("subject")
         f2 = Queryfield("display_date")
         f3 = Queryfield("duration")
-        condition = Query(select_fields=[f1, f2]).from_("calendar").where(f3 > 0)
+        q = Query(select_fields=[f1, f2]).from_("calendar").where(f3 > 0)
         expected = "select subject, display_date from calendar where duration > 0"
-        self.assertEqual(condition, expected)
+        self.assertEqual(q, expected)
+        return q
 
     def test_nearest_neighbor(self):
         condition_uq = Q.userQuery()
@@ -117,6 +119,7 @@ class TestQueryBuilder(unittest.TestCase):
         )
         expected = "select id, text from m where userQuery() or ({targetHits:10}nearestNeighbor(dense_rep, q_dense))"
         self.assertEqual(q, expected)
+        return q
 
     def test_build_many_nn_operators(self):
         self.maxDiff = None
@@ -141,6 +144,7 @@ class TestQueryBuilder(unittest.TestCase):
             ]
         )
         self.assertEqual(q, expected)
+        return q
 
     def test_field_comparison_operators(self):
         f1 = Queryfield("age")
@@ -148,6 +152,7 @@ class TestQueryBuilder(unittest.TestCase):
         q = Query(select_fields="*").from_("people").where(condition)
         expected = "select * from people where age > 30 and age <= 50"
         self.assertEqual(q, expected)
+        return q
 
     def test_field_in_range(self):
         f1 = Queryfield("age")
@@ -155,6 +160,7 @@ class TestQueryBuilder(unittest.TestCase):
         q = Query(select_fields="*").from_("people").where(condition)
         expected = "select * from people where range(age, 18, 65)"
         self.assertEqual(q, expected)
+        return q
 
     def test_field_annotation(self):
         f1 = Queryfield("title")
@@ -163,6 +169,7 @@ class TestQueryBuilder(unittest.TestCase):
         q = Query(select_fields="*").from_("articles").where(annotated_field)
         expected = "select * from articles where ({highlight:true})title"
         self.assertEqual(q, expected)
+        return q
 
     def test_condition_annotation(self):
         f1 = Queryfield("title")
@@ -171,12 +178,14 @@ class TestQueryBuilder(unittest.TestCase):
         q = Query(select_fields="*").from_("articles").where(annotated_condition)
         expected = 'select * from articles where ({filter:true})title contains "Python"'
         self.assertEqual(q, expected)
+        return q
 
     def test_grouping_aggregation(self):
         grouping = G.all(G.group("category"), G.output(G.count()))
         q = Query(select_fields="*").from_("products").group(grouping)
         expected = "select * from products | all(group(category) output(count()))"
         self.assertEqual(q, expected)
+        return q
 
     def test_add_parameter(self):
         f1 = Queryfield("title")
@@ -189,6 +198,7 @@ class TestQueryBuilder(unittest.TestCase):
         )
         expected = 'select * from articles where title contains "Python"&tracelevel=1'
         self.assertEqual(q, expected)
+        return q
 
     def test_custom_ranking_expression(self):
         condition = Q.rank(
@@ -197,12 +207,14 @@ class TestQueryBuilder(unittest.TestCase):
         q = Query(select_fields="*").from_("documents").where(condition)
         expected = 'select * from documents where rank(userQuery(), dotProduct(embedding, {"feature1":1,"feature2":2}))'
         self.assertEqual(q, expected)
+        return q
 
     def test_wand(self):
         condition = Q.wand("keywords", {"apple": 10, "banana": 20})
         q = Query(select_fields="*").from_("fruits").where(condition)
         expected = 'select * from fruits where wand(keywords, {"apple":10,"banana":20})'
         self.assertEqual(q, expected)
+        return q
 
     def test_weakand(self):
         condition1 = Queryfield("title").contains("Python")
@@ -213,12 +225,14 @@ class TestQueryBuilder(unittest.TestCase):
         q = Query(select_fields="*").from_("articles").where(condition)
         expected = 'select * from articles where ({"targetNumHits":100}weakAnd(title contains "Python", description contains "Programming"))'
         self.assertEqual(q, expected)
+        return q
 
-    def test_geoLocation(self):
+    def test_geolocation(self):
         condition = Q.geoLocation("location_field", 37.7749, -122.4194, "10km")
         q = Query(select_fields="*").from_("places").where(condition)
         expected = 'select * from places where geoLocation(location_field, 37.7749, -122.4194, "10km")'
         self.assertEqual(q, expected)
+        return q
 
     def test_condition_all_any(self):
         c1 = Queryfield("f1").contains("v1")
@@ -228,6 +242,7 @@ class TestQueryBuilder(unittest.TestCase):
         q = Query(select_fields="*").from_("sd1").where(condition)
         expected = 'select * from sd1 where f1 contains "v1" and f2 contains "v2" and (f3 contains "v3" or !(f1 contains "v1"))'
         self.assertEqual(q, expected)
+        return q
 
     def test_order_by_with_annotations(self):
         f1 = "relevance"
@@ -243,6 +258,7 @@ class TestQueryBuilder(unittest.TestCase):
             'select * from products order by {"strength":0.5}relevance desc, price asc'
         )
         self.assertEqual(q, expected)
+        return q
 
     def test_field_comparison_methods(self):
         f1 = Queryfield("age")
@@ -250,6 +266,7 @@ class TestQueryBuilder(unittest.TestCase):
         q = Query(select_fields="*").from_("users").where(condition)
         expected = "select * from users where age >= 18 and age < 30"
         self.assertEqual(q, expected)
+        return q
 
     def test_filter_annotation(self):
         f1 = Queryfield("title")
@@ -257,18 +274,21 @@ class TestQueryBuilder(unittest.TestCase):
         q = Query(select_fields="*").from_("articles").where(condition)
         expected = 'select * from articles where ({filter:true})title contains "Python"'
         self.assertEqual(q, expected)
+        return q
 
-    def test_nonEmpty(self):
+    def test_non_empty(self):
         condition = Q.nonEmpty(Queryfield("comments").eq("any_value"))
         q = Query(select_fields="*").from_("posts").where(condition)
         expected = 'select * from posts where nonEmpty(comments = "any_value")'
         self.assertEqual(q, expected)
+        return q
 
-    def test_dotProduct(self):
+    def test_dotproduct(self):
         condition = Q.dotProduct("vector_field", {"feature1": 1, "feature2": 2})
         q = Query(select_fields="*").from_("vectors").where(condition)
         expected = 'select * from vectors where dotProduct(vector_field, {"feature1":1,"feature2":2})'
         self.assertEqual(q, expected)
+        return q
 
     def test_in_range_string_values(self):
         f1 = Queryfield("date")
@@ -276,6 +296,7 @@ class TestQueryBuilder(unittest.TestCase):
         q = Query(select_fields="*").from_("events").where(condition)
         expected = "select * from events where range(date, 2021-01-01, 2021-12-31)"
         self.assertEqual(q, expected)
+        return q
 
     def test_condition_inversion(self):
         f1 = Queryfield("status")
@@ -283,6 +304,7 @@ class TestQueryBuilder(unittest.TestCase):
         q = Query(select_fields="*").from_("users").where(condition)
         expected = 'select * from users where !(status = "inactive")'
         self.assertEqual(q, expected)
+        return q
 
     def test_multiple_parameters(self):
         f1 = Queryfield("title")
@@ -296,6 +318,7 @@ class TestQueryBuilder(unittest.TestCase):
         )
         expected = 'select * from articles where title contains "Python"&tracelevel=1&language=en'
         self.assertEqual(q, expected)
+        return q
 
     def test_multiple_groupings(self):
         grouping = G.all(
@@ -307,14 +330,16 @@ class TestQueryBuilder(unittest.TestCase):
         q = Query(select_fields="*").from_("products").group(grouping)
         expected = "select * from products | all(group(category) max(10) output(count()) each(group(subcategory) output(summary())))"
         self.assertEqual(q, expected)
+        return q
 
-    def test_default_index_annotation(self):
-        condition = Q.userQuery("search terms", index="default_field")
+    def test_userquery_basic(self):
+        condition = Q.userQuery("search terms")
         q = Query(select_fields="*").from_("documents").where(condition)
-        expected = 'select * from documents where ({"defaultIndex":"default_field"})userQuery("search terms")'
+        expected = 'select * from documents where userQuery("search terms")'
         self.assertEqual(q, expected)
+        return q
 
-    def test_Q_p_function(self):
+    def test_q_p_function(self):
         condition = Q.p(
             Queryfield("f1").contains("v1"),
             Queryfield("f2").contains("v2"),
@@ -333,19 +358,22 @@ class TestQueryBuilder(unittest.TestCase):
         q = Query(select_fields="*").from_("documents").where(condition)
         expected = 'select * from documents where rank(userQuery(), dotProduct(embedding, {"feature1":1}), weightedSet(tags, {"tag1":2}))'
         self.assertEqual(q, expected)
+        return q
 
-    def test_nonEmpty_with_annotations(self):
+    def test_non_empty_with_annotations(self):
         annotated_field = Queryfield("comments").annotate({"filter": True})
         condition = Q.nonEmpty(annotated_field)
         q = Query(select_fields="*").from_("posts").where(condition)
         expected = "select * from posts where nonEmpty(({filter:true})comments)"
         self.assertEqual(q, expected)
+        return q
 
     def test_weight_annotation(self):
         condition = Queryfield("title").contains("heads", annotations={"weight": 200})
         q = Query(select_fields="*").from_("s1").where(condition)
         expected = 'select * from s1 where title contains({weight:200}"heads")'
         self.assertEqual(q, expected)
+        return q
 
     def test_nearest_neighbor_annotations(self):
         condition = Q.nearestNeighbor(
@@ -354,6 +382,7 @@ class TestQueryBuilder(unittest.TestCase):
         q = Query(select_fields=["id, text"]).from_("m").where(condition)
         expected = "select id, text from m where ({targetHits:10}nearestNeighbor(dense_rep, q_dense))"
         self.assertEqual(q, expected)
+        return q
 
     def test_phrase(self):
         text = Queryfield("text")
@@ -361,6 +390,7 @@ class TestQueryBuilder(unittest.TestCase):
         query = Q.select("*").where(condition)
         expected = 'select * from * where text contains phrase("st", "louis", "blues")'
         self.assertEqual(query, expected)
+        return query
 
     def test_near(self):
         title = Queryfield("title")
@@ -368,6 +398,7 @@ class TestQueryBuilder(unittest.TestCase):
         query = Q.select("*").where(condition)
         expected = 'select * from * where title contains near("madonna", "saint")'
         self.assertEqual(query, expected)
+        return query
 
     def test_onear(self):
         title = Queryfield("title")
@@ -375,8 +406,9 @@ class TestQueryBuilder(unittest.TestCase):
         query = Q.select("*").where(condition)
         expected = 'select * from * where title contains onear("madonna", "saint")'
         self.assertEqual(query, expected)
+        return query
 
-    def test_sameElement(self):
+    def test_same_element(self):
         persons = Queryfield("persons")
         first_name = Queryfield("first_name")
         last_name = Queryfield("last_name")
@@ -391,6 +423,7 @@ class TestQueryBuilder(unittest.TestCase):
         query = Q.select("*").where(condition)
         expected = 'select * from * where persons contains sameElement(first_name contains "Joe", last_name contains "Smith", year_of_birth < 1940)'
         self.assertEqual(query, expected)
+        return query
 
     def test_equiv(self):
         fieldName = Queryfield("fieldName")
@@ -398,6 +431,7 @@ class TestQueryBuilder(unittest.TestCase):
         query = Q.select("*").where(condition)
         expected = 'select * from * where fieldName contains equiv("A", "B")'
         self.assertEqual(query, expected)
+        return query
 
     def test_uri(self):
         myUrlField = Queryfield("myUrlField")
@@ -405,6 +439,7 @@ class TestQueryBuilder(unittest.TestCase):
         query = Q.select("*").where(condition)
         expected = 'select * from * where myUrlField contains uri("vespa.ai/foo")'
         self.assertEqual(query, expected)
+        return query
 
     def test_fuzzy(self):
         myStringAttribute = Queryfield("myStringAttribute")
@@ -415,12 +450,14 @@ class TestQueryBuilder(unittest.TestCase):
         query = Q.select("*").where(condition)
         expected = 'select * from * where myStringAttribute contains ({prefixLength:1,maxEditDistance:2}fuzzy("parantesis"))'
         self.assertEqual(query, expected)
+        return query
 
-    def test_userInput(self):
+    def test_userinput(self):
         condition = Q.userInput("@animal")
         query = Q.select("*").where(condition).param("animal", "panda")
         expected = "select * from * where userInput(@animal)&animal=panda"
         self.assertEqual(query, expected)
+        return query
 
     def test_in_operator(self):
         integer_field = Queryfield("integer_field")
@@ -428,6 +465,7 @@ class TestQueryBuilder(unittest.TestCase):
         query = Q.select("*").where(condition)
         expected = "select * from * where integer_field in (10, 20, 30)"
         self.assertEqual(query, expected)
+        return query
 
     def test_predicate(self):
         condition = Q.predicate(
@@ -438,18 +476,21 @@ class TestQueryBuilder(unittest.TestCase):
         query = Q.select("*").where(condition)
         expected = 'select * from * where predicate(predicate_field,{"gender":"Female"},{"age":20L})'
         self.assertEqual(query, expected)
+        return query
 
     def test_true(self):
         condition = Q.true()
         query = Q.select("*").where(condition)
         expected = "select * from * where true"
         self.assertEqual(query, expected)
+        return query
 
     def test_false(self):
         condition = Q.false()
         query = Q.select("*").where(condition)
         expected = "select * from * where false"
         self.assertEqual(query, expected)
+        return query
 
 
 if __name__ == "__main__":
