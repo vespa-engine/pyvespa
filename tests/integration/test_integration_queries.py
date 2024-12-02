@@ -62,6 +62,7 @@ class TestQueriesIntegration(unittest.TestCase):
                 name="predicate_field",
                 type="predicate",
                 indexing=["attribute", "summary"],
+                index="arity: 2",  # This is required for predicate fields
             ),
             Field(
                 name="myStringAttribute", type="string", indexing=["index", "summary"]
@@ -497,3 +498,148 @@ class TestQueriesIntegration(unittest.TestCase):
         ids = sorted([hit["id"] for hit in result.hits])
         self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::1", ids)
         self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::2", ids)
+
+    def test_userinput_with_defaultindex(self):
+        # 'select * from sd1 where {defaultIndex:"text"}userInput(@myvar)'
+        # Feed test documents
+        myvar = "panda"
+        docs = [
+            {  # Doc 1: Should not match
+                "description": "a panda is a cute",
+                "text": "foo",
+            },
+            {  # Doc 2: Should match
+                "description": "foo",
+                "text": "you are a cool panda",
+            },
+            {  # Doc 3: Should not match
+                "description": "bar",
+                "text": "baz",
+            },
+        ]
+        # Format and feed documents
+        docs = [
+            {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
+        ]
+        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        # Execute query
+        q = qb.test_userinput_with_defaultindex()
+        print(f"Executing query: {q}")
+        body = {
+            "yql": str(q),
+            "ranking": "bm25",
+            "myvar": myvar,
+        }
+        with self.app.syncio() as sess:
+            result = sess.query(body=body)
+        print(result.json)
+        # Verify only one document matches
+        self.assertEqual(len(result.hits), 1)
+        # Verify matching document has expected values
+        hit = result.hits[0]
+        self.assertEqual(hit["id"], f"id:{self.schema_name1}:{self.schema_name1}::2")
+
+    def test_in_operator_intfield(self):
+        # 'select * from * where integer_field in (10, 20, 30)'
+        # We use age field for this test
+        # Feed test documents
+        docs = [
+            {  # Doc 1: Should match
+                "age": 10,
+            },
+            {  # Doc 2: Should match
+                "age": 20,
+            },
+            {  # Doc 3: Should not match
+                "age": 31,
+            },
+            {  # Doc 4: Should not match
+                "age": 40,
+            },
+        ]
+        # Format and feed documents
+        docs = [
+            {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
+        ]
+        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        # Execute query
+        q = qb.test_in_operator_intfield()
+        print(f"Executing query: {q}")
+        with self.app.syncio() as sess:
+            result = sess.query(yql=q)
+        print(result.json)
+        # Verify only two documents match
+        self.assertEqual(len(result.hits), 2)
+        # Verify matching documents have expected values
+        ids = sorted([hit["id"] for hit in result.hits])
+        self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::1", ids)
+        self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::2", ids)
+
+    def test_in_operator_stringfield(self):
+        # 'select * from sd1 where status in ("active", "inactive")'
+        # Feed test documents
+        docs = [
+            {  # Doc 1: Should match
+                "status": "active",
+            },
+            {  # Doc 2: Should match
+                "status": "inactive",
+            },
+            {  # Doc 3: Should not match
+                "status": "foo",
+            },
+            {  # Doc 4: Should not match
+                "status": "bar",
+            },
+        ]
+        # Format and feed documents
+        docs = [
+            {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
+        ]
+        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        # Execute query
+        q = qb.test_in_operator_stringfield()
+        print(f"Executing query: {q}")
+        with self.app.syncio() as sess:
+            result = sess.query(yql=q)
+        # Verify only two documents match
+        self.assertEqual(len(result.hits), 2)
+        # Verify matching documents have expected values
+        ids = sorted([hit["id"] for hit in result.hits])
+        self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::1", ids)
+        self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::2", ids)
+
+    def test_predicate(self):
+        #  'select * from sd1 where predicate(predicate_field,{"gender":"Female"},{"age":25L})'
+        # Feed test documents with predicate_field
+        docs = [
+            {  # Doc 1: Should match - satisfies both predicates
+                "predicate_field": 'gender in ["Female"] and age in [20..30]',
+            },
+            {  # Doc 2: Should not match - wrong gender
+                "predicate_field": 'gender in ["Male"] and age in [20..30]',
+            },
+            {  # Doc 3: Should not match - too young
+                "predicate_field": 'gender in ["Female"] and age in [30..40]',
+            },
+        ]
+
+        # Format and feed documents
+        docs = [
+            {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
+        ]
+        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+
+        # Execute query using predicate search
+        q = qb.test_predicate()
+        print(f"Executing query: {q}")
+
+        with self.app.syncio() as sess:
+            result = sess.query(yql=q)
+
+        # Verify only one document matches both predicates
+        self.assertEqual(len(result.hits), 1)
+
+        # Verify matching document has expected id
+        hit = result.hits[0]
+        self.assertEqual(hit["id"], f"id:{self.schema_name1}:{self.schema_name1}::1")
