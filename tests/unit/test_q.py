@@ -176,7 +176,7 @@ class TestQueryBuilder(unittest.TestCase):
         condition = f1.contains("Python")
         annotated_condition = condition.annotate({"filter": True})
         q = Query(select_fields="*").from_("articles").where(annotated_condition)
-        expected = 'select * from articles where ({filter:true})title contains "Python"'
+        expected = 'select * from articles where {filter:true}title contains "Python"'
         self.assertEqual(q, expected)
         return q
 
@@ -272,7 +272,7 @@ class TestQueryBuilder(unittest.TestCase):
         f1 = Queryfield("title")
         condition = f1.contains("Python").annotate({"filter": True})
         q = Query(select_fields="*").from_("articles").where(condition)
-        expected = 'select * from articles where ({filter:true})title contains "Python"'
+        expected = 'select * from articles where {filter:true}title contains "Python"'
         self.assertEqual(q, expected)
         return q
 
@@ -467,17 +467,25 @@ class TestQueryBuilder(unittest.TestCase):
         return query
 
     def test_userinput_with_defaultindex(self):
-        condition = Q.userInput("@myvar").annotate({"defaultindex": "text"})
+        condition = Q.userInput("@myvar").annotate({"defaultIndex": "text"})
         query = Q.select("*").from_("sd1").where(condition)
-        expected = 'select * from sd1 where ({defaultindex:"text"})userInput(@myvar)'
+        expected = 'select * from sd1 where {defaultIndex:"text"}userInput(@myvar)'
         self.assertEqual(query, expected)
         return query
 
-    def test_in_operator(self):
-        integer_field = Queryfield("integer_field")
+    def test_in_operator_intfield(self):
+        integer_field = Queryfield("age")
         condition = integer_field.in_(10, 20, 30)
-        query = Q.select("*").where(condition)
-        expected = "select * from * where integer_field in (10, 20, 30)"
+        query = Q.select("*").from_("sd1").where(condition)
+        expected = "select * from sd1 where age in (10, 20, 30)"
+        self.assertEqual(query, expected)
+        return query
+
+    def test_in_operator_stringfield(self):
+        string_field = Queryfield("status")
+        condition = string_field.in_("active", "inactive")
+        query = Q.select("*").from_("sd1").where(condition)
+        expected = 'select * from sd1 where status in ("active", "inactive")'
         self.assertEqual(query, expected)
         return query
 
@@ -487,22 +495,22 @@ class TestQueryBuilder(unittest.TestCase):
             attributes={"gender": "Female"},
             range_attributes={"age": "20L"},
         )
-        query = Q.select("*").where(condition)
-        expected = 'select * from * where predicate(predicate_field,{"gender":"Female"},{"age":20L})'
+        query = Q.select("*").from_("sd1").where(condition)
+        expected = 'select * from sd1 where predicate(predicate_field,{"gender":"Female"},{"age":20L})'
         self.assertEqual(query, expected)
         return query
 
     def test_true(self):
         condition = Q.true()
-        query = Q.select("*").where(condition)
-        expected = "select * from * where true"
+        query = Q.select("*").from_("sd1").where(condition)
+        expected = "select * from sd1 where true"
         self.assertEqual(query, expected)
         return query
 
     def test_false(self):
         condition = Q.false()
-        query = Q.select("*").where(condition)
-        expected = "select * from * where false"
+        query = Q.select("*").from_("sd1").where(condition)
+        expected = "select * from sd1 where false"
         self.assertEqual(query, expected)
         return query
 
