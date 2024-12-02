@@ -325,16 +325,6 @@ class Q:
     @staticmethod
     def userQuery(value: str = "") -> Condition:
         return Condition(f'userQuery("{value}")') if value else Condition("userQuery()")
-        # else:
-        #     # Both index and value provided
-        #     default_index_json = json.dumps(
-        #         {"defaultIndex": index}, separators=(",", ":")
-        #     )
-        #     return (
-        #         Condition(f'({default_index_json}userQuery("{value}"))')
-        #         if value
-        #         else Condition(f"({default_index_json}userQuery())")
-        #     )
 
     @staticmethod
     def dotProduct(
