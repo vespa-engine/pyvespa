@@ -5,6 +5,7 @@ from vespa.package import (
     Schema,
     Document,
     Field,
+    FieldSet,
     StructField,
     Struct,
     RankProfile,
@@ -19,8 +20,12 @@ class TestQueriesIntegration(unittest.TestCase):
     def setUpClass(cls):
         application_name = "querybuilder"
         cls.application_name = application_name
-
+        schema_name1 = "sd1"
+        schema_name2 = "sd2"
+        cls.schema_name1 = schema_name1
+        cls.schema_name2 = schema_name2
         # Define all fields used in the unit tests
+        # Schema 1
         fields = [
             Field(
                 name="weightedset_field",
@@ -28,10 +33,10 @@ class TestQueriesIntegration(unittest.TestCase):
                 indexing=["attribute"],
             ),
             Field(name="location_field", type="position", indexing=["attribute"]),
-            Field(name="f1", type="string", indexing=["index", "summary"]),
-            Field(name="f2", type="string", indexing=["index", "summary"]),
-            Field(name="f3", type="string", indexing=["index", "summary"]),
-            Field(name="f4", type="string", indexing=["index", "summary"]),
+            Field(name="f1", type="string", indexing=["attribute", "summary"]),
+            Field(name="f2", type="string", indexing=["attribute", "summary"]),
+            Field(name="f3", type="string", indexing=["attribute", "summary"]),
+            Field(name="f4", type="string", indexing=["attribute", "summary"]),
             Field(name="age", type="int", indexing=["attribute", "summary"]),
             Field(name="duration", type="int", indexing=["attribute", "summary"]),
             Field(name="id", type="string", indexing=["attribute", "summary"]),
@@ -106,14 +111,29 @@ class TestQueriesIntegration(unittest.TestCase):
                 first_phase="distance(location_field)",
                 summary_features=["distance(location_field).km"],
             ),
+            RankProfile(
+                name="bm25", first_phase="bm25(text)", summary_features=["bm25(text)"]
+            ),
         ]
+        fieldset = FieldSet(name="default", fields=["text", "title", "description"])
         document = Document(fields=fields, structs=[email_struct])
-        schema = Schema(
-            name=application_name, document=document, rank_profiles=rank_profiles
+        schema1 = Schema(
+            name=schema_name1,
+            document=document,
+            rank_profiles=rank_profiles,
+            fieldsets=[fieldset],
         )
-        schema.add_fields(emails_field)
-        application_package = ApplicationPackage(name=application_name, schema=[schema])
-        print(application_package.schema.schema_to_text)
+        schema1.add_fields(emails_field)
+        ## Schema 2
+        schema2 = Schema(
+            name=schema_name2, document=document, rank_profiles=rank_profiles
+        )
+        # Create the application package
+        application_package = ApplicationPackage(
+            name=application_name, schema=[schema1, schema2]
+        )
+        print(application_package.get_schema(schema_name1).schema_to_text)
+        print(application_package.get_schema(schema_name2).schema_to_text)
         # Deploy the application
         cls.vespa_docker = VespaDocker(port=8089)
         cls.app = cls.vespa_docker.deploy(application_package=application_package)
@@ -124,14 +144,13 @@ class TestQueriesIntegration(unittest.TestCase):
         cls.vespa_docker.container.stop(timeout=5)
         cls.vespa_docker.container.remove()
 
-    # @unittest.skip("Skip until we have a better way to test this")
     def test_dotProduct_with_annotations(self):
         # Feed a document with 'weightedset_field'
         field = "weightedset_field"
         fields = {field: {"feature1": 2, "feature2": 4}}
         data_id = 1
         self.app.feed_data_point(
-            schema=self.application_name, data_id=data_id, fields=fields
+            schema=self.schema_name1, data_id=data_id, fields=fields
         )
         q = qb.test_dotProduct_with_annotations()
         with self.app.syncio() as sess:
@@ -140,14 +159,14 @@ class TestQueriesIntegration(unittest.TestCase):
         self.assertEqual(len(result.hits), 1)
         self.assertEqual(
             result.hits[0]["id"],
-            f"id:{self.application_name}:{self.application_name}::{data_id}",
+            f"id:{self.schema_name1}:{self.schema_name1}::{data_id}",
         )
         self.assertEqual(
             result.hits[0]["fields"]["summaryfeatures"]["rawScore(weightedset_field)"],
             10,
         )
 
-    def test_geoLocation_with_annotations(self):
+    def test_geolocation_with_annotations(self):
         # Feed a document with 'location_field'
         field_name = "location_field"
         fields = {
@@ -158,17 +177,17 @@ class TestQueriesIntegration(unittest.TestCase):
         }
         data_id = 2
         self.app.feed_data_point(
-            schema=self.application_name, data_id=data_id, fields=fields
+            schema=self.schema_name1, data_id=data_id, fields=fields
         )
         # Build and send the query
-        q = qb.test_geoLocation_with_annotations()
+        q = qb.test_geolocation_with_annotations()
         with self.app.syncio() as sess:
             result = sess.query(yql=q, ranking="geolocation")
         # Check the result
         self.assertEqual(len(result.hits), 1)
         self.assertEqual(
             result.hits[0]["id"],
-            f"id:{self.application_name}:{self.application_name}::{data_id}",
+            f"id:{self.schema_name1}:{self.schema_name1}::{data_id}",
         )
         self.assertAlmostEqual(
             result.hits[0]["fields"]["summaryfeatures"]["distance(location_field).km"],
@@ -178,7 +197,7 @@ class TestQueriesIntegration(unittest.TestCase):
 
     def test_basic_and_andnot_or_offset_limit_param_order_by_and_contains(self):
         docs = [
-            {  # Should not match
+            {  # Should not match - f3 doesn't contain "v3"
                 "f1": "v1",
                 "f2": "v2",
                 "f3": "asdf",
@@ -202,35 +221,239 @@ class TestQueriesIntegration(unittest.TestCase):
                 "age": 30,
                 "duration": 300,
             },
-            {  # Should not match
+            {  # Should not match - contains f4="v4"
                 "f1": "v1",
                 "f2": "v2",
                 "f3": "v3",
                 "f4": "v4",
-                "age": 30,
-                "duration": 300,
+                "age": 40,
+                "duration": 400,
             },
         ]
-        id_to_match = 2
+
+        # Feed documents
+        docs = [{"id": data_id, "fields": doc} for data_id, doc in enumerate(docs, 1)]
+        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+
+        # Build and send query
+        q = qb.test_basic_and_andnot_or_offset_limit_param_order_by_and_contains()
+        print(f"Executing query: {q}")
+
+        with self.app.syncio() as sess:
+            result = sess.query(yql=q)
+
+        # Verify results
+        self.assertEqual(
+            len(result.hits), 1
+        )  # Should get 1 hit due to offset=1, limit=2
+
+        # The query orders by age desc, duration asc with offset 1
+        # So we should get doc ID 2 (since doc ID 3 is skipped due to offset)
+        hit = result.hits[0]
+        self.assertEqual(hit["id"], f"id:{self.schema_name1}:{self.schema_name1}::2")
+
+        # Verify the matching document has expected field values
+        self.assertEqual(hit["fields"]["age"], 20)
+        self.assertEqual(hit["fields"]["duration"], 200)
+        self.assertEqual(hit["fields"]["f1"], "v1")
+        self.assertEqual(hit["fields"]["f2"], "v2")
+        self.assertEqual(hit["fields"]["f3"], "v3")
+        self.assertEqual(hit["fields"]["f4"], "d")
+
+        print(result.json)
+
+    def test_matches(self):
+        # Matches is a regex (or substring) match
+        # Feed test documents
+        docs = [
+            {  # Doc 1: Should match - satisfies (f1="v1" AND f2="v2") and f4!="v4"
+                "f1": "v1",
+                "f2": "v2",
+                "f3": "other",
+                "f4": "nothing",
+            },
+            {  # Doc 2: Should not match - fails f4!="v4" condition
+                "f1": "v1",
+                "f2": "v2",
+                "f3": "v3",
+                "f4": "v4",
+            },
+            {  # Doc 3: Should match - satisfies f3="v3" and f4!="v4"
+                "f1": "other",
+                "f2": "other",
+                "f3": "v3",
+                "f4": "nothing",
+            },
+            {  # Doc 4: Should not match - fails all conditions
+                "f1": "other",
+                "f2": "other",
+                "f3": "other",
+                "f4": "v4",
+            },
+        ]
+
+        # Ensure fields are properly indexed for matching
         docs = [
             {
                 "fields": doc,
-                "id": data_id,
+                "id": str(data_id),
             }
             for data_id, doc in enumerate(docs, 1)
         ]
-        self.app.feed_iterable(iter=docs, schema=self.application_name)
-        # Build and send the query
-        q = qb.test_basic_and_andnot_or_offset_limit_param_order_by_and_contains()
-        print(q)
+
+        # Feed documents
+        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+
+        # Build and send query
+        q = qb.test_matches()
+        # select * from sd1 where ((f1 matches "v1" and f2 matches "v2") or f3 matches "v3") and !(f4 matches "v4")
+        print(f"Executing query: {q}")
+
         with self.app.syncio() as sess:
-            result = sess.query(
-                yql=q,
-            )
-        # Check the result
+            result = sess.query(yql=q)
+
+        # Check result count
+        self.assertEqual(len(result.hits), 2)
+
+        # Verify specific matches
+        ids = sorted([hit["id"] for hit in result.hits])
+        expected_ids = sorted(
+            [
+                f"id:{self.schema_name1}:{self.schema_name1}::1",
+                f"id:{self.schema_name1}:{self.schema_name1}::3",
+            ]
+        )
+
+        self.assertEqual(ids, expected_ids)
+        print(result.json)
+
+    def test_nested_queries(self):
+        # Contains is an exact match
+        # q = 'select * from sd1 where f1 contains "1" and (!((f2 contains "2" and f3 contains "3") or (f2 contains "4" and !(f3 contains "5"))))'
+        # Feed test documents
+        docs = [
+            {  # Doc 1: Should not match - satisfies f1 contains "1" but fails inner query
+                "f1": "1",
+                "f2": "2",
+                "f3": "3",
+            },
+            {  # Doc 2: Should match
+                "f1": "1",
+                "f2": "4",
+                "f3": "5",
+            },
+            {  # Doc 3: Should not match - fails f1 contains "1"
+                "f1": "other",
+                "f2": "2",
+                "f3": "3",
+            },
+            {  # Doc 4: Should not match
+                "f1": "1",
+                "f2": "4",
+                "f3": "other",
+            },
+        ]
+        docs = [
+            {
+                "fields": doc,
+                "id": str(data_id),
+            }
+            for data_id, doc in enumerate(docs, 1)
+        ]
+        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        q = qb.test_nested_queries()
+        print(f"Executing query: {q}")
+        with self.app.syncio() as sess:
+            result = sess.query(yql=q)
+        print(result.json)
         self.assertEqual(len(result.hits), 1)
         self.assertEqual(
             result.hits[0]["id"],
-            f"id:{self.application_name}:{self.application_name}::{id_to_match}",
+            f"id:{self.schema_name1}:{self.schema_name1}::2",
         )
-        print(result.json)
+
+    def test_userquery_defaultindex(self):
+        # 'select * from sd1 where ({"defaultIndex":"text"}userQuery())'
+        # Feed test documents
+        docs = [
+            {  # Doc 1: Should match
+                "description": "foo",
+                "text": "foo",
+            },
+            {  # Doc 2: Should match
+                "description": "foo",
+                "text": "bar",
+            },
+            {  # Doc 3: Should not match
+                "description": "bar",
+                "text": "baz",
+            },
+        ]
+
+        # Format and feed documents
+        docs = [
+            {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
+        ]
+        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+
+        # Execute query
+        q = qb.test_userquery()
+        query = "foo"
+        print(f"Executing query: {q}")
+        body = {
+            "yql": str(q),
+            "query": query,
+        }
+        with self.app.syncio() as sess:
+            result = sess.query(body=body)
+        self.assertEqual(len(result.hits), 2)
+        ids = sorted([hit["id"] for hit in result.hits])
+        self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::1", ids)
+        self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::2", ids)
+
+    def test_userquery_customindex(self):
+        # 'select * from sd1 where userQuery())'
+        # Feed test documents
+        docs = [
+            {  # Doc 1: Should match
+                "description": "foo",
+                "text": "foo",
+            },
+            {  # Doc 2: Should not match
+                "description": "foo",
+                "text": "bar",
+            },
+            {  # Doc 3: Should not match
+                "description": "bar",
+                "text": "baz",
+            },
+        ]
+
+        # Format and feed documents
+        docs = [
+            {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
+        ]
+        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+
+        # Execute query
+        q = qb.test_userquery()
+        query = "foo"
+        print(f"Executing query: {q}")
+        body = {
+            "yql": str(q),
+            "query": query,
+            "ranking": "bm25",
+            "model.defaultIndex": "text",  # userQuery() needs this to set index, see https://docs.vespa.ai/en/query-api.html#using-a-fieldset
+        }
+        with self.app.syncio() as sess:
+            result = sess.query(body=body)
+        # Verify only one document matches both conditions
+        self.assertEqual(len(result.hits), 1)
+        self.assertEqual(
+            result.hits[0]["id"], f"id:{self.schema_name1}:{self.schema_name1}::1"
+        )
+
+        # Verify matching document has expected values
+        hit = result.hits[0]
+        self.assertEqual(hit["fields"]["description"], "foo")
+        self.assertEqual(hit["fields"]["text"], "foo")
