@@ -71,6 +71,14 @@ class TestQueryBuilder(unittest.TestCase):
         self.assertEqual(q, expected)
         return q
 
+    def test_timeout(self):
+        f1 = Queryfield("title")
+        condition = f1.contains("madonna")
+        q = Query(select_fields="*").from_("sd1").where(condition).set_timeout(70)
+        expected = 'select * from sd1 where title contains "madonna" timeout 70'
+        self.assertEqual(q, expected)
+        return q
+
     def test_matches(self):
         condition = (
             (Queryfield("f1").matches("v1") & Queryfield("f2").matches("v2"))
