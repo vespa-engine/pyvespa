@@ -453,9 +453,23 @@ class TestQueryBuilder(unittest.TestCase):
         return query
 
     def test_userinput(self):
+        condition = Q.userInput("@myvar")
+        query = Q.select("*").from_("sd1").where(condition)
+        expected = "select * from sd1 where userInput(@myvar)"
+        self.assertEqual(query, expected)
+        return query
+
+    def test_userinput_param(self):
         condition = Q.userInput("@animal")
-        query = Q.select("*").where(condition).param("animal", "panda")
-        expected = "select * from * where userInput(@animal)&animal=panda"
+        query = Q.select("*").from_("sd1").where(condition).param("animal", "panda")
+        expected = "select * from sd1 where userInput(@animal)&animal=panda"
+        self.assertEqual(query, expected)
+        return query
+
+    def test_userinput_with_defaultindex(self):
+        condition = Q.userInput("@myvar").annotate({"defaultindex": "text"})
+        query = Q.select("*").from_("sd1").where(condition)
+        expected = 'select * from sd1 where ({defaultindex:"text"})userInput(@myvar)'
         self.assertEqual(query, expected)
         return query
 
