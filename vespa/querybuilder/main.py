@@ -160,7 +160,7 @@ class Condition:
             f"{k}:{Queryfield._format_annotation_value(v)}"
             for k, v in annotations.items()
         )
-        return Condition(f"({{{annotations_str}}}){self.expression}")
+        return Condition(f"{{{annotations_str}}}{self.expression}")
 
     def build(self) -> str:
         return self.expression
