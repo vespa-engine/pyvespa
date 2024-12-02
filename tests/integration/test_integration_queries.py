@@ -457,3 +457,43 @@ class TestQueriesIntegration(unittest.TestCase):
         hit = result.hits[0]
         self.assertEqual(hit["fields"]["description"], "foo")
         self.assertEqual(hit["fields"]["text"], "foo")
+
+    def test_userinput(self):
+        # 'select * from sd1 where userInput(@myvar)'
+        # Feed test documents
+        myvar = "panda"
+        docs = [
+            {  # Doc 1: Should match
+                "description": "a panda is a cute",
+                "text": "foo",
+            },
+            {  # Doc 2: Should match
+                "description": "foo",
+                "text": "you are a cool panda",
+            },
+            {  # Doc 3: Should not match
+                "description": "bar",
+                "text": "baz",
+            },
+        ]
+        # Format and feed documents
+        docs = [
+            {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
+        ]
+        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        # Execute query
+        q = qb.test_userinput()
+        print(f"Executing query: {q}")
+        body = {
+            "yql": str(q),
+            "ranking": "bm25",
+            "myvar": myvar,
+        }
+        with self.app.syncio() as sess:
+            result = sess.query(body=body)
+        # Verify only two documents match
+        self.assertEqual(len(result.hits), 2)
+        # Verify matching documents have expected values
+        ids = sorted([hit["id"] for hit in result.hits])
+        self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::1", ids)
+        self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::2", ids)
