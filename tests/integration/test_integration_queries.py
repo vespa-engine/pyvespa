@@ -666,3 +666,33 @@ class TestQueriesIntegration(unittest.TestCase):
         ids = sorted([hit["id"] for hit in result.hits])
         self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::1", ids)
         self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::2", ids)
+
+    def test_uri(self):
+        # 'select * from sd1 where myUrlField contains uri("vespa.ai/foo")'
+        # Feed test documents
+        docs = [
+            {  # Doc 1: Should match
+                "myUrlField": "https://vespa.ai/foo",
+            },
+            {  # Doc 2: Should not match - wrong path
+                "myUrlField": "https://vespa.ai/bar",
+            },
+            {  # Doc 3: Should not match - wrong domain
+                "myUrlField": "https://google.com/foo",
+            },
+        ]
+        # Format and feed documents
+        docs = [
+            {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
+        ]
+        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        # Execute query
+        q = qb.test_uri()
+        print(f"Executing query: {q}")
+        with self.app.syncio() as sess:
+            result = sess.query(yql=q)
+        # Verify only one document matches
+        self.assertEqual(len(result.hits), 1)
+        # Verify matching document has expected values
+        hit = result.hits[0]
+        self.assertEqual(hit["id"], f"id:{self.schema_name1}:{self.schema_name1}::1")

@@ -475,8 +475,8 @@ class TestQueryBuilder(unittest.TestCase):
     def test_uri(self):
         myUrlField = Queryfield("myUrlField")
         condition = myUrlField.contains(Q.uri("vespa.ai/foo"))
-        query = Q.select("*").where(condition)
-        expected = 'select * from * where myUrlField contains uri("vespa.ai/foo")'
+        query = Q.select("*").from_("sd1").where(condition)
+        expected = 'select * from sd1 where myUrlField contains uri("vespa.ai/foo")'
         self.assertEqual(query, expected)
         return query
 
