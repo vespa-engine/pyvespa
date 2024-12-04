@@ -99,6 +99,24 @@ class TestQueriesIntegration(unittest.TestCase):
                 )
             ],
         )
+        person_struct = Struct(
+            name="person",
+            fields=[
+                Field(name="first_name", type="string"),
+                Field(name="last_name", type="string"),
+                Field(name="year_of_birth", type="int"),
+            ],
+        )
+        persons_field = Field(
+            name="persons",
+            type="array<person>",
+            indexing=["summary"],
+            struct_fields=[
+                StructField(name="first_name", indexing=["attribute"]),
+                StructField(name="last_name", indexing=["attribute"]),
+                StructField(name="year_of_birth", indexing=["attribute"]),
+            ],
+        )
         rank_profiles = [
             RankProfile(
                 name="dotproduct",
@@ -115,14 +133,14 @@ class TestQueriesIntegration(unittest.TestCase):
             ),
         ]
         fieldset = FieldSet(name="default", fields=["text", "title", "description"])
-        document = Document(fields=fields, structs=[email_struct])
+        document = Document(fields=fields, structs=[email_struct, person_struct])
         schema = Schema(
             name=schema_name1,
             document=document,
             rank_profiles=rank_profiles,
             fieldsets=[fieldset],
         )
-        schema.add_fields(emails_field)
+        schema.add_fields(emails_field, persons_field)
 
         # Create the application package
         application_package = ApplicationPackage(name=application_name, schema=[schema])
@@ -688,6 +706,42 @@ class TestQueriesIntegration(unittest.TestCase):
         self.app.feed_iterable(iter=docs, schema=self.schema_name1)
         # Execute query
         q = qb.test_uri()
+        print(f"Executing query: {q}")
+        with self.app.syncio() as sess:
+            result = sess.query(yql=q)
+        # Verify only one document matches
+        self.assertEqual(len(result.hits), 1)
+        # Verify matching document has expected values
+        hit = result.hits[0]
+        self.assertEqual(hit["id"], f"id:{self.schema_name1}:{self.schema_name1}::1")
+
+    def test_same_element(self):
+        # 'select * from sd1 where persons contains sameElement(first_name contains "Joe", last_name contains "Smith", year_of_birth < 1940)'
+        # Feed test documents
+        docs = [
+            {  # Doc 1: Should match
+                "persons": [
+                    {"first_name": "Joe", "last_name": "Smith", "year_of_birth": 1930}
+                ],
+            },
+            {  # Doc 2: Should not match - wrong last name
+                "persons": [
+                    {"first_name": "Joe", "last_name": "Johnson", "year_of_birth": 1930}
+                ],
+            },
+            {  # Doc 3: Should not match - wrong year of birth
+                "persons": [
+                    {"first_name": "Joe", "last_name": "Smith", "year_of_birth": 1940}
+                ],
+            },
+        ]
+        # Format and feed documents
+        docs = [
+            {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
+        ]
+        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        # Execute query
+        q = qb.test_same_element()
         print(f"Executing query: {q}")
         with self.app.syncio() as sess:
             result = sess.query(yql=q)

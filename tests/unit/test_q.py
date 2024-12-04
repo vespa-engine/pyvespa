@@ -459,8 +459,8 @@ class TestQueryBuilder(unittest.TestCase):
                 year_of_birth < 1940,
             )
         )
-        query = Q.select("*").where(condition)
-        expected = 'select * from * where persons contains sameElement(first_name contains "Joe", last_name contains "Smith", year_of_birth < 1940)'
+        query = Q.select("*").from_("sd1").where(condition)
+        expected = 'select * from sd1 where persons contains sameElement(first_name contains "Joe", last_name contains "Smith", year_of_birth < 1940)'
         self.assertEqual(query, expected)
         return query
 
