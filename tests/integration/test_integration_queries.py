@@ -21,9 +21,7 @@ class TestQueriesIntegration(unittest.TestCase):
         application_name = "querybuilder"
         cls.application_name = application_name
         schema_name1 = "sd1"
-        schema_name2 = "sd2"
         cls.schema_name1 = schema_name1
-        cls.schema_name2 = schema_name2
         # Define all fields used in the unit tests
         # Schema 1
         fields = [
@@ -118,23 +116,17 @@ class TestQueriesIntegration(unittest.TestCase):
         ]
         fieldset = FieldSet(name="default", fields=["text", "title", "description"])
         document = Document(fields=fields, structs=[email_struct])
-        schema1 = Schema(
+        schema = Schema(
             name=schema_name1,
             document=document,
             rank_profiles=rank_profiles,
             fieldsets=[fieldset],
         )
-        schema1.add_fields(emails_field)
-        ## Schema 2
-        schema2 = Schema(
-            name=schema_name2, document=document, rank_profiles=rank_profiles
-        )
+        schema.add_fields(emails_field)
+
         # Create the application package
-        application_package = ApplicationPackage(
-            name=application_name, schema=[schema1, schema2]
-        )
+        application_package = ApplicationPackage(name=application_name, schema=[schema])
         print(application_package.get_schema(schema_name1).schema_to_text)
-        print(application_package.get_schema(schema_name2).schema_to_text)
         # Deploy the application
         cls.vespa_docker = VespaDocker(port=8089)
         cls.app = cls.vespa_docker.deploy(application_package=application_package)
@@ -643,3 +635,34 @@ class TestQueriesIntegration(unittest.TestCase):
         # Verify matching document has expected id
         hit = result.hits[0]
         self.assertEqual(hit["id"], f"id:{self.schema_name1}:{self.schema_name1}::1")
+
+    def test_fuzzy(self):
+        # 'select * from sd1 where f1 contains ({prefixLength:1,maxEditDistance:2}fuzzy("parantesis"))'
+        # Feed test documents
+        docs = [
+            {  # Doc 1: Should match
+                "f1": "parantesis",
+            },
+            {  # Doc 2: Should match - edit distance 1
+                "f1": "paranthesis",
+            },
+            {  # Doc 3: Should not match - edit distance 3
+                "f1": "parrenthesis",
+            },
+        ]
+        # Format and feed documents
+        docs = [
+            {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
+        ]
+        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        # Execute query
+        q = qb.test_fuzzy()
+        print(f"Executing query: {q}")
+        with self.app.syncio() as sess:
+            result = sess.query(yql=q)
+        # Verify only two documents match
+        self.assertEqual(len(result.hits), 2)
+        # Verify matching documents have expected values
+        ids = sorted([hit["id"] for hit in result.hits])
+        self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::1", ids)
+        self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::2", ids)

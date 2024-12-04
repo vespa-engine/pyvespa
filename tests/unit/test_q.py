@@ -481,13 +481,13 @@ class TestQueryBuilder(unittest.TestCase):
         return query
 
     def test_fuzzy(self):
-        myStringAttribute = Queryfield("myStringAttribute")
+        myStringAttribute = Queryfield("f1")
         annotations = {"prefixLength": 1, "maxEditDistance": 2}
         condition = myStringAttribute.contains(
             Q.fuzzy("parantesis", annotations=annotations)
         )
-        query = Q.select("*").where(condition)
-        expected = 'select * from * where myStringAttribute contains ({prefixLength:1,maxEditDistance:2}fuzzy("parantesis"))'
+        query = Q.select("*").from_("sd1").where(condition)
+        expected = 'select * from sd1 where f1 contains ({prefixLength:1,maxEditDistance:2}fuzzy("parantesis"))'
         self.assertEqual(query, expected)
         return query
 
