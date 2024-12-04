@@ -450,11 +450,18 @@ class Q:
         return Condition(expr)
 
     @staticmethod
-    def near(*terms, annotations: Optional[Dict[str, Any]] = None) -> Condition:
+    def near(
+        *terms, annotations: Optional[Dict[str, Any]] = None, **kwargs
+    ) -> Condition:
         terms_str = ", ".join(f'"{term}"' for term in terms)
         expr = f"near({terms_str})"
+        # if kwargs - add to annotations
+        if kwargs:
+            if not annotations:
+                annotations = {}
+            annotations.update(kwargs)
         if annotations:
-            annotations_str = ",".join(
+            annotations_str = ", ".join(
                 f"{k}:{Queryfield._format_annotation_value(v)}"
                 for k, v in annotations.items()
             )
@@ -462,9 +469,16 @@ class Q:
         return Condition(expr)
 
     @staticmethod
-    def onear(*terms, annotations: Optional[Dict[str, Any]] = None) -> Condition:
+    def onear(
+        *terms, annotations: Optional[Dict[str, Any]] = None, **kwargs
+    ) -> Condition:
         terms_str = ", ".join(f'"{term}"' for term in terms)
         expr = f"onear({terms_str})"
+        # if kwargs - add to annotations
+        if kwargs:
+            if not annotations:
+                annotations = {}
+            annotations.update(kwargs)
         if annotations:
             annotations_str = ",".join(
                 f"{k}:{Queryfield._format_annotation_value(v)}"

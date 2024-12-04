@@ -439,11 +439,27 @@ class TestQueryBuilder(unittest.TestCase):
         self.assertEqual(query, expected)
         return query
 
+    def test_near_with_distance(self):
+        title = Queryfield("title")
+        condition = title.contains(Q.near("madonna", "saint", distance=10))
+        query = Q.select("*").where(condition)
+        expected = 'select * from * where title contains ({distance:10}near("madonna", "saint"))'
+        self.assertEqual(query, expected)
+        return query
+
     def test_onear(self):
         title = Queryfield("title")
         condition = title.contains(Q.onear("madonna", "saint"))
         query = Q.select("*").where(condition)
         expected = 'select * from * where title contains onear("madonna", "saint")'
+        self.assertEqual(query, expected)
+        return query
+
+    def test_onear_with_distance(self):
+        title = Queryfield("title")
+        condition = title.contains(Q.onear("madonna", "saint", distance=5))
+        query = Q.select("*").where(condition)
+        expected = 'select * from * where title contains ({distance:5}onear("madonna", "saint"))'
         self.assertEqual(query, expected)
         return query
 
