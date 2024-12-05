@@ -30,6 +30,10 @@ class Queryfield:
     def __or__(self, other: Any) -> "Condition":
         return Condition(f"{self.name} or {self._format_value(other)}")
 
+    # repr as str
+    def __repr__(self) -> str:
+        return self.name
+
     def contains(
         self, value: Any, annotations: Optional[Dict[str, Any]] = None
     ) -> "Condition":
@@ -317,18 +321,16 @@ class Query:
 
 class Q:
     @staticmethod
-    def select(*fields):
-        return Query(select_fields=list(fields))
+    def select(fields):
+        return Query(select_fields=fields)
 
     @staticmethod
-    def p(*args):
-        if not args:
-            return Condition("")
-        else:
-            condition = args[0]
-            for arg in args[1:]:
-                condition = condition & arg
-            return condition
+    def any(*conditions):
+        return Condition.any(*conditions)
+
+    @staticmethod
+    def all(*conditions):
+        return Condition.all(*conditions)
 
     @staticmethod
     def userQuery(value: str = "") -> Condition:
