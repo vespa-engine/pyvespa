@@ -189,7 +189,6 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_grouping_with_condition(self):
-        self.maxDiff = None
         grouping = G.all(G.group("customer"), G.each(G.output(G.sum("price"))))
         q = (
             Query(select_fields="*")
@@ -199,6 +198,69 @@ class TestQueryBuilder(unittest.TestCase):
             .groupby(grouping)
         )
         expected = "select * from purchase where true limit 0 | all(group(customer) each(output(sum(price))))"
+        self.assertEqual(q, expected)
+        return q
+
+    def test_grouping_with_ordering_and_limiting(self):
+        self.maxDiff = None
+        grouping = G.all(
+            G.group("customer"),
+            G.max(2),
+            G.precision(12),
+            G.order(-G.count()),
+            G.each(G.output(G.sum("price"))),
+        )
+        q = Query(select_fields="*").from_("purchase").where(True).groupby(grouping)
+        expected = "select * from purchase where true | all(group(customer) max(2) precision(12) order(-count()) each(output(sum(price))))"
+        self.assertEqual(q, expected)
+        return q
+
+    def test_grouping_with_map_keys(self):
+        grouping = G.all(
+            G.group("mymap.key"),
+            G.each(G.group("mymap.value"), G.each(G.output(G.count()))),
+        )
+        q = Query(select_fields="*").from_("purchase").where(True).groupby(grouping)
+        expected = "select * from purchase where true | all(group(mymap.key) each(group(mymap.value) each(output(count()))))"
+        self.assertEqual(q, expected)
+        return q
+
+    def test_group_by_year(self):
+        grouping = G.all(G.group("time.year(a)"), G.each(G.output(G.count())))
+        q = Query(select_fields="*").from_("purchase").where(True).groupby(grouping)
+        expected = "select * from purchase where true | all(group(time.year(a)) each(output(count())))"
+        self.assertEqual(q, expected)
+        return q
+
+    def test_grouping_with_date_agg(self):
+        grouping = G.all(
+            G.group("time.year(a)"),
+            G.each(
+                G.output(G.count()),
+                G.all(
+                    G.group("time.monthofyear(a)"),
+                    G.each(
+                        G.output(G.count()),
+                        G.all(
+                            G.group("time.dayofmonth(a)"),
+                            G.each(
+                                G.output(G.count()),
+                                G.all(
+                                    G.group("time.hourofday(a)"),
+                                    G.each(G.output(G.count())),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        q = Query(select_fields="*").from_("purchase").where(True).groupby(grouping)
+        expected = "select * from purchase where true | all(group(time.year(a)) each(output(count()) all(group(time.monthofyear(a)) each(output(count()) all(group(time.dayofmonth(a)) each(output(count()) all(group(time.hourofday(a)) each(output(count())))))))))"
+        # q select * from purchase where true | all(group(time.year(a)) each(output(count()) all(group(time.monthofyear(a)) each(output(count()) all(group(time.dayofmonth(a)) each(output(count()) all(group(time.hourofday(a)) each(output(count())))))))))
+        # e select * from purchase where true | all(group(time.year(a)) each(output(count() all(group(time.monthofyear(a)) each(output(count()) all(group(time.dayofmonth(a)) each(output(count()) all(group(time.hourofday(a)) each(output(count())))))))))
+        print(q)
+        print(expected)
         self.assertEqual(q, expected)
         return q
 
