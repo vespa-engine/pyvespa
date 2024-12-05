@@ -1,15 +1,16 @@
 import unittest
 from vespa.querybuilder import Query, Q, Queryfield, G, Condition
+import vespa.querybuilder as qb
 
 
 class TestQueryBuilder(unittest.TestCase):
     def test_dotProduct_with_annotations(self):
-        condition = Q.dotProduct(
+        condition = qb.dotProduct(
             "weightedset_field",
             {"feature1": 1, "feature2": 2},
             annotations={"label": "myDotProduct"},
         )
-        q = Query(select_fields="*").from_("sd1").where(condition)
+        q = qb.select("*").from_("sd1").where(condition)
         expected = 'select * from sd1 where ({label:"myDotProduct"}dotProduct(weightedset_field, {"feature1":1,"feature2":2}))'
         self.assertEqual(q, expected)
         return q
