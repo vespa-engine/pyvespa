@@ -1,4 +1,5 @@
 import unittest
+import requests
 from vespa.deployment import VespaDocker
 from vespa.package import (
     ApplicationPackage,
@@ -20,8 +21,8 @@ class TestQueriesIntegration(unittest.TestCase):
     def setUpClass(cls):
         application_name = "querybuilder"
         cls.application_name = application_name
-        schema_name1 = "sd1"
-        cls.schema_name1 = schema_name1
+        schema_name = "sd1"
+        cls.schema_name = schema_name
         # Define all fields used in the unit tests
         # Schema 1
         fields = [
@@ -135,16 +136,62 @@ class TestQueriesIntegration(unittest.TestCase):
         fieldset = FieldSet(name="default", fields=["text", "title", "description"])
         document = Document(fields=fields, structs=[email_struct, person_struct])
         schema = Schema(
-            name=schema_name1,
+            name=schema_name,
             document=document,
             rank_profiles=rank_profiles,
             fieldsets=[fieldset],
         )
         schema.add_fields(emails_field, persons_field)
+        # Add purchase schema for grouping test
+        #     schema purchase {
 
+        # document purchase {
+
+        #     field date type long {
+        #         indexing: summary | attribute
+        #     }
+
+        #     field price type int {
+        #         indexing: summary | attribute
+        #     }
+
+        #     field tax type double {
+        #         indexing: summary | attribute
+        #     }
+
+        #     field item type string {
+        #         indexing: summary | attribute
+        #     }
+
+        #     field customer type string {
+        #         indexing: summary | attribute
+        #     }
+
+        # }
+        purchase_schema = Schema(
+            name="purchase",
+            document=Document(
+                fields=[
+                    Field(name="date", type="long", indexing=["summary", "attribute"]),
+                    Field(name="price", type="int", indexing=["summary", "attribute"]),
+                    Field(name="tax", type="double", indexing=["summary", "attribute"]),
+                    Field(
+                        name="item", type="string", indexing=["summary", "attribute"]
+                    ),
+                    Field(
+                        name="customer",
+                        type="string",
+                        indexing=["summary", "attribute"],
+                    ),
+                ]
+            ),
+        )
         # Create the application package
-        application_package = ApplicationPackage(name=application_name, schema=[schema])
-        print(application_package.get_schema(schema_name1).schema_to_text)
+        application_package = ApplicationPackage(
+            name=application_name, schema=[schema, purchase_schema]
+        )
+        print(application_package.get_schema(schema_name).schema_to_text)
+        print(application_package.get_schema("purchase").schema_to_text)
         # Deploy the application
         cls.vespa_docker = VespaDocker(port=8089)
         cls.app = cls.vespa_docker.deploy(application_package=application_package)
@@ -161,7 +208,7 @@ class TestQueriesIntegration(unittest.TestCase):
         fields = {field: {"feature1": 2, "feature2": 4}}
         data_id = 1
         self.app.feed_data_point(
-            schema=self.schema_name1, data_id=data_id, fields=fields
+            schema=self.schema_name, data_id=data_id, fields=fields
         )
         q = qb.test_dotProduct_with_annotations()
         with self.app.syncio() as sess:
@@ -170,7 +217,7 @@ class TestQueriesIntegration(unittest.TestCase):
         self.assertEqual(len(result.hits), 1)
         self.assertEqual(
             result.hits[0]["id"],
-            f"id:{self.schema_name1}:{self.schema_name1}::{data_id}",
+            f"id:{self.schema_name}:{self.schema_name}::{data_id}",
         )
         self.assertEqual(
             result.hits[0]["fields"]["summaryfeatures"]["rawScore(weightedset_field)"],
@@ -188,7 +235,7 @@ class TestQueriesIntegration(unittest.TestCase):
         }
         data_id = 2
         self.app.feed_data_point(
-            schema=self.schema_name1, data_id=data_id, fields=fields
+            schema=self.schema_name, data_id=data_id, fields=fields
         )
         # Build and send the query
         q = qb.test_geolocation_with_annotations()
@@ -198,7 +245,7 @@ class TestQueriesIntegration(unittest.TestCase):
         self.assertEqual(len(result.hits), 1)
         self.assertEqual(
             result.hits[0]["id"],
-            f"id:{self.schema_name1}:{self.schema_name1}::{data_id}",
+            f"id:{self.schema_name}:{self.schema_name}::{data_id}",
         )
         self.assertAlmostEqual(
             result.hits[0]["fields"]["summaryfeatures"]["distance(location_field).km"],
@@ -244,7 +291,7 @@ class TestQueriesIntegration(unittest.TestCase):
 
         # Feed documents
         docs = [{"id": data_id, "fields": doc} for data_id, doc in enumerate(docs, 1)]
-        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        self.app.feed_iterable(iter=docs, schema=self.schema_name)
 
         # Build and send query
         q = qb.test_basic_and_andnot_or_offset_limit_param_order_by_and_contains()
@@ -261,7 +308,7 @@ class TestQueriesIntegration(unittest.TestCase):
         # The query orders by age desc, duration asc with offset 1
         # So we should get doc ID 2 (since doc ID 3 is skipped due to offset)
         hit = result.hits[0]
-        self.assertEqual(hit["id"], f"id:{self.schema_name1}:{self.schema_name1}::2")
+        self.assertEqual(hit["id"], f"id:{self.schema_name}:{self.schema_name}::2")
 
         # Verify the matching document has expected field values
         self.assertEqual(hit["fields"]["age"], 20)
@@ -313,7 +360,7 @@ class TestQueriesIntegration(unittest.TestCase):
         ]
 
         # Feed documents
-        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        self.app.feed_iterable(iter=docs, schema=self.schema_name)
 
         # Build and send query
         q = qb.test_matches()
@@ -330,8 +377,8 @@ class TestQueriesIntegration(unittest.TestCase):
         ids = sorted([hit["id"] for hit in result.hits])
         expected_ids = sorted(
             [
-                f"id:{self.schema_name1}:{self.schema_name1}::1",
-                f"id:{self.schema_name1}:{self.schema_name1}::3",
+                f"id:{self.schema_name}:{self.schema_name}::1",
+                f"id:{self.schema_name}:{self.schema_name}::3",
             ]
         )
 
@@ -371,7 +418,7 @@ class TestQueriesIntegration(unittest.TestCase):
             }
             for data_id, doc in enumerate(docs, 1)
         ]
-        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        self.app.feed_iterable(iter=docs, schema=self.schema_name)
         q = qb.test_nested_queries()
         print(f"Executing query: {q}")
         with self.app.syncio() as sess:
@@ -380,7 +427,7 @@ class TestQueriesIntegration(unittest.TestCase):
         self.assertEqual(len(result.hits), 1)
         self.assertEqual(
             result.hits[0]["id"],
-            f"id:{self.schema_name1}:{self.schema_name1}::2",
+            f"id:{self.schema_name}:{self.schema_name}::2",
         )
 
     def test_userquery_defaultindex(self):
@@ -405,7 +452,7 @@ class TestQueriesIntegration(unittest.TestCase):
         docs = [
             {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
         ]
-        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        self.app.feed_iterable(iter=docs, schema=self.schema_name)
 
         # Execute query
         q = qb.test_userquery()
@@ -419,8 +466,8 @@ class TestQueriesIntegration(unittest.TestCase):
             result = sess.query(body=body)
         self.assertEqual(len(result.hits), 2)
         ids = sorted([hit["id"] for hit in result.hits])
-        self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::1", ids)
-        self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::2", ids)
+        self.assertIn(f"id:{self.schema_name}:{self.schema_name}::1", ids)
+        self.assertIn(f"id:{self.schema_name}:{self.schema_name}::2", ids)
 
     def test_userquery_customindex(self):
         # 'select * from sd1 where userQuery())'
@@ -444,7 +491,7 @@ class TestQueriesIntegration(unittest.TestCase):
         docs = [
             {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
         ]
-        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        self.app.feed_iterable(iter=docs, schema=self.schema_name)
 
         # Execute query
         q = qb.test_userquery()
@@ -461,7 +508,7 @@ class TestQueriesIntegration(unittest.TestCase):
         # Verify only one document matches both conditions
         self.assertEqual(len(result.hits), 1)
         self.assertEqual(
-            result.hits[0]["id"], f"id:{self.schema_name1}:{self.schema_name1}::1"
+            result.hits[0]["id"], f"id:{self.schema_name}:{self.schema_name}::1"
         )
 
         # Verify matching document has expected values
@@ -491,7 +538,7 @@ class TestQueriesIntegration(unittest.TestCase):
         docs = [
             {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
         ]
-        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        self.app.feed_iterable(iter=docs, schema=self.schema_name)
         # Execute query
         q = qb.test_userinput()
         print(f"Executing query: {q}")
@@ -506,8 +553,8 @@ class TestQueriesIntegration(unittest.TestCase):
         self.assertEqual(len(result.hits), 2)
         # Verify matching documents have expected values
         ids = sorted([hit["id"] for hit in result.hits])
-        self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::1", ids)
-        self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::2", ids)
+        self.assertIn(f"id:{self.schema_name}:{self.schema_name}::1", ids)
+        self.assertIn(f"id:{self.schema_name}:{self.schema_name}::2", ids)
 
     def test_userinput_with_defaultindex(self):
         # 'select * from sd1 where {defaultIndex:"text"}userInput(@myvar)'
@@ -531,7 +578,7 @@ class TestQueriesIntegration(unittest.TestCase):
         docs = [
             {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
         ]
-        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        self.app.feed_iterable(iter=docs, schema=self.schema_name)
         # Execute query
         q = qb.test_userinput_with_defaultindex()
         print(f"Executing query: {q}")
@@ -547,7 +594,7 @@ class TestQueriesIntegration(unittest.TestCase):
         self.assertEqual(len(result.hits), 1)
         # Verify matching document has expected values
         hit = result.hits[0]
-        self.assertEqual(hit["id"], f"id:{self.schema_name1}:{self.schema_name1}::2")
+        self.assertEqual(hit["id"], f"id:{self.schema_name}:{self.schema_name}::2")
 
     def test_in_operator_intfield(self):
         # 'select * from * where integer_field in (10, 20, 30)'
@@ -571,7 +618,7 @@ class TestQueriesIntegration(unittest.TestCase):
         docs = [
             {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
         ]
-        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        self.app.feed_iterable(iter=docs, schema=self.schema_name)
         # Execute query
         q = qb.test_in_operator_intfield()
         print(f"Executing query: {q}")
@@ -582,8 +629,8 @@ class TestQueriesIntegration(unittest.TestCase):
         self.assertEqual(len(result.hits), 2)
         # Verify matching documents have expected values
         ids = sorted([hit["id"] for hit in result.hits])
-        self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::1", ids)
-        self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::2", ids)
+        self.assertIn(f"id:{self.schema_name}:{self.schema_name}::1", ids)
+        self.assertIn(f"id:{self.schema_name}:{self.schema_name}::2", ids)
 
     def test_in_operator_stringfield(self):
         # 'select * from sd1 where status in ("active", "inactive")'
@@ -606,7 +653,7 @@ class TestQueriesIntegration(unittest.TestCase):
         docs = [
             {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
         ]
-        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        self.app.feed_iterable(iter=docs, schema=self.schema_name)
         # Execute query
         q = qb.test_in_operator_stringfield()
         print(f"Executing query: {q}")
@@ -616,8 +663,8 @@ class TestQueriesIntegration(unittest.TestCase):
         self.assertEqual(len(result.hits), 2)
         # Verify matching documents have expected values
         ids = sorted([hit["id"] for hit in result.hits])
-        self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::1", ids)
-        self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::2", ids)
+        self.assertIn(f"id:{self.schema_name}:{self.schema_name}::1", ids)
+        self.assertIn(f"id:{self.schema_name}:{self.schema_name}::2", ids)
 
     def test_predicate(self):
         #  'select * from sd1 where predicate(predicate_field,{"gender":"Female"},{"age":25L})'
@@ -638,7 +685,7 @@ class TestQueriesIntegration(unittest.TestCase):
         docs = [
             {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
         ]
-        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        self.app.feed_iterable(iter=docs, schema=self.schema_name)
 
         # Execute query using predicate search
         q = qb.test_predicate()
@@ -652,7 +699,7 @@ class TestQueriesIntegration(unittest.TestCase):
 
         # Verify matching document has expected id
         hit = result.hits[0]
-        self.assertEqual(hit["id"], f"id:{self.schema_name1}:{self.schema_name1}::1")
+        self.assertEqual(hit["id"], f"id:{self.schema_name}:{self.schema_name}::1")
 
     def test_fuzzy(self):
         # 'select * from sd1 where f1 contains ({prefixLength:1,maxEditDistance:2}fuzzy("parantesis"))'
@@ -672,7 +719,7 @@ class TestQueriesIntegration(unittest.TestCase):
         docs = [
             {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
         ]
-        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        self.app.feed_iterable(iter=docs, schema=self.schema_name)
         # Execute query
         q = qb.test_fuzzy()
         print(f"Executing query: {q}")
@@ -682,8 +729,8 @@ class TestQueriesIntegration(unittest.TestCase):
         self.assertEqual(len(result.hits), 2)
         # Verify matching documents have expected values
         ids = sorted([hit["id"] for hit in result.hits])
-        self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::1", ids)
-        self.assertIn(f"id:{self.schema_name1}:{self.schema_name1}::2", ids)
+        self.assertIn(f"id:{self.schema_name}:{self.schema_name}::1", ids)
+        self.assertIn(f"id:{self.schema_name}:{self.schema_name}::2", ids)
 
     def test_uri(self):
         # 'select * from sd1 where myUrlField contains uri("vespa.ai/foo")'
@@ -703,7 +750,7 @@ class TestQueriesIntegration(unittest.TestCase):
         docs = [
             {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
         ]
-        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        self.app.feed_iterable(iter=docs, schema=self.schema_name)
         # Execute query
         q = qb.test_uri()
         print(f"Executing query: {q}")
@@ -713,7 +760,7 @@ class TestQueriesIntegration(unittest.TestCase):
         self.assertEqual(len(result.hits), 1)
         # Verify matching document has expected values
         hit = result.hits[0]
-        self.assertEqual(hit["id"], f"id:{self.schema_name1}:{self.schema_name1}::1")
+        self.assertEqual(hit["id"], f"id:{self.schema_name}:{self.schema_name}::1")
 
     def test_same_element(self):
         # 'select * from sd1 where persons contains sameElement(first_name contains "Joe", last_name contains "Smith", year_of_birth < 1940)'
@@ -739,7 +786,7 @@ class TestQueriesIntegration(unittest.TestCase):
         docs = [
             {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
         ]
-        self.app.feed_iterable(iter=docs, schema=self.schema_name1)
+        self.app.feed_iterable(iter=docs, schema=self.schema_name)
         # Execute query
         q = qb.test_same_element()
         print(f"Executing query: {q}")
@@ -749,4 +796,232 @@ class TestQueriesIntegration(unittest.TestCase):
         self.assertEqual(len(result.hits), 1)
         # Verify matching document has expected values
         hit = result.hits[0]
-        self.assertEqual(hit["id"], f"id:{self.schema_name1}:{self.schema_name1}::1")
+        self.assertEqual(hit["id"], f"id:{self.schema_name}:{self.schema_name}::1")
+
+    def test_grouping(self):
+        # "select * from purchase | all(group(customer) each(output(sum(price))))"
+        # sample data from https://github.com/vespa-cloud/vespa-documentation-search#feed-grouping-examples
+        sample_data = [
+            {
+                "fields": {
+                    "customer": "Smith",
+                    "date": 1157526000,
+                    "item": "Intake valve",
+                    "price": "1000",
+                    "tax": "0.24",
+                },
+                "put": "id:purchase:purchase::0",
+            },
+            {
+                "fields": {
+                    "customer": "Smith",
+                    "date": 1157616000,
+                    "item": "Rocker arm",
+                    "price": "1000",
+                    "tax": "0.12",
+                },
+                "put": "id:purchase:purchase::1",
+            },
+            {
+                "fields": {
+                    "customer": "Smith",
+                    "date": 1157619600,
+                    "item": "Spring",
+                    "price": "2000",
+                    "tax": "0.24",
+                },
+                "put": "id:purchase:purchase::2",
+            },
+            {
+                "fields": {
+                    "customer": "Jones",
+                    "date": 1157709600,
+                    "item": "Valve cover",
+                    "price": "3000",
+                    "tax": "0.12",
+                },
+                "put": "id:purchase:purchase::3",
+            },
+            {
+                "fields": {
+                    "customer": "Jones",
+                    "date": 1157702400,
+                    "item": "Intake port",
+                    "price": "5000",
+                    "tax": "0.24",
+                },
+                "put": "id:purchase:purchase::4",
+            },
+            {
+                "fields": {
+                    "customer": "Brown",
+                    "date": 1157706000,
+                    "item": "Head",
+                    "price": "8000",
+                    "tax": "0.12",
+                },
+                "put": "id:purchase:purchase::5",
+            },
+            {
+                "fields": {
+                    "customer": "Smith",
+                    "date": 1157796000,
+                    "item": "Coolant",
+                    "price": "1300",
+                    "tax": "0.24",
+                },
+                "put": "id:purchase:purchase::6",
+            },
+            {
+                "fields": {
+                    "customer": "Jones",
+                    "date": 1157788800,
+                    "item": "Engine block",
+                    "price": "2100",
+                    "tax": "0.12",
+                },
+                "put": "id:purchase:purchase::7",
+            },
+            {
+                "fields": {
+                    "customer": "Brown",
+                    "date": 1157792400,
+                    "item": "Oil pan",
+                    "price": "3400",
+                    "tax": "0.24",
+                },
+                "put": "id:purchase:purchase::8",
+            },
+            {
+                "fields": {
+                    "customer": "Smith",
+                    "date": 1157796000,
+                    "item": "Oil sump",
+                    "price": "5500",
+                    "tax": "0.12",
+                },
+                "put": "id:purchase:purchase::9",
+            },
+            {
+                "fields": {
+                    "customer": "Jones",
+                    "date": 1157875200,
+                    "item": "Camshaft",
+                    "price": "8900",
+                    "tax": "0.24",
+                },
+                "put": "id:purchase:purchase::10",
+            },
+            {
+                "fields": {
+                    "customer": "Brown",
+                    "date": 1157878800,
+                    "item": "Exhaust valve",
+                    "price": "1440",
+                    "tax": "0.12",
+                },
+                "put": "id:purchase:purchase::11",
+            },
+            {
+                "fields": {
+                    "customer": "Brown",
+                    "date": 1157882400,
+                    "item": "Rocker arm",
+                    "price": "2330",
+                    "tax": "0.24",
+                },
+                "put": "id:purchase:purchase::12",
+            },
+            {
+                "fields": {
+                    "customer": "Brown",
+                    "date": 1157875200,
+                    "item": "Spring",
+                    "price": "3770",
+                    "tax": "0.12",
+                },
+                "put": "id:purchase:purchase::13",
+            },
+            {
+                "fields": {
+                    "customer": "Smith",
+                    "date": 1157878800,
+                    "item": "Spark plug",
+                    "price": "6100",
+                    "tax": "0.24",
+                },
+                "put": "id:purchase:purchase::14",
+            },
+            {
+                "fields": {
+                    "customer": "Jones",
+                    "date": 1157968800,
+                    "item": "Exhaust port",
+                    "price": "9870",
+                    "tax": "0.12",
+                },
+                "put": "id:purchase:purchase::15",
+            },
+            {
+                "fields": {
+                    "customer": "Brown",
+                    "date": 1157961600,
+                    "item": "Piston",
+                    "price": "1597",
+                    "tax": "0.24",
+                },
+                "put": "id:purchase:purchase::16",
+            },
+            {
+                "fields": {
+                    "customer": "Smith",
+                    "date": 1157965200,
+                    "item": "Connection rod",
+                    "price": "2584",
+                    "tax": "0.12",
+                },
+                "put": "id:purchase:purchase::17",
+            },
+            {
+                "fields": {
+                    "customer": "Jones",
+                    "date": 1157968800,
+                    "item": "Rod bearing",
+                    "price": "4181",
+                    "tax": "0.24",
+                },
+                "put": "id:purchase:purchase::18",
+            },
+            {
+                "fields": {
+                    "customer": "Jones",
+                    "date": 1157972400,
+                    "item": "Crankshaft",
+                    "price": "6765",
+                    "tax": "0.12",
+                },
+                "put": "id:purchase:purchase::19",
+            },
+        ]
+        # map data to correct format
+        sample_data = [
+            {"fields": doc["fields"], "id": doc["put"].split("::")[-1]}
+            for doc in sample_data
+        ]
+        # Feed documents
+        self.app.feed_iterable(iter=sample_data, schema="purchase")
+        # Execute query
+        q = qb.test_grouping_with_condition()
+        print(f"Executing query: {q}")
+        with self.app.syncio() as sess:
+            result = sess.query(yql=q)
+        result_children = result.json["root"]["children"][0]["children"]
+        # also get result from https://api.search.vespa.ai/search/?yql=select%20*%20from%20purchase%20where%20true%20%7C%20all(%20group(customer)%20each(output(sum(price)))%20)
+        # to compare
+        api_resp = requests.get(
+            "https://api.search.vespa.ai/search/?yql=select%20*%20from%20purchase%20where%20true%20%7C%20all(%20group(customer)%20each(output(sum(price)))%20)",
+        )
+        api_resp = api_resp.json()
+        api_children = api_resp["root"]["children"][0]["children"]
+        self.maxDiff = None
+        self.assertEqual(result_children, api_children)

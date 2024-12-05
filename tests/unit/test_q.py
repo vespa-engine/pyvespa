@@ -188,10 +188,17 @@ class TestQueryBuilder(unittest.TestCase):
         self.assertEqual(q, expected)
         return q
 
-    def test_grouping_aggregation(self):
-        grouping = G.all(G.group("category"), G.output(G.count()))
-        q = Query(select_fields="*").from_("products").group(grouping)
-        expected = "select * from products | all(group(category) output(count()))"
+    def test_grouping_with_condition(self):
+        self.maxDiff = None
+        grouping = G.all(G.group("customer"), G.each(G.output(G.sum("price"))))
+        q = (
+            Query(select_fields="*")
+            .from_("purchase")
+            .where(True)
+            .set_limit(0)
+            .groupby(grouping)
+        )
+        expected = "select * from purchase where true limit 0 | all(group(customer) each(output(sum(price))))"
         self.assertEqual(q, expected)
         return q
 
@@ -362,11 +369,11 @@ class TestQueryBuilder(unittest.TestCase):
     def test_multiple_groupings(self):
         grouping = G.all(
             G.group("category"),
-            G.maxRtn(10),
+            G.max(10),
             G.output(G.count()),
             G.each(G.group("subcategory"), G.output(G.summary())),
         )
-        q = Query(select_fields="*").from_("products").group(grouping)
+        q = Query(select_fields="*").from_("products").groupby(grouping)
         expected = "select * from products | all(group(category) max(10) output(count()) each(group(subcategory) output(summary())))"
         self.assertEqual(q, expected)
         return q
@@ -556,15 +563,13 @@ class TestQueryBuilder(unittest.TestCase):
         return query
 
     def test_true(self):
-        condition = Q.true()
-        query = Q.select("*").from_("sd1").where(condition)
+        query = Q.select("*").from_("sd1").where(True)
         expected = "select * from sd1 where true"
         self.assertEqual(query, expected)
         return query
 
     def test_false(self):
-        condition = Q.false()
-        query = Q.select("*").from_("sd1").where(condition)
+        query = Q.select("*").from_("sd1").where(False)
         expected = "select * from sd1 where false"
         self.assertEqual(query, expected)
         return query

@@ -234,9 +234,11 @@ class Query:
         self.sources = ", ".join(sources)
         return self
 
-    def where(self, condition: Union[Condition, Queryfield]) -> "Query":
+    def where(self, condition: Union[Condition, Queryfield, bool]) -> "Query":
         if isinstance(condition, Queryfield):
             self.condition = condition
+        elif isinstance(condition, bool):
+            self.condition = Condition("true") if condition else Condition("false")
         else:
             self.condition = condition
         return self
@@ -287,7 +289,7 @@ class Query:
     def param(self, key: str, value: Any) -> "Query":
         return self.add_parameter(key, value)
 
-    def group(self, group_expression: str) -> "Query":
+    def groupby(self, group_expression: str) -> "Query":
         self.grouping = group_expression
         return self
 
@@ -297,8 +299,6 @@ class Query:
             query = f"yql={query}"
         if self.condition:
             query += f" where {self.condition.build()}"
-        if self.grouping:
-            query += f" | {self.grouping}"
         if self.order_by_clauses:
             query += " order by " + ", ".join(self.order_by_clauses)
         if self.limit_value is not None:
@@ -307,6 +307,8 @@ class Query:
             query += f" offset {self.offset_value}"
         if self.timeout_value is not None:
             query += f" timeout {self.timeout_value}"
+        if self.grouping:
+            query += f" | {self.grouping}"
         if self.parameters:
             params = "&" + "&".join(f"{k}={v}" for k, v in self.parameters.items())
             query += params
@@ -579,8 +581,18 @@ class G:
         return f"group({field})"
 
     @staticmethod
-    def maxRtn(value: int) -> str:
+    def max(value: int) -> str:
         return f"max({value})"
+
+    # min
+    @staticmethod
+    def min(value: int) -> str:
+        return f"min({value})"
+
+    # sum
+    @staticmethod
+    def sum(value: int) -> str:
+        return f"sum({value})"
 
     @staticmethod
     def each(*args) -> str:
