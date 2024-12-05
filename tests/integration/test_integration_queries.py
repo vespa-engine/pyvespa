@@ -1023,5 +1023,15 @@ class TestQueriesIntegration(unittest.TestCase):
         )
         api_resp = api_resp.json()
         api_children = api_resp["root"]["children"][0]["children"]
-        self.maxDiff = None
         self.assertEqual(result_children, api_children)
+        # Verify the result
+        group_results = result_children[0]["children"]
+        self.assertEqual(group_results[0]["id"], "group:string:Brown")
+        self.assertEqual(group_results[0]["value"], "Brown")
+        self.assertEqual(group_results[0]["fields"]["sum(price)"], 20537)
+        self.assertEqual(group_results[1]["id"], "group:string:Jones")
+        self.assertEqual(group_results[1]["value"], "Jones")
+        self.assertEqual(group_results[1]["fields"]["sum(price)"], 39816)
+        self.assertEqual(group_results[2]["id"], "group:string:Smith")
+        self.assertEqual(group_results[2]["value"], "Smith")
+        self.assertEqual(group_results[2]["fields"]["sum(price)"], 19484)
