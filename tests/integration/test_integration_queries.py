@@ -143,31 +143,6 @@ class TestQueriesIntegration(unittest.TestCase):
         )
         schema.add_fields(emails_field, persons_field)
         # Add purchase schema for grouping test
-        #     schema purchase {
-
-        # document purchase {
-
-        #     field date type long {
-        #         indexing: summary | attribute
-        #     }
-
-        #     field price type int {
-        #         indexing: summary | attribute
-        #     }
-
-        #     field tax type double {
-        #         indexing: summary | attribute
-        #     }
-
-        #     field item type string {
-        #         indexing: summary | attribute
-        #     }
-
-        #     field customer type string {
-        #         indexing: summary | attribute
-        #     }
-
-        # }
         purchase_schema = Schema(
             name="purchase",
             document=Document(
@@ -201,6 +176,221 @@ class TestQueriesIntegration(unittest.TestCase):
     def tearDownClass(cls):
         cls.vespa_docker.container.stop(timeout=5)
         cls.vespa_docker.container.remove()
+
+    @property
+    def sample_grouping_data(self):
+        sample_data = [
+            {
+                "fields": {
+                    "customer": "Smith",
+                    "date": 1157526000,
+                    "item": "Intake valve",
+                    "price": "1000",
+                    "tax": "0.24",
+                },
+                "put": "id:purchase:purchase::0",
+            },
+            {
+                "fields": {
+                    "customer": "Smith",
+                    "date": 1157616000,
+                    "item": "Rocker arm",
+                    "price": "1000",
+                    "tax": "0.12",
+                },
+                "put": "id:purchase:purchase::1",
+            },
+            {
+                "fields": {
+                    "customer": "Smith",
+                    "date": 1157619600,
+                    "item": "Spring",
+                    "price": "2000",
+                    "tax": "0.24",
+                },
+                "put": "id:purchase:purchase::2",
+            },
+            {
+                "fields": {
+                    "customer": "Jones",
+                    "date": 1157709600,
+                    "item": "Valve cover",
+                    "price": "3000",
+                    "tax": "0.12",
+                },
+                "put": "id:purchase:purchase::3",
+            },
+            {
+                "fields": {
+                    "customer": "Jones",
+                    "date": 1157702400,
+                    "item": "Intake port",
+                    "price": "5000",
+                    "tax": "0.24",
+                },
+                "put": "id:purchase:purchase::4",
+            },
+            {
+                "fields": {
+                    "customer": "Brown",
+                    "date": 1157706000,
+                    "item": "Head",
+                    "price": "8000",
+                    "tax": "0.12",
+                },
+                "put": "id:purchase:purchase::5",
+            },
+            {
+                "fields": {
+                    "customer": "Smith",
+                    "date": 1157796000,
+                    "item": "Coolant",
+                    "price": "1300",
+                    "tax": "0.24",
+                },
+                "put": "id:purchase:purchase::6",
+            },
+            {
+                "fields": {
+                    "customer": "Jones",
+                    "date": 1157788800,
+                    "item": "Engine block",
+                    "price": "2100",
+                    "tax": "0.12",
+                },
+                "put": "id:purchase:purchase::7",
+            },
+            {
+                "fields": {
+                    "customer": "Brown",
+                    "date": 1157792400,
+                    "item": "Oil pan",
+                    "price": "3400",
+                    "tax": "0.24",
+                },
+                "put": "id:purchase:purchase::8",
+            },
+            {
+                "fields": {
+                    "customer": "Smith",
+                    "date": 1157796000,
+                    "item": "Oil sump",
+                    "price": "5500",
+                    "tax": "0.12",
+                },
+                "put": "id:purchase:purchase::9",
+            },
+            {
+                "fields": {
+                    "customer": "Jones",
+                    "date": 1157875200,
+                    "item": "Camshaft",
+                    "price": "8900",
+                    "tax": "0.24",
+                },
+                "put": "id:purchase:purchase::10",
+            },
+            {
+                "fields": {
+                    "customer": "Brown",
+                    "date": 1157878800,
+                    "item": "Exhaust valve",
+                    "price": "1440",
+                    "tax": "0.12",
+                },
+                "put": "id:purchase:purchase::11",
+            },
+            {
+                "fields": {
+                    "customer": "Brown",
+                    "date": 1157882400,
+                    "item": "Rocker arm",
+                    "price": "2330",
+                    "tax": "0.24",
+                },
+                "put": "id:purchase:purchase::12",
+            },
+            {
+                "fields": {
+                    "customer": "Brown",
+                    "date": 1157875200,
+                    "item": "Spring",
+                    "price": "3770",
+                    "tax": "0.12",
+                },
+                "put": "id:purchase:purchase::13",
+            },
+            {
+                "fields": {
+                    "customer": "Smith",
+                    "date": 1157878800,
+                    "item": "Spark plug",
+                    "price": "6100",
+                    "tax": "0.24",
+                },
+                "put": "id:purchase:purchase::14",
+            },
+            {
+                "fields": {
+                    "customer": "Jones",
+                    "date": 1157968800,
+                    "item": "Exhaust port",
+                    "price": "9870",
+                    "tax": "0.12",
+                },
+                "put": "id:purchase:purchase::15",
+            },
+            {
+                "fields": {
+                    "customer": "Brown",
+                    "date": 1157961600,
+                    "item": "Piston",
+                    "price": "1597",
+                    "tax": "0.24",
+                },
+                "put": "id:purchase:purchase::16",
+            },
+            {
+                "fields": {
+                    "customer": "Smith",
+                    "date": 1157965200,
+                    "item": "Connection rod",
+                    "price": "2584",
+                    "tax": "0.12",
+                },
+                "put": "id:purchase:purchase::17",
+            },
+            {
+                "fields": {
+                    "customer": "Jones",
+                    "date": 1157968800,
+                    "item": "Rod bearing",
+                    "price": "4181",
+                    "tax": "0.24",
+                },
+                "put": "id:purchase:purchase::18",
+            },
+            {
+                "fields": {
+                    "customer": "Jones",
+                    "date": 1157972400,
+                    "item": "Crankshaft",
+                    "price": "6765",
+                    "tax": "0.12",
+                },
+                "put": "id:purchase:purchase::19",
+            },
+        ]
+        docs = [
+            {"fields": doc["fields"], "id": doc["put"].split("::")[-1]}
+            for doc in sample_data
+        ]
+        return docs
+
+    def feed_grouping_data(self):
+        # Feed documents
+        self.app.feed_iterable(iter=self.sample_grouping_data, schema="purchase")
+        return
 
     def test_dotProduct_with_annotations(self):
         # Feed a document with 'weightedset_field'
@@ -798,218 +988,10 @@ class TestQueriesIntegration(unittest.TestCase):
         hit = result.hits[0]
         self.assertEqual(hit["id"], f"id:{self.schema_name}:{self.schema_name}::1")
 
-    def test_grouping(self):
+    def test_grouping_with_condition(self):
         # "select * from purchase | all(group(customer) each(output(sum(price))))"
-        # sample data from https://github.com/vespa-cloud/vespa-documentation-search#feed-grouping-examples
-        sample_data = [
-            {
-                "fields": {
-                    "customer": "Smith",
-                    "date": 1157526000,
-                    "item": "Intake valve",
-                    "price": "1000",
-                    "tax": "0.24",
-                },
-                "put": "id:purchase:purchase::0",
-            },
-            {
-                "fields": {
-                    "customer": "Smith",
-                    "date": 1157616000,
-                    "item": "Rocker arm",
-                    "price": "1000",
-                    "tax": "0.12",
-                },
-                "put": "id:purchase:purchase::1",
-            },
-            {
-                "fields": {
-                    "customer": "Smith",
-                    "date": 1157619600,
-                    "item": "Spring",
-                    "price": "2000",
-                    "tax": "0.24",
-                },
-                "put": "id:purchase:purchase::2",
-            },
-            {
-                "fields": {
-                    "customer": "Jones",
-                    "date": 1157709600,
-                    "item": "Valve cover",
-                    "price": "3000",
-                    "tax": "0.12",
-                },
-                "put": "id:purchase:purchase::3",
-            },
-            {
-                "fields": {
-                    "customer": "Jones",
-                    "date": 1157702400,
-                    "item": "Intake port",
-                    "price": "5000",
-                    "tax": "0.24",
-                },
-                "put": "id:purchase:purchase::4",
-            },
-            {
-                "fields": {
-                    "customer": "Brown",
-                    "date": 1157706000,
-                    "item": "Head",
-                    "price": "8000",
-                    "tax": "0.12",
-                },
-                "put": "id:purchase:purchase::5",
-            },
-            {
-                "fields": {
-                    "customer": "Smith",
-                    "date": 1157796000,
-                    "item": "Coolant",
-                    "price": "1300",
-                    "tax": "0.24",
-                },
-                "put": "id:purchase:purchase::6",
-            },
-            {
-                "fields": {
-                    "customer": "Jones",
-                    "date": 1157788800,
-                    "item": "Engine block",
-                    "price": "2100",
-                    "tax": "0.12",
-                },
-                "put": "id:purchase:purchase::7",
-            },
-            {
-                "fields": {
-                    "customer": "Brown",
-                    "date": 1157792400,
-                    "item": "Oil pan",
-                    "price": "3400",
-                    "tax": "0.24",
-                },
-                "put": "id:purchase:purchase::8",
-            },
-            {
-                "fields": {
-                    "customer": "Smith",
-                    "date": 1157796000,
-                    "item": "Oil sump",
-                    "price": "5500",
-                    "tax": "0.12",
-                },
-                "put": "id:purchase:purchase::9",
-            },
-            {
-                "fields": {
-                    "customer": "Jones",
-                    "date": 1157875200,
-                    "item": "Camshaft",
-                    "price": "8900",
-                    "tax": "0.24",
-                },
-                "put": "id:purchase:purchase::10",
-            },
-            {
-                "fields": {
-                    "customer": "Brown",
-                    "date": 1157878800,
-                    "item": "Exhaust valve",
-                    "price": "1440",
-                    "tax": "0.12",
-                },
-                "put": "id:purchase:purchase::11",
-            },
-            {
-                "fields": {
-                    "customer": "Brown",
-                    "date": 1157882400,
-                    "item": "Rocker arm",
-                    "price": "2330",
-                    "tax": "0.24",
-                },
-                "put": "id:purchase:purchase::12",
-            },
-            {
-                "fields": {
-                    "customer": "Brown",
-                    "date": 1157875200,
-                    "item": "Spring",
-                    "price": "3770",
-                    "tax": "0.12",
-                },
-                "put": "id:purchase:purchase::13",
-            },
-            {
-                "fields": {
-                    "customer": "Smith",
-                    "date": 1157878800,
-                    "item": "Spark plug",
-                    "price": "6100",
-                    "tax": "0.24",
-                },
-                "put": "id:purchase:purchase::14",
-            },
-            {
-                "fields": {
-                    "customer": "Jones",
-                    "date": 1157968800,
-                    "item": "Exhaust port",
-                    "price": "9870",
-                    "tax": "0.12",
-                },
-                "put": "id:purchase:purchase::15",
-            },
-            {
-                "fields": {
-                    "customer": "Brown",
-                    "date": 1157961600,
-                    "item": "Piston",
-                    "price": "1597",
-                    "tax": "0.24",
-                },
-                "put": "id:purchase:purchase::16",
-            },
-            {
-                "fields": {
-                    "customer": "Smith",
-                    "date": 1157965200,
-                    "item": "Connection rod",
-                    "price": "2584",
-                    "tax": "0.12",
-                },
-                "put": "id:purchase:purchase::17",
-            },
-            {
-                "fields": {
-                    "customer": "Jones",
-                    "date": 1157968800,
-                    "item": "Rod bearing",
-                    "price": "4181",
-                    "tax": "0.24",
-                },
-                "put": "id:purchase:purchase::18",
-            },
-            {
-                "fields": {
-                    "customer": "Jones",
-                    "date": 1157972400,
-                    "item": "Crankshaft",
-                    "price": "6765",
-                    "tax": "0.12",
-                },
-                "put": "id:purchase:purchase::19",
-            },
-        ]
-        # map data to correct format
-        sample_data = [
-            {"fields": doc["fields"], "id": doc["put"].split("::")[-1]}
-            for doc in sample_data
-        ]
-        # Feed documents
-        self.app.feed_iterable(iter=sample_data, schema="purchase")
+        # Feed test documents
+        self.feed_grouping_data()
         # Execute query
         q = qb.test_grouping_with_condition()
         print(f"Executing query: {q}")
@@ -1035,3 +1017,25 @@ class TestQueriesIntegration(unittest.TestCase):
         self.assertEqual(group_results[2]["id"], "group:string:Smith")
         self.assertEqual(group_results[2]["value"], "Smith")
         self.assertEqual(group_results[2]["fields"]["sum(price)"], 19484)
+
+    def test_grouping_with_ordering_and_limiting(self):
+        # "select * from purchase where true | all(group(customer) max(2) precision(12) order(-count()) each(output(sum(price))))"
+        # Feed test documents
+        self.feed_grouping_data()
+        # Execute query
+        q = qb.test_grouping_with_ordering_and_limiting()
+        print(f"Executing query: {q}")
+        with self.app.syncio() as sess:
+            result = sess.query(yql=q)
+        result_children = result.json["root"]["children"][0]["children"][0]["children"]
+        print(result_children)
+        # assert 2 groups
+        self.assertEqual(len(result_children), 2)
+        # assert the first group is Jones
+        self.assertEqual(result_children[0]["id"], "group:string:Jones")
+        self.assertEqual(result_children[0]["value"], "Jones")
+        self.assertEqual(result_children[0]["fields"]["sum(price)"], 39816)
+        # assert the second group is Brown
+        self.assertEqual(result_children[1]["id"], "group:string:Smith")
+        self.assertEqual(result_children[1]["value"], "Smith")
+        self.assertEqual(result_children[1]["fields"]["sum(price)"], 19484)
