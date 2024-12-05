@@ -581,18 +581,32 @@ class G:
         return f"group({field})"
 
     @staticmethod
-    def max(value: int) -> str:
+    def max(value: Union[int, float]) -> str:
         return f"max({value})"
 
-    # min
     @staticmethod
-    def min(value: int) -> str:
+    def precision(value: int) -> str:
+        return f"precision({value})"
+
+    @staticmethod
+    def min(value: Union[int, float]) -> str:
         return f"min({value})"
 
-    # sum
     @staticmethod
-    def sum(value: int) -> str:
+    def sum(value: Union[int, float]) -> str:
         return f"sum({value})"
+
+    @staticmethod
+    def avg(value: Union[int, float]) -> str:
+        return f"avg({value})"
+
+    @staticmethod
+    def stddev(value: Union[int, float]) -> str:
+        return f"stddev({value})"
+
+    @staticmethod
+    def xor(value: str) -> str:
+        return f"xor({value})"
 
     @staticmethod
     def each(*args) -> str:
@@ -604,7 +618,19 @@ class G:
 
     @staticmethod
     def count() -> str:
-        return "count()"
+        # Also need to handle negative count
+        class MaybenegativeCount(str):
+            def __new__(cls, value):
+                return super().__new__(cls, value)
+
+            def __neg__(self):
+                return f"-{self}"
+
+        return MaybenegativeCount("count()")
+
+    @staticmethod
+    def order(value: str) -> str:
+        return f"order({value})"
 
     @staticmethod
     def summary() -> str:
