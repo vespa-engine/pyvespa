@@ -1,4 +1,4 @@
-from .builder.builder import Q
+from .builder.builder import Q, Queryfield
 from .grouping.grouping import G
 import inspect
 
@@ -25,8 +25,8 @@ def get_function_members(cls):
 __all__ = [
     # Classes
     # "Query",
-    "Q",
-    # "Queryfield",
+    # "Q",
+    "Queryfield",
     "G",
     # "Condition",
     # Add all exposed functions
