@@ -152,5 +152,5 @@ markdown_before/
 *.pem
 *.crt
 
-# Exclude markdown files from vespa/resources
+# Exclude markdown files in vespa/resources - directory
 vespa/resources/*.md
