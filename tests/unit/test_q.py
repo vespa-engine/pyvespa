@@ -1,5 +1,5 @@
 import unittest
-from vespa.querybuilder import G
+from vespa.querybuilder import Grouping
 import vespa.querybuilder as qb
 
 
@@ -29,31 +29,31 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_select_specific_fields(self):
-        f1 = qb.Queryfield("f1")
+        f1 = qb.QueryField("f1")
         condition = f1.contains("v1")
         q = qb.select(["f1", "f2"]).from_("sd1").where(condition)
         self.assertEqual(q, 'select f1, f2 from sd1 where f1 contains "v1"')
         return q
 
     def test_select_from_specific_sources(self):
-        f1 = qb.Queryfield("f1")
+        f1 = qb.QueryField("f1")
         condition = f1.contains("v1")
         q = qb.select("*").from_("sd1").where(condition)
         self.assertEqual(q, 'select * from sd1 where f1 contains "v1"')
         return q
 
     def test_select_from_multiples_sources(self):
-        f1 = qb.Queryfield("f1")
+        f1 = qb.QueryField("f1")
         condition = f1.contains("v1")
         q = qb.select("*").from_("sd1", "sd2").where(condition)
         self.assertEqual(q, 'select * from sd1, sd2 where f1 contains "v1"')
         return q
 
     def test_basic_and_andnot_or_offset_limit_param_order_by_and_contains(self):
-        f1 = qb.Queryfield("f1")
-        f2 = qb.Queryfield("f2")
-        f3 = qb.Queryfield("f3")
-        f4 = qb.Queryfield("f4")
+        f1 = qb.QueryField("f1")
+        f2 = qb.QueryField("f2")
+        f3 = qb.QueryField("f3")
+        f4 = qb.QueryField("f4")
         condition = ((f1.contains("v1") & f2.contains("v2")) | f3.contains("v3")) & (
             ~f4.contains("v4")
         )
@@ -73,7 +73,7 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_timeout(self):
-        f1 = qb.Queryfield("title")
+        f1 = qb.QueryField("title")
         condition = f1.contains("madonna")
         q = qb.select("*").from_("sd1").where(condition).set_timeout(70)
         expected = 'select * from sd1 where title contains "madonna" timeout 70'
@@ -82,9 +82,9 @@ class TestQueryBuilder(unittest.TestCase):
 
     def test_matches(self):
         condition = (
-            (qb.Queryfield("f1").matches("v1") & qb.Queryfield("f2").matches("v2"))
-            | qb.Queryfield("f3").matches("v3")
-        ) & ~qb.Queryfield("f4").matches("v4")
+            (qb.QueryField("f1").matches("v1") & qb.QueryField("f2").matches("v2"))
+            | qb.QueryField("f3").matches("v3")
+        ) & ~qb.QueryField("f4").matches("v4")
         q = qb.select("*").from_("sd1").where(condition)
         expected = 'select * from sd1 where ((f1 matches "v1" and f2 matches "v2") or f3 matches "v3") and !(f4 matches "v4")'
         self.assertEqual(q, expected)
@@ -92,9 +92,9 @@ class TestQueryBuilder(unittest.TestCase):
 
     def test_nested_queries(self):
         nested_query = (
-            qb.Queryfield("f2").contains("2") & qb.Queryfield("f3").contains("3")
-        ) | (qb.Queryfield("f2").contains("4") & ~qb.Queryfield("f3").contains("5"))
-        condition = qb.Queryfield("f1").contains("1") & ~nested_query
+            qb.QueryField("f2").contains("2") & qb.QueryField("f3").contains("3")
+        ) | (qb.QueryField("f2").contains("4") & ~qb.QueryField("f3").contains("5"))
+        condition = qb.QueryField("f1").contains("1") & ~nested_query
         q = qb.select("*").from_("sd1").where(condition)
         expected = 'select * from sd1 where f1 contains "1" and (!((f2 contains "2" and f3 contains "3") or (f2 contains "4" and !(f3 contains "5"))))'
         self.assertEqual(q, expected)
@@ -108,9 +108,9 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_fields_duration(self):
-        f1 = qb.Queryfield("subject")
-        f2 = qb.Queryfield("display_date")
-        f3 = qb.Queryfield("duration")
+        f1 = qb.QueryField("subject")
+        f2 = qb.QueryField("display_date")
+        f3 = qb.QueryField("duration")
         q = qb.select([f1, f2]).from_("calendar").where(f3 > 0)
         expected = "select subject, display_date from calendar where duration > 0"
         self.assertEqual(q, expected)
@@ -148,7 +148,7 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_field_comparison_operators(self):
-        f1 = qb.Queryfield("age")
+        f1 = qb.QueryField("age")
         condition = (f1 > 30) & (f1 <= 50)
         q = qb.select("*").from_("people").where(condition)
         expected = "select * from people where age > 30 and age <= 50"
@@ -156,7 +156,7 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_field_in_range(self):
-        f1 = qb.Queryfield("age")
+        f1 = qb.QueryField("age")
         condition = f1.in_range(18, 65)
         q = qb.select("*").from_("people").where(condition)
         expected = "select * from people where range(age, 18, 65)"
@@ -164,7 +164,7 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_field_annotation(self):
-        f1 = qb.Queryfield("title")
+        f1 = qb.QueryField("title")
         annotations = {"highlight": True}
         annotated_field = f1.annotate(annotations)
         q = qb.select("*").from_("articles").where(annotated_field)
@@ -173,7 +173,7 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_condition_annotation(self):
-        f1 = qb.Queryfield("title")
+        f1 = qb.QueryField("title")
         condition = f1.contains("Python")
         annotated_condition = condition.annotate({"filter": True})
         q = qb.select("*").from_("articles").where(annotated_condition)
@@ -182,7 +182,10 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_grouping_with_condition(self):
-        grouping = G.all(G.group("customer"), G.each(G.output(G.sum("price"))))
+        grouping = Grouping.all(
+            Grouping.group("customer"),
+            Grouping.each(Grouping.output(Grouping.sum("price"))),
+        )
         q = qb.select("*").from_("purchase").where(True).set_limit(0).groupby(grouping)
         expected = "select * from purchase where true limit 0 | all(group(customer) each(output(sum(price))))"
         self.assertEqual(q, expected)
@@ -190,12 +193,12 @@ class TestQueryBuilder(unittest.TestCase):
 
     def test_grouping_with_ordering_and_limiting(self):
         self.maxDiff = None
-        grouping = G.all(
-            G.group("customer"),
-            G.max(2),
-            G.precision(12),
-            G.order(-G.count()),
-            G.each(G.output(G.sum("price"))),
+        grouping = Grouping.all(
+            Grouping.group("customer"),
+            Grouping.max(2),
+            Grouping.precision(12),
+            Grouping.order(-Grouping.count()),
+            Grouping.each(Grouping.output(Grouping.sum("price"))),
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         expected = "select * from purchase where true | all(group(customer) max(2) precision(12) order(-count()) each(output(sum(price))))"
@@ -203,9 +206,12 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_grouping_with_map_keys(self):
-        grouping = G.all(
-            G.group("mymap.key"),
-            G.each(G.group("mymap.value"), G.each(G.output(G.count()))),
+        grouping = Grouping.all(
+            Grouping.group("mymap.key"),
+            Grouping.each(
+                Grouping.group("mymap.value"),
+                Grouping.each(Grouping.output(Grouping.count())),
+            ),
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         expected = "select * from purchase where true | all(group(mymap.key) each(group(mymap.value) each(output(count()))))"
@@ -213,28 +219,31 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_group_by_year(self):
-        grouping = G.all(G.group("time.year(a)"), G.each(G.output(G.count())))
+        grouping = Grouping.all(
+            Grouping.group("time.year(a)"),
+            Grouping.each(Grouping.output(Grouping.count())),
+        )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         expected = "select * from purchase where true | all(group(time.year(a)) each(output(count())))"
         self.assertEqual(q, expected)
         return q
 
     def test_grouping_with_date_agg(self):
-        grouping = G.all(
-            G.group("time.year(a)"),
-            G.each(
-                G.output(G.count()),
-                G.all(
-                    G.group("time.monthofyear(a)"),
-                    G.each(
-                        G.output(G.count()),
-                        G.all(
-                            G.group("time.dayofmonth(a)"),
-                            G.each(
-                                G.output(G.count()),
-                                G.all(
-                                    G.group("time.hourofday(a)"),
-                                    G.each(G.output(G.count())),
+        grouping = Grouping.all(
+            Grouping.group("time.year(a)"),
+            Grouping.each(
+                Grouping.output(Grouping.count()),
+                Grouping.all(
+                    Grouping.group("time.monthofyear(a)"),
+                    Grouping.each(
+                        Grouping.output(Grouping.count()),
+                        Grouping.all(
+                            Grouping.group("time.dayofmonth(a)"),
+                            Grouping.each(
+                                Grouping.output(Grouping.count()),
+                                Grouping.all(
+                                    Grouping.group("time.hourofday(a)"),
+                                    Grouping.each(Grouping.output(Grouping.count())),
                                 ),
                             ),
                         ),
@@ -252,7 +261,7 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_add_parameter(self):
-        f1 = qb.Queryfield("title")
+        f1 = qb.QueryField("title")
         condition = f1.contains("Python")
         q = (
             qb.select("*")
@@ -304,8 +313,8 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_weakand(self):
-        condition1 = qb.Queryfield("title").contains("Python")
-        condition2 = qb.Queryfield("description").contains("Programming")
+        condition1 = qb.QueryField("title").contains("Python")
+        condition2 = qb.QueryField("description").contains("Programming")
         condition = qb.weakAnd(
             condition1, condition2, annotations={"targetNumHits": 100}
         )
@@ -322,9 +331,9 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_condition_all_any(self):
-        c1 = qb.Queryfield("f1").contains("v1")
-        c2 = qb.Queryfield("f2").contains("v2")
-        c3 = qb.Queryfield("f3").contains("v3")
+        c1 = qb.QueryField("f1").contains("v1")
+        c2 = qb.QueryField("f2").contains("v2")
+        c3 = qb.QueryField("f3").contains("v3")
         condition = qb.all(c1, c2, qb.any(c3, ~c1))
         q = qb.select("*").from_("sd1").where(condition)
         expected = 'select * from sd1 where f1 contains "v1" and f2 contains "v2" and (f3 contains "v3" or !(f1 contains "v1"))'
@@ -343,7 +352,7 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_field_comparison_methods_builtins(self):
-        f1 = qb.Queryfield("age")
+        f1 = qb.QueryField("age")
         condition = (f1 >= 18) & (f1 < 30)
         q = qb.select("*").from_("users").where(condition)
         expected = "select * from users where age >= 18 and age < 30"
@@ -351,7 +360,7 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_field_comparison_methods(self):
-        f1 = qb.Queryfield("age")
+        f1 = qb.QueryField("age")
         condition = (f1.ge(18) & f1.lt(30)) | f1.eq(40)
         q = qb.select("*").from_("users").where(condition)
         expected = "select * from users where (age >= 18 and age < 30) or age = 40"
@@ -359,7 +368,7 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_filter_annotation(self):
-        f1 = qb.Queryfield("title")
+        f1 = qb.QueryField("title")
         condition = f1.contains("Python").annotate({"filter": True})
         q = qb.select("*").from_("articles").where(condition)
         expected = 'select * from articles where {filter:true}title contains "Python"'
@@ -367,7 +376,7 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_non_empty(self):
-        condition = qb.nonEmpty(qb.Queryfield("comments").eq("any_value"))
+        condition = qb.nonEmpty(qb.QueryField("comments").eq("any_value"))
         q = qb.select("*").from_("posts").where(condition)
         expected = 'select * from posts where nonEmpty(comments = "any_value")'
         self.assertEqual(q, expected)
@@ -381,7 +390,7 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_in_range_string_values(self):
-        f1 = qb.Queryfield("date")
+        f1 = qb.QueryField("date")
         condition = f1.in_range("2021-01-01", "2021-12-31")
         q = qb.select("*").from_("events").where(condition)
         expected = "select * from events where range(date, 2021-01-01, 2021-12-31)"
@@ -389,7 +398,7 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_condition_inversion(self):
-        f1 = qb.Queryfield("status")
+        f1 = qb.QueryField("status")
         condition = ~f1.eq("inactive")
         q = qb.select("*").from_("users").where(condition)
         expected = 'select * from users where !(status = "inactive")'
@@ -397,7 +406,7 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_multiple_parameters(self):
-        f1 = qb.Queryfield("title")
+        f1 = qb.QueryField("title")
         condition = f1.contains("Python")
         q = (
             qb.select("*")
@@ -411,11 +420,13 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_multiple_groupings(self):
-        grouping = G.all(
-            G.group("category"),
-            G.max(10),
-            G.output(G.count()),
-            G.each(G.group("subcategory"), G.output(G.summary())),
+        grouping = Grouping.all(
+            Grouping.group("category"),
+            Grouping.max(10),
+            Grouping.output(Grouping.count()),
+            Grouping.each(
+                Grouping.group("subcategory"), Grouping.output(Grouping.summary())
+            ),
         )
         q = qb.select("*").from_("products").groupby(grouping)
         expected = "select * from products | all(group(category) max(10) output(count()) each(group(subcategory) output(summary())))"
@@ -441,7 +452,7 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_non_empty_with_annotations(self):
-        annotated_field = qb.Queryfield("comments").annotate({"filter": True})
+        annotated_field = qb.QueryField("comments").annotate({"filter": True})
         condition = qb.nonEmpty(annotated_field)
         q = qb.select("*").from_("posts").where(condition)
         expected = "select * from posts where nonEmpty(({filter:true})comments)"
@@ -449,7 +460,7 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_weight_annotation(self):
-        condition = qb.Queryfield("title").contains(
+        condition = qb.QueryField("title").contains(
             "heads", annotations={"weight": 200}
         )
         q = qb.select("*").from_("s1").where(condition)
@@ -467,7 +478,7 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_phrase(self):
-        text = qb.Queryfield("text")
+        text = qb.QueryField("text")
         condition = text.contains(qb.phrase("st", "louis", "blues"))
         query = qb.select("*").where(condition)
         expected = 'select * from * where text contains phrase("st", "louis", "blues")'
@@ -475,7 +486,7 @@ class TestQueryBuilder(unittest.TestCase):
         return query
 
     def test_near(self):
-        title = qb.Queryfield("title")
+        title = qb.QueryField("title")
         condition = title.contains(qb.near("madonna", "saint"))
         query = qb.select("*").where(condition)
         expected = 'select * from * where title contains near("madonna", "saint")'
@@ -483,7 +494,7 @@ class TestQueryBuilder(unittest.TestCase):
         return query
 
     def test_near_with_distance(self):
-        title = qb.Queryfield("title")
+        title = qb.QueryField("title")
         condition = title.contains(qb.near("madonna", "saint", distance=10))
         query = qb.select("*").where(condition)
         expected = 'select * from * where title contains ({distance:10}near("madonna", "saint"))'
@@ -491,7 +502,7 @@ class TestQueryBuilder(unittest.TestCase):
         return query
 
     def test_onear(self):
-        title = qb.Queryfield("title")
+        title = qb.QueryField("title")
         condition = title.contains(qb.onear("madonna", "saint"))
         query = qb.select("*").where(condition)
         expected = 'select * from * where title contains onear("madonna", "saint")'
@@ -499,7 +510,7 @@ class TestQueryBuilder(unittest.TestCase):
         return query
 
     def test_onear_with_distance(self):
-        title = qb.Queryfield("title")
+        title = qb.QueryField("title")
         condition = title.contains(qb.onear("madonna", "saint", distance=5))
         query = qb.select("*").where(condition)
         expected = 'select * from * where title contains ({distance:5}onear("madonna", "saint"))'
@@ -507,10 +518,10 @@ class TestQueryBuilder(unittest.TestCase):
         return query
 
     def test_same_element(self):
-        persons = qb.Queryfield("persons")
-        first_name = qb.Queryfield("first_name")
-        last_name = qb.Queryfield("last_name")
-        year_of_birth = qb.Queryfield("year_of_birth")
+        persons = qb.QueryField("persons")
+        first_name = qb.QueryField("first_name")
+        last_name = qb.QueryField("last_name")
+        year_of_birth = qb.QueryField("year_of_birth")
         condition = persons.contains(
             qb.sameElement(
                 first_name.contains("Joe"),
@@ -524,7 +535,7 @@ class TestQueryBuilder(unittest.TestCase):
         return query
 
     def test_equiv(self):
-        fieldName = qb.Queryfield("fieldName")
+        fieldName = qb.QueryField("fieldName")
         condition = fieldName.contains(qb.equiv("A", "B"))
         query = qb.select("*").where(condition)
         expected = 'select * from * where fieldName contains equiv("A", "B")'
@@ -532,7 +543,7 @@ class TestQueryBuilder(unittest.TestCase):
         return query
 
     def test_uri(self):
-        myUrlField = qb.Queryfield("myUrlField")
+        myUrlField = qb.QueryField("myUrlField")
         condition = myUrlField.contains(qb.uri("vespa.ai/foo"))
         query = qb.select("*").from_("sd1").where(condition)
         expected = 'select * from sd1 where myUrlField contains uri("vespa.ai/foo")'
@@ -540,7 +551,7 @@ class TestQueryBuilder(unittest.TestCase):
         return query
 
     def test_fuzzy(self):
-        myStringAttribute = qb.Queryfield("f1")
+        myStringAttribute = qb.QueryField("f1")
         annotations = {"prefixLength": 1, "maxEditDistance": 2}
         condition = myStringAttribute.contains(
             qb.fuzzy("parantesis", annotations=annotations)
@@ -572,7 +583,7 @@ class TestQueryBuilder(unittest.TestCase):
         return query
 
     def test_in_operator_intfield(self):
-        integer_field = qb.Queryfield("age")
+        integer_field = qb.QueryField("age")
         condition = integer_field.in_(10, 20, 30)
         query = qb.select("*").from_("sd1").where(condition)
         expected = "select * from sd1 where age in (10, 20, 30)"
@@ -580,7 +591,7 @@ class TestQueryBuilder(unittest.TestCase):
         return query
 
     def test_in_operator_stringfield(self):
-        string_field = qb.Queryfield("status")
+        string_field = qb.QueryField("status")
         condition = string_field.in_("active", "inactive")
         query = qb.select("*").from_("sd1").where(condition)
         expected = 'select * from sd1 where status in ("active", "inactive")'

@@ -1,7 +1,7 @@
 from typing import Union
 
 
-class G:
+class Grouping:
     @staticmethod
     def all(*args) -> str:
         return "all(" + " ".join(args) + ")"

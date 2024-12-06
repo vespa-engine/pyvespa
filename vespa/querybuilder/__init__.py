@@ -1,5 +1,5 @@
-from .builder.builder import Q, Queryfield
-from .grouping.grouping import G
+from .builder.builder import Q, QueryField
+from .grouping.grouping import Grouping
 import inspect
 
 # Import original classes
@@ -26,10 +26,9 @@ __all__ = [
     # Classes
     # "Query",
     # "Q",
-    "Queryfield",
-    "G",
+    "QueryField",
+    "Grouping",
     # "Condition",
     # Add all exposed functions
     *get_function_members(Q),
-    *get_function_members(G),
 ]
