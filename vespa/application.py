@@ -1651,9 +1651,9 @@ class VespaAsync(object):
         schema: str,
         data_id: str,
         fields: Dict,
-        namespace: str = None,
-        groupname: str = None,
-        semaphore: asyncio.Semaphore = None,
+        namespace: Optional[str] = None,
+        groupname: Optional[str] = None,
+        semaphore: Optional[asyncio.Semaphore] = None,
         **kwargs,
     ) -> VespaResponse:
         path = self.app.get_document_v1_path(
