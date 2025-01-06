@@ -237,8 +237,8 @@ class Query:
     def __repr__(self) -> str:
         return str(self)
 
-    def from_(self, *sources: str) -> Query:
-        self.sources = ", ".join(sources)
+    def from_(self, *sources: Union[str, QueryField]) -> Query:
+        self.sources = ", ".join(str(source) for source in sources)
         return self
 
     def where(self, condition: Union[Condition, bool]) -> Query:
@@ -416,6 +416,33 @@ class Q:
         radius: str,
         annotations: Optional[Dict[str, Any]] = None,
     ) -> Condition:
+        """Creates a geolocation search condition.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#geolocation.
+
+        Args:
+            field (str): Field containing location data
+            lat (float): Latitude coordinate
+            lon (float): Longitude coordinate
+            radius (str): Search radius (e.g. "10km")
+            annotations (Optional[Dict]): Optional settings like targetHits
+
+        Returns:
+            Condition: A geolocation search condition
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> condition = qb.geoLocation(
+            ...     "location_field",
+            ...     37.7749,
+            ...     -122.4194,
+            ...     "10km",
+            ...     annotations={"targetHits": 100}
+            ... )
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where ({targetHits:100}geoLocation(location_field, 37.7749, -122.4194, "10km"))'
+        """
         expr = f'geoLocation({field}, {lat}, {lng}, "{radius}")'
         if annotations:
             annotations_str = ",".join(
@@ -427,8 +454,30 @@ class Q:
 
     @staticmethod
     def nearestNeighbor(
-        field: str, query_vector: str, annotations: Dict[str, Any]
+        field: str, query_vector: str, annotations: Dict[str, Any] = {"targetHits": 10}
     ) -> Condition:
+        """Creates a nearest neighbor search condition.
+
+        See https://docs.vespa.ai/en/reference/query-language-reference.html#nearestneighbor for more information.
+
+        Args:
+            field (str): Vector field to search in
+            query_vector (str): Query vector to compare against
+            annotations (Dict[str, Any]): Optional annotations to modify the behavior. Required annotation: targetHits (default: 10)
+
+        Returns:
+            Condition: A nearest neighbor search condition
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> condition = qb.nearestNeighbor(
+            ...     field="dense_rep",
+            ...     query_vector="q_dense",
+            ... )
+            >>> query = qb.select(["id, text"]).from_("m").where(condition)
+            >>> str(query)
+            'select id, text from m where ({targetHits:10}nearestNeighbor(dense_rep, q_dense))'
+        """
         if "targetHits" not in annotations:
             raise ValueError("targetHits annotation is required")
         annotations_str = ",".join(
@@ -532,6 +581,36 @@ class Q:
     def userInput(
         value: Optional[str] = None, annotations: Optional[Dict[str, Any]] = None
     ) -> Condition:
+        """Creates a userInput operator for query evaluation.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#userinput.
+
+        Args:
+            value (Optional[str]): The input variable name, e.g. "@myvar"
+            annotations (Optional[Dict]): Optional annotations to modify the behavior
+
+        Returns:
+            Condition: A condition representing the userInput operator
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> condition = qb.userInput("@myvar")
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where userInput(@myvar)'
+
+            >>> # With defaultIndex annotation
+            >>> condition = qb.userInput("@myvar").annotate({"defaultIndex": "text"})
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where {defaultIndex:"text"}userInput(@myvar)'
+
+            >>> # With parameter
+            >>> condition = qb.userInput("@animal")
+            >>> query = qb.select("*").from_("sd1").where(condition).param("animal", "panda")
+            >>> str(query)
+            'select * from sd1 where userInput(@animal)&animal=panda'
+        """
         if value is None:
             expr = "userInput()"
         elif value.startswith("@"):
@@ -552,6 +631,29 @@ class Q:
         attributes: Optional[Dict[str, Any]] = None,
         range_attributes: Optional[Dict[str, Any]] = None,
     ) -> Condition:
+        """Creates a predicate condition for filtering documents based on specific attributes.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#predicate.
+
+        Args:
+            field (str): The predicate field name
+            attributes (Optional[Dict[str, Any]]): Dictionary of attribute key-value pairs
+            range_attributes (Optional[Dict[str, Any]]): Dictionary of range attribute key-value pairs
+
+        Returns:
+            Condition: A condition representing the predicate operation
+
+        Example:
+            >>> import vespa.querybuilder as qb
+            >>> condition = qb.predicate(
+            ...     "predicate_field",
+            ...     attributes={"gender": "Female"},
+            ...     range_attributes={"age": "20L"}
+            ... )
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where predicate(predicate_field,{"gender":"Female"},{"age":20L})'
+        """
         if attributes is None:
             attributes_str = "0"
         else:
