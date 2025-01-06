@@ -4,7 +4,7 @@ import vespa.querybuilder as qb
 
 
 class TestQueryBuilder(unittest.TestCase):
-    def test_dotProduct_with_annotations(self):
+    def test_dotproduct_with_annotations(self):
         condition = qb.dotProduct(
             "weightedset_field",
             {"feature1": 1, "feature2": 2},

@@ -387,12 +387,12 @@ class TestQueriesIntegration(unittest.TestCase):
         ]
         return docs
 
-    def feed_grouping_data(self):
+    def feed_grouping_data(self) -> None:
         # Feed documents
         self.app.feed_iterable(iter=self.sample_grouping_data, schema="purchase")
-        return
+        return None
 
-    def test_dotProduct_with_annotations(self):
+    def test_dotproduct_with_annotations(self):
         # Feed a document with 'weightedset_field'
         field = "weightedset_field"
         fields = {field: {"feature1": 2, "feature2": 4}}
@@ -400,7 +400,7 @@ class TestQueriesIntegration(unittest.TestCase):
         self.app.feed_data_point(
             schema=self.schema_name, data_id=data_id, fields=fields
         )
-        q = qb.test_dotProduct_with_annotations()
+        q = qb.test_dotproduct_with_annotations()
         with self.app.syncio() as sess:
             result = sess.query(yql=q, ranking="dotproduct")
         print(result.json)
