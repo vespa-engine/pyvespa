@@ -231,11 +231,11 @@ class Query:
     def __repr__(self) -> str:
         return str(self)
 
-    def from_(self, *sources: str) -> "Query":
+    def from_(self, *sources: str) -> Query:
         self.sources = ", ".join(sources)
         return self
 
-    def where(self, condition: Union[Condition, Queryfield, bool]) -> "Query":
+    def where(self, condition: Union[Condition, Queryfield, bool]) -> Query:
         if isinstance(condition, Queryfield):
             self.condition = condition
         elif isinstance(condition, bool):
@@ -249,7 +249,7 @@ class Query:
         field: str,
         ascending: bool = True,
         annotations: Optional[Dict[str, Any]] = None,
-    ) -> "Query":
+    ) -> Query:
         direction = "asc" if ascending else "desc"
         if annotations:
             annotations_str = ",".join(
@@ -263,34 +263,34 @@ class Query:
 
     def orderByAsc(
         self, field: str, annotations: Optional[Dict[str, Any]] = None
-    ) -> "Query":
+    ) -> Query:
         return self.order_by_field(field, True, annotations)
 
     def orderByDesc(
         self, field: str, annotations: Optional[Dict[str, Any]] = None
-    ) -> "Query":
+    ) -> Query:
         return self.order_by_field(field, False, annotations)
 
-    def set_limit(self, limit: int) -> "Query":
+    def set_limit(self, limit: int) -> Query:
         self.limit_value = limit
         return self
 
-    def set_offset(self, offset: int) -> "Query":
+    def set_offset(self, offset: int) -> Query:
         self.offset_value = offset
         return self
 
-    def set_timeout(self, timeout: int) -> "Query":
+    def set_timeout(self, timeout: int) -> Query:
         self.timeout_value = timeout
         return self
 
-    def add_parameter(self, key: str, value: Any) -> "Query":
+    def add_parameter(self, key: str, value: Any) -> Query:
         self.parameters[key] = value
         return self
 
-    def param(self, key: str, value: Any) -> "Query":
+    def param(self, key: str, value: Any) -> Query:
         return self.add_parameter(key, value)
 
-    def groupby(self, group_expression: str) -> "Query":
+    def groupby(self, group_expression: str) -> Query:
         self.grouping = group_expression
         return self
 
@@ -318,18 +318,8 @@ class Query:
 
 class Q:
     @staticmethod
-    def select(*fields):
+    def select(*fields: Union[str, Queryfield]) -> Query:
         return Query(select_fields=list(fields))
-
-    @staticmethod
-    def p(*args):
-        if not args:
-            return Condition("")
-        else:
-            condition = args[0]
-            for arg in args[1:]:
-                condition = condition & arg
-            return condition
 
     @staticmethod
     def userQuery(value: str = "") -> Condition:
