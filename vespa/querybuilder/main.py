@@ -319,7 +319,7 @@ class Query:
 class Q:
     @staticmethod
     def select(*fields: Union[str, Queryfield]) -> Query:
-        return Query(select_fields=list(fields))
+        return Query(select_fields=fields)
 
     @staticmethod
     def userQuery(value: str = "") -> Condition:
