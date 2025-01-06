@@ -347,11 +347,9 @@ class TestQueryBuilder(unittest.TestCase):
     def test_order_by_with_annotations(self):
         f1 = "relevance"
         f2 = "price"
-        annotations = {"strength": 0.5}
+        annotations = {"function": "uca", "locale": "en_US", "strength": "IDENTICAL"}
         q = qb.select("*").from_("products").orderByDesc(f1, annotations).orderByAsc(f2)
-        expected = (
-            'select * from products order by {"strength":0.5}relevance desc, price asc'
-        )
+        expected = 'select * from products order by {"function":"uca","locale":"en_US","strength":"IDENTICAL"}relevance desc, price asc'
         self.assertEqual(q, expected)
         return q
 
