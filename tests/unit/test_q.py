@@ -496,24 +496,24 @@ class TestQueryBuilder(unittest.TestCase):
     def test_near_with_distance(self):
         title = qb.QueryField("title")
         condition = title.contains(qb.near("madonna", "saint", distance=10))
-        query = qb.select("*").where(condition)
-        expected = 'select * from * where title contains ({distance:10}near("madonna", "saint"))'
+        query = qb.select("*").from_("sd1").where(condition)
+        expected = 'select * from sd1 where title contains ({distance:10}near("madonna", "saint"))'
         self.assertEqual(query, expected)
         return query
 
     def test_onear(self):
         title = qb.QueryField("title")
         condition = title.contains(qb.onear("madonna", "saint"))
-        query = qb.select("*").where(condition)
-        expected = 'select * from * where title contains onear("madonna", "saint")'
+        query = qb.select("*").from_("sd1").where(condition)
+        expected = 'select * from sd1 where title contains onear("madonna", "saint")'
         self.assertEqual(query, expected)
         return query
 
     def test_onear_with_distance(self):
         title = qb.QueryField("title")
         condition = title.contains(qb.onear("madonna", "saint", distance=5))
-        query = qb.select("*").where(condition)
-        expected = 'select * from * where title contains ({distance:5}onear("madonna", "saint"))'
+        query = qb.select("*").from_("sd1").where(condition)
+        expected = 'select * from sd1 where title contains ({distance:5}onear("madonna", "saint"))'
         self.assertEqual(query, expected)
         return query
 
@@ -536,9 +536,9 @@ class TestQueryBuilder(unittest.TestCase):
 
     def test_equiv(self):
         fieldName = qb.QueryField("fieldName")
-        condition = fieldName.contains(qb.equiv("A", "B"))
-        query = qb.select("*").where(condition)
-        expected = 'select * from * where fieldName contains equiv("A", "B")'
+        condition = fieldName.contains(qb.equiv("Snoop Dogg", "Calvin Broadus"))
+        query = qb.select("*").from_("sd1").where(condition)
+        expected = 'select * from sd1 where fieldName contains equiv("Snoop Dogg", "Calvin Broadus")'
         self.assertEqual(query, expected)
         return query
 
