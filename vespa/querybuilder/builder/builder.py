@@ -266,6 +266,38 @@ class Query:
         return self
 
     def where(self, condition: Union[Condition, bool]) -> Query:
+        """Adds a where clause to filter query results.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#where
+
+        Args:
+            condition: Filter condition that can be:
+                - Condition object for complex queries
+                - Boolean for simple true/false
+                - QueryField for field-based filters
+
+        Returns:
+            Query: Self for method chaining
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> # Using field conditions
+            >>> f1 = qb.QueryField("f1")
+            >>> query = qb.select("*").from_("sd1").where(f1.contains("v1"))
+            >>> str(query)
+            'select * from sd1 where f1 contains "v1"'
+
+            >>> # Using boolean
+            >>> query = qb.select("*").from_("sd1").where(True)
+            >>> str(query)
+            'select * from sd1 where true'
+
+            >>> # Using complex conditions
+            >>> condition = f1.contains("v1") & qb.QueryField("f2").contains("v2")
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where f1 contains "v1" and f2 contains "v2"'
+        """
         if isinstance(condition, QueryField):
             self.condition = condition
         elif isinstance(condition, bool):
@@ -274,12 +306,37 @@ class Query:
             self.condition = condition
         return self
 
-    def order_by_field(
+    def order_by(
         self,
         field: str,
         ascending: bool = True,
         annotations: Optional[Dict[str, Any]] = None,
     ) -> Query:
+        """Orders results by specified fields.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#ordering
+
+        Args:
+            fields: Field names or QueryField objects to order by
+            annotations: Optional annotations like "max" or "min"
+
+        Returns:
+            Query: Self for method chaining
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> # Simple ordering
+            >>> query = qb.select("*").from_("sd1").order_by("price")
+            >>> str(query)
+            'select * from sd1 order by price asc'
+
+            >>> # Multiple fields with annotation
+            >>> query = qb.select("*").from_("sd1").order_by(
+            ...     "price", annotations={"locale": "en_US"}, ascending=False
+            ... ).order_by("name", annotations={"locale": "no_NO"}, ascending=True)
+            >>> str(query)
+            'select * from sd1 order by {"locale":"en_US"}price desc, {"locale":"no_NO"}name asc'
+        """
         direction = "asc" if ascending else "desc"
         if annotations:
             annotations_str = ",".join(
@@ -294,12 +351,12 @@ class Query:
     def orderByAsc(
         self, field: str, annotations: Optional[Dict[str, Any]] = None
     ) -> Query:
-        return self.order_by_field(field, True, annotations)
+        return self.order_by(field, True, annotations)
 
     def orderByDesc(
         self, field: str, annotations: Optional[Dict[str, Any]] = None
     ) -> Query:
-        return self.order_by_field(field, False, annotations)
+        return self.order_by(field, False, annotations)
 
     def set_limit(self, limit: int) -> Query:
         self.limit_value = limit
