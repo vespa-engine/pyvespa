@@ -318,7 +318,7 @@ class Query:
 
         Args:
             fields: Field names or QueryField objects to order by
-            annotations: Optional annotations like "max" or "min"
+            annotations: Optional annotations like "locale", "strength", etc. See https://docs.vespa.ai/en/reference/sorting.html#special-sorting-attributes for details.
 
         Returns:
             Query: Self for method chaining
