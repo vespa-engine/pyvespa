@@ -814,7 +814,6 @@ class TestQueriesIntegration(unittest.TestCase):
         print(f"Executing query: {q}")
         with self.app.syncio() as sess:
             result = sess.query(yql=q)
-        print(result.json)
         # Verify only two documents match
         self.assertEqual(len(result.hits), 2)
         # Verify matching documents have expected values
@@ -857,7 +856,7 @@ class TestQueriesIntegration(unittest.TestCase):
         self.assertIn(f"id:{self.schema_name}:{self.schema_name}::2", ids)
 
     def test_near(self):
-        # 'select * from * where title contains near("madonna", "saint")'
+        # 'select * from sd1 where title contains near("madonna", "saint")'
         # Feed test documents
         docs = [
             {  # Doc 1: Should match
@@ -877,6 +876,96 @@ class TestQueriesIntegration(unittest.TestCase):
         self.app.feed_iterable(iter=docs, schema=self.schema_name)
         # Execute query
         q = qb.test_near()
+        print(f"Executing query: {q}")
+        with self.app.syncio() as sess:
+            result = sess.query(yql=q)
+        # Verify only one document matches
+        self.assertEqual(len(result.hits), 1)
+        # Verify matching id
+        hit = result.hits[0]
+        self.assertEqual(hit["id"], f"id:{self.schema_name}:{self.schema_name}::1")
+
+    def test_near_with_distance(self):
+        # 'select * from sd1 where title contains ({distance:10}near("madonna", "saint"))'
+        # Feed test documents
+        docs = [
+            {  # Doc 1: Should match
+                "title": "madonna word number foo bar baz saint",
+            },
+            {  # Doc 2: Should not match
+                "title": "saint and sinner",
+            },
+            {  # Doc 3: Should not match - distance too large
+                "title": "madonna foo bar baz foo bar baz foo bar baz foo bar baz saint",
+            },
+        ]
+        # Format and feed documents
+        docs = [
+            {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
+        ]
+        self.app.feed_iterable(iter=docs, schema=self.schema_name)
+        # Execute query
+        q = qb.test_near_with_distance()
+        print(f"Executing query: {q}")
+        with self.app.syncio() as sess:
+            result = sess.query(yql=q)
+        # Verify only one document matches
+        self.assertEqual(len(result.hits), 1)
+        # Verify matching id
+        hit = result.hits[0]
+        self.assertEqual(hit["id"], f"id:{self.schema_name}:{self.schema_name}::1")
+
+    def test_onear(self):
+        # ordered near 'select * from sd1 where title contains onear("madonna", "saint")' default distance 2
+        # Feed test documents
+        docs = [
+            {  # Doc 1: Should match
+                "title": "madonna the saint",
+            },
+            {  # Doc 2: Should not match
+                "title": "saint and sinner",
+            },
+            {  # Doc 3: Should not match
+                "title": "madonna has become a saint",
+            },
+        ]
+        # Format and feed documents
+        docs = [
+            {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
+        ]
+        self.app.feed_iterable(iter=docs, schema=self.schema_name)
+        # Execute query
+        q = qb.test_onear()
+        print(f"Executing query: {q}")
+        with self.app.syncio() as sess:
+            result = sess.query(yql=q)
+        # Verify only one document matches
+        self.assertEqual(len(result.hits), 1)
+        # Verify matching id
+        hit = result.hits[0]
+        self.assertEqual(hit["id"], f"id:{self.schema_name}:{self.schema_name}::1")
+
+    def test_onear_with_distance(self):
+        # 'select * from sd1 where title contains ({distance:5}onear("madonna", "saint"))'
+        # Feed test documents
+        docs = [
+            {  # Doc 1: Should match
+                "title": "madonna foo bar baz saint",
+            },
+            {  # Doc 2: Should not match
+                "title": "saint and sinner",
+            },
+            {  # Doc 3: Should not match
+                "title": "madonna foo bar baz foo bar baz foo bar baz foo bar baz saint",
+            },
+        ]
+        # Format and feed documents
+        docs = [
+            {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
+        ]
+        self.app.feed_iterable(iter=docs, schema=self.schema_name)
+        # Execute query
+        q = qb.test_onear_with_distance()
         print(f"Executing query: {q}")
         with self.app.syncio() as sess:
             result = sess.query(yql=q)
@@ -942,6 +1031,37 @@ class TestQueriesIntegration(unittest.TestCase):
         self.app.feed_iterable(iter=docs, schema=self.schema_name)
         # Execute query
         q = qb.test_fuzzy()
+        print(f"Executing query: {q}")
+        with self.app.syncio() as sess:
+            result = sess.query(yql=q)
+        # Verify only two documents match
+        self.assertEqual(len(result.hits), 2)
+        # Verify matching documents have expected values
+        ids = sorted([hit["id"] for hit in result.hits])
+        self.assertIn(f"id:{self.schema_name}:{self.schema_name}::1", ids)
+        self.assertIn(f"id:{self.schema_name}:{self.schema_name}::2", ids)
+
+    def test_equiv(self):
+        #  'select * from sd1 where fieldName contains equiv("Snoop Dogg", "Calvin Broadus")'
+        # Feed test documents
+        docs = [
+            {  # Doc 1: Should match
+                "fieldName": "Snoop Dogg",
+            },
+            {  # Doc 2: Should match
+                "fieldName": "Calvin Broadus",
+            },
+            {  # Doc 3: Should not match
+                "fieldName": "Snoop Lion",
+            },
+        ]
+        # Format and feed documents
+        docs = [
+            {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
+        ]
+        self.app.feed_iterable(iter=docs, schema=self.schema_name)
+        # Execute query
+        q = qb.test_equiv()
         print(f"Executing query: {q}")
         with self.app.syncio() as sess:
             result = sess.query(yql=q)
