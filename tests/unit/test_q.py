@@ -1,6 +1,7 @@
 import unittest
 from vespa.querybuilder import Grouping
 import vespa.querybuilder as qb
+from vespa.package import Schema, Document
 
 
 class TestQueryBuilder(unittest.TestCase):
@@ -40,6 +41,14 @@ class TestQueryBuilder(unittest.TestCase):
         condition = f1.contains("v1")
         q = qb.select("*").from_("sd1").where(condition)
         self.assertEqual(q, 'select * from sd1 where f1 contains "v1"')
+        return q
+
+    def test_select_from_pyvespa_schema(self):
+        schema = Schema(name="schema_name", document=Document())
+        f1 = qb.QueryField("f1")
+        condition = f1.contains("v1")
+        q = qb.select("*").from_(schema).where(condition)
+        self.assertEqual(q, 'select * from schema_name where f1 contains "v1"')
         return q
 
     def test_select_from_multiples_sources(self):
