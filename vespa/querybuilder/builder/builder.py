@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, List, Union, Optional, Dict
+from vespa.package import Schema
 
 
 @dataclass
@@ -237,8 +238,30 @@ class Query:
     def __repr__(self) -> str:
         return str(self)
 
-    def from_(self, *sources: Union[str, QueryField]) -> Query:
-        self.sources = ", ".join(str(source) for source in sources)
+    def from_(self, *sources: Union[str, Schema]) -> Query:
+        """Specify the source schema(s) to query.
+
+        Example:
+            >>> import vespa.querybuilder as qb
+            >>> from vespa.package import Schema, Document
+            >>> query = qb.select("*").from_("schema1", "schema2")
+            >>> str(query)
+            'select * from schema1, schema2'
+            >>> query = qb.select("*").from_(Schema(name="schema1", document=Document()), Schema(name="schema2", document=Document()))
+            >>> str(query)
+            'select * from schema1, schema2'
+
+        Args:
+            sources: The source schema(s) to query.
+
+        Returns:
+            Query: The Query object.
+        """
+        # Convert all elements to string (schema.name) if not already str before joining
+        self.sources = ", ".join(
+            str(schema.name) if isinstance(schema, Schema) else str(schema)
+            for schema in sources
+        )
         return self
 
     def where(self, condition: Union[Condition, bool]) -> Query:
