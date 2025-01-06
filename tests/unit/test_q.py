@@ -488,8 +488,8 @@ class TestQueryBuilder(unittest.TestCase):
     def test_near(self):
         title = qb.QueryField("title")
         condition = title.contains(qb.near("madonna", "saint"))
-        query = qb.select("*").where(condition)
-        expected = 'select * from * where title contains near("madonna", "saint")'
+        query = qb.select("*").from_("sd1").where(condition)
+        expected = 'select * from sd1 where title contains near("madonna", "saint")'
         self.assertEqual(query, expected)
         return query
 
