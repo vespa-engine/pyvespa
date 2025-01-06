@@ -12,7 +12,7 @@ class TestQueryBuilder(unittest.TestCase):
             annotations={"label": "myDotProduct"},
         )
         q = qb.select("*").from_("sd1").where(condition)
-        expected = 'select * from sd1 where ({label:"myDotProduct"}dotProduct(weightedset_field, {"feature1":1,"feature2":2}))'
+        expected = 'select * from sd1 where ({label:"myDotProduct"}dotProduct(weightedset_field, {"feature1": 1, "feature2": 2}))'
         self.assertEqual(q, expected)
         return q
 
@@ -136,7 +136,6 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_build_many_nn_operators(self):
-        self.maxDiff = None
         conditions = [
             qb.nearestNeighbor(
                 field="colbert",
@@ -201,7 +200,6 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_grouping_with_ordering_and_limiting(self):
-        self.maxDiff = None
         grouping = Grouping.all(
             Grouping.group("customer"),
             Grouping.max(2),
@@ -287,7 +285,7 @@ class TestQueryBuilder(unittest.TestCase):
             qb.userQuery(), qb.dotProduct("embedding", {"feature1": 1, "feature2": 2})
         )
         q = qb.select("*").from_("documents").where(condition)
-        expected = 'select * from documents where rank(userQuery(), dotProduct(embedding, {"feature1":1,"feature2":2}))'
+        expected = 'select * from documents where rank(userQuery(), dotProduct(embedding, {"feature1": 1, "feature2": 2}))'
         self.assertEqual(q, expected)
         return q
 
@@ -308,7 +306,6 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_wand_annotations(self):
-        self.maxDiff = None
         condition = qb.wand(
             "description",
             weights={"a": 1, "b": 2},
@@ -316,8 +313,6 @@ class TestQueryBuilder(unittest.TestCase):
         )
         q = qb.select("*").from_("fruits").where(condition)
         expected = 'select * from fruits where ({scoreThreshold: 0.13, targetHits: 7}wand(description, {"a":1, "b":2}))'
-        print(q)
-        print(expected)
         self.assertEqual(q, expected)
         return q
 
@@ -394,7 +389,7 @@ class TestQueryBuilder(unittest.TestCase):
     def test_dotproduct(self):
         condition = qb.dotProduct("vector_field", {"feature1": 1, "feature2": 2})
         q = qb.select("*").from_("vectors").where(condition)
-        expected = 'select * from vectors where dotProduct(vector_field, {"feature1":1,"feature2":2})'
+        expected = 'select * from vectors where dotProduct(vector_field, {"feature1": 1, "feature2": 2})'
         self.assertEqual(q, expected)
         return q
 
@@ -456,7 +451,9 @@ class TestQueryBuilder(unittest.TestCase):
             qb.weightedSet("tags", {"tag1": 2}),
         )
         q = qb.select("*").from_("documents").where(condition)
-        expected = 'select * from documents where rank(userQuery(), dotProduct(embedding, {"feature1":1}), weightedSet(tags, {"tag1":2}))'
+        expected = 'select * from documents where rank(userQuery(), dotProduct(embedding, {"feature1": 1}), weightedSet(tags, {"tag1": 2}))'
+        print(q)
+        print(expected)
         self.assertEqual(q, expected)
         return q
 
