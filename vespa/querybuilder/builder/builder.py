@@ -365,25 +365,147 @@ class Query:
         return self.order_by(field, False, annotations)
 
     def set_limit(self, limit: int) -> Query:
+        """Sets maximum number of results to return.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#limit-offset
+
+        Args:
+            limit (int): Maximum number of hits to return
+
+        Returns:
+            Query: Self for method chaining
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> f1 = qb.QueryField("f1")
+            >>> query = qb.select("*").from_("sd1").where(f1.contains("v1")).set_limit(5)
+            >>> str(query)
+            'select * from sd1 where f1 contains "v1" limit 5'
+        """
         self.limit_value = limit
         return self
 
     def set_offset(self, offset: int) -> Query:
+        """Sets number of initial results to skip for pagination.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#offset
+
+        Args:
+            offset (int): Number of results to skip
+
+        Returns:
+            Query: Self for method chaining
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> f1 = qb.QueryField("f1")
+            >>> query = qb.select("*").from_("sd1").where(f1.contains("v1")).set_offset(10)
+            >>> str(query)
+            'select * from sd1 where f1 contains "v1" offset 10'
+        """
         self.offset_value = offset
         return self
 
     def set_timeout(self, timeout: int) -> Query:
+        """Sets query timeout in milliseconds.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#timeout
+
+        Args:
+            timeout (int): Timeout in milliseconds
+
+        Returns:
+            Query: Self for method chaining
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> f1 = qb.QueryField("f1")
+            >>> query = qb.select("*").from_("sd1").where(f1.contains("v1")).set_timeout(500)
+            >>> str(query)
+            'select * from sd1 where f1 contains "v1" timeout 500'
+        """
         self.timeout_value = timeout
         return self
 
     def add_parameter(self, key: str, value: Any) -> Query:
+        """Adds a query parameter.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#parameter-substitution
+
+        Args:
+            key (str): Parameter name
+            value (Any): Parameter value
+
+        Returns:
+            Query: Self for method chaining
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> condition = qb.userInput("@myvar")
+            >>> query = qb.select("*").from_("sd1").where(condition).add_parameter("myvar", "test")
+            >>> str(query)
+            'select * from sd1 where userInput(@myvar)&myvar=test'
+        """
         self.parameters[key] = value
         return self
 
     def param(self, key: str, value: Any) -> Query:
+        """Alias for add_parameter().
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#parameter-substitution
+
+        Args:
+            key (str): Parameter name
+            value (Any): Parameter value
+
+        Returns:
+            Query: Self for method chaining
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> condition = qb.userInput("@animal")
+            >>> query = qb.select("*").from_("sd1").where(condition).param("animal", "panda")
+            >>> str(query)
+            'select * from sd1 where userInput(@animal)&animal=panda'
+        """
         return self.add_parameter(key, value)
 
     def groupby(self, group_expression: str) -> Query:
+        """Groups results by specified expression.
+
+        For more information, see https://docs.vespa.ai/en/grouping.html
+
+        Args:
+            group_expression (str): Grouping expression
+
+        Returns:
+            Query: Self for method chaining
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> from vespa.querybuilder import Grouping as G
+            >>> # Group by customer with sum of price
+            >>> grouping = G.all(
+            ...     G.group("customer"),
+            ...     G.each(G.output(G.sum("price"))),
+            ... )
+            >>> str(grouping)
+            'all(group(customer) each(output(sum(price))))'
+            >>> query = qb.select("*").from_("sd1").groupby(grouping)
+            >>> str(query)
+            'select * from sd1 | all(group(customer) each(output(sum(price))))'
+
+            >>> # Group by year with count
+            >>> grouping = G.all(
+            ...     G.group("time.year(a)"),
+            ...     G.each(G.output(G.count())),
+            ... )
+            >>> str(grouping)
+            'all(group(time.year(a)) each(output(count())))'
+            >>> query = qb.select("*").from_("purchase").where(True).groupby(grouping)
+            >>> str(query)
+            'select * from purchase where true | all(group(time.year(a)) each(output(count())))'
+        """
         self.grouping = group_expression
         return self
 
@@ -411,19 +533,99 @@ class Query:
 
 class Q:
     @staticmethod
-    def select(fields):
+    def select(fields: Union[str, List[str], List[QueryField]]) -> Query:
+        """Creates a new query selecting specified fields.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#select
+
+        Args:
+            fields (Union[str, List[str], List[QueryField]): Field names or QueryField objects to select
+
+        Returns:
+            Query: New query object
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> query = qb.select("*").from_("sd1")
+            >>> str(query)
+            'select * from sd1'
+
+            >>> query = qb.select(["title", "url"])
+            >>> str(query)
+            'select title, url from *'
+        """
         return Query(select_fields=fields)
 
     @staticmethod
-    def any(*conditions):
+    def any(*conditions: Condition) -> Condition:
+        """Combines multiple conditions with OR operator.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#or
+
+        Args:
+            *conditions (Condition): Variable number of Condition objects to combine with OR
+
+        Returns:
+            Condition: Combined condition using OR operators
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> f1, f2 = qb.QueryField("f1"), qb.QueryField("f2")
+            >>> condition = qb.any(f1 > 10, f2 == "v2")
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where f1 > 10 or f2 = "v2"'
+        """
         return Condition.any(*conditions)
 
     @staticmethod
-    def all(*conditions):
+    def all(*conditions: Condition) -> Condition:
+        """Combines multiple conditions with AND operator.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#and
+
+        Args:
+            *conditions (Condition): Variable number of Condition objects to combine with AND
+
+        Returns:
+            Condition: Combined condition using AND operators
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> f1, f2 = qb.QueryField("f1"), qb.QueryField("f2")
+            >>> condition = qb.all(f1 > 10, f2 == "v2")
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where f1 > 10 and f2 = "v2"'
+        """
         return Condition.all(*conditions)
 
     @staticmethod
     def userQuery(value: str = "") -> Condition:
+        """Creates a userQuery operator for text search.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#userquery
+
+        Args:
+            value (str): Optional query string. Default is empty string.
+
+        Returns:
+            Condition: A userQuery condition
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> # Basic userQuery
+            >>> condition = qb.userQuery()
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where userQuery()'
+
+            >>> # UserQuery with search terms
+            >>> condition = qb.userQuery("search terms")
+            >>> query = qb.select("*").from_("documents").where(condition)
+            >>> str(query)
+            'select * from documents where userQuery("search terms")'
+        """
         return Condition(f'userQuery("{value}")') if value else Condition("userQuery()")
 
     @staticmethod
