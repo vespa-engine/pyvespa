@@ -314,7 +314,7 @@ class Query:
     ) -> Query:
         """Orders results by specified fields.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#ordering
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#order-by
 
         Args:
             fields: Field names or QueryField objects to order by
@@ -351,11 +351,17 @@ class Query:
     def orderByAsc(
         self, field: str, annotations: Optional[Dict[str, Any]] = None
     ) -> Query:
+        """Convenience method for ordering results by a field in ascending order.
+        See `order_by` for more information.
+        """
         return self.order_by(field, True, annotations)
 
     def orderByDesc(
         self, field: str, annotations: Optional[Dict[str, Any]] = None
     ) -> Query:
+        """Convenience method for ordering results by a field in descending order.
+        See `order_by` for more information.
+        """
         return self.order_by(field, False, annotations)
 
     def set_limit(self, limit: int) -> Query:
