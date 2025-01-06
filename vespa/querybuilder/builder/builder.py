@@ -7,10 +7,10 @@ from typing import Any, List, Union, Optional, Dict
 class QueryField:
     name: str
 
-    def __eq__(self, other: Any) -> Condition:
+    def __eq__(self, other: Any) -> Condition:  # type: ignore[override]
         return Condition(f"{self.name} = {self._format_value(other)}")
 
-    def __ne__(self, other: Any) -> Condition:
+    def __ne__(self, other: Any) -> Condition:  # type: ignore[override]
         return Condition(f"{self.name} != {self._format_value(other)}")
 
     def __lt__(self, other: Any) -> Condition:
@@ -207,20 +207,22 @@ class Query:
     def __init__(
         self, select_fields: Union[str, List[str], List[QueryField]], prepend_yql=False
     ):
-        self.select_fields = (
-            ", ".join(select_fields)
-            if isinstance(select_fields, List)
-            and all(isinstance(f, str) for f in select_fields)
-            else ", ".join(str(f) for f in select_fields)
-        )
+        if isinstance(select_fields, str):
+            self.select_fields = select_fields
+        else:
+            # Convert all elements to strings before joining
+            self.select_fields = ", ".join(str(field) for field in select_fields)
+
         self.sources = "*"
-        self.condition = None
-        self.order_by_clauses = []
-        self.limit_value = None
-        self.offset_value = None
-        self.timeout_value = None
-        self.parameters = {}
-        self.grouping = None
+        self.order_by_clauses: List[str] = []
+        self.parameters: Dict[str, Any] = {}
+        self.field: Optional[QueryField] = None
+        self.condition: Optional[Condition] = None
+        self.where_condition: Optional[Condition] = None
+        self.offset_value: Optional[int] = None
+        self.limit_value: Optional[int] = None
+        self.timeout_value: Optional[int] = None
+        self.grouping: Optional[str] = None
         self.prepend_yql = prepend_yql
 
     def __str__(self) -> str:
@@ -239,7 +241,7 @@ class Query:
         self.sources = ", ".join(sources)
         return self
 
-    def where(self, condition: Union[Condition, QueryField, bool]) -> Query:
+    def where(self, condition: Union[Condition, bool]) -> Query:
         if isinstance(condition, QueryField):
             self.condition = condition
         elif isinstance(condition, bool):
@@ -395,7 +397,7 @@ class Q:
         return Condition(expr)
 
     @staticmethod
-    def weakAnd(*conditions, annotations: Dict[str, Any] = None) -> Condition:
+    def weakAnd(*conditions, annotations: Optional[Dict[str, Any]] = None) -> Condition:
         conditions_str = ", ".join(cond.build() for cond in conditions)
         expr = f"weakAnd({conditions_str})"
         if annotations:
