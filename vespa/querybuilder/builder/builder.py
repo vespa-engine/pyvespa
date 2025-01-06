@@ -707,6 +707,24 @@ class Q:
 
     @staticmethod
     def nonEmpty(condition: Union[Condition, QueryField]) -> Condition:
+        """Creates a nonEmpty operator to check if a field has content.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#nonempty
+
+        Args:
+            condition (Union[Condition, QueryField]): Field or condition to check
+
+        Returns:
+            Condition: A nonEmpty condition
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> field = qb.QueryField("title")
+            >>> condition = qb.nonEmpty(field)
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where nonEmpty(title)'
+        """
         if isinstance(condition, QueryField):
             expr = str(condition)
         else:
@@ -717,6 +735,38 @@ class Q:
     def wand(
         field: str, weights, annotations: Optional[Dict[str, Any]] = None
     ) -> Condition:
+        """Creates a Weighted AND (WAND) operator for efficient top-k retrieval.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#wand
+
+        Args:
+            field (str): Field name to search
+            weights (Union[List[float], Dict[str, float]]):
+                Either list of numeric weights or dict mapping terms to weights
+            annotations (Optional[Dict[str, Any]]): Optional annotations like targetHits
+
+        Returns:
+            Condition: A WAND condition
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> # Using list weights
+            >>> condition = qb.wand("description", weights=[0.4, 0.6])
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where wand(description, [0.4, 0.6])'
+
+            >>> # Using dict weights with annotation
+            >>> weights = {"hello": 0.3, "world": 0.7}
+            >>> condition = qb.wand(
+            ...     "title",
+            ...     weights,
+            ...     annotations={"targetHits": 100}
+            ... )
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where ({targetHits: 100}wand(title, {"hello":0.3, "world":0.7}))'
+        """
         if isinstance(weights, list):
             weights_str = "[" + ", ".join(str(item) for item in weights) + "]"
         elif isinstance(weights, dict):
