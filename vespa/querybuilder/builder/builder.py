@@ -1,3 +1,4 @@
+from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, List, Union, Optional, Dict
 
@@ -6,28 +7,28 @@ from typing import Any, List, Union, Optional, Dict
 class QueryField:
     name: str
 
-    def __eq__(self, other: Any) -> "Condition":
+    def __eq__(self, other: Any) -> Condition:
         return Condition(f"{self.name} = {self._format_value(other)}")
 
-    def __ne__(self, other: Any) -> "Condition":
+    def __ne__(self, other: Any) -> Condition:
         return Condition(f"{self.name} != {self._format_value(other)}")
 
-    def __lt__(self, other: Any) -> "Condition":
+    def __lt__(self, other: Any) -> Condition:
         return Condition(f"{self.name} < {self._format_value(other)}")
 
-    def __le__(self, other: Any) -> "Condition":
+    def __le__(self, other: Any) -> Condition:
         return Condition(f"{self.name} <= {self._format_value(other)}")
 
-    def __gt__(self, other: Any) -> "Condition":
+    def __gt__(self, other: Any) -> Condition:
         return Condition(f"{self.name} > {self._format_value(other)}")
 
-    def __ge__(self, other: Any) -> "Condition":
+    def __ge__(self, other: Any) -> Condition:
         return Condition(f"{self.name} >= {self._format_value(other)}")
 
-    def __and__(self, other: Any) -> "Condition":
+    def __and__(self, other: Any) -> Condition:
         return Condition(f"{self.name} and {self._format_value(other)}")
 
-    def __or__(self, other: Any) -> "Condition":
+    def __or__(self, other: Any) -> Condition:
         return Condition(f"{self.name} or {self._format_value(other)}")
 
     # repr as str
@@ -36,7 +37,7 @@ class QueryField:
 
     def contains(
         self, value: Any, annotations: Optional[Dict[str, Any]] = None
-    ) -> "Condition":
+    ) -> Condition:
         value_str = self._format_value(value)
         if annotations:
             annotations_str = ",".join(
@@ -49,7 +50,7 @@ class QueryField:
 
     def matches(
         self, value: Any, annotations: Optional[Dict[str, Any]] = None
-    ) -> "Condition":
+    ) -> Condition:
         value_str = self._format_value(value)
         if annotations:
             annotations_str = ",".join(
@@ -60,7 +61,7 @@ class QueryField:
         else:
             return Condition(f"{self.name} matches {value_str}")
 
-    def in_(self, *values) -> "Condition":
+    def in_(self, *values) -> Condition:
         values_str = ", ".join(
             f'"{v}"' if isinstance(v, str) else str(v) for v in values
         )
@@ -68,7 +69,7 @@ class QueryField:
 
     def in_range(
         self, start: Any, end: Any, annotations: Optional[Dict[str, Any]] = None
-    ) -> "Condition":
+    ) -> Condition:
         if annotations:
             annotations_str = ",".join(
                 f"{k}:{self._format_annotation_value(v)}"
@@ -80,19 +81,19 @@ class QueryField:
         else:
             return Condition(f"range({self.name}, {start}, {end})")
 
-    def le(self, value: Any) -> "Condition":
+    def le(self, value: Any) -> Condition:
         return self.__le__(value)
 
-    def lt(self, value: Any) -> "Condition":
+    def lt(self, value: Any) -> Condition:
         return self.__lt__(value)
 
-    def ge(self, value: Any) -> "Condition":
+    def ge(self, value: Any) -> Condition:
         return self.__ge__(value)
 
-    def gt(self, value: Any) -> "Condition":
+    def gt(self, value: Any) -> Condition:
         return self.__gt__(value)
 
-    def eq(self, value: Any) -> "Condition":
+    def eq(self, value: Any) -> Condition:
         return self.__eq__(value)
 
     def __str__(self) -> str:
@@ -131,7 +132,7 @@ class QueryField:
         else:
             return str(value)
 
-    def annotate(self, annotations: Dict[str, Any]) -> "Condition":
+    def annotate(self, annotations: Dict[str, Any]) -> Condition:
         annotations_str = ",".join(
             f"{k}:{self._format_annotation_value(v)}" for k, v in annotations.items()
         )
@@ -142,7 +143,7 @@ class QueryField:
 class Condition:
     expression: str
 
-    def __and__(self, other: "Condition") -> "Condition":
+    def __and__(self, other: Condition) -> Condition:
         left = self.expression
         right = other.expression
 
@@ -152,7 +153,7 @@ class Condition:
 
         return Condition(f"{left} and {right}")
 
-    def __or__(self, other: "Condition") -> "Condition":
+    def __or__(self, other: Condition) -> Condition:
         left = self.expression
         right = other.expression
 
@@ -162,10 +163,10 @@ class Condition:
 
         return Condition(f"{left} or {right}")
 
-    def __invert__(self) -> "Condition":
+    def __invert__(self) -> Condition:
         return Condition(f"!({self.expression})")
 
-    def annotate(self, annotations: Dict[str, Any]) -> "Condition":
+    def annotate(self, annotations: Dict[str, Any]) -> Condition:
         annotations_str = ",".join(
             f"{k}:{QueryField._format_annotation_value(v)}"
             for k, v in annotations.items()
@@ -176,7 +177,7 @@ class Condition:
         return self.expression
 
     @classmethod
-    def all(cls, *conditions: "Condition") -> "Condition":
+    def all(cls, *conditions: Condition) -> Condition:
         """Combine multiple conditions using logical AND."""
         expressions = []
         for cond in conditions:
@@ -189,7 +190,7 @@ class Condition:
         return Condition(combined_expression)
 
     @classmethod
-    def any(cls, *conditions: "Condition") -> "Condition":
+    def any(cls, *conditions: Condition) -> Condition:
         """Combine multiple conditions using logical OR."""
         expressions = []
         for cond in conditions:
@@ -234,11 +235,11 @@ class Query:
     def __repr__(self) -> str:
         return str(self)
 
-    def from_(self, *sources: str) -> "Query":
+    def from_(self, *sources: str) -> Query:
         self.sources = ", ".join(sources)
         return self
 
-    def where(self, condition: Union[Condition, QueryField, bool]) -> "Query":
+    def where(self, condition: Union[Condition, QueryField, bool]) -> Query:
         if isinstance(condition, QueryField):
             self.condition = condition
         elif isinstance(condition, bool):
@@ -252,7 +253,7 @@ class Query:
         field: str,
         ascending: bool = True,
         annotations: Optional[Dict[str, Any]] = None,
-    ) -> "Query":
+    ) -> Query:
         direction = "asc" if ascending else "desc"
         if annotations:
             annotations_str = ",".join(
@@ -266,34 +267,34 @@ class Query:
 
     def orderByAsc(
         self, field: str, annotations: Optional[Dict[str, Any]] = None
-    ) -> "Query":
+    ) -> Query:
         return self.order_by_field(field, True, annotations)
 
     def orderByDesc(
         self, field: str, annotations: Optional[Dict[str, Any]] = None
-    ) -> "Query":
+    ) -> Query:
         return self.order_by_field(field, False, annotations)
 
-    def set_limit(self, limit: int) -> "Query":
+    def set_limit(self, limit: int) -> Query:
         self.limit_value = limit
         return self
 
-    def set_offset(self, offset: int) -> "Query":
+    def set_offset(self, offset: int) -> Query:
         self.offset_value = offset
         return self
 
-    def set_timeout(self, timeout: int) -> "Query":
+    def set_timeout(self, timeout: int) -> Query:
         self.timeout_value = timeout
         return self
 
-    def add_parameter(self, key: str, value: Any) -> "Query":
+    def add_parameter(self, key: str, value: Any) -> Query:
         self.parameters[key] = value
         return self
 
-    def param(self, key: str, value: Any) -> "Query":
+    def param(self, key: str, value: Any) -> Query:
         return self.add_parameter(key, value)
 
-    def groupby(self, group_expression: str) -> "Query":
+    def groupby(self, group_expression: str) -> Query:
         self.grouping = group_expression
         return self
 
