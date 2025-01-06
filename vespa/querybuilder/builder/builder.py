@@ -786,6 +786,35 @@ class Q:
 
     @staticmethod
     def weakAnd(*conditions, annotations: Optional[Dict[str, Any]] = None) -> Condition:
+        """Creates a weakAnd operator for less strict AND matching.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#weakand
+
+        Args:
+            *conditions (Condition): Variable number of conditions to combine
+            annotations (Optional[Dict[str, Any]]): Optional annotations like targetHits
+
+        Returns:
+            Condition: A weakAnd condition
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> f1, f2 = qb.QueryField("f1"), qb.QueryField("f2")
+            >>> condition = qb.weakAnd(f1 == "v1", f2 == "v2")
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where weakAnd(f1 = "v1", f2 = "v2")'
+
+            >>> # With annotation
+            >>> condition = qb.weakAnd(
+            ...     f1 == "v1",
+            ...     f2 == "v2",
+            ...     annotations={"targetHits": 100}
+            ... )
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where ({"targetHits": 100}weakAnd(f1 = "v1", f2 = "v2"))'
+        """
         conditions_str = ", ".join(cond.build() for cond in conditions)
         expr = f"weakAnd({conditions_str})"
         if annotations:
