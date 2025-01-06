@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, List, Union, Optional, Dict
 from vespa.package import Schema
+import json
 
 
 @dataclass
@@ -364,24 +365,73 @@ class Q:
 
     @staticmethod
     def dotProduct(
-        field: str, vector: Dict[str, int], annotations: Optional[Dict[str, Any]] = None
+        field: str,
+        weights: Dict[str, float],
+        annotations: Optional[Dict[str, Any]] = None,
     ) -> Condition:
-        vector_str = "{" + ",".join(f'"{k}":{v}' for k, v in vector.items()) + "}"
-        expr = f"dotProduct({field}, {vector_str})"
+        """Creates a dot product calculation condition.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#dotproduct.
+
+        Args:
+            field (str): Field containing vectors
+            weights (Dict[str, float]): Feature weights to apply
+            annotations (Optional[Dict]): Optional modifiers like label
+
+        Returns:
+            Condition: A dot product calculation condition
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> condition = qb.dotProduct(
+            ...     "weightedset_field",
+            ...     {"feature1": 1, "feature2": 2},
+            ...     annotations={"label": "myDotProduct"}
+            ... )
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where ({label:"myDotProduct"}dotProduct(weightedset_field, {"feature1": 1, "feature2": 2}))'
+        """
+        weights_str = json.dumps(weights)
+        expr = f"dotProduct({field}, {weights_str})"
         if annotations:
-            annotations_str = ",".join(
-                f"{k}:{QueryField._format_annotation_value(v)}"
-                for k, v in annotations.items()
+            annotations_str = ", ".join(
+                f"{k}:{json.dumps(v)}" for k, v in annotations.items()
             )
             expr = f"({{{annotations_str}}}{expr})"
         return Condition(expr)
 
     @staticmethod
     def weightedSet(
-        field: str, vector: Dict[str, int], annotations: Optional[Dict[str, Any]] = None
+        field: str,
+        weights: Dict[str, float],
+        annotations: Optional[Dict[str, Any]] = None,
     ) -> Condition:
-        vector_str = "{" + ",".join(f'"{k}":{v}' for k, v in vector.items()) + "}"
-        expr = f"weightedSet({field}, {vector_str})"
+        """Creates a weighted set condition.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#weightedset.
+
+        Args:
+            field (str): Field containing weighted set data
+            weights (Dict[str, float]): Weights to apply to the set elements
+            annotations (Optional[Dict]): Optional annotations like targetNumHits
+
+        Returns:
+            Condition: A weighted set condition
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> condition = qb.weightedSet(
+            ...     "weightedset_field",
+            ...     {"element1": 1, "element2": 2},
+            ...     annotations={"targetNumHits": 10}
+            ... )
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where ({targetNumHits:10}weightedSet(weightedset_field, {"element1": 1, "element2": 2}))'
+        """
+        weights_str = json.dumps(weights)
+        expr = f"weightedSet({field}, {weights_str})"
         if annotations:
             annotations_str = ",".join(
                 f"{k}:{QueryField._format_annotation_value(v)}"
