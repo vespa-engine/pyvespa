@@ -856,6 +856,36 @@ class TestQueriesIntegration(unittest.TestCase):
         self.assertIn(f"id:{self.schema_name}:{self.schema_name}::1", ids)
         self.assertIn(f"id:{self.schema_name}:{self.schema_name}::2", ids)
 
+    def test_near(self):
+        # 'select * from * where title contains near("madonna", "saint")'
+        # Feed test documents
+        docs = [
+            {  # Doc 1: Should match
+                "title": "madonna the saint",
+            },
+            {  # Doc 2: Should not match
+                "title": "saint and sinner",
+            },
+            {  # Doc 3: Should not match (exceed default distance of 2)
+                "title": "madonna has become a saint",
+            },
+        ]
+        # Format and feed documents
+        docs = [
+            {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
+        ]
+        self.app.feed_iterable(iter=docs, schema=self.schema_name)
+        # Execute query
+        q = qb.test_near()
+        print(f"Executing query: {q}")
+        with self.app.syncio() as sess:
+            result = sess.query(yql=q)
+        # Verify only one document matches
+        self.assertEqual(len(result.hits), 1)
+        # Verify matching id
+        hit = result.hits[0]
+        self.assertEqual(hit["id"], f"id:{self.schema_name}:{self.schema_name}::1")
+
     def test_predicate(self):
         #  'select * from sd1 where predicate(predicate_field,{"gender":"Female"},{"age":25L})'
         # Feed test documents with predicate_field
