@@ -942,6 +942,9 @@ class Q:
             *terms (str): Terms that make up the phrase
             annotations (Optional[Dict[str, Any]]): Optional annotations
 
+        Returns:
+            Condition: A phrase condition
+
         Examples:
             >>> import vespa.querybuilder as qb
             >>> condition = qb.phrase("new", "york", "city")
@@ -972,8 +975,12 @@ class Q:
 
         Args:
             *terms (str): Terms to search for
-            distance (Optional[int]): Maximum word distance between terms
+            distance (Optional[int]): Maximum word distance between terms. Will default to 2 if not specified.
             annotations (Optional[Dict[str, Any]]): Optional annotations
+            **kwargs: Additional annotations
+
+        Returns:
+            Condition: A near condition
 
         Examples:
             >>> import vespa.querybuilder as qb
@@ -1010,8 +1017,11 @@ class Q:
 
         Args:
             *terms (str): Terms to search for in order
-            distance (Optional[int]): Maximum word distance between terms
+            distance (Optional[int]): Maximum word distance between terms. Will default to 2 if not specified.
             annotations (Optional[Dict[str, Any]]): Optional annotations
+
+        Returns:
+            Condition: An onear condition
 
         Examples:
             >>> import vespa.querybuilder as qb
@@ -1036,18 +1046,85 @@ class Q:
 
     @staticmethod
     def sameElement(*conditions) -> Condition:
+        """Creates a sameElement operator to match conditions in same array element.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#sameelement
+
+        Args:
+            *conditions (Condition): Conditions that must match in same element
+
+        Returns:
+            Condition: A sameElement condition
+
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> persons = qb.QueryField("persons")
+            >>> first_name = qb.QueryField("first_name")
+            >>> last_name = qb.QueryField("last_name")
+            >>> year_of_birth = qb.QueryField("year_of_birth")
+            >>> condition = persons.contains(
+            ...     qb.sameElement(
+            ...         first_name.contains("Joe"),
+            ...         last_name.contains("Smith"),
+            ...         year_of_birth < 1940,
+            ...     )
+            ...  )
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where persons contains sameElement(first_name contains "Joe", last_name contains "Smith", year_of_birth < 1940)'
+        """
         conditions_str = ", ".join(cond.build() for cond in conditions)
         expr = f"sameElement({conditions_str})"
         return Condition(expr)
 
     @staticmethod
     def equiv(*terms) -> Condition:
+        """Creates an equiv operator for matching equivalent terms.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#equiv
+
+        Args:
+            terms (List[str]): List of equivalent terms
+            annotations (Optional[Dict[str, Any]]): Optional annotations
+
+        Returns:
+            Condition: An equiv condition
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> fieldName = qb.QueryField("fieldName")
+            >>> condition = fieldName.contains(qb.equiv("Snoop Dogg", "Calvin Broadus"))
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where fieldName contains equiv("Snoop Dogg", "Calvin Broadus")'
+        """
         terms_str = ", ".join(f'"{term}"' for term in terms)
         expr = f"equiv({terms_str})"
         return Condition(expr)
 
     @staticmethod
     def uri(value: str, annotations: Optional[Dict[str, Any]] = None) -> Condition:
+        """Creates a uri operator for matching URIs.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#uri
+
+        Args:
+            field (str): Field name containing URI
+            value (str): URI value to match
+
+        Returns:
+            Condition: A uri condition
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> url = "vespa.ai/foo"
+            >>> condition = qb.uri(url)
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where uri("vespa.ai/foo")'
+
+        """
         expr = f'uri("{value}")'
         if annotations:
             annotations_str = ",".join(
@@ -1058,7 +1135,36 @@ class Q:
         return Condition(expr)
 
     @staticmethod
-    def fuzzy(value: str, annotations: Optional[Dict[str, Any]] = None) -> Condition:
+    def fuzzy(
+        value: str, annotations: Optional[Dict[str, Any]] = None, **kwargs
+    ) -> Condition:
+        """Creates a fuzzy operator for approximate string matching.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#fuzzy
+
+        Args:
+            term (str): Term to fuzzy match
+            annotations (Optional[Dict[str, Any]]): Optional annotations
+            **kwargs: Optional parameters like maxEditDistance, prefixLength, etc.
+
+        Returns:
+            Condition: A fuzzy condition
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> condition = qb.fuzzy("parantesis")
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where fuzzy("parantesis")'
+
+            >>> # With annotation
+            >>> condition = qb.fuzzy("parantesis", annotations={"prefixLength": 1, "maxEditDistance": 2})
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where ({prefixLength:1,maxEditDistance:2}fuzzy("parantesis"))'
+
+        """
+
         expr = f'fuzzy("{value}")'
         if annotations:
             annotations_str = ",".join(
@@ -1162,8 +1268,32 @@ class Q:
 
     @staticmethod
     def true() -> Condition:
+        """Creates a condition that is always true.
+
+        Returns:
+            Condition: A true condition
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> condition = qb.true()
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where true'
+        """
         return Condition("true")
 
     @staticmethod
     def false() -> Condition:
+        """Creates a condition that is always false.
+
+        Returns:
+            Condition: A false condition
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> condition = qb.false()
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where false'
+        """
         return Condition("false")
