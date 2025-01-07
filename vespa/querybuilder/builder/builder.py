@@ -907,15 +907,6 @@ class Q:
 
     @staticmethod
     def rank(*queries) -> Condition:
-        # condition = qb.rank(
-        #     qb.nearestNeighbor("field", "queryVector"),
-        #     qb.QueryField("a").contains("A"),
-        #     qb.QueryField("b").contains("B"),
-        #     qb.QueryField("c").contains("C"),
-        # )
-        # q = qb.select("*").from_("sd1").where(condition)
-        # expected = 'select * from sd1 where rank(({targetHits:100}nearestNeighbor(field, queryVector)), a contains "A", b contains "B", c contains "C")'
-        # self.assertEqual(q, expected)
         """Creates a rank condition for combining multiple queries.
 
         For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#rank
@@ -943,6 +934,21 @@ class Q:
 
     @staticmethod
     def phrase(*terms, annotations: Optional[Dict[str, Any]] = None) -> Condition:
+        """Creates a phrase search operator for exact phrase matching.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#phrase
+
+        Args:
+            *terms (str): Terms that make up the phrase
+            annotations (Optional[Dict[str, Any]]): Optional annotations
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> condition = qb.phrase("new", "york", "city")
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where phrase("new", "york", "city")'
+        """
         terms_str = ", ".join(f'"{term}"' for term in terms)
         expr = f"phrase({terms_str})"
         if annotations:
@@ -957,6 +963,22 @@ class Q:
     def near(
         *terms, annotations: Optional[Dict[str, Any]] = None, **kwargs
     ) -> Condition:
+        """Creates a near operator for proximity search.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#near
+
+        Args:
+            *terms (str): Terms to search for
+            distance (Optional[int]): Maximum word distance between terms
+            annotations (Optional[Dict[str, Any]]): Optional annotations
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> condition = qb.near("machine", "learning", distance=5)
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where ({distance:5}near("machine", "learning"))'
+        """
         terms_str = ", ".join(f'"{term}"' for term in terms)
         expr = f"near({terms_str})"
         # if kwargs - add to annotations
