@@ -1,13 +1,12 @@
 from __future__ import annotations
-from dataclasses import dataclass
 from typing import Any, List, Union, Optional, Dict
 from vespa.package import Schema
 import json
 
 
-@dataclass
 class QueryField:
-    name: str
+    def __init__(self, name: str):
+        self.name = name
 
     def __eq__(self, other: Any) -> Condition:  # type: ignore[override]
         return Condition(f"{self.name} = {self._format_value(other)}")
@@ -166,9 +165,9 @@ class QueryField:
         return Condition(f"({{{annotations_str}}}){self.name}")
 
 
-@dataclass
 class Condition:
-    expression: str
+    def __init__(self, expression: str):
+        self.expression = expression
 
     def __and__(self, other: Condition) -> Condition:
         left = self.expression
@@ -500,11 +499,13 @@ class Query:
 
         For more information, see https://docs.vespa.ai/en/grouping.html
 
+        Also see :class:`vespa.querybuilder.Grouping` for available methods to build group expressions.
+
         Args:
-            group_expression (str): Grouping expression
+            - group_expression (str): Grouping expression
 
         Returns:
-            Query: Self for method chaining
+            :class:`vespa.querybuilder.Query`: Self for method chaining
 
         Examples:
             >>> import vespa.querybuilder as qb
@@ -557,6 +558,16 @@ class Query:
 
 
 class Q:
+    """Wrapper class for QueryBuilder static methods. Methods are exposed as module-level functions.
+    To use:
+
+    ```python
+    import vespa.querybuilder as qb
+
+    query = qb.select("*").from_("sd1") # or any of the other Q class methods
+    ```
+    """
+
     @staticmethod
     def select(fields: Union[str, List[str], List[QueryField]]) -> Query:
         """Creates a new query selecting specified fields.
