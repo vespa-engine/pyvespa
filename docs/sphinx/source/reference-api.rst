@@ -59,7 +59,15 @@ VespaCloud
    :members:
    :special-members: __init__
 
+################
+vespa.querybuilder
+################
 
+.. automodule:: vespa.querybuilder
+   :members:
+   :undoc-members:
+   :special-members: __init__
+   :show-inheritance:
 
 ################
 vespa.exceptions
