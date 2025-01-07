@@ -160,6 +160,9 @@ class TestQueriesIntegration(unittest.TestCase):
                     ),
                 ]
             ),
+            rank_profiles=[
+                RankProfile(name="pricerank", first_phase="attribute(price)")
+            ],
         )
         # Create the application package
         application_package = ApplicationPackage(
@@ -1169,6 +1172,7 @@ class TestQueriesIntegration(unittest.TestCase):
         self.assertEqual(group_results[2]["fields"]["sum(price)"], 19484)
 
     def test_grouping_with_ordering_and_limiting(self):
+        # The two customers with most purchases, returning the sum for each:
         # "select * from purchase where true | all(group(customer) max(2) precision(12) order(-count()) each(output(sum(price))))"
         # Feed test documents
         self.feed_grouping_data()
@@ -1189,3 +1193,43 @@ class TestQueriesIntegration(unittest.TestCase):
         self.assertEqual(result_children[1]["id"], "group:string:Smith")
         self.assertEqual(result_children[1]["value"], "Smith")
         self.assertEqual(result_children[1]["fields"]["sum(price)"], 19484)
+
+    def test_grouping_hits_per_group(self):
+        #  Example: Return the three most expensive parts per customer:
+        # 'select * from purchase where true | all(group(customer) each(max(3) each(output(summary()))))&ranking=pricerank'
+        self.feed_grouping_data()
+        q = qb.test_grouping_hits_per_group()
+        with self.app.syncio() as sess:
+            result = sess.query(yql=q, ranking="pricerank")
+        # Find the children of the child that has "id": "group:root: 0",
+        for child in result.json["root"]["children"]:
+            if child["id"] == "group:root:0":
+                group_children = child["children"][0]["children"]
+                break
+        # Verify the result
+        self.assertEqual(len(group_children), 3)
+        # Expected:
+        # ### Jones
+        # | Date               | Price   | Tax   | Item           | Customer |
+        # |--------------------|---------|-------|----------------|----------|
+        # | 2006-09-11 12:00  | $9,870  | 0.12  | Exhaust port   | Jones    |
+        # | 2006-09-10 10:00  | $8,900  | 0.24  | Camshaft       | Jones    |
+        # | 2006-09-11 13:00  | $6,765  | 0.12  | Crankshaft     | Jones    |
+        ### Brown
+        # | Date               | Price   | Tax   | Item        | Customer |
+        # |--------------------|---------|-------|-------------|----------|
+        # | 2006-09-08 11:00  | $8,000  | 0.12  | Head        | Brown    |
+        # | 2006-09-10 10:00  | $3,770  | 0.12  | Spring      | Brown    |
+        # | 2006-09-09 11:00  | $3,400  | 0.24  | Oil pan     | Brown    |
+        # ### Smith
+        # | Date               | Price   | Tax   | Item             | Customer |
+        # |--------------------|---------|-------|------------------|----------|
+        # | 2006-09-10 11:00  | $6,100  | 0.24  | Spark plug       | Smith    |
+        # | 2006-09-09 12:00  | $5,500  | 0.12  | Oil sump         | Smith    |
+        # | 2006-09-11 11:00  | $2,584  | 0.12  | Connection rod   | Smith    |
+        self.assertEqual(group_children[0]["value"], "Jones")
+        self.assertEqual(group_children[0]["relevance"], 9870)
+        self.assertEqual(group_children[1]["value"], "Brown")
+        self.assertEqual(group_children[1]["relevance"], 8000)
+        self.assertEqual(group_children[2]["value"], "Smith")
+        self.assertEqual(group_children[2]["relevance"], 6100)

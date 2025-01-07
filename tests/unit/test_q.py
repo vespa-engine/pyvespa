@@ -263,6 +263,21 @@ class TestQueryBuilder(unittest.TestCase):
         self.assertEqual(q, expected)
         return q
 
+    def test_grouping_hits_per_group(self):
+        # Return the three most expensive parts per customer:
+        # 'select * from purchase where true | all(group(customer) each(max(3) each(output(summary()))))'
+        grouping = Grouping.all(
+            Grouping.group("customer"),
+            Grouping.each(
+                Grouping.max(3),
+                Grouping.each(Grouping.output(Grouping.summary())),
+            ),
+        )
+        q = qb.select("*").from_("purchase").where(True).groupby(grouping)
+        expected = "select * from purchase where true | all(group(customer) each(max(3) each(output(summary()))))"
+        self.assertEqual(q, expected)
+        return q
+
     def test_add_parameter(self):
         f1 = qb.QueryField("title")
         condition = f1.contains("Python")
