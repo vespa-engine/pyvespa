@@ -300,7 +300,7 @@ class TestQueryBuilder(unittest.TestCase):
         condition = qb.wand("keywords", {"apple": 10, "banana": 20})
         q = qb.select("*").from_("fruits").where(condition)
         expected = (
-            'select * from fruits where wand(keywords, {"apple":10, "banana":20})'
+            'select * from fruits where wand(keywords, {"apple": 10, "banana": 20})'
         )
         self.assertEqual(q, expected)
         return q
@@ -319,7 +319,7 @@ class TestQueryBuilder(unittest.TestCase):
             annotations={"scoreThreshold": 0.13, "targetHits": 7},
         )
         q = qb.select("*").from_("fruits").where(condition)
-        expected = 'select * from fruits where ({scoreThreshold: 0.13, targetHits: 7}wand(description, {"a":1, "b":2}))'
+        expected = 'select * from fruits where ({scoreThreshold: 0.13, targetHits: 7}wand(description, {"a": 1, "b": 2}))'
         self.assertEqual(q, expected)
         return q
 
