@@ -260,10 +260,6 @@ class TestQueryBuilder(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         expected = "select * from purchase where true | all(group(time.year(a)) each(output(count()) all(group(time.monthofyear(a)) each(output(count()) all(group(time.dayofmonth(a)) each(output(count()) all(group(time.hourofday(a)) each(output(count())))))))))"
-        # q select * from purchase where true | all(group(time.year(a)) each(output(count()) all(group(time.monthofyear(a)) each(output(count()) all(group(time.dayofmonth(a)) each(output(count()) all(group(time.hourofday(a)) each(output(count())))))))))
-        # e select * from purchase where true | all(group(time.year(a)) each(output(count() all(group(time.monthofyear(a)) each(output(count()) all(group(time.dayofmonth(a)) each(output(count()) all(group(time.hourofday(a)) each(output(count())))))))))
-        print(q)
-        print(expected)
         self.assertEqual(q, expected)
         return q
 
@@ -279,6 +275,17 @@ class TestQueryBuilder(unittest.TestCase):
         expected = 'select * from articles where title contains "Python"&tracelevel=1'
         self.assertEqual(q, expected)
         return q
+
+    def test_rank_nn_contains(self):
+        condition = qb.rank(
+            qb.nearestNeighbor("field", "queryVector"),
+            qb.QueryField("a").contains("A"),
+            qb.QueryField("b").contains("B"),
+            qb.QueryField("c").contains("C"),
+        )
+        q = qb.select("*").from_("sd1").where(condition)
+        expected = 'select * from sd1 where rank(({targetHits:100}nearestNeighbor(field, queryVector)), a contains "A", b contains "B", c contains "C")'
+        self.assertEqual(q, expected)
 
     def test_custom_ranking_expression(self):
         condition = qb.rank(
@@ -319,11 +326,9 @@ class TestQueryBuilder(unittest.TestCase):
     def test_weakand(self):
         condition1 = qb.QueryField("title").contains("Python")
         condition2 = qb.QueryField("description").contains("Programming")
-        condition = qb.weakAnd(
-            condition1, condition2, annotations={"targetNumHits": 100}
-        )
+        condition = qb.weakAnd(condition1, condition2, annotations={"targetHits": 100})
         q = qb.select("*").from_("articles").where(condition)
-        expected = 'select * from articles where ({"targetNumHits": 100}weakAnd(title contains "Python", description contains "Programming"))'
+        expected = 'select * from articles where ({"targetHits": 100}weakAnd(title contains "Python", description contains "Programming"))'
         self.assertEqual(q, expected)
         return q
 
