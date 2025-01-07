@@ -1,9 +1,6 @@
-from .builder.builder import Q, QueryField
+from .builder.builder import Q, Query, QueryField
 from .grouping.grouping import Grouping
 import inspect
-
-# Import original classes
-# ...existing code...
 
 # Automatically expose all static methods from Q
 for cls in [Q]:  # do not expose G for now
@@ -21,11 +18,10 @@ def get_function_members(cls):
     ]
 
 
-# Create __all__ list dynamically
+# Create __all__ list
 __all__ = [
     # Classes
-    # "Query",
-    # "Q",
+    "Query",
     "QueryField",
     "Grouping",
     # "Condition",
