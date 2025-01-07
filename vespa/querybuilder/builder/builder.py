@@ -412,7 +412,7 @@ class Query:
     def set_offset(self, offset: int) -> Query:
         """Sets number of initial results to skip for pagination.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#offset
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#limit-offset
 
         Args:
             offset (int): Number of results to skip
