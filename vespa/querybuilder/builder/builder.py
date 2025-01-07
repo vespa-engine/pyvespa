@@ -871,7 +871,7 @@ class Q:
 
     @staticmethod
     def nearestNeighbor(
-        field: str, query_vector: str, annotations: Dict[str, Any] = {"targetHits": 10}
+        field: str, query_vector: str, annotations: Dict[str, Any] = {"targetHits": 100}
     ) -> Condition:
         """Creates a nearest neighbor search condition.
 
@@ -893,7 +893,7 @@ class Q:
             ... )
             >>> query = qb.select(["id, text"]).from_("m").where(condition)
             >>> str(query)
-            'select id, text from m where ({targetHits:10}nearestNeighbor(dense_rep, q_dense))'
+            'select id, text from m where ({targetHits:100}nearestNeighbor(dense_rep, q_dense))'
         """
         if "targetHits" not in annotations:
             raise ValueError("targetHits annotation is required")
@@ -907,6 +907,37 @@ class Q:
 
     @staticmethod
     def rank(*queries) -> Condition:
+        # condition = qb.rank(
+        #     qb.nearestNeighbor("field", "queryVector"),
+        #     qb.QueryField("a").contains("A"),
+        #     qb.QueryField("b").contains("B"),
+        #     qb.QueryField("c").contains("C"),
+        # )
+        # q = qb.select("*").from_("sd1").where(condition)
+        # expected = 'select * from sd1 where rank(({targetHits:100}nearestNeighbor(field, queryVector)), a contains "A", b contains "B", c contains "C")'
+        # self.assertEqual(q, expected)
+        """Creates a rank condition for combining multiple queries.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#rank
+
+        Args:
+            *queries: Variable number of Query objects to combine
+
+        Returns:
+            Condition: A rank condition
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> condition = qb.rank(
+            ...     qb.nearestNeighbor("field", "queryVector"),
+            ...     qb.QueryField("a").contains("A"),
+            ...     qb.QueryField("b").contains("B"),
+            ...     qb.QueryField("c").contains("C"),
+            ... )
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where rank(({targetHits:100}nearestNeighbor(field, queryVector)), a contains "A", b contains "B", c contains "C")'
+        """
         queries_str = ", ".join(query.build() for query in queries)
         return Condition(f"rank({queries_str})")
 
