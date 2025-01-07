@@ -961,7 +961,10 @@ class Q:
 
     @staticmethod
     def near(
-        *terms, annotations: Optional[Dict[str, Any]] = None, **kwargs
+        *terms,
+        distance: Optional[int] = None,
+        annotations: Dict[str, Any] = {},
+        **kwargs,
     ) -> Condition:
         """Creates a near operator for proximity search.
 
@@ -983,9 +986,9 @@ class Q:
         expr = f"near({terms_str})"
         # if kwargs - add to annotations
         if kwargs:
-            if not annotations:
-                annotations = {}
             annotations.update(kwargs)
+        if distance is not None:
+            annotations["distance"] = distance
         if annotations:
             annotations_str = ", ".join(
                 f"{k}:{QueryField._format_annotation_value(v)}"
@@ -996,15 +999,33 @@ class Q:
 
     @staticmethod
     def onear(
-        *terms, annotations: Optional[Dict[str, Any]] = None, **kwargs
+        *terms,
+        distance: Optional[int] = None,
+        annotations: Dict[str, Any] = {},
+        **kwargs,
     ) -> Condition:
+        """Creates an ordered near operator for ordered proximity search.
+
+        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#onear
+
+        Args:
+            *terms (str): Terms to search for in order
+            distance (Optional[int]): Maximum word distance between terms
+            annotations (Optional[Dict[str, Any]]): Optional annotations
+
+        Examples:
+            >>> import vespa.querybuilder as qb
+            >>> condition = qb.onear("deep", "learning", distance=3)
+            >>> query = qb.select("*").from_("sd1").where(condition)
+            >>> str(query)
+            'select * from sd1 where ({distance:3}onear("deep", "learning"))'
+        """
         terms_str = ", ".join(f'"{term}"' for term in terms)
         expr = f"onear({terms_str})"
-        # if kwargs - add to annotations
         if kwargs:
-            if not annotations:
-                annotations = {}
             annotations.update(kwargs)
+        if distance is not None:
+            annotations["distance"] = distance
         if annotations:
             annotations_str = ",".join(
                 f"{k}:{QueryField._format_annotation_value(v)}"
