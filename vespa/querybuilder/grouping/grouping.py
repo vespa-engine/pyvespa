@@ -2,6 +2,13 @@ from typing import Union
 
 
 class Grouping:
+    """Wrapper class for grouping functions
+
+    See https://docs.vespa.ai/en/grouping.html for an introduction to grouping in Vespa.
+
+    See https://docs.vespa.ai/en/reference/grouping-syntax.html for the full list of grouping functions.
+    """
+
     @staticmethod
     def all(*args) -> str:
         return "all(" + " ".join(args) + ")"
