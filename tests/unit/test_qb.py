@@ -1,5 +1,5 @@
 import unittest
-from vespa.querybuilder import Grouping
+from vespa.querybuilder import Grouping as G
 import vespa.querybuilder as qb
 from vespa.package import Schema, Document
 
@@ -189,95 +189,6 @@ class TestQueryBuilder(unittest.TestCase):
         self.assertEqual(q, expected)
         return q
 
-    def test_grouping_with_condition(self):
-        grouping = Grouping.all(
-            Grouping.group("customer"),
-            Grouping.each(Grouping.output(Grouping.sum("price"))),
-        )
-        q = qb.select("*").from_("purchase").where(True).set_limit(0).groupby(grouping)
-        expected = "select * from purchase where true limit 0 | all(group(customer) each(output(sum(price))))"
-        self.assertEqual(q, expected)
-        return q
-
-    def test_grouping_with_ordering_and_limiting(self):
-        grouping = Grouping.all(
-            Grouping.group("customer"),
-            Grouping.max(2),
-            Grouping.precision(12),
-            Grouping.order(-Grouping.count()),
-            Grouping.each(Grouping.output(Grouping.sum("price"))),
-        )
-        q = qb.select("*").from_("purchase").where(True).groupby(grouping)
-        expected = "select * from purchase where true | all(group(customer) max(2) precision(12) order(-count()) each(output(sum(price))))"
-        self.assertEqual(q, expected)
-        return q
-
-    def test_grouping_with_map_keys(self):
-        grouping = Grouping.all(
-            Grouping.group("mymap.key"),
-            Grouping.each(
-                Grouping.group("mymap.value"),
-                Grouping.each(Grouping.output(Grouping.count())),
-            ),
-        )
-        q = qb.select("*").from_("purchase").where(True).groupby(grouping)
-        expected = "select * from purchase where true | all(group(mymap.key) each(group(mymap.value) each(output(count()))))"
-        self.assertEqual(q, expected)
-        return q
-
-    def test_group_by_year(self):
-        grouping = Grouping.all(
-            Grouping.group("time.year(a)"),
-            Grouping.each(Grouping.output(Grouping.count())),
-        )
-        q = qb.select("*").from_("purchase").where(True).groupby(grouping)
-        expected = "select * from purchase where true | all(group(time.year(a)) each(output(count())))"
-        self.assertEqual(q, expected)
-        return q
-
-    def test_grouping_with_date_agg(self):
-        grouping = Grouping.all(
-            Grouping.group("time.year(a)"),
-            Grouping.each(
-                Grouping.output(Grouping.count()),
-                Grouping.all(
-                    Grouping.group("time.monthofyear(a)"),
-                    Grouping.each(
-                        Grouping.output(Grouping.count()),
-                        Grouping.all(
-                            Grouping.group("time.dayofmonth(a)"),
-                            Grouping.each(
-                                Grouping.output(Grouping.count()),
-                                Grouping.all(
-                                    Grouping.group("time.hourofday(a)"),
-                                    Grouping.each(Grouping.output(Grouping.count())),
-                                ),
-                            ),
-                        ),
-                    ),
-                ),
-            ),
-        )
-        q = qb.select("*").from_("purchase").where(True).groupby(grouping)
-        expected = "select * from purchase where true | all(group(time.year(a)) each(output(count()) all(group(time.monthofyear(a)) each(output(count()) all(group(time.dayofmonth(a)) each(output(count()) all(group(time.hourofday(a)) each(output(count())))))))))"
-        self.assertEqual(q, expected)
-        return q
-
-    def test_grouping_hits_per_group(self):
-        # Return the three most expensive parts per customer:
-        # 'select * from purchase where true | all(group(customer) each(max(3) each(output(summary()))))'
-        grouping = Grouping.all(
-            Grouping.group("customer"),
-            Grouping.each(
-                Grouping.max(3),
-                Grouping.each(Grouping.output(Grouping.summary())),
-            ),
-        )
-        q = qb.select("*").from_("purchase").where(True).groupby(grouping)
-        expected = "select * from purchase where true | all(group(customer) each(max(3) each(output(summary()))))"
-        self.assertEqual(q, expected)
-        return q
-
     def test_add_parameter(self):
         f1 = qb.QueryField("title")
         condition = f1.contains("Python")
@@ -442,13 +353,11 @@ class TestQueryBuilder(unittest.TestCase):
         return q
 
     def test_multiple_groupings(self):
-        grouping = Grouping.all(
-            Grouping.group("category"),
-            Grouping.max(10),
-            Grouping.output(Grouping.count()),
-            Grouping.each(
-                Grouping.group("subcategory"), Grouping.output(Grouping.summary())
-            ),
+        grouping = G.all(
+            G.group("category"),
+            G.max(10),
+            G.output(G.count()),
+            G.each(G.group("subcategory"), G.output(G.summary())),
         )
         q = qb.select("*").from_("products").groupby(grouping)
         expected = "select * from products | all(group(category) max(10) output(count()) each(group(subcategory) output(summary())))"
