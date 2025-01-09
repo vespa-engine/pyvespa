@@ -70,7 +70,7 @@ class Grouping:
 
         Examples:
             >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.all("group(my_attribute)", "each(output(count()))")
+            >>> expr = G.all(G.group("my_attribute"), G.each(G.output(G.count())))
             >>> print(expr)
             all(group(my_attribute) each(output(count())))
         """
@@ -322,26 +322,29 @@ class Grouping:
     #
     # Additional aggregator/alias syntax
     #
+    # Alias is NOT CURRENTLY IMPLEMENTED
+    # Would require a bit refactoring that is not obvious how to do in a simple way.
+    # Thinking it is not so much used that it should be a blocker.
+    # // @thomasht86
+    # @staticmethod
+    # def alias(alias_name: str, expression: str) -> str:
+    #     """“alias(...)” syntax. Assign an alias to an expression so it can
+    #     be reused without repeating the expression.
 
-    @staticmethod
-    def alias(alias_name: str, expression: str) -> str:
-        """“alias(...)” syntax. Assign an alias to an expression so it can
-        be reused without repeating the expression.
+    #     Args:
+    #         alias_name (str): The alias name to assign.
+    #         expression (str): The expression to alias.
 
-        Args:
-            alias_name (str): The alias name to assign.
-            expression (str): The expression to alias.
+    #     Returns:
+    #         str: A Vespa grouping expression string of the form 'alias(...)'.
 
-        Returns:
-            str: A Vespa grouping expression string of the form 'alias(...)'.
-
-        Examples:
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.alias("myalias", "count()")
-            >>> print(expr)
-            alias(myalias,count())
-        """
-        return f"alias({alias_name},{expression})"
+    #     Examples:
+    #         >>> from vespa.querybuilder import Grouping as G
+    #         >>> expr = G.alias("myalias", "count()")
+    #         >>> print(expr)
+    #         alias(myalias,count())
+    #     """
+    #     return f"alias({alias_name},{expression})"
 
     #
     # Arithmetic expressions
@@ -531,11 +534,11 @@ class Grouping:
 
         Examples:
             >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.strcat("fieldA", "'_'", "fieldB")
+            >>> expr = G.strcat("fieldA", "_", "fieldB")
             >>> print(expr)
             strcat(fieldA, '_', fieldB)
         """
-        return f"strcat({', '.join(expressions)})"
+        return f"strcat({','.join(expressions)})"
 
     #
     # Type conversion expressions
@@ -631,9 +634,9 @@ class Grouping:
             >>> from vespa.querybuilder import Grouping as G
             >>> expr = G.cat("fieldA", "fieldB")
             >>> print(expr)
-            cat(fieldA, fieldB)
+            cat(fieldA,fieldB)
         """
-        return f"cat({', '.join(expressions)})"
+        return f"cat({','.join(expressions)})"
 
     @staticmethod
     def md5(expr: str, width: int) -> str:
@@ -1366,11 +1369,11 @@ class Grouping:
 
         Examples:
             >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.fixedwidth("my_field", 10)
+            >>> expr = G.fixedwidth("my_field",10)
             >>> print(expr)
-            fixedwidth(my_field, 10)
+            fixedwidth(my_field,10)
         """
-        return f"fixedwidth({value}, {bucket_width})"
+        return f"fixedwidth({value},{bucket_width})"
 
     @staticmethod
     def predefined(value: str, buckets: List[str]) -> str:
