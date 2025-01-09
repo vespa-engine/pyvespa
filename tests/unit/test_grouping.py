@@ -17,6 +17,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "| all(group(customer) each(output(sum(price))))"
         )
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_grouping_with_ordering_and_limiting(self):
         grouping = G.all(
@@ -32,6 +33,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "| all(group(customer) max(2) precision(12) order(-count()) each(output(sum(price))))"
         )
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_grouping_with_map_keys(self):
         grouping = G.all(
@@ -47,6 +49,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "| all(group(mymap.key) each(group(mymap.value) each(output(count()))))"
         )
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_group_by_year(self):
         grouping = G.all(
@@ -59,6 +62,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "| all(group(time.year(a)) each(output(count())))"
         )
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_grouping_with_date_agg(self):
         grouping = G.all(
@@ -92,6 +96,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(time.hourofday(a)) each(output(count())))))))))"
         )
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_grouping_hits_per_group(self):
         # Return the three most expensive parts per customer:
@@ -109,6 +114,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(customer) each(max(3) each(output(summary()))))"
         )
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     #
     # ---------------------------------
