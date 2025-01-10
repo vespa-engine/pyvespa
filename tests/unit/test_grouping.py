@@ -138,6 +138,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(a) max(5) each(output(count()) each(output(summary(normal)))))"
         )
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_subgroup1_part2(self):
         # check_query('all(group(a) max(5) each(max(69) output(count()) each(output(summary(normal)))))', 'subgroup1')
@@ -154,6 +155,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(a) max(5) each(max(69) output(count()) each(output(summary(normal)))))"
         )
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_subgroup2(self):
         # check_query('all(group(a) max(5) each(output(count()) all(group(b) max(5) each(max(69) output(count()) each(output(summary(normal)))))))',
@@ -181,6 +183,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(b) max(5) each(max(69) output(count()) each(output(summary(normal)))))))"
         )
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_subgroup3(self):
         # check_query('all(group(a) max(5) each(output(count()) all(group(b) max(5) each(output(count()) all(group(c) max(5) each(max(69) output(count()) each(output(summary(normal)))))))))',
@@ -216,6 +219,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_subgroup4(self):
         # check_query('all(group(fixedwidth(n,3)) max(5) each(output(count()) all(group(a) max(2) each(output(count())))))',
@@ -235,6 +239,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_subgroup5(self):
         # Identical to 'subgroup4' in Ruby snippet?
@@ -255,6 +260,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_subgroup6(self):
         # check_query('all(group(fixedwidth(n,3)) max(5) each(output(count()) all(group(a) max(2) each(max(1) output(count()) each(output(summary(normal)))))))',
@@ -282,6 +288,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     #
     # Ordering examples:
@@ -297,6 +304,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_orderby_neg1(self):
         # check_query('all(group(a) order(sum(from)) each(output(count())))', 'orderby-1')
@@ -309,6 +317,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_orderby1_m1(self):
         # check_query('all(group(a) max(2) order(-sum(from)) precision(3) each(output(count())))', 'orderby1-m1')
@@ -325,6 +334,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_orderby_neg1_m1(self):
         # check_query('all(group(a) max(2) order(sum(from)) precision(3) each(output(count())))', 'orderby-1-m1')
@@ -341,6 +351,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_orderby2(self):
         # check_query('all(group(a) max(2) order(-count()) each(output(count())))', 'orderby2')
@@ -353,6 +364,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_combination_1(self):
         # check_query('all(group(a) max(2) order(-count()) each(output(count())) as(foo) each(output(max(b))) as(bar))',
@@ -366,6 +378,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         q = f"select * from purchase where true | {grouping}"
         expected = "select * from purchase where true | all(group(a) max(2) order(-count()) each(output(count())) as(foo) each(output(max(b))) as(bar))"
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     #
     # Limit / precision checks:
@@ -379,6 +392,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_constraint3(self):
         # check_query('all(group(a) max(2) precision(10) each(output(count())))', 'constraint3')
@@ -391,6 +405,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     #
     # Time examples:
@@ -404,6 +419,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_time_month(self):
         # check_query('all(group(time.monthofyear(from)) each(output(count()) ))', 'time.month')
@@ -416,6 +432,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     # ... similarly for time.dayofmonth, time.dayofweek, time.dayofyear, etc. ...
     # (You can keep adding them if desired.)
@@ -443,6 +460,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     #
     # cat(...) example:
@@ -456,6 +474,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     #
     # zcurve.x(...) example:
@@ -469,6 +488,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     #
     # Arithmetic expression examples:
@@ -482,6 +502,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_mul_nf(self):
         # check_query('all(group(mul(n,f)) each(output(count())))', 'mul-nf')
@@ -492,6 +513,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     #
     # Aggregator expression in ordering:
@@ -515,6 +537,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = f"select * from purchase where true | {grouping}"
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     #
     # strcat(...) example:
@@ -528,6 +551,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_strlen_example(self):
         # check_query('all(group(strlen(strcat(a,b,c))) each(output(count())))', 'strlen')
@@ -540,6 +564,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     #
     # tolong(...), todouble(...), etc:
@@ -553,6 +578,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     #
     # math.* examples:
@@ -566,6 +592,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     def test_math_pow(self):
         # check_query('all(group(math.pow(d,d)) each(output(count())))', 'math.pow')
@@ -576,6 +603,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     #
     # size(...) example:
@@ -589,6 +617,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     #
     # predefined(...) example:
@@ -605,6 +634,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     #
     # fixedwidth(...) example:
@@ -618,6 +648,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     #
     # xorbit(...) example:
@@ -633,6 +664,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     #
     # md5(...) example:
@@ -648,6 +680,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     #
     # "boool" grouping:
@@ -661,6 +694,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
 
     #
     # Alias usage example:
@@ -676,3 +710,4 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        return q
