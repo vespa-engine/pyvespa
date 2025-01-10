@@ -1,4 +1,16 @@
+from __future__ import annotations
 from typing import Union, List
+
+
+class Expression(str):
+    def alias(self, alias_name: str, expression: str) -> Expression:
+        return Expression(f"{self} alias({alias_name},{expression})")
+
+    def as_(self, label: str) -> Expression:
+        return Expression(f"{self} as({label})")
+
+    def __neg__(self) -> Expression:
+        return Expression(f"-{self}")
 
 
 class Grouping:
@@ -58,7 +70,7 @@ class Grouping:
     #
 
     @staticmethod
-    def all(*args: str) -> str:
+    def all(*args: Union[str, Expression]) -> Expression:
         """Corresponds to the “all(...)” grouping block in Vespa, which means
         “group all documents (no top-level grouping) and then do the enclosed operations”.
 
@@ -74,10 +86,10 @@ class Grouping:
             >>> print(expr)
             all(group(my_attribute) each(output(count())))
         """
-        return "all(" + " ".join(args) + ")"
+        return Expression("all(" + " ".join(map(str, args)) + ")")
 
     @staticmethod
-    def each(*args: str) -> str:
+    def each(*args: Union[str, Expression]) -> Expression:
         """Corresponds to the “each(...)” grouping block in Vespa, which means
         “create a group for each unique value and then do the enclosed operations”.
 
@@ -93,10 +105,10 @@ class Grouping:
             >>> print(expr)
             each(output(count()) output(avg(price)))
         """
-        return "each(" + " ".join(args) + ")"
+        return Expression("each(" + " ".join(map(str, args)) + ")")
 
     @staticmethod
-    def group(field: str) -> str:
+    def group(field: str) -> Expression:
         """Defines a grouping step on a field or expression.
 
         Args:
@@ -111,14 +123,14 @@ class Grouping:
             >>> print(expr)
             group(my_map.key)
         """
-        return f"group({field})"
+        return Expression(f"group({field})")
 
     #
     # Common aggregator wrappers
     #
 
     @staticmethod
-    def count() -> str:
+    def count() -> Expression:
         """“count()” aggregator.
 
         By default, returns a string 'count()'. Negative ordering or usage can be
@@ -138,17 +150,17 @@ class Grouping:
             -count()
         """
 
-        class MaybenegativeCount(str):
-            def __new__(cls, value):
-                return super().__new__(cls, value)
+        class MaybenegativeCount(Expression):
+            def __new__(cls):
+                return super().__new__(cls, "count()")
 
             def __neg__(self):
-                return f"-{self}"
+                return Expression(f"-{self}")
 
-        return MaybenegativeCount("count()")
+        return MaybenegativeCount()
 
     @staticmethod
-    def sum(value: Union[str, int, float]) -> str:
+    def sum(value: Union[str, int, float]) -> Expression:
         """“sum(...)” aggregator. Sums the given expression or field over all documents in the group.
 
         Args:
@@ -163,10 +175,10 @@ class Grouping:
             >>> print(expr)
             sum(my_numeric_field)
         """
-        return f"sum({value})"
+        return Expression(f"sum({value})")
 
     @staticmethod
-    def avg(value: Union[str, int, float]) -> str:
+    def avg(value: Union[str, int, float]) -> Expression:
         """“avg(...)” aggregator. Computes the average of the given expression or field
         for all documents in the group.
 
@@ -182,10 +194,10 @@ class Grouping:
             >>> print(expr)
             avg(my_numeric_field)
         """
-        return f"avg({value})"
+        return Expression(f"avg({value})")
 
     @staticmethod
-    def min(value: Union[str, int, float]) -> str:
+    def min(value: Union[str, int, float]) -> Expression:
         """“min(...)” aggregator. Keeps the minimum value of the expression or field
         among all documents in the group.
 
@@ -201,10 +213,10 @@ class Grouping:
             >>> print(expr)
             min(some_field)
         """
-        return f"min({value})"
+        return Expression(f"min({value})")
 
     @staticmethod
-    def max(value: Union[str, int, float]) -> str:
+    def max(value: Union[str, int, float]) -> Expression:
         """“max(...)” aggregator. Keeps the maximum value of the expression or field
         among all documents in the group.
 
@@ -220,10 +232,10 @@ class Grouping:
             >>> print(expr)
             max(relevance())
         """
-        return f"max({value})"
+        return Expression(f"max({value})")
 
     @staticmethod
-    def stddev(value: Union[str, int, float]) -> str:
+    def stddev(value: Union[str, int, float]) -> Expression:
         """“stddev(...)” aggregator. Computes the population standard deviation
         for the expression or field among all documents in the group.
 
@@ -239,10 +251,10 @@ class Grouping:
             >>> print(expr)
             stddev(my_numeric_field)
         """
-        return f"stddev({value})"
+        return Expression(f"stddev({value})")
 
     @staticmethod
-    def xor(value: Union[str, int, float]) -> str:
+    def xor(value: Union[str, int, float]) -> Expression:
         """“xor(...)” aggregator. XORs all values of the expression or field together
         over the documents in the group.
 
@@ -258,51 +270,51 @@ class Grouping:
             >>> print(expr)
             xor(my_field)
         """
-        return f"xor({value})"
+        return Expression(f"xor({value})")
 
     #
     # Grouping output and ordering
     #
 
     @staticmethod
-    def output(output_func: str) -> str:
-        """Defines an output aggregator to be collected for the grouping level.
+    def output(*args: Union[str, Expression]) -> Expression:
+        """Defines output aggregators to be collected for the grouping level.
 
         Args:
-            output_func (str): The aggregator expression, e.g., 'count()'.
+            *args: Multiple aggregator expressions, e.g., 'count()', 'sum(price)'.
 
         Returns:
-            str: A Vespa grouping expression string of the form 'output(...)'.
+            Expression: A Vespa grouping expression string of the form 'output(...)'.
 
         Examples:
             >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.output(G.count())
+            >>> expr = G.output(G.count(), G.sum("price"))
             >>> print(expr)
-            output(count())
+            output(count(),sum(price))
         """
-        return f"output({output_func})"
+        return Expression(f"output({','.join(str(x) for x in args)})")
 
     @staticmethod
-    def order(value: str) -> str:
-        """Defines an order(...) clause to sort groups by the given expression
-        or aggregator.
+    def order(*args: Union[str, Expression]) -> Expression:
+        """Defines an order(...) clause to sort groups by the given expressions
+        or aggregators.
 
         Args:
-            value (str): The expression or aggregator to order by.
+            *args: Multiple expressions or aggregators to order by.
 
         Returns:
-            str: A Vespa grouping expression string of the form 'order(...)'.
+            Expression: A Vespa grouping expression string of the form 'order(...)'.
 
         Examples:
             >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.order(G.max("relevance()"))
+            >>> expr = G.order(G.sum(G.relevance()), -G.count())
             >>> print(expr)
-            order(max(relevance()))
+            order(sum(relevance()),-count())
         """
-        return f"order({value})"
+        return Expression(f"order({','.join(str(x) for x in args)})")
 
     @staticmethod
-    def precision(value: int) -> str:
+    def precision(value: int) -> Expression:
         """Sets the “precision(...)” for the grouping step.
 
         Args:
@@ -317,7 +329,7 @@ class Grouping:
             >>> print(expr)
             precision(1000)
         """
-        return f"precision({value})"
+        return Expression(f"precision({value})")
 
     #
     # Additional aggregator/alias syntax
@@ -351,7 +363,7 @@ class Grouping:
     #
 
     @staticmethod
-    def add(*expressions: str) -> str:
+    def add(*expressions: Union[str, Expression]) -> Expression:
         """“add(...)” expression. Adds all arguments together in order.
 
         Args:
@@ -366,10 +378,10 @@ class Grouping:
             >>> print(expr)
             add(my_field, 5, 10)
         """
-        return f"add({', '.join(expressions)})"
+        return Expression(f"add({', '.join(map(str, expressions))})")
 
     @staticmethod
-    def sub(*expressions: str) -> str:
+    def sub(*expressions: Union[str, Expression]) -> Expression:
         """“sub(...)” expression. Subtracts each subsequent argument from the first.
 
         Args:
@@ -384,10 +396,10 @@ class Grouping:
             >>> print(expr)
             sub(my_field, 2)
         """
-        return f"sub({', '.join(expressions)})"
+        return Expression(f"sub({', '.join(map(str, expressions))})")
 
     @staticmethod
-    def mul(*expressions: str) -> str:
+    def mul(*expressions: Union[str, Expression]) -> Expression:
         """“mul(...)” expression. Multiplies all arguments in order.
 
         Args:
@@ -402,10 +414,10 @@ class Grouping:
             >>> print(expr)
             mul(my_field, 2, 3)
         """
-        return f"mul({', '.join(expressions)})"
+        return Expression(f"mul({', '.join(map(str, expressions))})")
 
     @staticmethod
-    def div(*expressions: str) -> str:
+    def div(*expressions: Union[str, Expression]) -> Expression:
         """“div(...)” expression. Divides the first argument by the second, etc.
 
         Args:
@@ -420,10 +432,10 @@ class Grouping:
             >>> print(expr)
             div(my_field, 2)
         """
-        return f"div({', '.join(expressions)})"
+        return Expression(f"div({', '.join(map(str, expressions))})")
 
     @staticmethod
-    def mod(*expressions: str) -> str:
+    def mod(*expressions: Union[str, Expression]) -> Expression:
         """“mod(...)” expression. Modulo the first argument by the second, result by the third, etc.
 
         Args:
@@ -438,14 +450,14 @@ class Grouping:
             >>> print(expr)
             mod(my_field, 100)
         """
-        return f"mod({', '.join(expressions)})"
+        return Expression(f"mod({','.join(map(str, expressions))})")
 
     #
     # Bitwise expressions
     #
 
     @staticmethod
-    def and_(*expressions: str) -> str:
+    def and_(*expressions: Union[str, Expression]) -> Expression:
         """“and(...)” expression. Bitwise AND of the arguments in order.
 
         Args:
@@ -460,10 +472,10 @@ class Grouping:
             >>> print(expr)
             and(fieldA, fieldB)
         """
-        return f"and({', '.join(expressions)})"
+        return Expression(f"and({', '.join(map(str, expressions))})")
 
     @staticmethod
-    def or_(*expressions: str) -> str:
+    def or_(*expressions: Union[str, Expression]) -> Expression:
         """“or(...)” expression. Bitwise OR of the arguments in order.
 
         Args:
@@ -478,10 +490,10 @@ class Grouping:
             >>> print(expr)
             or(fieldA, fieldB)
         """
-        return f"or({', '.join(expressions)})"
+        return Expression(f"or({', '.join(map(str, expressions))})")
 
     @staticmethod
-    def xor_expr(*expressions: str) -> str:
+    def xor_expr(*expressions: Union[str, Expression]) -> Expression:
         """“xor(...)” bitwise expression.
 
         (Note: For aggregator use, see xor(...) aggregator method above.)
@@ -498,14 +510,14 @@ class Grouping:
             >>> print(expr)
             xor(fieldA, fieldB)
         """
-        return f"xor({', '.join(expressions)})"
+        return Expression(f"xor({', '.join(map(str, expressions))})")
 
     #
     # String expressions
     #
 
     @staticmethod
-    def strlen(expr: str) -> str:
+    def strlen(expr: Union[str, Expression]) -> Expression:
         """“strlen(...)” expression. Returns the number of bytes in the string.
 
         Args:
@@ -520,10 +532,10 @@ class Grouping:
             >>> print(expr)
             strlen(my_string_field)
         """
-        return f"strlen({expr})"
+        return Expression(f"strlen({expr})")
 
     @staticmethod
-    def strcat(*expressions: str) -> str:
+    def strcat(*expressions: Union[str, Expression]) -> Expression:
         """“strcat(...)” expression. Concatenate all string arguments in order.
 
         Args:
@@ -536,16 +548,16 @@ class Grouping:
             >>> from vespa.querybuilder import Grouping as G
             >>> expr = G.strcat("fieldA", "_", "fieldB")
             >>> print(expr)
-            strcat(fieldA, '_', fieldB)
+            strcat(fieldA,_,fieldB)
         """
-        return f"strcat({','.join(expressions)})"
+        return Expression(f"strcat({','.join(map(str, expressions))})")
 
     #
     # Type conversion expressions
     #
 
     @staticmethod
-    def todouble(expr: str) -> str:
+    def todouble(expr: Union[str, Expression]) -> Expression:
         """“todouble(...)” expression. Convert argument to double.
 
         Args:
@@ -560,10 +572,10 @@ class Grouping:
             >>> print(expr)
             todouble(my_field)
         """
-        return f"todouble({expr})"
+        return Expression(f"todouble({expr})")
 
     @staticmethod
-    def tolong(expr: str) -> str:
+    def tolong(expr: Union[str, Expression]) -> Expression:
         """“tolong(...)” expression. Convert argument to long.
 
         Args:
@@ -578,10 +590,10 @@ class Grouping:
             >>> print(expr)
             tolong(my_field)
         """
-        return f"tolong({expr})"
+        return Expression(f"tolong({expr})")
 
     @staticmethod
-    def tostring(expr: str) -> str:
+    def tostring(expr: Union[str, Expression]) -> Expression:
         """“tostring(...)” expression. Convert argument to string.
 
         Args:
@@ -596,10 +608,10 @@ class Grouping:
             >>> print(expr)
             tostring(my_field)
         """
-        return f"tostring({expr})"
+        return Expression(f"tostring({expr})")
 
     @staticmethod
-    def toraw(expr: str) -> str:
+    def toraw(expr: Union[str, Expression]) -> Expression:
         """“toraw(...)” expression. Convert argument to raw data.
 
         Args:
@@ -614,14 +626,14 @@ class Grouping:
             >>> print(expr)
             toraw(my_field)
         """
-        return f"toraw({expr})"
+        return Expression(f"toraw({expr})")
 
     #
     # Raw data expressions
     #
 
     @staticmethod
-    def cat(*expressions: str) -> str:
+    def cat(*expressions: Union[str, Expression]) -> Expression:
         """“cat(...)” expression. Concatenate the binary representation of arguments.
 
         Args:
@@ -636,10 +648,10 @@ class Grouping:
             >>> print(expr)
             cat(fieldA,fieldB)
         """
-        return f"cat({','.join(expressions)})"
+        return Expression(f"cat({','.join(map(str, expressions))})")
 
     @staticmethod
-    def md5(expr: str, width: int) -> str:
+    def md5(expr: Union[str, Expression], width: int) -> Expression:
         """“md5(...)” expression.
 
         Does an MD5 over the binary representation of the argument,
@@ -658,10 +670,10 @@ class Grouping:
             >>> print(expr)
             md5(my_field, 16)
         """
-        return f"md5({expr}, {width})"
+        return Expression(f"md5({expr}, {width})")
 
     @staticmethod
-    def xorbit(expr: str, width: int) -> str:
+    def xorbit(expr: Union[str, Expression], width: int) -> Expression:
         """“xorbit(...)” expression.
 
         Performs an XOR of 'width' bits over the binary representation of the argument.
@@ -680,14 +692,14 @@ class Grouping:
             >>> print(expr)
             xorbit(my_field, 16)
         """
-        return f"xorbit({expr}, {width})"
+        return Expression(f"xorbit({expr}, {width})")
 
     #
     # Accessor expressions
     #
 
     @staticmethod
-    def relevance() -> str:
+    def relevance() -> Expression:
         """“relevance()” expression. Returns the computed rank (relevance) of a document.
 
         Returns:
@@ -699,10 +711,12 @@ class Grouping:
             >>> print(expr)
             relevance()
         """
-        return "relevance()"
+        return Expression("relevance()")
 
     @staticmethod
-    def array_at(array_name: str, index_expr: Union[str, int]) -> str:
+    def array_at(
+        array_name: str, index_expr: Union[str, int, Expression]
+    ) -> Expression:
         """“array.at(...)” accessor expression.
         Returns a single element from the array at the given index.
 
@@ -719,14 +733,14 @@ class Grouping:
             >>> print(expr)
             array.at(my_array, 0)
         """
-        return f"array.at({array_name}, {index_expr})"
+        return Expression(f"array.at({array_name}, {index_expr})")
 
     #
     # zcurve decoding expressions
     #
 
     @staticmethod
-    def zcurve_x(expr: str) -> str:
+    def zcurve_x(expr: Union[str, Expression]) -> Expression:
         """“zcurve.x(...)” expression. Returns the X component of the given zcurve-encoded 2D point.
 
         Args:
@@ -741,10 +755,10 @@ class Grouping:
             >>> print(expr)
             zcurve.x(location_zcurve)
         """
-        return f"zcurve.x({expr})"
+        return Expression(f"zcurve.x({expr})")
 
     @staticmethod
-    def zcurve_y(expr: str) -> str:
+    def zcurve_y(expr: Union[str, Expression]) -> Expression:
         """“zcurve.y(...)” expression. Returns the Y component of the given zcurve-encoded 2D point.
 
         Args:
@@ -759,14 +773,14 @@ class Grouping:
             >>> print(expr)
             zcurve.y(location_zcurve)
         """
-        return f"zcurve.y({expr})"
+        return Expression(f"zcurve.y({expr})")
 
     #
     # Time-based expressions
     #
 
     @staticmethod
-    def time_dayofmonth(expr: str) -> str:
+    def time_dayofmonth(expr: Union[str, Expression]) -> Expression:
         """“time.dayofmonth(...)” expression. Returns the day of month (1-31).
 
         Args:
@@ -781,10 +795,10 @@ class Grouping:
             >>> print(expr)
             time.dayofmonth(timestamp_field)
         """
-        return f"time.dayofmonth({expr})"
+        return Expression(f"time.dayofmonth({expr})")
 
     @staticmethod
-    def time_dayofweek(expr: str) -> str:
+    def time_dayofweek(expr: Union[str, Expression]) -> Expression:
         """“time.dayofweek(...)” expression. Returns the day of week (0-6), Monday = 0.
 
         Args:
@@ -799,10 +813,10 @@ class Grouping:
             >>> print(expr)
             time.dayofweek(timestamp_field)
         """
-        return f"time.dayofweek({expr})"
+        return Expression(f"time.dayofweek({expr})")
 
     @staticmethod
-    def time_dayofyear(expr: str) -> str:
+    def time_dayofyear(expr: Union[str, Expression]) -> Expression:
         """“time.dayofyear(...)” expression. Returns the day of year (0-365).
 
         Args:
@@ -817,10 +831,10 @@ class Grouping:
             >>> print(expr)
             time.dayofyear(timestamp_field)
         """
-        return f"time.dayofyear({expr})"
+        return Expression(f"time.dayofyear({expr})")
 
     @staticmethod
-    def time_hourofday(expr: str) -> str:
+    def time_hourofday(expr: Union[str, Expression]) -> Expression:
         """“time.hourofday(...)” expression. Returns the hour of day (0-23).
 
         Args:
@@ -835,10 +849,10 @@ class Grouping:
             >>> print(expr)
             time.hourofday(timestamp_field)
         """
-        return f"time.hourofday({expr})"
+        return Expression(f"time.hourofday({expr})")
 
     @staticmethod
-    def time_minuteofhour(expr: str) -> str:
+    def time_minuteofhour(expr: Union[str, Expression]) -> Expression:
         """“time.minuteofhour(...)” expression. Returns the minute of hour (0-59).
 
         Args:
@@ -853,10 +867,10 @@ class Grouping:
             >>> print(expr)
             time.minuteofhour(timestamp_field)
         """
-        return f"time.minuteofhour({expr})"
+        return Expression(f"time.minuteofhour({expr})")
 
     @staticmethod
-    def time_monthofyear(expr: str) -> str:
+    def time_monthofyear(expr: Union[str, Expression]) -> Expression:
         """“time.monthofyear(...)” expression. Returns the month of year (1-12).
 
         Args:
@@ -871,10 +885,10 @@ class Grouping:
             >>> print(expr)
             time.monthofyear(timestamp_field)
         """
-        return f"time.monthofyear({expr})"
+        return Expression(f"time.monthofyear({expr})")
 
     @staticmethod
-    def time_secondofminute(expr: str) -> str:
+    def time_secondofminute(expr: Union[str, Expression]) -> Expression:
         """“time.secondofminute(...)” expression. Returns the second of minute (0-59).
 
         Args:
@@ -889,10 +903,10 @@ class Grouping:
             >>> print(expr)
             time.secondofminute(timestamp_field)
         """
-        return f"time.secondofminute({expr})"
+        return Expression(f"time.secondofminute({expr})")
 
     @staticmethod
-    def time_year(expr: str) -> str:
+    def time_year(expr: Union[str, Expression]) -> Expression:
         """“time.year(...)” expression. Returns the full year (e.g. 2009).
 
         Args:
@@ -907,10 +921,10 @@ class Grouping:
             >>> print(expr)
             time.year(timestamp_field)
         """
-        return f"time.year({expr})"
+        return Expression(f"time.year({expr})")
 
     @staticmethod
-    def time_date(expr: str) -> str:
+    def time_date(expr: Union[str, Expression]) -> Expression:
         """“time.date(...)” expression. Returns the date (e.g. 2009-01-10).
 
         Args:
@@ -925,13 +939,13 @@ class Grouping:
             >>> print(expr)
             time.date(timestamp_field)
         """
-        return f"time.date({expr})"
+        return Expression(f"time.date({expr})")
 
     #
     # Math expressions
     #
     @staticmethod
-    def math_exp(expr: str) -> str:
+    def math_exp(expr: Union[str, Expression]) -> Expression:
         """“math.exp(...)” expression. Returns e^expr.
 
         Args:
@@ -946,10 +960,10 @@ class Grouping:
             >>> print(expr)
             math.exp(my_field)
         """
-        return f"math.exp({expr})"
+        return Expression(f"math.exp({expr})")
 
     @staticmethod
-    def math_log(expr: str) -> str:
+    def math_log(expr: Union[str, Expression]) -> Expression:
         """“math.log(...)” expression. Returns the natural logarithm of expr.
 
         Args:
@@ -964,10 +978,10 @@ class Grouping:
             >>> print(expr)
             math.log(my_field)
         """
-        return f"math.log({expr})"
+        return Expression(f"math.log({expr})")
 
     @staticmethod
-    def math_log1p(expr: str) -> str:
+    def math_log1p(expr: Union[str, Expression]) -> Expression:
         """“math.log1p(...)” expression. Returns the natural logarithm of (1 + expr).
 
         Args:
@@ -982,10 +996,10 @@ class Grouping:
             >>> print(expr)
             math.log1p(my_field)
         """
-        return f"math.log1p({expr})"
+        return Expression(f"math.log1p({expr})")
 
     @staticmethod
-    def math_log10(expr: str) -> str:
+    def math_log10(expr: Union[str, Expression]) -> Expression:
         """“math.log10(...)” expression. Returns the base-10 logarithm of expr.
 
         Args:
@@ -1000,10 +1014,10 @@ class Grouping:
             >>> print(expr)
             math.log10(my_field)
         """
-        return f"math.log10({expr})"
+        return Expression(f"math.log10({expr})")
 
     @staticmethod
-    def math_sqrt(expr: str) -> str:
+    def math_sqrt(expr: Union[str, Expression]) -> Expression:
         """“math.sqrt(...)” expression. Returns the square root of expr.
 
         Args:
@@ -1018,10 +1032,10 @@ class Grouping:
             >>> print(expr)
             math.sqrt(my_field)
         """
-        return f"math.sqrt({expr})"
+        return Expression(f"math.sqrt({expr})")
 
     @staticmethod
-    def math_cbrt(expr: str) -> str:
+    def math_cbrt(expr: Union[str, Expression]) -> Expression:
         """“math.cbrt(...)” expression. Returns the cube root of expr.
 
         Args:
@@ -1036,10 +1050,10 @@ class Grouping:
             >>> print(expr)
             math.cbrt(my_field)
         """
-        return f"math.cbrt({expr})"
+        return Expression(f"math.cbrt({expr})")
 
     @staticmethod
-    def math_sin(expr: str) -> str:
+    def math_sin(expr: Union[str, Expression]) -> Expression:
         """“math.sin(...)” expression. Returns the sine of expr (argument in radians).
 
         Args:
@@ -1054,10 +1068,10 @@ class Grouping:
             >>> print(expr)
             math.sin(my_field)
         """
-        return f"math.sin({expr})"
+        return Expression(f"math.sin({expr})")
 
     @staticmethod
-    def math_cos(expr: str) -> str:
+    def math_cos(expr: Union[str, Expression]) -> Expression:
         """“math.cos(...)” expression. Returns the cosine of expr (argument in radians).
 
         Args:
@@ -1072,10 +1086,10 @@ class Grouping:
             >>> print(expr)
             math.cos(my_field)
         """
-        return f"math.cos({expr})"
+        return Expression(f"math.cos({expr})")
 
     @staticmethod
-    def math_tan(expr: str) -> str:
+    def math_tan(expr: Union[str, Expression]) -> Expression:
         """“math.tan(...)” expression. Returns the tangent of expr (argument in radians).
 
         Args:
@@ -1090,10 +1104,10 @@ class Grouping:
             >>> print(expr)
             math.tan(my_field)
         """
-        return f"math.tan({expr})"
+        return Expression(f"math.tan({expr})")
 
     @staticmethod
-    def math_asin(expr: str) -> str:
+    def math_asin(expr: Union[str, Expression]) -> Expression:
         """“math.asin(...)” expression. Returns the arcsine of expr (in radians).
 
         Args:
@@ -1108,10 +1122,10 @@ class Grouping:
             >>> print(expr)
             math.asin(my_field)
         """
-        return f"math.asin({expr})"
+        return Expression(f"math.asin({expr})")
 
     @staticmethod
-    def math_acos(expr: str) -> str:
+    def math_acos(expr: Union[str, Expression]) -> Expression:
         """“math.acos(...)” expression. Returns the arccosine of expr (in radians).
 
         Args:
@@ -1126,10 +1140,10 @@ class Grouping:
             >>> print(expr)
             math.acos(my_field)
         """
-        return f"math.acos({expr})"
+        return Expression(f"math.acos({expr})")
 
     @staticmethod
-    def math_atan(expr: str) -> str:
+    def math_atan(expr: Union[str, Expression]) -> Expression:
         """“math.atan(...)” expression. Returns the arctangent of expr (in radians).
 
         Args:
@@ -1144,10 +1158,10 @@ class Grouping:
             >>> print(expr)
             math.atan(my_field)
         """
-        return f"math.atan({expr})"
+        return Expression(f"math.atan({expr})")
 
     @staticmethod
-    def math_sinh(expr: str) -> str:
+    def math_sinh(expr: Union[str, Expression]) -> Expression:
         """“math.sinh(...)” expression. Returns the hyperbolic sine of expr.
 
         Args:
@@ -1162,10 +1176,10 @@ class Grouping:
             >>> print(expr)
             math.sinh(my_field)
         """
-        return f"math.sinh({expr})"
+        return Expression(f"math.sinh({expr})")
 
     @staticmethod
-    def math_cosh(expr: str) -> str:
+    def math_cosh(expr: Union[str, Expression]) -> Expression:
         """“math.cosh(...)” expression. Returns the hyperbolic cosine of expr.
 
         Args:
@@ -1180,10 +1194,10 @@ class Grouping:
             >>> print(expr)
             math.cosh(my_field)
         """
-        return f"math.cosh({expr})"
+        return Expression(f"math.cosh({expr})")
 
     @staticmethod
-    def math_tanh(expr: str) -> str:
+    def math_tanh(expr: Union[str, Expression]) -> Expression:
         """“math.tanh(...)” expression. Returns the hyperbolic tangent of expr.
 
         Args:
@@ -1198,10 +1212,10 @@ class Grouping:
             >>> print(expr)
             math.tanh(my_field)
         """
-        return f"math.tanh({expr})"
+        return Expression(f"math.tanh({expr})")
 
     @staticmethod
-    def math_asinh(expr: str) -> str:
+    def math_asinh(expr: Union[str, Expression]) -> Expression:
         """“math.asinh(...)” expression. Returns the inverse hyperbolic sine of expr.
 
         Args:
@@ -1216,10 +1230,10 @@ class Grouping:
             >>> print(expr)
             math.asinh(my_field)
         """
-        return f"math.asinh({expr})"
+        return Expression(f"math.asinh({expr})")
 
     @staticmethod
-    def math_acosh(expr: str) -> str:
+    def math_acosh(expr: Union[str, Expression]) -> Expression:
         """“math.acosh(...)” expression. Returns the inverse hyperbolic cosine of expr.
 
         Args:
@@ -1234,10 +1248,10 @@ class Grouping:
             >>> print(expr)
             math.acosh(my_field)
         """
-        return f"math.acosh({expr})"
+        return Expression(f"math.acosh({expr})")
 
     @staticmethod
-    def math_atanh(expr: str) -> str:
+    def math_atanh(expr: Union[str, Expression]) -> Expression:
         """“math.atanh(...)” expression. Returns the inverse hyperbolic tangent of expr.
 
         Args:
@@ -1252,10 +1266,12 @@ class Grouping:
             >>> print(expr)
             math.atanh(my_field)
         """
-        return f"math.atanh({expr})"
+        return Expression(f"math.atanh({expr})")
 
     @staticmethod
-    def math_pow(expr_x: str, expr_y: str) -> str:
+    def math_pow(
+        expr_x: Union[str, Expression], expr_y: Union[str, Expression]
+    ) -> Expression:
         """“math.pow(...)” expression. Returns expr_x^expr_y.
 
         Args:
@@ -1271,10 +1287,12 @@ class Grouping:
             >>> print(expr)
             math.pow(my_field, 2)
         """
-        return f"math.pow({expr_x}, {expr_y})"
+        return Expression(f"math.pow({expr_x}, {expr_y})")
 
     @staticmethod
-    def math_hypot(expr_x: str, expr_y: str) -> str:
+    def math_hypot(
+        expr_x: Union[str, Expression], expr_y: Union[str, Expression]
+    ) -> Expression:
         """“math.hypot(...)” expression. Returns the length of the hypotenuse
         given expr_x and expr_y.
 
@@ -1291,13 +1309,13 @@ class Grouping:
             >>> print(expr)
             math.hypot(my_field_x, my_field_y)
         """
-        return f"math.hypot({expr_x}, {expr_y})"
+        return Expression(f"math.hypot({expr_x}, {expr_y})")
 
     #
     # List expressions
     #
     @staticmethod
-    def size(expr: str) -> str:
+    def size(expr: Union[str, Expression]) -> Expression:
         """“size(...)” expression. Returns the number of elements if expr is a list;
         otherwise returns 1.
 
@@ -1313,10 +1331,10 @@ class Grouping:
             >>> print(expr)
             size(my_array)
         """
-        return f"size({expr})"
+        return Expression(f"size({expr})")
 
     @staticmethod
-    def sort(expr: str) -> str:
+    def sort(expr: Union[str, Expression]) -> Expression:
         """“sort(...)” expression. Sorts the elements of the list argument in ascending order.
 
         Args:
@@ -1331,10 +1349,10 @@ class Grouping:
             >>> print(expr)
             sort(my_array)
         """
-        return f"sort({expr})"
+        return Expression(f"sort({expr})")
 
     @staticmethod
-    def reverse(expr: str) -> str:
+    def reverse(expr: Union[str, Expression]) -> Expression:
         """“reverse(...)” expression. Reverses the elements of the list argument.
 
         Args:
@@ -1349,14 +1367,16 @@ class Grouping:
             >>> print(expr)
             reverse(my_array)
         """
-        return f"reverse({expr})"
+        return Expression(f"reverse({expr})")
 
     #
     # Bucket expressions
     #
 
     @staticmethod
-    def fixedwidth(value: str, bucket_width: Union[int, float]) -> str:
+    def fixedwidth(
+        value: Union[str, Expression], bucket_width: Union[int, float]
+    ) -> Expression:
         """“fixedwidth(...)” bucket expression. Maps the value of the first argument
         into consecutive buckets whose width is the second argument.
 
@@ -1373,10 +1393,10 @@ class Grouping:
             >>> print(expr)
             fixedwidth(my_field,10)
         """
-        return f"fixedwidth({value},{bucket_width})"
+        return Expression(f"fixedwidth({value},{bucket_width})")
 
     @staticmethod
-    def predefined(value: str, buckets: List[str]) -> str:
+    def predefined(value: Union[str, Expression], buckets: List[str]) -> Expression:
         """“predefined(...)” bucket expression. Maps the value into the provided list of buckets.
 
         Each 'bucket' must be a string representing the range, e.g.:
@@ -1396,10 +1416,12 @@ class Grouping:
             predefined(my_field, (bucket(-inf,0), bucket[0,10), bucket[10,inf)))
         """
         joined_buckets = ", ".join(buckets)
-        return f"predefined({value}, ({joined_buckets}))"
+        return Expression(f"predefined({value}, ({joined_buckets}))")
 
     @staticmethod
-    def interpolatedlookup(array_attr: str, lookup_expr: str) -> str:
+    def interpolatedlookup(
+        array_attr: Union[str, Expression], lookup_expr: Union[str, Expression]
+    ) -> Expression:
         """“interpolatedlookup(...)” expression.
         Counts elements in a sorted array that are less than an expression,
         with linear interpolation if the expression is between element values.
@@ -1417,14 +1439,14 @@ class Grouping:
             >>> print(expr)
             interpolatedlookup(my_sorted_array, 4.2)
         """
-        return f"interpolatedlookup({array_attr}, {lookup_expr})"
+        return Expression(f"interpolatedlookup({array_attr}, {lookup_expr})")
 
     #
     # Hit aggregator
     #
 
     @staticmethod
-    def summary(summary_class: str = "") -> str:
+    def summary(summary_class: str = "") -> Expression:
         """“summary(...)” hit aggregator. Produces a summary of the requested summary class.
 
         If no summary class is specified, “summary()” is used.
@@ -1446,6 +1468,48 @@ class Grouping:
             summary(my_summary_class)
         """
         if summary_class:
-            return f"summary({summary_class})"
+            return Expression(f"summary({summary_class})")
         else:
-            return "summary()"
+            return Expression("summary()")
+
+    @staticmethod
+    def as_(expression: str, label: str) -> str:
+        """
+        Appends an ' as(label)' part to a grouping block expression.
+
+        Args:
+            expression (str): The expression to be labeled.
+            label (str): The label to be used.
+
+        Returns:
+            str: A Vespa grouping expression string of the form 'expression as(label)'
+
+        Example:
+            >>> from vespa.querybuilder import Grouping as G
+            >>> expr = G.as_(G.each(G.output(G.count())), "mylabel")
+            >>> print(expr)
+            each(output(count())) as(mylabel)
+        """
+        return f"{expression} as({label})"
+
+    @staticmethod
+    def alias(alias_name: str, expression: str) -> str:
+        """
+        Defines an alias(...) grouping syntax. This lets you name an
+        expression, so you can reference it later by $alias_name.
+
+        Args:
+            alias_name (str): The alias name.
+            expression (str): The expression to alias.
+
+        Returns:
+            str: A Vespa grouping expression string of the form 'alias(alias_name, expression)'.
+
+        Example:
+            >>> from vespa.querybuilder import Grouping as G
+            >>> expr = G.alias("my_alias", G.add("fieldA", "fieldB"))
+            >>> print(expr)
+            alias(my_alias,add(fieldA, fieldB))
+
+        """
+        return f"alias({alias_name},{expression})"

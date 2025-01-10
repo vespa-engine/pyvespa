@@ -501,12 +501,12 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         #             'rank-relevance-count')
         grouping = G.all(
             G.group("a"),
-            # order(...) can hold multiple expressions, but Vespa syntax is e.g.
-            # order(sum(relevance()), -count()). We replicate as literal:
-            "order(sum(relevance()),-count())",
+            G.order(G.sum("relevance()"), -G.count()),
             G.each(
-                # As above, multiple aggregator calls in one output:
-                "output(count(),sum(mod(relevance(),100000)))"
+                G.output(
+                    G.count(),
+                    G.sum(G.mod(G.relevance(), 100000)),
+                )
             ),
         )
         expected = (
@@ -665,7 +665,6 @@ class TestQueryBuilderGrouping(unittest.TestCase):
     #
     # Alias usage example:
     #
-    @unittest.skip("Not yet implemented")
     def test_alias(self):
         # check_query(all(group(a)alias(myalias,count())each(output($myalias)))
         grouping = G.all(
@@ -673,7 +672,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         )
         expected = (
             "select * from purchase where true | "
-            "all(group(a) alias(myalias, count()) each(output($myalias)))"
+            "all(group(a) alias(myalias,count()) each(output($myalias)))"
         )
         q = qb.select("*").from_("purchase").where(True).groupby(grouping)
         self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
