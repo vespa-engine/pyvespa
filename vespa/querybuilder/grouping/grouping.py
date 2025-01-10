@@ -448,7 +448,7 @@ class Grouping:
             >>> from vespa.querybuilder import Grouping as G
             >>> expr = G.mod("my_field", "100")
             >>> print(expr)
-            mod(my_field, 100)
+            mod(my_field,100)
         """
         return Expression(f"mod({','.join(map(str, expressions))})")
 
