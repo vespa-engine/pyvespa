@@ -1285,9 +1285,9 @@ class Grouping:
             >>> from vespa.querybuilder import Grouping as G
             >>> expr = G.math_pow("my_field", "2")
             >>> print(expr)
-            math.pow(my_field, 2)
+            math.pow(my_field,2)
         """
-        return Expression(f"math.pow({expr_x}, {expr_y})")
+        return Expression(f"math.pow({expr_x},{expr_y})")
 
     @staticmethod
     def math_hypot(
@@ -1413,10 +1413,10 @@ class Grouping:
             >>> from vespa.querybuilder import Grouping as G
             >>> expr = G.predefined("my_field", ["bucket(-inf,0)", "bucket[0,10)", "bucket[10,inf)"])
             >>> print(expr)
-            predefined(my_field, (bucket(-inf,0), bucket[0,10), bucket[10,inf)))
+            predefined(my_field,bucket(-inf,0),bucket[0,10),bucket[10,inf))
         """
-        joined_buckets = ", ".join(buckets)
-        return Expression(f"predefined({value}, ({joined_buckets}))")
+        joined_buckets = ",".join(buckets)
+        return Expression(f"predefined({value},{joined_buckets})")
 
     @staticmethod
     def interpolatedlookup(

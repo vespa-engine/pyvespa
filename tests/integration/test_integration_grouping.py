@@ -7,6 +7,10 @@ from vespa.package import (
     Document,
     Field,
     RankProfile,
+    FirstPhaseRanking,
+    FieldSet,
+    DocumentSummary,
+    Summary,
 )
 from tests.unit.test_grouping import TestQueryBuilderGrouping
 
@@ -14,6 +18,11 @@ qb = TestQueryBuilderGrouping()
 
 
 class TestGroupingIntegration(unittest.TestCase):
+    """Integration tests for grouping.
+    Most of the tests and data are retrieved from https://github.com/vespa-engine/system-test/tree/master/tests/search/grouping_adv
+    and https://github.com/vespa-engine/system-test/blob/master/tests/search/grouping/
+    """
+
     @classmethod
     def setUpClass(cls):
         application_name = "grouping"
@@ -43,11 +52,179 @@ class TestGroupingIntegration(unittest.TestCase):
                 RankProfile(name="pricerank", first_phase="attribute(price)")
             ],
         )
+        # test schema:
+        # Copyright Vespa.ai. All rights reserved.
+        # schema test {
+        #   document test {
+        #     field n type int {
+        #       indexing: summary | attribute
+        #     }
+        #     field fa type array<double> {
+        #       indexing: attribute
+        #     }
+        #     field na type array<int> {
+        #       indexing: attribute
+        #     }
+        #     field nb type array<byte> {
+        #       indexing: attribute
+        #     }
+        #     field nw type weightedset<int> {
+        #       indexing: attribute
+        #     }
+        #     field f type float {
+        #       indexing: attribute
+        #     }
+        #     field d type double {
+        #       indexing: attribute
+        #     }
+        #     field sf type string {
+        #       indexing: attribute
+        #     }
+        #     field s type string {
+        #       indexing: attribute | index
+        #     }
+        #     field a type string {
+        #       indexing: attribute | index | summary
+        #     }
+        #     field b type string {
+        #       indexing: attribute | index | summary
+        #     }
+        #     field c type string {
+        #       indexing: attribute | index | summary
+        #     }
+        #     field from type int {
+        #       indexing: attribute | summary
+        #     }
+        #     field to type long {
+        #       indexing: attribute | summary
+        #     }
+        #     field lang type string {
+        #       indexing: attribute
+        #     }
+        #     field body type string {
+        #       indexing: index | summary
+        #       rank-type: identity
+        #     }
+        #     field boool type bool {
+        #       indexing: attribute | summary
+        #     }
+        #     field by type byte {
+        #       indexing: attribute
+        #     }
+        #     field i type int {
+        #       indexing: attribute
+        #     }
+        #   }
+        #   fieldset default {
+        #     fields: body
+        #   }
+
+        #   rank-profile default {
+        #     first-phase {
+        #       expression: attribute(f) * (attribute(from) / 1000000)
+        #     }
+        #   }
+
+        #   rank-profile default-values {
+        #     first-phase {
+        #       expression: attribute(i)
+        #     }
+        #   }
+
+        #   document-summary normal {
+        #     summary a { source: a }
+        #     summary b { source: b }
+        #     summary c { source: c }
+        #     summary documentid { source: documentid }
+        #     summary from { source: from }
+        #     summary to { source: to }
+        #     summary body { source: body }
+        #   }
+
+        #   document-summary summary1 {
+        #     summary a { source: a }
+        #     summary n { source: n }
+        #   }
+        # }
+        # Schema from https://github.com/vespa-engine/system-test/blob/master/tests/search/grouping_adv/test.sd
+        test_schema = Schema(
+            name="test",
+            document=Document(
+                fields=[
+                    Field(name="n", type="int", indexing=["summary", "attribute"]),
+                    Field(name="fa", type="array<double>", indexing=["attribute"]),
+                    Field(name="na", type="array<int>", indexing=["attribute"]),
+                    Field(name="nb", type="array<byte>", indexing=["attribute"]),
+                    Field(name="nw", type="weightedset<int>", indexing=["attribute"]),
+                    Field(name="f", type="float", indexing=["attribute"]),
+                    Field(name="d", type="double", indexing=["attribute"]),
+                    Field(name="sf", type="string", indexing=["attribute"]),
+                    Field(name="s", type="string", indexing=["attribute", "index"]),
+                    Field(
+                        name="a",
+                        type="string",
+                        indexing=["attribute", "index", "summary"],
+                    ),
+                    Field(
+                        name="b",
+                        type="string",
+                        indexing=["attribute", "index", "summary"],
+                    ),
+                    Field(
+                        name="c",
+                        type="string",
+                        indexing=["attribute", "index", "summary"],
+                    ),
+                    Field(name="from", type="int", indexing=["attribute", "summary"]),
+                    Field(name="to", type="long", indexing=["attribute", "summary"]),
+                    Field(name="lang", type="string", indexing=["attribute"]),
+                    Field(name="body", type="string", indexing=["index", "summary"]),
+                    Field(name="boool", type="bool", indexing=["attribute", "summary"]),
+                    Field(name="by", type="byte", indexing=["attribute"]),
+                    Field(name="i", type="int", indexing=["attribute"]),
+                ]
+            ),
+            fieldset=FieldSet(name="default", fields=["body"]),
+            rank_profiles=[
+                RankProfile(
+                    name="default",
+                    first_phase=FirstPhaseRanking(
+                        expression="attribute(f) * (attribute(from) / 1000000)"
+                    ),
+                ),
+                RankProfile(
+                    name="default-values",
+                    first_phase=FirstPhaseRanking(expression="attribute(i)"),
+                ),
+            ],
+            document_summaries=[
+                DocumentSummary(
+                    name="normal",
+                    summary_fields=[
+                        Summary(name="a", fields=[("source", "a")]),
+                        Summary(name="b", fields=[("source", "b")]),
+                        Summary(name="c", fields=[("source", "c")]),
+                        Summary(name="documentid", fields=[("source", "documentid")]),
+                        Summary(name="from", fields=[("source", "from")]),
+                        Summary(name="to", fields=[("source", "to")]),
+                        Summary(name="body", fields=[("source", "body")]),
+                    ],
+                ),
+                DocumentSummary(
+                    name="summary1",
+                    summary_fields=[
+                        Summary(name="a", fields=[("source", "a")]),
+                        Summary(name="n", fields=[("source", "n")]),
+                    ],
+                ),
+            ],
+        )
         # Create the application package
         application_package = ApplicationPackage(
-            name=application_name, schema=[purchase_schema]
+            name=application_name, schema=[purchase_schema, test_schema]
         )
         print(application_package.get_schema("purchase").schema_to_text)
+        print(application_package.get_schema("test").schema_to_text)
         # Deploy the application
         cls.vespa_docker = VespaDocker(port=8089)
         cls.app = cls.vespa_docker.deploy(application_package=application_package)
@@ -59,7 +236,7 @@ class TestGroupingIntegration(unittest.TestCase):
         cls.vespa_docker.container.remove()
 
     @property
-    def sample_grouping_data(self):
+    def purchase_grouping_data(self):
         sample_data = [
             {
                 "fields": {
@@ -268,25 +445,549 @@ class TestGroupingIntegration(unittest.TestCase):
         ]
         return docs
 
-    def feed_grouping_data(self) -> None:
+    @property
+    def test_grouping_data(self):
+        docs = [
+            {
+                "put": "id:test:test:n=1234:01",
+                "fields": {
+                    "s": "a",
+                    "sf": 1,
+                    "f": 1,
+                    "d": 1,
+                    "n": 1,
+                    "a": "a1",
+                    "b": "b1",
+                    "c": "c1",
+                    "from": 1234517162,
+                    "to": 1234517162000000000,
+                    "boool": True,
+                    "body": "test",
+                    "na": [1, 2],
+                    "nb": [7, 9],
+                    "lang": "heissz",
+                },
+            },
+            {
+                "put": "id:test:test:n=1234:03",
+                "fields": {
+                    "s": "aaa",
+                    "sf": 3.9,
+                    "f": 3.9,
+                    "d": 3.9,
+                    "n": 3,
+                    "a": "a1",
+                    "b": "b1",
+                    "c": "c3",
+                    "from": 1234517151,
+                    "to": 1234537162000000000,
+                    "boool": False,
+                    "body": "test",
+                    "fa": [1.6, 2.9],
+                    "lang": "heissz",
+                },
+            },
+            {
+                "put": "id:test:test:n=1234:04",
+                "fields": {
+                    "s": "aab",
+                    "sf": 4.9,
+                    "f": 4.9,
+                    "d": 4.9,
+                    "n": 4,
+                    "a": "a1",
+                    "b": "b2",
+                    "c": "c1",
+                    "from": 1234517051,
+                    "to": 1234547162000000000,
+                    "boool": True,
+                    "body": "test",
+                    "fa": [1.6],
+                    "lang": "heißz",
+                },
+            },
+            {
+                "put": "id:test:test:n=1234:05",
+                "fields": {
+                    "s": "aac",
+                    "sf": 5.9,
+                    "f": 5.9,
+                    "d": 5.9,
+                    "n": 5,
+                    "a": "a1",
+                    "b": "b2",
+                    "c": "c2",
+                    "from": 1234516051,
+                    "to": 1234557162000000000,
+                    "boool": False,
+                    "body": "test",
+                    "lang": "heissz",
+                },
+            },
+            {
+                "put": "id:test:test:n=1234:06",
+                "fields": {
+                    "s": "ab",
+                    "sf": 6.9,
+                    "f": 6.9,
+                    "d": 6.9,
+                    "n": 6,
+                    "a": "a1",
+                    "b": "b2",
+                    "c": "c3",
+                    "from": 1234506051,
+                    "to": 1234567162000000000,
+                    "boool": False,
+                    "body": "test",
+                    "lang": "heissz",
+                },
+            },
+            {
+                "put": "id:test:test:n=1234:07",
+                "fields": {
+                    "s": "aba",
+                    "sf": 7.9,
+                    "f": 7.9,
+                    "d": 7.9,
+                    "n": 7,
+                    "a": "a1",
+                    "b": "b3",
+                    "c": "c1",
+                    "from": 1234406051,
+                    "to": 1234577162000000000,
+                    "boool": True,
+                    "body": "test",
+                    "lang": "heissz",
+                },
+            },
+            {
+                "put": "id:test:test:n=1234:08",
+                "fields": {
+                    "s": "abb",
+                    "sf": 8.9,
+                    "f": 8.9,
+                    "d": 8.9,
+                    "n": 8,
+                    "a": "a1",
+                    "b": "b3",
+                    "c": "c2",
+                    "from": 1233406051,
+                    "to": 1234587162000000000,
+                    "boool": True,
+                    "body": "test",
+                    "lang": "heissö",
+                },
+            },
+            {
+                "put": "id:test:test:n=1234:09",
+                "fields": {
+                    "s": "abc",
+                    "sf": 9.9,
+                    "f": 9.9,
+                    "d": 9.9,
+                    "n": 9,
+                    "a": "a1",
+                    "b": "b3",
+                    "c": "c3",
+                    "from": 1223406051,
+                    "to": 1234607162000000000,
+                    "boool": False,
+                    "body": "test",
+                    "lang": "heissö",
+                },
+            },
+            {
+                "put": "id:test:test:n=1234:10",
+                "fields": {
+                    "s": "ac",
+                    "sf": 1.9,
+                    "f": 1.9,
+                    "d": 1.9,
+                    "n": 1,
+                    "a": "a2",
+                    "b": "b1",
+                    "c": "c1",
+                    "from": 1123406051,
+                    "to": 1234617162000000000,
+                    "boool": False,
+                    "body": "test",
+                    "lang": "heissö",
+                },
+            },
+            {
+                "put": "id:test:test:n=1234:11",
+                "fields": {
+                    "s": "aca",
+                    "sf": 2.9,
+                    "f": 2.9,
+                    "d": 2.9,
+                    "n": 2,
+                    "a": "a2",
+                    "b": "b1",
+                    "c": "c2",
+                    "from": 123406051,
+                    "to": 1234627162000000000,
+                    "boool": True,
+                    "body": "test",
+                    "lang": "heissö",
+                },
+            },
+            {
+                "put": "id:test:test:n=1234:12",
+                "fields": {
+                    "s": "acb",
+                    "sf": 3.9,
+                    "f": 3.9,
+                    "d": 3.9,
+                    "n": 3,
+                    "a": "a2",
+                    "b": "b1",
+                    "c": "c3",
+                    "from": 1123406050,
+                    "to": 1234637162000000000,
+                    "boool": False,
+                    "body": "test",
+                    "lang": "heissö",
+                },
+            },
+            {
+                "put": "id:test:test:n=1234:13",
+                "fields": {
+                    "s": "acc",
+                    "sf": 4.9,
+                    "f": 4.9,
+                    "d": 4.9,
+                    "n": 4,
+                    "a": "a2",
+                    "b": "b2",
+                    "c": "c1",
+                    "from": 1123406040,
+                    "to": 1234647162000000000,
+                    "boool": False,
+                    "body": "test",
+                    "lang": "heissö",
+                },
+            },
+            {
+                "put": "id:test:test:n=72331337:14",
+                "fields": {
+                    "s": "b",
+                    "sf": 5.9,
+                    "f": 5.9,
+                    "d": 5.9,
+                    "n": 5,
+                    "a": "a2",
+                    "b": "b2",
+                    "c": "c2",
+                    "from": 1123405940,
+                    "to": 1234657162000000000,
+                    "boool": True,
+                    "body": "test",
+                    "lang": "heißz",
+                },
+            },
+            {
+                "put": "id:test:test:n=72331337:15",
+                "fields": {
+                    "s": "ba",
+                    "sf": 6.9,
+                    "f": 6.9,
+                    "d": 6.9,
+                    "n": 6,
+                    "a": "a2",
+                    "b": "b2",
+                    "c": "c3",
+                    "from": 1123404940,
+                    "to": 1234667162000000000,
+                    "boool": False,
+                    "body": "test",
+                    "lang": "heißz",
+                },
+            },
+            {
+                "put": "id:test:test:n=72331337:16",
+                "fields": {
+                    "s": "baa",
+                    "sf": 7.9,
+                    "f": 7.9,
+                    "d": 7.9,
+                    "n": 7,
+                    "a": "a2",
+                    "b": "b3",
+                    "c": "c1",
+                    "from": 1123494940,
+                    "to": 1234677162000000000,
+                    "boool": False,
+                    "body": "test",
+                    "lang": "heissö",
+                },
+            },
+            {
+                "put": "id:test:test:n=72331337:17",
+                "fields": {
+                    "s": "bab",
+                    "sf": 8.9,
+                    "f": 8.9,
+                    "d": 8.9,
+                    "n": 8,
+                    "a": "a2",
+                    "b": "b3",
+                    "c": "c2",
+                    "from": 1123394940,
+                    "to": 1234687162000000000,
+                    "boool": True,
+                    "body": "test",
+                    "lang": "heissö",
+                },
+            },
+            {
+                "put": "id:test:test:n=72331337:18",
+                "fields": {
+                    "s": "bac",
+                    "sf": 9.9,
+                    "f": 9.9,
+                    "d": 9.9,
+                    "n": 9,
+                    "a": "a2",
+                    "b": "b3",
+                    "c": "c3",
+                    "from": 1122394940,
+                    "to": 1234697162000000000,
+                    "boool": False,
+                    "body": "test",
+                    "lang": "heissö",
+                },
+            },
+            {
+                "put": "id:test:test:n=72331337:19",
+                "fields": {
+                    "s": "bba",
+                    "sf": 1.9,
+                    "f": 1.9,
+                    "d": 1.9,
+                    "n": 1,
+                    "a": "a3",
+                    "b": "b1",
+                    "c": "c1",
+                    "from": 1112394940,
+                    "to": 1234707162000000000,
+                    "boool": False,
+                    "body": "test",
+                    "lang": "heissö",
+                },
+            },
+            {
+                "put": "id:test:test:n=72331337:20",
+                "fields": {
+                    "s": "bbb",
+                    "sf": 2.9,
+                    "f": 2.9,
+                    "d": 2.9,
+                    "n": 2,
+                    "a": "a3",
+                    "b": "b1",
+                    "c": "c2",
+                    "from": 1012394940,
+                    "to": 1234717162000000000,
+                    "boool": True,
+                    "body": "test",
+                    "lang": "heissö",
+                },
+            },
+            {
+                "put": "id:test:test:n=72331337:21",
+                "fields": {
+                    "s": "bbc",
+                    "sf": 3.9,
+                    "f": 3.9,
+                    "d": 3.9,
+                    "n": 3,
+                    "a": "a3",
+                    "b": "b1",
+                    "c": "c3",
+                    "from": 1012394939,
+                    "to": 1234727162000000000,
+                    "boool": False,
+                    "body": "test",
+                    "lang": "heissö",
+                },
+            },
+            {
+                "put": "id:test:test:n=72331337:22",
+                "fields": {
+                    "s": "bc",
+                    "sf": 4.9,
+                    "f": 4.9,
+                    "d": 4.9,
+                    "n": 4,
+                    "a": "a3",
+                    "b": "b2",
+                    "c": "c1",
+                    "from": 1012394929,
+                    "to": 1234737162000000000,
+                    "boool": False,
+                    "body": "test",
+                    "lang": "heissö",
+                },
+            },
+            {
+                "put": "id:test:test:n=72331337:23",
+                "fields": {
+                    "s": "bca",
+                    "sf": 5.9,
+                    "f": 5.9,
+                    "d": 5.9,
+                    "n": 5,
+                    "a": "a3",
+                    "b": "b2",
+                    "c": "c2",
+                    "from": 1012394829,
+                    "to": 1234747162000000000,
+                    "boool": False,
+                    "body": "test",
+                    "lang": "heissö",
+                },
+            },
+            {
+                "put": "id:test:test:n=72331337:24",
+                "fields": {
+                    "s": "bcb",
+                    "sf": 6.9,
+                    "f": 6.9,
+                    "d": 6.9,
+                    "n": 6,
+                    "a": "a3",
+                    "b": "b2",
+                    "c": "c3",
+                    "from": 1012393829,
+                    "to": 1234757162000000000,
+                    "boool": False,
+                    "body": "test",
+                    "lang": "heissö",
+                },
+            },
+            {
+                "put": "id:test:test:n=72331337:25",
+                "fields": {
+                    "s": "bcc",
+                    "sf": 7.9,
+                    "f": 7.9,
+                    "d": 7.9,
+                    "n": 7,
+                    "a": "a3",
+                    "b": "b3",
+                    "c": "c1",
+                    "from": 1012383829,
+                    "to": 1234767162000000000,
+                    "boool": True,
+                    "body": "test",
+                    "lang": "heissö",
+                },
+            },
+            {
+                "put": "id:test:test:n=72331337:26",
+                "fields": {
+                    "s": "c",
+                    "sf": 8.9,
+                    "f": 8.9,
+                    "d": 8.9,
+                    "n": 8,
+                    "a": "a3",
+                    "b": "b3",
+                    "c": "c2",
+                    "from": 1012283829,
+                    "to": 1234777162000000000,
+                    "boool": True,
+                    "body": "test",
+                    "lang": "heissö",
+                },
+            },
+            {
+                "put": "id:test:test:n=72331337:02",
+                "fields": {
+                    "s": "aa",
+                    "sf": 2.9,
+                    "f": 2.9,
+                    "d": 2.9,
+                    "n": 2,
+                    "a": "a1",
+                    "b": "b1",
+                    "c": "c2",
+                    "from": 1234517161,
+                    "to": 1234527162000000000,
+                    "boool": False,
+                    "body": "test",
+                    "nw": {"1": 1, "2": 1},
+                    "lang": "heissz",
+                },
+            },
+            {
+                "put": "id:test:test:n=72331337:28",
+                "fields": {
+                    "s": "caa",
+                    "sf": -2.9,
+                    "f": -2.9,
+                    "d": -2.9,
+                    "n": -2,
+                    "a": "a1",
+                    "b": "b1",
+                    "c": "c2",
+                    "from": 1234517161,
+                    "to": 1234527162000000000,
+                    "boool": True,
+                    "body": "test",
+                    "nw": {"1": 1, "2": 1},
+                    "lang": "heissz",
+                },
+            },
+            {
+                "put": "id:test:test:n=72331337:27",
+                "fields": {
+                    "s": "ca",
+                    "sf": "no-number",
+                    "f": 9.9,
+                    "d": 9.9,
+                    "n": 9,
+                    "a": "a3",
+                    "b": "b3",
+                    "c": "c3",
+                    "from": 1011283829,
+                    "to": 1234787162000000000,
+                    "boool": True,
+                    "body": "test",
+                    "lang": "heissö",
+                },
+            },
+        ]
+        docs = [
+            {"fields": doc["fields"], "id": doc["put"].split("::")[-1]} for doc in docs
+        ]
+        return docs
+
+    def feed_purchase_data(self) -> None:
         # Feed documents
-        self.app.feed_iterable(iter=self.sample_grouping_data, schema="purchase")
+        self.app.feed_iterable(iter=self.purchase_grouping_data, schema="purchase")
+        return None
+
+    def feed_test_grouping_data(self) -> None:
+        # Feed documents
+        self.app.feed_iterable(iter=self.test_grouping_data, schema="test")
         return None
 
     def test_grouping_with_condition(self):
         # "select * from purchase | all(group(customer) each(output(sum(price))))"
         # Feed test documents
-        self.feed_grouping_data()
+        self.feed_purchase_data()
         # Execute query
         q = qb.test_grouping_with_condition()
         print(f"Executing query: {q}")
         with self.app.syncio() as sess:
             result = sess.query(yql=q)
         result_children = result.json["root"]["children"][0]["children"]
-        # also get result from https://api.search.vespa.ai/search/?yql=select%20*%20from%20purchase%20where%20true%20%7C%20all(%20group(customer)%20each(output(sum(price)))%20)
+        # also get result from https://api.search.vespa.ai/search/?yql=select%20*%20from%20purchase%20where%20True%20%7C%20all(%20group(customer)%20each(output(sum(price)))%20)
         # to compare
         api_resp = requests.get(
-            "https://api.search.vespa.ai/search/?yql=select%20*%20from%20purchase%20where%20true%20%7C%20all(%20group(customer)%20each(output(sum(price)))%20)",
+            "https://api.search.vespa.ai/search/?yql=select%20*%20from%20purchase%20where%20True%20%7C%20all(%20group(customer)%20each(output(sum(price)))%20)",
         )
         api_resp = api_resp.json()
         api_children = api_resp["root"]["children"][0]["children"]
@@ -305,9 +1006,9 @@ class TestGroupingIntegration(unittest.TestCase):
 
     def test_grouping_with_ordering_and_limiting(self):
         # The two customers with most purchases, returning the sum for each:
-        # "select * from purchase where true | all(group(customer) max(2) precision(12) order(-count()) each(output(sum(price))))"
+        # "select * from purchase where True | all(group(customer) max(2) precision(12) order(-count()) each(output(sum(price))))"
         # Feed test documents
-        self.feed_grouping_data()
+        self.feed_purchase_data()
         # Execute query
         q = qb.test_grouping_with_ordering_and_limiting()
         print(f"Executing query: {q}")
@@ -328,8 +1029,8 @@ class TestGroupingIntegration(unittest.TestCase):
 
     def test_grouping_hits_per_group(self):
         #  Example: Return the three most expensive parts per customer:
-        # 'select * from purchase where true | all(group(customer) each(max(3) each(output(summary()))))&ranking=pricerank'
-        self.feed_grouping_data()
+        # 'select * from purchase where True | all(group(customer) each(max(3) each(output(summary()))))&ranking=pricerank'
+        self.feed_purchase_data()
         q = qb.test_grouping_hits_per_group()
         with self.app.syncio() as sess:
             result = sess.query(yql=q, ranking="pricerank")
@@ -365,3 +1066,27 @@ class TestGroupingIntegration(unittest.TestCase):
         self.assertEqual(group_children[1]["relevance"], 8000)
         self.assertEqual(group_children[2]["value"], "Smith")
         self.assertEqual(group_children[2]["relevance"], 6100)
+
+    def test_all(self):
+        """This test runs all the test methods in the unit test class against a Docker Vespa instance that is fed with corresponding data.
+        We do not inspect and compare all the results. This is already done in vespa system test, and as long as we are sure that the generated
+        expressions are correct and does not give an error, we are satisfied.
+
+        """
+        self.feed_test_grouping_data()
+        test_methods = [
+            getattr(qb, method) for method in dir(qb) if method.startswith("test_")
+        ]
+        for method in test_methods:
+            q = method()
+            # purchase data is handled separately
+            if "purchase" not in str(q):
+                print(f"Executing query: {q}")
+                try:
+                    with self.app.syncio() as sess:
+                        result = sess.query(yql=q)
+                except Exception as e:
+                    print(f"Failed query: {q}")
+                    raise e
+                    continue
+                self.assertTrue(len(result.json["root"]["children"]) > 0, msg=q)
