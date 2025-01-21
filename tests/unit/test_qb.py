@@ -99,6 +99,13 @@ class TestQueryBuilder(unittest.TestCase):
         self.assertEqual(q, expected)
         return q
 
+    def test_matches_with_regex(self):
+        condition = qb.QueryField("f1").matches("^TestText$")
+        q = qb.select("*").from_("sd1").where(condition)
+        expected = 'select * from sd1 where f1 matches "^TestText$"'
+        self.assertEqual(q, expected)
+        return q
+
     def test_nested_queries(self):
         nested_query = (
             qb.QueryField("f2").contains("2") & qb.QueryField("f3").contains("3")
