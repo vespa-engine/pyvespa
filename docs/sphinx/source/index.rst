@@ -20,6 +20,7 @@ Vespa python API
    application-packages
    query
    reads-writes
+   evaluating-vespa-application-cloud
    reference-api
    troubleshooting
    examples
