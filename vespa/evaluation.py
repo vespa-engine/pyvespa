@@ -143,10 +143,7 @@ class VespaEvaluator:
 
         self.primary_metric: Optional[str] = None
 
-        if self.write_csv:
-            self.csv_file: str = f"Vespa-evaluation_{name}_results.csv"
-        else:
-            self.csv_file: Optional[str] = None
+        self.csv_file: str = f"Vespa-evaluation_{name}_results.csv"
 
         # We'll collect metrics in a single pass, so define them up front.
         self.csv_headers = [
