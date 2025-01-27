@@ -49,10 +49,12 @@ class VespaEvaluator:
     Evaluate retrieval performance on a Vespa application.
 
     This class:
+
     - Iterates over queries and issues them against your Vespa application.
     - Retrieves top-k documents per query (with k = max of your IR metrics).
-    - Compares the retrieved documents with a set of relevant documents.
+    - Compares the retrieved documents with a set of relevant document ids.
     - Computes IR metrics: Accuracy@k, Precision@k, Recall@k, MRR@k, NDCG@k, MAP@k.
+    - Logs vespa search times for each query.
     - Logs/returns these metrics.
     - Optionally writes out to CSV.
 
