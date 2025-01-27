@@ -3,11 +3,45 @@ import os
 import csv
 import logging
 from typing import Dict, Set, Callable, List, Optional, Union
-import numpy as np
+import math
+
 from vespa.application import Vespa
 from vespa.io import VespaQueryResponse
 
 logger = logging.getLogger(__name__)
+
+
+def mean(values: List[float]) -> float:
+    """
+    Compute the mean of a list of numbers without using numpy.
+    """
+    if not values:
+        return 0.0
+    return sum(values) / len(values)
+
+
+def percentile(values: List[float], p: float) -> float:
+    """
+    Compute the p-th percentile of a list of values (0 <= p <= 100).
+    This approximates numpy.percentile's behavior.
+    """
+    if not values:
+        return 0.0
+    if p < 0:
+        p = 0
+    if p > 100:
+        p = 100
+    values_sorted = sorted(values)
+    index = (len(values_sorted) - 1) * p / 100.0
+    lower = math.floor(index)
+    upper = math.ceil(index)
+    if lower == upper:
+        return values_sorted[int(index)]
+    # Linear interpolation between the two closest ranks
+    fraction = index - lower
+    return (
+        values_sorted[lower] + (values_sorted[upper] - values_sorted[lower]) * fraction
+    )
 
 
 class VespaEvaluator:
@@ -27,9 +61,6 @@ class VespaEvaluator:
         from vespa.application import Vespa
         from vespa.evaluation import VespaEvaluator
 
-        #
-        # 1) Define your queries, relevant docs, etc.
-        #
         my_queries = {
             "q1": "What is the best GPU for gaming?",
             "q2": "How to bake sourdough bread?",
@@ -41,28 +72,14 @@ class VespaEvaluator:
             # ...
         }
 
+        def my_vespa_query_fn(query_text: str, top_k: int) -> dict:
+            return {
+                "yql": 'select * from sources * where userInput("' + query_text + '");',
+                "hits": top_k,
+                "ranking": "your_ranking_profile",
+            }
 
-        #
-        # 2) Define a function that, given a query string, returns the proper
-        #    Vespa body for app.query().
-        #
-        # def my_vespa_query_fn(query_text: str, top_k: int) -> dict:
-        #     '''
-        #     Convert a plain text user query to a Vespa query body dict.
-        #     The example below uses a YQL statement and requests a fixed number of hits.
-        #     Adapt this for your ranking profile, filters, etc.
-        #     '''
-        #     return {
-        #         "yql": 'select * from sources * where userInput("' + query_text + '");',
-        #         "hits": top_k,
-        #         "ranking": "your_ranking_profile",
-        #         # add other parameters, e.g. "presentation.summary": "your_summary_class"
-        #     }
-        #
-        # 3) Instantiate the evaluator with the chosen IR metrics and run it.
-        #
-
-        app = Vespa(url="http://localhost", port=8080)  # or your Vespa endpoint
+        app = Vespa(url="http://localhost", port=8080)
 
         evaluator = VespaEvaluator(
             queries=my_queries,
@@ -75,15 +92,10 @@ class VespaEvaluator:
             mrr_at_k=[10],
             ndcg_at_k=[10],
             map_at_k=[100],
-            write_csv=True,  # optionally write metrics to CSV
+            write_csv=True
         )
 
         results = evaluator()
-        # logs metrics such as:
-        #   Accuracy@1, @3, @5
-        #   Precision@1, @3, @5
-        #   Recall@1, @3, @5
-        #   MRR@10, NDCG@10, MAP@100
         print("Primary metric:", evaluator.primary_metric)
         print("All results:", results)
     """
@@ -106,7 +118,7 @@ class VespaEvaluator:
         """
         :param queries: Dict of query_id => query text
         :param relevant_docs: Dict of query_id => set of relevant doc_ids
-        :param vespa_query_fn: Given a query string and top_k, returns a Vespa query body (dict) suitable for app.query(...).
+        :param vespa_query_fn: Given a query string and top_k, returns a Vespa query body (dict).
         :param app: A `vespa.application.Vespa` instance.
         :param name: A name or tag for this evaluation run.
         :param accuracy_at_k: list of k-values for Accuracy@k
@@ -115,11 +127,11 @@ class VespaEvaluator:
         :param ndcg_at_k: list of k-values for NDCG@k
         :param map_at_k: list of k-values for MAP@k
         :param write_csv: If True, writes results to CSV
-        :param csv_dir: If provided, path in which to write the CSV file. By default, current working dir.
+        :param csv_dir: Path in which to write the CSV file (default: current working dir).
         """
-        # Validate inputs
         self._validate_queries(queries)
         relevant_docs = self._validate_qrels(relevant_docs)
+
         # Filter out any queries that have no relevant docs
         self.queries_ids = []
         for qid in queries:
@@ -156,12 +168,8 @@ class VespaEvaluator:
             "ndcg@{}",
             "map@{}",
         ]
-        # We'll expand them into actual columns when writing.
 
     def _validate_queries(self, queries: Dict[str, str]):
-        """
-        Ensure that queries are proper format and type.
-        """
         if not isinstance(queries, dict):
             raise ValueError("queries must be a dict of query_id => query_text")
         for qid, query_text in queries.items():
@@ -171,10 +179,6 @@ class VespaEvaluator:
     def _validate_qrels(
         self, qrels: Union[Dict[str, Set[str]], Dict[str, str]]
     ) -> Dict[str, Set[str]]:
-        """
-        Ensure that qrels are proper format and type.
-        Returns normalized qrels where all values are sets.
-        """
         if not isinstance(qrels, dict):
             raise ValueError(
                 "qrels must be a dict of query_id => set of relevant doc_ids"
@@ -191,23 +195,13 @@ class VespaEvaluator:
                 new_qrels[qid] = {relevant_docs}
             elif isinstance(relevant_docs, set):
                 new_qrels[qid] = relevant_docs
-            assert isinstance(new_qrels[qid], set)
+            else:
+                raise ValueError(
+                    f"Relevant docs for query {qid} must be a set or string."
+                )
         return new_qrels
 
     def __call__(self) -> Dict[str, float]:
-        """
-        Perform the evaluation: run queries against Vespa, compute IR metrics, and
-        optionally write CSV.
-        Returns a dict with all metrics, e.g.:
-          {
-            "accuracy@1": 0.75,
-            "accuracy@3": 0.82,
-            ...,
-            "ndcg@10": 0.66,
-            ...
-          }
-        """
-        # Step 1: figure out the maximum K we need to retrieve from Vespa
         max_k = max(
             max(self.accuracy_at_k) if self.accuracy_at_k else 0,
             max(self.precision_recall_at_k) if self.precision_recall_at_k else 0,
@@ -215,85 +209,62 @@ class VespaEvaluator:
             max(self.ndcg_at_k) if self.ndcg_at_k else 0,
             max(self.map_at_k) if self.map_at_k else 0,
         )
+
         logger.info(f"Starting VespaEvaluator on {self.name}")
         logger.info(f"Number of queries: {len(self.queries_ids)}; max_k = {max_k}")
 
-        # Step 2: Collect top hits for each query (using the user-provided vespa_query_fn)
-        # We'll store them in a structure: results_list[q_idx] = list of (doc_id, score)
-        #   sorted by whatever order Vespa returns. (We assume top hits are in rank order.)
         queries_result_list = []
         for idx, qid in enumerate(self.queries_ids):
             query_text = self.queries[idx]
-            # Build the query body with max_k
             query_body = self.vespa_query_fn(query_text, max_k)
             logger.debug(f"Querying Vespa with: {query_body}")
             vespa_response: VespaQueryResponse = self.app.query(body=query_body)
+
+            # Attempt to get search time from Vespa's JSON
             timing = vespa_response.get_json().get("timing", {}).get("searchtime", 0)
             self.searchtimes.append(timing)
 
             hits = vespa_response.hits or []
-            # hits is a list of dict, each with typical structure: {"id": "...", "relevance": "...", ...}.
-            # We'll store doc_id, and also keep a "score" if needed. For ranking metrics we only need the order.
             top_hit_list = []
             for hit in hits[:max_k]:
-                doc_id = str(
-                    hit.get("id", "").split("::")[-1]
-                )  # doc IDs from Vespa. Adjust if your doc id is in a sub-field.
-                score = float(hit.get("relevance", 1.0))  # or 1.0 if missing
+                # doc_id extraction logic (adjust as needed)
+                doc_id = str(hit.get("id", "").split("::")[-1])
+                score = float(hit.get("relevance", 1.0))
                 top_hit_list.append((doc_id, score))
 
             queries_result_list.append(top_hit_list)
 
-        # Step 3: compute metrics
         metrics = self._compute_metrics(queries_result_list)
-
-        # Step 4: calculate search times
         searchtime_stats = self._calculate_searchtime_stats()
-
-        # Add search time stats to metrics
         metrics.update(searchtime_stats)
 
-        # Step 5: determine primary metric if needed
         if not self.primary_metric:
-            # For example, pick the largest ndcg@K
             if self.ndcg_at_k:
                 best_k = max(self.ndcg_at_k)
                 self.primary_metric = f"ndcg@{best_k}"
             else:
-                # fallback
+                # fallback to some default
                 self.primary_metric = "accuracy@1" if self.accuracy_at_k else "map@100"
 
-        # Step 5: log and optionally write CSV
         self._log_metrics(metrics)
+
         if self.write_csv:
             self._write_csv(metrics, searchtime_stats)
 
         return metrics
 
     def _calculate_searchtime_stats(self) -> Dict[str, float]:
-        """
-        Calculate search time statistics.
-        """
         if not self.searchtimes:
             return {}
-
-        searchtime_stats = {
-            "searchtime_avg": np.mean(self.searchtimes),
-            "searchtime_q50": np.percentile(self.searchtimes, 50),
-            "searchtime_q90": np.percentile(self.searchtimes, 90),
-            "searchtime_q95": np.percentile(self.searchtimes, 95),
+        return {
+            "searchtime_avg": mean(self.searchtimes),
+            "searchtime_q50": percentile(self.searchtimes, 50),
+            "searchtime_q90": percentile(self.searchtimes, 90),
+            "searchtime_q95": percentile(self.searchtimes, 95),
         }
-        return searchtime_stats
 
     def _compute_metrics(self, queries_result_list):
-        """
-        queries_result_list: List of lists, each entry for one query.
-          Each sub-list is a list of (doc_id, score), sorted from most relevant to least.
-        """
-        # Initialize accumulators
         num_queries = len(queries_result_list)
-
-        # For each metric, we keep either a running sum or a list to compute average
         num_hits_at_k = {k: 0 for k in self.accuracy_at_k}
         precision_at_k_list = {k: [] for k in self.precision_recall_at_k}
         recall_at_k_list = {k: [] for k in self.precision_recall_at_k}
@@ -305,30 +276,24 @@ class VespaEvaluator:
             qid = self.queries_ids[query_idx]
             relevant = self.relevant_docs[qid]
 
-            #
             # Accuracy@K
-            #
             for k_val in self.accuracy_at_k:
-                found_correct = False
-                for doc_id, _score in top_hits[:k_val]:
-                    if doc_id in relevant:
-                        found_correct = True
-                        break
+                found_correct = any(
+                    doc_id in relevant for doc_id, _ in top_hits[:k_val]
+                )
                 if found_correct:
                     num_hits_at_k[k_val] += 1
 
-            #
             # Precision@K, Recall@K
-            #
             for k_val in self.precision_recall_at_k:
                 k_hits = top_hits[:k_val]
                 num_correct = sum(1 for doc_id, _ in k_hits if doc_id in relevant)
                 precision_at_k_list[k_val].append(num_correct / k_val)
-                recall_at_k_list[k_val].append(num_correct / len(relevant))
+                recall_at_k_list[k_val].append(
+                    num_correct / len(relevant) if len(relevant) > 0 else 0.0
+                )
 
-            #
             # MRR@K
-            #
             for k_val in self.mrr_at_k:
                 reciprocal_rank = 0.0
                 for rank, (doc_id, _) in enumerate(top_hits[:k_val]):
@@ -337,26 +302,22 @@ class VespaEvaluator:
                         break
                 mrr_at_k[k_val] += reciprocal_rank
 
-            #
             # NDCG@K
-            #
             for k_val in self.ndcg_at_k:
                 predicted_relevance = [
                     1 if doc_id in relevant else 0 for doc_id, _ in top_hits[:k_val]
                 ]
-                true_relevances = [1] * len(
-                    relevant
-                )  # for that query, all relevant docs have rel=1
-                ndcg_val = self._dcg_at_k(predicted_relevance, k_val) / self._dcg_at_k(
+                # Here we assume each relevant doc has relevance=1
+                true_relevances = [1] * len(relevant)
+                dcg_pred = self._dcg_at_k(predicted_relevance, k_val)
+                dcg_true = self._dcg_at_k(
                     true_relevances, min(k_val, len(true_relevances))
                 )
+                ndcg_val = dcg_pred / dcg_true if dcg_true > 0 else 0.0
                 ndcg_at_k_list[k_val].append(ndcg_val)
 
-            #
             # MAP@K
-            #
             for k_val in self.map_at_k:
-                # We'll measure average precision across relevant docs in top_k.
                 num_correct = 0
                 sum_precisions = 0.0
                 top_k_hits = top_hits[:k_val]
@@ -364,60 +325,45 @@ class VespaEvaluator:
                     if doc_id in relevant:
                         num_correct += 1
                         sum_precisions += num_correct / rank
-                # If we have R relevant docs overall, we compute average precision as:
-                #   sum(precision at each relevant doc) / min(k, R)
-                # This is a common approach, but can vary by definition.
                 denom = min(k_val, len(relevant))
-                if denom > 0:
-                    avg_precision = sum_precisions / denom
-                else:
-                    avg_precision = 0.0
+                avg_precision = sum_precisions / denom if denom > 0 else 0.0
                 map_at_k_list[k_val].append(avg_precision)
 
-        # Compute means
+        # Final metric averages
         metrics = {}
-        # Accuracy@k
+        # accuracy
         for k_val in self.accuracy_at_k:
             metrics[f"accuracy@{k_val}"] = num_hits_at_k[k_val] / num_queries
-        # Precision@k
+
+        # precision and recall
         for k_val in self.precision_recall_at_k:
-            metrics[f"precision@{k_val}"] = (
-                float(np.mean(precision_at_k_list[k_val]))
-                if precision_at_k_list[k_val]
-                else 0.0
-            )
-        # Recall@k
-        for k_val in self.precision_recall_at_k:
-            metrics[f"recall@{k_val}"] = (
-                float(np.mean(recall_at_k_list[k_val]))
-                if recall_at_k_list[k_val]
-                else 0.0
-            )
-        # MRR@k
+            p_val = mean(precision_at_k_list[k_val])
+            r_val = mean(recall_at_k_list[k_val])
+            metrics[f"precision@{k_val}"] = p_val
+            metrics[f"recall@{k_val}"] = r_val
+
+        # MRR
         for k_val in self.mrr_at_k:
             metrics[f"mrr@{k_val}"] = mrr_at_k[k_val] / num_queries
-        # nDCG@k
+
+        # nDCG
         for k_val in self.ndcg_at_k:
-            metrics[f"ndcg@{k_val}"] = (
-                float(np.mean(ndcg_at_k_list[k_val])) if ndcg_at_k_list[k_val] else 0.0
-            )
-        # MAP@k
+            metrics[f"ndcg@{k_val}"] = mean(ndcg_at_k_list[k_val])
+
+        # MAP
         for k_val in self.map_at_k:
-            metrics[f"map@{k_val}"] = (
-                float(np.mean(map_at_k_list[k_val])) if map_at_k_list[k_val] else 0.0
-            )
+            metrics[f"map@{k_val}"] = mean(map_at_k_list[k_val])
 
         return metrics
 
     def _dcg_at_k(self, relevances, k):
         """
-        Discounted Cumulative Gain.
-        relevances: list of 0/1 indicating relevant or not
-        k: top-k
+        Compute Discounted Cumulative Gain for the top-k.
         """
         dcg = 0.0
         for i, rel in enumerate(relevances[:k], start=1):
-            dcg += rel / np.log2(i + 1)
+            # Use math.log2 instead of np.log2
+            dcg += rel / (math.log2(i + 1) if i > 1 else 1.0)
         return dcg
 
     def _log_metrics(self, metrics: Dict[str, float]):
@@ -428,26 +374,23 @@ class VespaEvaluator:
                 or metric_name.startswith("precision")
                 or metric_name.startswith("recall")
             ):
-                logger.info(f"{metric_name}: {value*100:.2f}%")
+                logger.info(f"{metric_name}: {value * 100:.2f}%")
             else:
                 logger.info(f"{metric_name}: {value:.4f}")
 
     def _write_csv(self, metrics: Dict[str, float], searchtime_stats: Dict[str, float]):
-        """Write metrics and time stats to CSV file"""
         csv_path = self.csv_file
         if self.csv_dir is not None:
             csv_path = os.path.join(self.csv_dir, csv_path)
 
-        # Combine metrics and searchtime stats
         combined_metrics = {**metrics, **searchtime_stats}
-
         write_header = not os.path.exists(csv_path)
+
         with open(csv_path, mode="a", encoding="utf-8") as f_out:
             writer = csv.writer(f_out)
             if write_header:
-                # Store combined metrics and searchtime stats in header
                 header = sorted(combined_metrics.keys())
-                header.insert(0, "name")  # an extra column for "run name"
+                header.insert(0, "name")  # extra column for "run name"
                 writer.writerow(header)
             row_keys = sorted(combined_metrics.keys())
             row = [self.name] + [combined_metrics[k] for k in row_keys]
