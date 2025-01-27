@@ -10,7 +10,7 @@ class MockVespaResponse:
 
     hits: List[Dict[str, Any]]
 
-    def json(self):
+    def get_json(self):
         return {"root": {"children": self.hits}}
 
 
