@@ -1,13 +1,15 @@
+from __future__ import annotations
 import os
 import csv
 import logging
-from typing import Dict, Set, Callable, List, Optional
+from typing import Dict, Set, Callable, List, Optional, Union
 import numpy as np
+from vespa.application import Vespa
 
 logger = logging.getLogger(__name__)
 
 
-class VespaInformationRetrievalEvaluator:
+class VespaEvaluator:
     """
     Evaluate retrieval performance on a Vespa application.
 
@@ -22,7 +24,7 @@ class VespaInformationRetrievalEvaluator:
     Example usage::
 
         from vespa.application import Vespa
-        from vespa.evaluation import VespaInformationRetrievalEvaluator
+        from vespa.evaluation import VespaEvaluator
 
         #
         # 1) Define your queries, relevant docs, etc.
@@ -52,7 +54,7 @@ class VespaInformationRetrievalEvaluator:
         #     return {
         #         "yql": 'select * from sources * where userInput("' + query_text + '");',
         #         "hits": top_k,
-        #         "ranking": {"name": "default", "profile": "default"},
+        #         "ranking": "your_ranking_profile",
         #         # add other parameters, e.g. "presentation.summary": "your_summary_class"
         #     }
         #
@@ -61,7 +63,7 @@ class VespaInformationRetrievalEvaluator:
 
         app = Vespa(url="http://localhost", port=8080)  # or your Vespa endpoint
 
-        evaluator = VespaInformationRetrievalEvaluator(
+        evaluator = VespaEvaluator(
             queries=my_queries,
             relevant_docs=my_relevant_docs,
             vespa_query_fn=my_vespa_query_fn,
@@ -88,9 +90,9 @@ class VespaInformationRetrievalEvaluator:
     def __init__(
         self,
         queries: Dict[str, str],
-        relevant_docs: Dict[str, Set[str]],
+        relevant_docs: Union[Dict[str, Set[str]], Dict[str, str]],
         vespa_query_fn: Callable[[str, int], dict],
-        app,
+        app: Vespa,
         name: str = "",
         accuracy_at_k: List[int] = [1, 3, 5, 10],
         precision_recall_at_k: List[int] = [1, 3, 5, 10],
@@ -104,7 +106,7 @@ class VespaInformationRetrievalEvaluator:
         :param queries: Dict of query_id => query text
         :param relevant_docs: Dict of query_id => set of relevant doc_ids
         :param vespa_query_fn: Given a query string and top_k, returns a Vespa query body (dict) suitable for app.query(...).
-        :param app: A pyvespa.Vespa application instance.
+        :param app: A `vespa.application.Vespa` instance.
         :param name: A name or tag for this evaluation run.
         :param accuracy_at_k: list of k-values for Accuracy@k
         :param precision_recall_at_k: list of k-values for Precision@k and Recall@k
@@ -114,6 +116,9 @@ class VespaInformationRetrievalEvaluator:
         :param write_csv: If True, writes results to CSV
         :param csv_dir: If provided, path in which to write the CSV file. By default, current working dir.
         """
+        # Validate inputs
+        self._validate_queries(queries)
+        relevant_docs = self._validate_qrels(relevant_docs)
         # Filter out any queries that have no relevant docs
         self.queries_ids = []
         for qid in queries:
@@ -135,10 +140,15 @@ class VespaInformationRetrievalEvaluator:
         self.name = name
         self.write_csv = write_csv
         self.csv_dir = csv_dir
-        self.primary_metric = None  # Assigned later based on the metrics
+
+        self.primary_metric: Optional[str] = None
+
+        if self.write_csv:
+            self.csv_file: str = f"Vespa-evaluation_{name}_results.csv"
+        else:
+            self.csv_file: Optional[str] = None
 
         # We'll collect metrics in a single pass, so define them up front.
-        self.csv_file = f"Vespa-Information-Retrieval_evaluation_{name}_results.csv"
         self.csv_headers = [
             "accuracy@{}",
             "precision@{}",
@@ -148,6 +158,42 @@ class VespaInformationRetrievalEvaluator:
             "map@{}",
         ]
         # We'll expand them into actual columns when writing.
+
+    def _validate_queries(self, queries: Dict[str, str]):
+        """
+        Ensure that queries are proper format and type.
+        """
+        if not isinstance(queries, dict):
+            raise ValueError("queries must be a dict of query_id => query_text")
+        for qid, query_text in queries.items():
+            if not isinstance(qid, str) or not isinstance(query_text, str):
+                raise ValueError("Each query must be a string.", qid, query_text)
+
+    def _validate_qrels(
+        self, qrels: Union[Dict[str, Set[str]], Dict[str, str]]
+    ) -> Dict[str, Set[str]]:
+        """
+        Ensure that qrels are proper format and type.
+        Returns normalized qrels where all values are sets.
+        """
+        if not isinstance(qrels, dict):
+            raise ValueError(
+                "qrels must be a dict of query_id => set of relevant doc_ids"
+            )
+        new_qrels: Dict[str, Set[str]] = {}
+        for qid, relevant_docs in qrels.items():
+            if not isinstance(qid, str):
+                raise ValueError(
+                    "Each qrel must be a string query_id and a set of doc_ids.",
+                    qid,
+                    relevant_docs,
+                )
+            if isinstance(relevant_docs, str):
+                new_qrels[qid] = {relevant_docs}
+            elif isinstance(relevant_docs, set):
+                new_qrels[qid] = relevant_docs
+            assert isinstance(new_qrels[qid], set)
+        return new_qrels
 
     def __call__(self) -> Dict[str, float]:
         """
@@ -170,8 +216,7 @@ class VespaInformationRetrievalEvaluator:
             max(self.ndcg_at_k) if self.ndcg_at_k else 0,
             max(self.map_at_k) if self.map_at_k else 0,
         )
-
-        logger.info(f"Starting VespaInformationRetrievalEvaluator on {self.name}")
+        logger.info(f"Starting VespaEvaluator on {self.name}")
         logger.info(f"Number of queries: {len(self.queries_ids)}; max_k = {max_k}")
 
         # Step 2: Collect top hits for each query (using the user-provided vespa_query_fn)
@@ -182,18 +227,19 @@ class VespaInformationRetrievalEvaluator:
             query_text = self.queries[idx]
             # Build the query body with max_k
             query_body = self.vespa_query_fn(query_text, max_k)
-            vespa_response = self.app.query(query_body)
+            logger.debug(f"Querying Vespa with: {query_body}")
+            vespa_response = self.app.query(body=query_body)
             # The vespa_response is typically a `VespaQueryResponse`.
             # You can parse hits via: vespa_response.hits (pyvespa adds hits, fields, etc.)
             hits = vespa_response.hits or []
             # hits is a list of dict, each with typical structure: {"id": "...", "relevance": "...", ...}.
             # We'll store doc_id, and also keep a "score" if needed. For ranking metrics we only need the order.
             top_hit_list = []
-            for h in hits[:max_k]:
+            for hit in hits[:max_k]:
                 doc_id = str(
-                    h["id"]
+                    hit.get("id", "").split("::")[-1]
                 )  # doc IDs from Vespa. Adjust if your doc id is in a sub-field.
-                score = float(h.get("relevance", 1.0))  # or 1.0 if missing
+                score = float(hit.get("relevance", 1.0))  # or 1.0 if missing
                 top_hit_list.append((doc_id, score))
 
             queries_result_list.append(top_hit_list)
