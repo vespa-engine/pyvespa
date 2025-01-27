@@ -5,6 +5,7 @@ import logging
 from typing import Dict, Set, Callable, List, Optional, Union
 import numpy as np
 from vespa.application import Vespa
+from vespa.io import VespaQueryResponse
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +134,7 @@ class VespaEvaluator:
         self.mrr_at_k = mrr_at_k
         self.ndcg_at_k = ndcg_at_k
         self.map_at_k = map_at_k
+        self.searchtimes: List[float] = []
 
         self.vespa_query_fn = vespa_query_fn
         self.app = app
@@ -225,9 +227,10 @@ class VespaEvaluator:
             # Build the query body with max_k
             query_body = self.vespa_query_fn(query_text, max_k)
             logger.debug(f"Querying Vespa with: {query_body}")
-            vespa_response = self.app.query(body=query_body)
-            # The vespa_response is typically a `VespaQueryResponse`.
-            # You can parse hits via: vespa_response.hits (pyvespa adds hits, fields, etc.)
+            vespa_response: VespaQueryResponse = self.app.query(body=query_body)
+            timing = vespa_response.get_json().get("timing", {}).get("searchtime", 0)
+            self.searchtimes.append(timing)
+
             hits = vespa_response.hits or []
             # hits is a list of dict, each with typical structure: {"id": "...", "relevance": "...", ...}.
             # We'll store doc_id, and also keep a "score" if needed. For ranking metrics we only need the order.
@@ -244,7 +247,13 @@ class VespaEvaluator:
         # Step 3: compute metrics
         metrics = self._compute_metrics(queries_result_list)
 
-        # Step 4: determine primary metric if needed
+        # Step 4: calculate search times
+        searchtime_stats = self._calculate_searchtime_stats()
+
+        # Add search time stats to metrics
+        metrics.update(searchtime_stats)
+
+        # Step 5: determine primary metric if needed
         if not self.primary_metric:
             # For example, pick the largest ndcg@K
             if self.ndcg_at_k:
@@ -257,9 +266,24 @@ class VespaEvaluator:
         # Step 5: log and optionally write CSV
         self._log_metrics(metrics)
         if self.write_csv:
-            self._write_csv(metrics)
+            self._write_csv(metrics, searchtime_stats)
 
         return metrics
+
+    def _calculate_searchtime_stats(self) -> Dict[str, float]:
+        """
+        Calculate search time statistics.
+        """
+        if not self.searchtimes:
+            return {}
+
+        searchtime_stats = {
+            "searchtime_avg": np.mean(self.searchtimes),
+            "searchtime_q50": np.percentile(self.searchtimes, 50),
+            "searchtime_q90": np.percentile(self.searchtimes, 90),
+            "searchtime_q95": np.percentile(self.searchtimes, 95),
+        }
+        return searchtime_stats
 
     def _compute_metrics(self, queries_result_list):
         """
@@ -408,20 +432,25 @@ class VespaEvaluator:
             else:
                 logger.info(f"{metric_name}: {value:.4f}")
 
-    def _write_csv(self, metrics: Dict[str, float]):
+    def _write_csv(self, metrics: Dict[str, float], searchtime_stats: Dict[str, float]):
+        """Write metrics and time stats to CSV file"""
         csv_path = self.csv_file
         if self.csv_dir is not None:
             csv_path = os.path.join(self.csv_dir, csv_path)
+
+        # Combine metrics and searchtime stats
+        combined_metrics = {**metrics, **searchtime_stats}
 
         write_header = not os.path.exists(csv_path)
         with open(csv_path, mode="a", encoding="utf-8") as f_out:
             writer = csv.writer(f_out)
             if write_header:
-                # Example: we can store a row of metric keys as header
-                header = sorted(metrics.keys())
+                # Store combined metrics and searchtime stats in header
+                header = sorted(combined_metrics.keys())
                 header.insert(0, "name")  # an extra column for "run name"
                 writer.writerow(header)
-            row_keys = sorted(metrics.keys())
-            row = [self.name] + [metrics[k] for k in row_keys]
+            row_keys = sorted(combined_metrics.keys())
+            row = [self.name] + [combined_metrics[k] for k in row_keys]
             writer.writerow(row)
-        logger.info(f"Wrote IR metrics to {csv_path}")
+
+        logger.info(f"Wrote IR evaluation metrics and search times to {csv_path}")
