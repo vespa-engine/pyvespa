@@ -227,6 +227,103 @@ class TestVespaEvaluator(unittest.TestCase):
         expected_map = 0.7519  # Approximate value
         self.assertAlmostEqual(results["map@5"], expected_map, places=4)
 
+    def test_vespa_query_fn_validation(self):
+        """Test validation of vespa_query_fn with valid functions"""
+
+        # Valid function with type hints
+        def fn1(query: str, k: int) -> dict:
+            return {"yql": query, "hits": k}
+
+        # Valid function without type hints
+        def fn2(query, k):
+            return {"yql": query, "hits": k}
+
+        # Valid function with default args
+        def fn3(query: str, k: int = 10) -> dict:
+            return {"yql": query, "hits": k}
+
+        # All should work without raising exceptions
+        for fn in [fn1, fn2, fn3]:
+            evaluator = VespaEvaluator(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=fn,
+                app=self.mock_app,
+            )
+            self.assertIsInstance(evaluator, VespaEvaluator)
+
+    def test_vespa_query_fn_validation_errors(self):
+        """Test validation of vespa_query_fn with invalid functions"""
+
+        # Not a callable
+        with self.assertRaisesRegex(ValueError, "must be a callable"):
+            VespaEvaluator(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn="not_a_function",
+                app=self.mock_app,
+            )
+
+        # Wrong number of params
+        def fn1(query: str) -> dict:
+            return {"yql": query}
+
+        with self.assertRaisesRegex(TypeError, "must take exactly 2 parameters"):
+            VespaEvaluator(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=fn1,
+                app=self.mock_app,
+            )
+
+        # Wrong param types
+        def fn2(query: int, k: str) -> dict:
+            return {"yql": str(query), "hits": int(k)}
+
+        with self.assertRaisesRegex(TypeError, "must be of type"):
+            VespaEvaluator(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=fn2,
+                app=self.mock_app,
+            )
+
+        # Wrong return type annotation
+        def fn3(query: str, k: int) -> list:
+            return [query, k]
+
+        with self.assertRaisesRegex(TypeError, "must return a dict"):
+            VespaEvaluator(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=fn3,
+                app=self.mock_app,
+            )
+
+        # Function that raises error
+        def fn4(query: str, k: int) -> dict:
+            raise ValueError("Something went wrong")
+
+        with self.assertRaisesRegex(ValueError, "Error calling vespa_query_fn"):
+            VespaEvaluator(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=fn4,
+                app=self.mock_app,
+            )
+
+        # Function that returns wrong type at runtime
+        def fn5(query: str, k: int) -> dict:
+            return [query, k]  # Actually returns a list
+
+        with self.assertRaisesRegex(ValueError, "must return a dict"):
+            VespaEvaluator(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=fn5,
+                app=self.mock_app,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
