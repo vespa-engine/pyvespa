@@ -63,16 +63,22 @@ class VespaEvaluator:
         from vespa.application import Vespa
         from vespa.evaluation import VespaEvaluator
 
-        my_queries = {
+        queries = {
             "q1": "What is the best GPU for gaming?",
             "q2": "How to bake sourdough bread?",
             # ...
         }
-        my_relevant_docs = {
+        relevant_docs = {
             "q1": {"d12", "d99"},
             "q2": {"d101"},
             # ...
         }
+        # relevant_docs can also be a dict of query_id => single relevant doc_id
+        # relevant_docs = {
+        #     "q1": "d12",
+        #     "q2": "d101",
+        #     # ...
+        # }
 
         def my_vespa_query_fn(query_text: str, top_k: int) -> dict:
             return {
@@ -84,8 +90,8 @@ class VespaEvaluator:
         app = Vespa(url="http://localhost", port=8080)
 
         evaluator = VespaEvaluator(
-            queries=my_queries,
-            relevant_docs=my_relevant_docs,
+            queries=queries,
+            relevant_docs=relevant_docs,
             vespa_query_fn=my_vespa_query_fn,
             app=app,
             name="test-run",
@@ -119,8 +125,8 @@ class VespaEvaluator:
     ):
         """
         :param queries: Dict of query_id => query text
-        :param relevant_docs: Dict of query_id => set of relevant doc_ids
-        :param vespa_query_fn: Given a query string and top_k, returns a Vespa query body (dict).
+        :param relevant_docs: Dict of query_id => set of relevant doc_ids (the user-specified part of `id:<namespace>:<document-type>:<key/value-pair>:<user-specified>` in Vespa, see https://docs.vespa.ai/en/documents.html#document-ids)
+        :param vespa_query_fn: Callable, with signature: my_func(query:str, top_k: int)-> dict: Given a query string and top_k, returns a Vespa query body (dict).
         :param app: A `vespa.application.Vespa` instance.
         :param name: A name or tag for this evaluation run.
         :param accuracy_at_k: list of k-values for Accuracy@k
@@ -281,9 +287,13 @@ class VespaEvaluator:
             hits = vespa_response.hits or []
             top_hit_list = []
             for hit in hits[:max_k]:
-                # doc_id extraction logic (adjust as needed)
+                # doc_id extraction logic
                 doc_id = str(hit.get("id", "").split("::")[-1])
-                score = float(hit.get("relevance", 1.0))
+                if not doc_id:
+                    raise ValueError(f"Could not extract doc_id from hit: {hit}")
+                score = float(hit.get("relevance", float("nan")))
+                if math.isnan(score):
+                    raise ValueError(f"Could not extract relevance from hit: {hit}")
                 top_hit_list.append((doc_id, score))
 
             queries_result_list.append(top_hit_list)
