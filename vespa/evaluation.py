@@ -266,6 +266,11 @@ class VespaEvaluator:
         for idx, qid in enumerate(self.queries_ids):
             query_text = self.queries[idx]
             query_body = self.vespa_query_fn(query_text, max_k)
+            if "presentation.timing" not in query_body.keys():
+                logger.warning(
+                    "Timing information is not included in the query body. "
+                    'Please include `"presentation.timing": True` in the query body to log search times.'
+                )
             logger.debug(f"Querying Vespa with: {query_body}")
             vespa_response: VespaQueryResponse = self.app.query(body=query_body)
 
