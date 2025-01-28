@@ -132,6 +132,9 @@ class VespaEvaluator:
         :param csv_dir: Path in which to write the CSV file (default: current working dir).
         """
         self._validate_queries(queries)
+        self._validate_vespa_query_fn(
+            vespa_query_fn
+        )  # Add this line before _validate_qrels
         relevant_docs = self._validate_qrels(relevant_docs)
 
         # Filter out any queries that have no relevant docs
@@ -202,6 +205,55 @@ class VespaEvaluator:
                     f"Relevant docs for query {qid} must be a set or string."
                 )
         return new_qrels
+
+    def _validate_vespa_query_fn(self, fn: Callable[[str, int], dict]) -> None:
+        """
+        Validate that vespa_query_fn is callable and has correct signature.
+
+        :param fn: Function to validate
+        :raises ValueError: If function doesn't meet requirements
+        :raises TypeError: If function signature is incorrect
+        """
+        if not callable(fn):
+            raise ValueError("vespa_query_fn must be a callable")
+
+        import inspect
+
+        sig = inspect.signature(fn)
+        params = list(sig.parameters.items())
+
+        # Check number of parameters
+        if len(params) != 2:
+            raise TypeError(
+                f"vespa_query_fn must take exactly 2 parameters (query_text, top_k), got {len(params)}"
+            )
+
+        # Check parameter types from type hints
+        param_types = {name: param.annotation for name, param in params}
+
+        expected_types = {params[0][0]: str, params[1][0]: int}
+
+        for param_name, expected_type in expected_types.items():
+            if param_types.get(param_name) not in (
+                expected_type,
+                inspect.Parameter.empty,
+            ):
+                raise TypeError(
+                    f"Parameter '{param_name}' must be of type {expected_type.__name__}"
+                )
+
+        # Check return type hint if provided
+        return_type = sig.return_annotation
+        if return_type not in (dict, inspect.Parameter.empty):
+            raise TypeError("vespa_query_fn must return a dict")
+
+        # Validate the function can actually be called with test inputs
+        try:
+            result = fn("test query", 10)
+            if not isinstance(result, dict):
+                raise TypeError("vespa_query_fn must return a dict")
+        except Exception as e:
+            raise ValueError(f"Error calling vespa_query_fn with test inputs: {str(e)}")
 
     def __call__(self) -> Dict[str, float]:
         max_k = max(
