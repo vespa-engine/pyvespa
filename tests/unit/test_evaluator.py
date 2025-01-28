@@ -292,7 +292,7 @@ class TestVespaEvaluator(unittest.TestCase):
         def fn3(query: str, k: int) -> list:
             return [query, k]
 
-        with self.assertRaisesRegex(TypeError, "must return a dict"):
+        with self.assertRaisesRegex(ValueError, "must return a dict"):
             VespaEvaluator(
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,

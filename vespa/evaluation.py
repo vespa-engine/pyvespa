@@ -242,11 +242,6 @@ class VespaEvaluator:
                     f"Parameter '{param_name}' must be of type {expected_type.__name__}"
                 )
 
-        # Check return type hint if provided
-        return_type = sig.return_annotation
-        if return_type not in (dict, inspect.Parameter.empty):
-            raise TypeError("vespa_query_fn must return a dict")
-
         # Validate the function can actually be called with test inputs
         try:
             result = fn("test query", 10)
