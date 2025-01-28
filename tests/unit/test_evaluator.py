@@ -30,6 +30,12 @@ class TestVespaEvaluator(unittest.TestCase):
             "q3": {"doc6"},
         }
 
+        self.relevant_docs_single = {
+            "q1": "doc1",
+            "q2": "doc4",
+            "q3": "doc6",
+        }
+
         # Mock Vespa responses
         # For q1: doc1 at rank 1, doc2 at rank 3, doc3 at rank 5
         q1_response = MockVespaResponse(
@@ -99,6 +105,19 @@ class TestVespaEvaluator(unittest.TestCase):
         self.assertEqual(evaluator.mrr_at_k, [10])
         self.assertEqual(evaluator.ndcg_at_k, [10])
         self.assertEqual(evaluator.map_at_k, [100])
+
+    def test_init_single_relevant_docs(self):
+        """Test initialization with single relevant doc per query"""
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=self.relevant_docs_single,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+        )
+        relevant_docs_to_set = {  # Convert to the same format as self.relevant_docs
+            q_id: {doc_id} for q_id, doc_id in self.relevant_docs_single.items()
+        }
+        self.assertEqual(evaluator.relevant_docs, relevant_docs_to_set)
 
     def test_custom_k_values(self):
         """Test initialization with custom k values"""
