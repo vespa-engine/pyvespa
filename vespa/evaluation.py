@@ -257,6 +257,30 @@ class VespaEvaluator:
             raise ValueError(f"Error calling vespa_query_fn with test inputs: {str(e)}")
 
     def run(self) -> Dict[str, float]:
+        """
+        Execute the evaluation by running queries and computing IR metrics.
+
+        This method:
+        1. Executes all configured queries against the Vespa application
+        2. Collects search results and timing information
+        3. Computes configured IR metrics (Accuracy@k, Precision@k, Recall@k, MRR@k, NDCG@k, MAP@k)
+        4. Records search timing statistics
+        5. Logs results and optionally writes them to CSV
+
+        Returns:
+            Dict[str, float]: Dictionary containing:
+                - IR metrics with names like "accuracy@k", "precision@k", etc.
+                - Search time statistics ("searchtime_avg", "searchtime_q50", etc.)
+                where values are floats between 0 and 1 for metrics, seconds for timing.
+
+        Example returned metrics:
+            {
+                "accuracy@1": 0.75,
+                "ndcg@10": 0.68,
+                "searchtime_avg": 0.0123,
+                ...
+            }
+        """
         max_k = max(
             max(self.accuracy_at_k) if self.accuracy_at_k else 0,
             max(self.precision_recall_at_k) if self.precision_recall_at_k else 0,
