@@ -256,7 +256,7 @@ class VespaEvaluator:
         except Exception as e:
             raise ValueError(f"Error calling vespa_query_fn with test inputs: {str(e)}")
 
-    def __call__(self) -> Dict[str, float]:
+    def run(self) -> Dict[str, float]:
         max_k = max(
             max(self.accuracy_at_k) if self.accuracy_at_k else 0,
             max(self.precision_recall_at_k) if self.precision_recall_at_k else 0,

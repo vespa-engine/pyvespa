@@ -153,7 +153,7 @@ class TestVespaEvaluator(unittest.TestCase):
             map_at_k=[],
         )
 
-        results = evaluator()
+        results = evaluator.run()
 
         self.assertAlmostEqual(results["accuracy@1"], 2 / 3)  # q1 and q3 hit at 1
         self.assertAlmostEqual(results["accuracy@3"], 1.0)
@@ -173,7 +173,7 @@ class TestVespaEvaluator(unittest.TestCase):
             map_at_k=[],
         )
 
-        results = evaluator()
+        results = evaluator.run()
 
         self.assertAlmostEqual(results["precision@3"], (2 / 3 + 1 / 3 + 1 / 3) / 3)
         self.assertAlmostEqual(results["recall@3"], (2 / 3 + 1 / 2 + 1 / 1) / 3)
@@ -194,7 +194,7 @@ class TestVespaEvaluator(unittest.TestCase):
             map_at_k=[],
         )
 
-        results = evaluator()
+        results = evaluator.run()
         expected_mrr = (
             1 + (1 / 2) + 1
         ) / 3  # q1 first at 1, q2 first at 2, q3 first at 1
@@ -214,7 +214,7 @@ class TestVespaEvaluator(unittest.TestCase):
             map_at_k=[],
         )
 
-        results = evaluator()
+        results = evaluator.run()
         # NDCG@5 calculation:
         # q1: (1/log2(2) + 1/log2(4) + 1/log2(6)) / (1/log2(2) + 1/log2(3) + 1/log2(4))
         # q2: (1/log2(3) + 1/log2(5)) / (1/log2(2) + 1/log2(3))
@@ -237,7 +237,7 @@ class TestVespaEvaluator(unittest.TestCase):
             map_at_k=[5],
         )
 
-        results = evaluator()
+        results = evaluator.run()
         # MAP@5 calculation:
         # q1: (1/1 + 2/3 + 3/5) / 3 -> (1 + 0.6667 + 0.6) / 3 -> 2.2667 / 3 -> 0.7556
         # q2: (1/2 + 2/4) / 2 -> (0.5 + 0.5) / 2 -> 1 / 2 -> 0.5

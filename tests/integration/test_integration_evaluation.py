@@ -203,7 +203,7 @@ class TestSemanticIntegration(unittest.TestCase):
         )
 
         # Evaluate
-        results = evaluator()
+        results = evaluator.run()
         print("Got results: ", results)
 
         # Compare to your reference values
