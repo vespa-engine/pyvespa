@@ -91,6 +91,7 @@ notebooks = [
     "pytrec_eval",
     "papermill",
     "ipywidgets",
+    "matplotlib",
 ]
 dev = [
     "pre-commit",

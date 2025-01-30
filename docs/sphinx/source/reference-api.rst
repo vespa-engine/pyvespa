@@ -60,6 +60,16 @@ VespaCloud
    :special-members: __init__
 
 ################
+vespa.evaluation
+################
+
+VespaEvaluator
+**************
+.. autoclass:: vespa.evaluation.VespaEvaluator
+   :members:
+   :special-members: __init__
+
+################
 vespa.querybuilder
 ################
 
@@ -252,6 +262,8 @@ Schema
    :members:
    :special-members: __init__
 
+.. autoattribute:: vespa.package.Schema.schema_to_text
+   :annotation: str
 
 SecondPhaseRanking
 ******************
