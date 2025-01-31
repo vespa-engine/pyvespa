@@ -19,6 +19,7 @@ jobs:
             "test_integration_docker.py",
             "test_integration_grouping.py",
             "test_integration_queries.py",
+            "test_integration_evaluation.py",
           ]
     steps:
       - name: Free disk space
