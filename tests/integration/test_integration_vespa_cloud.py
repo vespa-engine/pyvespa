@@ -369,7 +369,7 @@ class TestGetClusterEndpoint(unittest.TestCase):
             cluster="playground", environment="prod"
         )
         self.assertIn("vespa-app.cloud/", playground_endpoint)
-        default_endpoints = self.vespa_cloud.get_mtls_endpoint(
+        default_endpoint = self.vespa_cloud.get_mtls_endpoint(
             cluster="default", environment="prod"
         )
-        self.assertIn("vespa-app.cloud/", default_endpoints)
+        self.assertIn("vespa-app.cloud/", default_endpoint)
