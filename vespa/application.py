@@ -717,7 +717,7 @@ class Vespa(object):
         self,
         queries: Iterable[Dict],
         num_connections: int = 8,
-        max_concurrent: int = 1000,
+        max_concurrent: int = 100,
         client_kwargs: Dict = {},
         **query_kwargs,
     ) -> List[VespaQueryResponse]:
