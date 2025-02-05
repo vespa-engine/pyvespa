@@ -337,6 +337,40 @@ class TestQueriesIntegration(unittest.TestCase):
         self.assertEqual(ids, expected_ids)
         print(result.json)
 
+    def test_matches_with_regex(self):
+        # 'select * from sd1 where f1 matches "^TestText$"'
+        # Feed test documents
+        docs = [
+            {  # Doc 1: Should match
+                "f1": "TestText",
+            },
+            {  # Doc 2: Should not match - doesn't match regex
+                "f1": "TestText2",
+            },
+            {  # Doc 3: Matches - as regex is case insensitive - see https://docs.vespa.ai/en/reference/query-language-reference.html
+                "f1": "testtext",
+            },
+            {  # Doc 4: Should not match - doesn't match regex
+                "f1": "testtext2",
+            },
+        ]
+        # Format and feed documents
+        docs = [
+            {"fields": doc, "id": str(data_id)} for data_id, doc in enumerate(docs, 1)
+        ]
+        self.app.feed_iterable(iter=docs, schema=self.schema_name)
+        # Execute query
+        q = qb.test_matches_with_regex()
+        print(f"Executing query: {q}")
+        with self.app.syncio() as sess:
+            result = sess.query(yql=q)
+        # Verify only one document matches
+        self.assertEqual(len(result.hits), 2)
+        # Verify matching documents are doc 1 and 3
+        ids = sorted([hit["id"] for hit in result.hits])
+        self.assertIn(f"id:{self.schema_name}:{self.schema_name}::1", ids)
+        self.assertIn(f"id:{self.schema_name}:{self.schema_name}::3", ids)
+
     def test_nested_queries(self):
         # Contains is an exact match
         # q = 'select * from sd1 where f1 contains "1" and (!((f2 contains "2" and f3 contains "3") or (f2 contains "4" and !(f3 contains "5"))))'
