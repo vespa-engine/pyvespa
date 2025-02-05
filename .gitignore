@@ -154,3 +154,5 @@ markdown_before/
 
 # Exclude markdown files in vespa/resources - directory
 vespa/resources/*.md
+
+.aider*
