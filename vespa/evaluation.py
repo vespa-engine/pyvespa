@@ -4,7 +4,7 @@ import csv
 import logging
 from typing import Dict, Set, Callable, List, Optional, Union
 import math
-
+import asyncio
 from vespa.application import Vespa
 from vespa.io import VespaQueryResponse
 
@@ -292,23 +292,42 @@ class VespaEvaluator:
         logger.info(f"Starting VespaEvaluator on {self.name}")
         logger.info(f"Number of queries: {len(self.queries_ids)}; max_k = {max_k}")
 
-        queries_result_list = []
-        for idx, qid in enumerate(self.queries_ids):
+        # Build query bodies using the provided vespa_query_fn
+        query_bodies = []
+
+        # Check timing info with first query only
+        first_query = self.queries[0]
+        first_body = self.vespa_query_fn(first_query, max_k)
+        if "presentation.timing" not in first_body:
+            logger.warning(
+                "Timing information is not included in the query body. "
+                'Please include `"presentation.timing": True` in the query body to log search times.'
+            )
+        query_bodies.append(first_body)
+
+        # Add remaining queries without checking timing
+        for idx in range(1, len(self.queries_ids)):
             query_text = self.queries[idx]
             query_body = self.vespa_query_fn(query_text, max_k)
-            if "presentation.timing" not in query_body.keys():
-                logger.warning(
-                    "Timing information is not included in the query body. "
-                    'Please include `"presentation.timing": True` in the query body to log search times.'
-                )
+            query_bodies.append(query_body)
             logger.debug(f"Querying Vespa with: {query_body}")
-            vespa_response: VespaQueryResponse = self.app.query(body=query_body)
 
-            # Attempt to get search time from Vespa's JSON
-            timing = vespa_response.get_json().get("timing", {}).get("searchtime", 0)
+        # Execute queries in parallel using query_many from the Vespa class
+        responses: List[VespaQueryResponse] = asyncio.run(
+            self.app.query_many(query_bodies)
+        )
+        for resp in responses:
+            if resp.status_code != 200:
+                raise ValueError(
+                    f"Vespa query failed with status code {resp.status_code}, response: {resp.get_json()}"
+                )
+        queries_result_list = []
+        for resp in responses:
+            # Extract search timing information
+            timing = resp.get_json().get("timing", {}).get("searchtime", 0)
             self.searchtimes.append(timing)
 
-            hits = vespa_response.hits or []
+            hits = resp.hits or []
             top_hit_list = []
             for hit in hits[:max_k]:
                 # doc_id extraction logic
