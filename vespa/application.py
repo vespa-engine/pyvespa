@@ -713,6 +713,40 @@ class Vespa(object):
         asyncio.run(run())
         return
 
+    async def query_many(
+        self,
+        queries: Iterable[Dict],
+        num_connections: int = 8,
+        max_concurrent: int = 100,
+        client_kwargs: Dict = {},
+        **query_kwargs,
+    ) -> List[VespaQueryResponse]:
+        """
+        Execute multiple asynchronous queries concurrently.
+
+        :param queries: Iterable of query bodies (dictionaries) to be sent.
+        :param max_concurrent: Maximum concurrent connections.
+        :return: List of VespaQueryResponse objects.
+        """
+        results = []
+        # Use the asynchronous client from VespaAsync (created via self.asyncio).
+        async with self.asyncio(connections=num_connections, **client_kwargs) as client:
+            sem = asyncio.Semaphore(max_concurrent)
+
+            async def query_wrapper(query_body: Dict) -> VespaQueryResponse:
+                async with sem:
+                    try:
+                        # Assuming client.query is implemented in VespaAsync similarly to the synchronous query
+                        response = await client.query(query_body, **query_kwargs)
+                        return response
+                    except Exception as e:
+                        # You can customize error handling or logging here as needed.
+                        return VespaQueryResponse(error=str(e))
+
+            tasks = [query_wrapper(q) for q in queries]
+            results = await asyncio.gather(*tasks)
+        return results
+
     def delete_data(
         self,
         schema: str,
