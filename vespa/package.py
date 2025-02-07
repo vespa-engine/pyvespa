@@ -956,7 +956,7 @@ class SecondPhaseRanking(object):
             to this floating point number.
 
         >>> SecondPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10)
-        SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10)
+        SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10, None)
 
         >>> SecondPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10, rank_score_drop_limit=5)
         SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10, 5)
