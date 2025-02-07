@@ -26,6 +26,8 @@ services_tags = [
     "persistence-threads",
     "server",
     "transformer-model",
+    "max-tokens",
+    "pooling-strategy",
     "transition-time",
     "secret-store",
     "document-processing",
