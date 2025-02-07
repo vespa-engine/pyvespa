@@ -935,7 +935,12 @@ class FirstPhaseRanking:
 
 
 class SecondPhaseRanking(object):
-    def __init__(self, expression: str, rerank_count: int = 100) -> None:
+    def __init__(
+            self,
+            expression: str,
+            rerank_count: int = 100,
+            rank_score_drop_limit: Optional[float] = None,
+    ) -> None:
         r"""
         Create a Vespa second phase ranking configuration.
 
@@ -947,12 +952,18 @@ class SecondPhaseRanking(object):
             `Vespa documentation <https://docs.vespa.ai/en/reference/ranking-expressions.html>`__
             for ranking expression.
         :param rerank_count: Specifies the number of hits to be reranked in the second phase. Default value is 100.
+        :param rank_score_drop_limit: Drop all hits with a first phase rank score less than or equal
+            to this floating point number.
 
         >>> SecondPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10)
         SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10)
+
+        >>> SecondPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10, rank_score_drop_limit=5)
+        SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10, 5)
         """
         self.expression = expression
         self.rerank_count = rerank_count
+        self.rank_score_drop_limit = rank_score_drop_limit
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
@@ -960,13 +971,15 @@ class SecondPhaseRanking(object):
         return (
             self.expression == other.expression
             and self.rerank_count == other.rerank_count
+            and self.rank_score_drop_limit == other.rank_score_drop_limit
         )
 
     def __repr__(self) -> str:
-        return "{0}({1}, {2})".format(
+        return "{0}({1}, {2}, {3})".format(
             self.__class__.__name__,
             repr(self.expression),
             repr(self.rerank_count),
+            repr(self.rank_score_drop_limit),
         )
 
 
