@@ -507,7 +507,7 @@ class VespaCloud(VespaDeployment):
             that services.xml is configured to use the provided token_id.
         :param output_file: Output file to write output messages. Default is sys.stdout
         :param application_root: Directory for application root. (location of services.xml, models/, schemas/, etc.). If application is packaged with maven, use the generated <myapp>/target/application directory.
-        :param cluster: Name of the cluster to target for endpoints. If not specified, will return the first matching endpoint.
+        :param cluster: Name of the cluster to target for when retrieving endpoints. Will affect which endpoints are used for initializing :class:`Vespa` instance in :func:`VespaCloud.get_application` and :func:`VespaCloud.deploy`.
         """
         self.tenant = tenant
         self.application = application
@@ -1167,13 +1167,15 @@ class VespaCloud(VespaDeployment):
         else:
             data = None
             content = None
-        with httpx.Client(
-            base_url=self.base_url,
-            headers=self.base_headers,
-            timeout=None,  # Need to set timeout to None to avoid httpx timeout on e.g. deployment requests
-            http1=True,
-            limits=self.httpx_limits,
-        ) as client:
+        with (
+            httpx.Client(
+                base_url=self.base_url,
+                headers=self.base_headers,
+                timeout=None,  # Need to set timeout to None to avoid httpx timeout on e.g. deployment requests
+                http1=True,
+                limits=self.httpx_limits,
+            ) as client
+        ):
             response = client.request(
                 method, path, data=data, content=content, headers=headers
             )
@@ -1352,6 +1354,13 @@ class VespaCloud(VespaDeployment):
         region: Optional[str] = None,
         environment: Optional[str] = "dev",
     ) -> List[Dict[str, str]]:
+        """Get all endpoints for the application instance.
+
+        :param instance: Application instance name
+        :param region: Region name, e.g. 'aws-us-east-1c'
+        :param environment: Environment (dev/prod)
+        :return: List of endpoints
+        """
         if region is None:
             if environment == "dev":
                 region = self.get_dev_region()
@@ -1375,6 +1384,14 @@ class VespaCloud(VespaDeployment):
         region: Optional[str] = None,
         environment: Optional[str] = "dev",
     ) -> str:
+        """Get the authentication method for the given endpoint URL.
+
+        :param url: The endpoint URL
+        :param instance: Application instance name
+        :param region: Region name, e.g. 'aws-us-east-1c'
+        :param environment: Environment (dev/prod)
+        :return: The authentication method ('mtls' or 'token')
+        """
         endpoints = self.get_all_endpoints(instance, region, environment)
         for endpoint in endpoints:
             if endpoint["url"] == url:
@@ -1390,6 +1407,17 @@ class VespaCloud(VespaDeployment):
         environment: Optional[str] = "dev",
         cluster: Optional[str] = None,
     ) -> str:
+        """Get the endpoint URL for the application.
+
+        Tip: See the 'endpoint'-tab in Vespa Cloud Console for available endpoints.
+
+        :param auth_method: Authentication method. Options are 'mtls' or 'token'
+        :param instance: Application instance name
+        :param region: Region name, e.g. 'aws-us-east-1c'
+        :param environment: Environment (dev/prod)
+        :param cluster: Specific cluster to get endpoint for. If None, uses instance default cluster
+        :return: The endpoint URL
+        """
         cluster = cluster or self.cluster
         auth_endpoints = []
         available_clusters = set()
@@ -1439,7 +1467,11 @@ class VespaCloud(VespaDeployment):
         environment: Optional[str] = "dev",
         cluster: Optional[str] = None,
     ) -> str:
-        """Get the mTLS endpoint URL for the application.
+        """Get the endpoint URL of a mTLS endpoint for the application.
+        Will return the first mTLS endpoint found if multiple exists.
+        Use :func:`VespaCloud.get_all_endpoints` to get all endpoints.
+
+        Tip: See the 'endpoint'-tab in Vespa Cloud Console for available endpoints.
 
         :param instance: Application instance name
         :param region: Region name
@@ -1456,7 +1488,10 @@ class VespaCloud(VespaDeployment):
         environment: Optional[str] = "dev",
         cluster: Optional[str] = None,
     ) -> str:
-        """Get the token-based endpoint URL for the application.
+        """Get the endpoint URL of a token endpoint for the application.
+        Will return the first token endpoint found if multiple exists.
+        Use :func:`VespaCloud.get_all_endpoints` to get all endpoints.
+        Tip: See the 'endpoint'-tab in Vespa Cloud Console for available endpoints.
 
         :param instance: Application instance name
         :param region: Region name
