@@ -92,7 +92,6 @@ notebooks = [
     "papermill",
     "ipywidgets",
     "matplotlib",
-    "twelvelabs",
 ]
 dev = [
     "pre-commit",
