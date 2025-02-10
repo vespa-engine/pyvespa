@@ -716,7 +716,7 @@ class Vespa(object):
     async def query_many_async(
         self,
         queries: Iterable[Dict],
-        num_connections: int = 8,
+        num_connections: int = 1,
         max_concurrent: int = 100,
         client_kwargs: Dict = {},
         **query_kwargs,
@@ -727,7 +727,7 @@ class Vespa(object):
         Each query will be retried up to 3 times using an exponential backoff strategy.
 
         :param queries: Iterable of query bodies (dictionaries) to be sent.
-        :param num_connections: Number of connections to be used in the asynchronous client (uses http2). Defaults to 8.
+        :param num_connections: Number of connections to be used in the asynchronous client (uses http2). Defaults to 1.
         :param max_concurrent: Maximum concurrent requests to be sent. Defaults to 100. Be careful with increasing too much.
         :param client_kwargs: Additional arguments to be passed to the httpx.AsyncClient.
         :param query_kwargs: Additional arguments to be passed to the query method.
@@ -758,7 +758,7 @@ class Vespa(object):
     def query_many(
         self,
         queries: Iterable[Dict],
-        num_connections: int = 8,
+        num_connections: int = 1,
         max_concurrent: int = 100,
         client_kwargs: Dict = {},
         **query_kwargs,
@@ -770,7 +770,7 @@ class Vespa(object):
         Each query will be retried up to 3 times using an exponential backoff strategy.
 
         :param queries: Iterable of query bodies (dictionaries) to be sent.
-        :param num_connections: Number of connections to be used in the asynchronous client (uses http2). Defaults to 8.
+        :param num_connections: Number of connections to be used in the asynchronous client (uses http2). Defaults to 1.
         :param max_concurrent: Maximum concurrent requests to be sent. Defaults to 100. Be careful with increasing too much.
         :param client_kwargs: Additional arguments to be passed to the httpx.AsyncClient.
         :param query_kwargs: Additional arguments to be passed to the query method.
@@ -1693,7 +1693,9 @@ class VespaAsync(object):
             raise state.outcome.exception()
         return state.outcome.result()
 
-    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
+    @retry(
+        wait=wait_random_exponential(multiplier=1.5, max=60), stop=stop_after_attempt(5)
+    )
     async def query(
         self, body: Optional[Dict] = None, groupname: str = None, **kwargs
     ) -> VespaQueryResponse:
