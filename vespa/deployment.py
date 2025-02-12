@@ -458,6 +458,7 @@ class VespaCloud(VespaDeployment):
         auth_client_token_id: Optional[str] = None,
         output_file: IO = sys.stdout,
         application_root: Optional[str] = None,
+        cluster: Optional[str] = None,
     ) -> None:
         """
         Deploy application to the Vespa Cloud (cloud.vespa.ai)
@@ -506,6 +507,7 @@ class VespaCloud(VespaDeployment):
             that services.xml is configured to use the provided token_id.
         :param output_file: Output file to write output messages. Default is sys.stdout
         :param application_root: Directory for application root. (location of services.xml, models/, schemas/, etc.). If application is packaged with maven, use the generated <myapp>/target/application directory.
+        :param cluster: Name of the cluster to target for when retrieving endpoints. Will affect which endpoints are used for initializing :class:`Vespa` instance in :func:`VespaCloud.get_application` and :func:`VespaCloud.deploy`.
         """
         self.tenant = tenant
         self.application = application
@@ -566,6 +568,7 @@ class VespaCloud(VespaDeployment):
         self.pyvespa_version = vespa.__version__
         self.base_headers = {"User-Agent": f"pyvespa/{self.pyvespa_version}"}
         self.auth_client_token_id = auth_client_token_id
+        self.cluster = cluster
         if auth_client_token_id is not None:
             if self.application_package is not None:
                 # TODO: Should add some check to see if the auth_client_token_id is added to AuthClients.
@@ -1164,13 +1167,15 @@ class VespaCloud(VespaDeployment):
         else:
             data = None
             content = None
-        with httpx.Client(
-            base_url=self.base_url,
-            headers=self.base_headers,
-            timeout=None,  # Need to set timeout to None to avoid httpx timeout on e.g. deployment requests
-            http1=True,
-            limits=self.httpx_limits,
-        ) as client:
+        with (
+            httpx.Client(
+                base_url=self.base_url,
+                headers=self.base_headers,
+                timeout=None,  # Need to set timeout to None to avoid httpx timeout on e.g. deployment requests
+                http1=True,
+                limits=self.httpx_limits,
+            ) as client
+        ):
             response = client.request(
                 method, path, data=data, content=content, headers=headers
             )
@@ -1349,6 +1354,13 @@ class VespaCloud(VespaDeployment):
         region: Optional[str] = None,
         environment: Optional[str] = "dev",
     ) -> List[Dict[str, str]]:
+        """Get all endpoints for the application instance.
+
+        :param instance: Application instance name
+        :param region: Region name, e.g. 'aws-us-east-1c'
+        :param environment: Environment (dev/prod)
+        :return: List of endpoints
+        """
         if region is None:
             if environment == "dev":
                 region = self.get_dev_region()
@@ -1372,6 +1384,14 @@ class VespaCloud(VespaDeployment):
         region: Optional[str] = None,
         environment: Optional[str] = "dev",
     ) -> str:
+        """Get the authentication method for the given endpoint URL.
+
+        :param url: The endpoint URL
+        :param instance: Application instance name
+        :param region: Region name, e.g. 'aws-us-east-1c'
+        :param environment: Environment (dev/prod)
+        :return: The authentication method ('mtls' or 'token')
+        """
         endpoints = self.get_all_endpoints(instance, region, environment)
         for endpoint in endpoints:
             if endpoint["url"] == url:
@@ -1387,13 +1407,29 @@ class VespaCloud(VespaDeployment):
         environment: Optional[str] = "dev",
         cluster: Optional[str] = None,
     ) -> str:
-        # TODO: Support multiple endpoints.
+        """Get the endpoint URL for the application.
+
+        Tip: See the 'endpoint'-tab in Vespa Cloud Console for available endpoints.
+
+        :param auth_method: Authentication method. Options are 'mtls' or 'token'
+        :param instance: Application instance name
+        :param region: Region name, e.g. 'aws-us-east-1c'
+        :param environment: Environment (dev/prod)
+        :param cluster: Specific cluster to get endpoint for. If None, uses instance default cluster
+        :return: The endpoint URL
+        """
+        cluster = cluster or self.cluster
         auth_endpoints = []
+        available_clusters = set()
         endpoints = self.get_all_endpoints(instance, region, environment)
+
         for endpoint in endpoints:
             endpoint_cluster = endpoint.get("cluster", None)
+            available_clusters.add(endpoint_cluster)
+
             if cluster is not None and cluster != endpoint_cluster:
                 continue
+
             authMethod = endpoint.get("authMethod", None)
             if authMethod == auth_method:
                 print(
@@ -1401,35 +1437,69 @@ class VespaCloud(VespaDeployment):
                     file=self.output,
                 )
                 print(f"URL: {endpoint['url']}", file=self.output)
-                auth_endpoints.append(endpoint["url"])
-        if len(auth_endpoints) == 1:
-            return auth_endpoints[0]
-        elif len(auth_endpoints) > 1:
+                auth_endpoints.append((endpoint["url"], endpoint_cluster))
+
+        if len(auth_endpoints) == 0:
+            error_msg = f"No {auth_method} endpoints found for instance {instance}, region {region}, and environment {environment}"
+            if cluster:
+                error_msg += f"\nRequested cluster '{cluster}' not found. Available clusters: {sorted(available_clusters)}"
+            raise RuntimeError(error_msg)
+
+        if len(auth_endpoints) > 1:
+            if cluster:
+                matching = [
+                    url for url, ep_cluster in auth_endpoints if ep_cluster == cluster
+                ]
+                if matching:
+                    return matching[0]
             print(
-                f"Multiple {auth_method} endpoints found. Returning the first one.",
+                f"Multiple {auth_method} endpoints found. Available clusters: {sorted(c for _, c in auth_endpoints)}",
                 file=self.output,
             )
-            return auth_endpoints[0]
-        elif len(auth_endpoints) == 0:
-            raise RuntimeError(
-                f"No {auth_method} endpoints found for instance {instance}, region {region}, and environment {environment}."
-            )
+            print("Returning the first endpoint.", file=self.output)
+
+        return auth_endpoints[0][0]
 
     def get_mtls_endpoint(
         self,
         instance: Optional[str] = "default",
         region: Optional[str] = None,
         environment: Optional[str] = "dev",
+        cluster: Optional[str] = None,
     ) -> str:
-        return self.get_endpoint("mtls", instance, region, environment)
+        """Get the endpoint URL of a mTLS endpoint for the application.
+        Will return the first mTLS endpoint found if multiple exists.
+        Use :func:`VespaCloud.get_all_endpoints` to get all endpoints.
+
+        Tip: See the 'endpoint'-tab in Vespa Cloud Console for available endpoints.
+
+        :param instance: Application instance name
+        :param region: Region name
+        :param environment: Environment (dev/prod)
+        :param cluster: Specific cluster to get endpoint for. If None, uses instance default cluster
+        :return: The endpoint URL
+        """
+        return self.get_endpoint("mtls", instance, region, environment, cluster)
 
     def get_token_endpoint(
         self,
         instance: Optional[str] = "default",
         region: Optional[str] = None,
         environment: Optional[str] = "dev",
+        cluster: Optional[str] = None,
     ) -> str:
-        return self.get_endpoint("token", instance, region, environment)
+        """Get the endpoint URL of a token endpoint for the application.
+        Will return the first token endpoint found if multiple exists.
+        Use :func:`VespaCloud.get_all_endpoints` to get all endpoints.
+        Tip: See the 'endpoint'-tab in Vespa Cloud Console for available endpoints.
+
+        :param instance: Application instance name
+        :param region: Region name
+        :param environment: Environment (dev/prod)
+        :param cluster: Specific cluster to get endpoint for. If None, uses instance default cluster
+        :return: The endpoint URL
+        """
+        return self.get_endpoint("token", instance, region, environment, cluster)
 
     def _application_root_has_tests(self, application_root: str) -> bool:
         """Check if the application contains tests folder (recursively)"""
