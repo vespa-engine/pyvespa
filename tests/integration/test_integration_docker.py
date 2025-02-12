@@ -1366,11 +1366,6 @@ def create_update_application_package() -> ApplicationPackage:
     schema = Schema(
         name="testupdates",
         document=document,
-        fieldsets=[
-            FieldSet(
-                name="default", fields=["title", "tensorfield", "contact", "price"]
-            )
-        ],
         rank_profiles=[RankProfile(name="default", first_phase="nativeRank(title)")],
     )
     return ApplicationPackage(name="testupdates", schema=[schema])
