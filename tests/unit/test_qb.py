@@ -509,6 +509,7 @@ class TestQueryBuilder(unittest.TestCase):
         return query
 
     def test_param_in_contains(self):
+        # @myvalue is a parameter, should not be quoted
         condition = qb.QueryField("myfield").contains("@myvalue", stem=False)
         query = qb.select("*").from_("sd1").where(condition)
         expected = "select * from sd1 where myfield contains({stem:false}@myvalue)"
