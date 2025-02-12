@@ -128,7 +128,11 @@ class QueryField:
     @staticmethod
     def _format_value(value: Any) -> str:
         if isinstance(value, str):
-            return f'"{value}"'
+            # Wrap strings in double quotes, but not for parameters
+            if value.startswith("@"):
+                return value
+            else:
+                return f'"{value}"'
         elif isinstance(value, Condition):
             return value.build()
         else:
