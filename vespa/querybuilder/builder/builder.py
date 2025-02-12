@@ -498,7 +498,7 @@ class Query:
         """
         return self.add_parameter(key, value)
 
-    def groupby(self, group_expression: str) -> Query:
+    def groupby(self, group_expression: str, continuations: List = []) -> Query:
         """Groups results by specified expression.
 
         For more information, see https://docs.vespa.ai/en/grouping.html
@@ -507,6 +507,7 @@ class Query:
 
         Args:
             - group_expression (str): Grouping expression
+            - continuations (List): List of continuation tokens (see https://docs.vespa.ai/en/grouping.html#pagination)
 
         Returns:
             :class:`vespa.querybuilder.Query`: Self for method chaining
@@ -535,9 +536,22 @@ class Query:
             >>> query = qb.select("*").from_("purchase").where(True).groupby(grouping)
             >>> str(query)
             'select * from purchase where true | all(group(time.year(a)) each(output(count())))'
+            >>> # With continuations
+            >>> query = qb.select("*").from_("purchase").where(True).groupby(grouping, continuations=["foo", "bar"])
+            >>> str(query)
+            "select * from purchase where true | { 'continuations':['foo', 'bar'] }all(group(time.year(a)) each(output(count())))"
         """
-        self.grouping = group_expression
+        if continuations:
+            cont_str = self._format_continuations(continuations)
+        else:
+            cont_str = ""
+        self.grouping = f"{cont_str}{group_expression}"
         return self
+
+    def _format_continuations(self, continuations: List) -> str:
+        """Helper method to format continuations for groupby"""
+        cont_str = f"{{ 'continuations':{repr(continuations)} }}"
+        return cont_str
 
     def build(self, prepend_yql=False) -> str:
         query = f"select {self.select_fields} from {self.sources}"
