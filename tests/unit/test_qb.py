@@ -371,6 +371,36 @@ class TestQueryBuilder(unittest.TestCase):
         self.assertEqual(q, expected)
         return q
 
+    def test_grouping_continuation_annotation(self):
+        grouping = G.all(
+            G.group("category"),
+            G.max(10),
+            G.output(G.count()),
+        )
+        q = (
+            qb.select("*")
+            .from_("products")
+            .groupby(grouping, continuations=["BGAAABEBCA"])
+        )
+        expected = "select * from products | { 'continuations':['BGAAABEBCA'] }all(group(category) max(10) output(count()))"
+        self.assertEqual(q, expected)
+        return q
+
+    def test_grouping_multiple_continuation_annotations(self):
+        grouping = G.all(
+            G.group("category"),
+            G.max(10),
+            G.output(G.count()),
+        )
+        q = (
+            qb.select("*")
+            .from_("products")
+            .groupby(grouping, continuations=["BGAAABEBCA", "BGAAABEBCB"])
+        )
+        expected = "select * from products | { 'continuations':['BGAAABEBCA', 'BGAAABEBCB'] }all(group(category) max(10) output(count()))"
+        self.assertEqual(q, expected)
+        return q
+
     def test_userquery_basic(self):
         condition = qb.userQuery("search terms")
         q = qb.select("*").from_("documents").where(condition)
