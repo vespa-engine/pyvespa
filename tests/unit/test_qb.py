@@ -508,6 +508,13 @@ class TestQueryBuilder(unittest.TestCase):
         self.assertEqual(query, expected)
         return query
 
+    def test_param_in_contains(self):
+        condition = qb.QueryField("myfield").contains("@myvalue", stem=False)
+        query = qb.select("*").from_("sd1").where(condition)
+        expected = "select * from sd1 where myfield contains({stem:false}@myvalue)"
+        self.assertEqual(query, expected)
+        return query
+
     def test_userinput_param(self):
         condition = qb.userInput("@animal")
         query = qb.select("*").from_("sd1").where(condition).param("animal", "panda")
