@@ -13,6 +13,10 @@ class MockVespaResponse:
     def get_json(self):
         return {"root": {"children": self.hits}}
 
+    @property
+    def status_code(self):
+        return 200
+
 
 class TestVespaEvaluator(unittest.TestCase):
     def setUp(self):
@@ -74,10 +78,8 @@ class TestVespaEvaluator(unittest.TestCase):
                 self.mock_responses = mock_responses
                 self.current_query = 0
 
-            def query(self, body):
-                response = self.mock_responses[self.current_query]
-                self.current_query = (self.current_query + 1) % len(self.mock_responses)
-                return response
+            async def query_many_async(self, queries):
+                return self.mock_responses
 
         self.mock_app = MockVespaApp([q1_response, q2_response, q3_response])
 
