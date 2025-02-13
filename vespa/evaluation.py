@@ -4,7 +4,6 @@ import csv
 import logging
 from typing import Dict, Set, Callable, List, Optional, Union
 import math
-import asyncio
 from vespa.application import Vespa
 from vespa.io import VespaQueryResponse
 
@@ -313,9 +312,7 @@ class VespaEvaluator:
             logger.debug(f"Querying Vespa with: {query_body}")
 
         # Execute queries in parallel using query_many from the Vespa class
-        responses: List[VespaQueryResponse] = asyncio.run(
-            self.app.query_many_async(query_bodies)
-        )
+        responses: List[VespaQueryResponse] = self.app.query_many_async(query_bodies)
         for resp in responses:
             if resp.status_code != 200:
                 raise ValueError(
