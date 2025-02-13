@@ -143,10 +143,7 @@ class VespaEvaluator:
         relevant_docs = self._validate_qrels(relevant_docs)
 
         # Filter out any queries that have no relevant docs
-        self.queries_ids = []
-        for qid in queries:
-            if qid in relevant_docs and len(relevant_docs[qid]) > 0:
-                self.queries_ids.append(qid)
+        self.queries_ids = self.filter_queries(queries, relevant_docs)
 
         self.queries = [queries[qid] for qid in self.queries_ids]
         self.relevant_docs = relevant_docs
@@ -158,7 +155,7 @@ class VespaEvaluator:
         self.map_at_k = map_at_k
         self.searchtimes: List[float] = []
 
-        self.vespa_query_fn = vespa_query_fn
+        self.vespa_query_fn: Callable = vespa_query_fn
         self.app = app
 
         self.name = name
@@ -178,6 +175,23 @@ class VespaEvaluator:
             "ndcg@{}",
             "map@{}",
         ]
+
+    @property
+    def default_body(self):
+        return {
+            "timeout": "5s",
+            "presentation.timing": True,
+        }
+
+    def filter_queries(
+        self, queries: Dict[str, str], relevant_docs: Dict[str, Set[str]]
+    ):
+        """Filter out queries that have no relevant docs"""
+        filtered = []
+        for qid in queries:
+            if qid in relevant_docs and len(relevant_docs[qid]) > 0:
+                filtered.append(qid)
+        return filtered
 
     def _validate_queries(self, queries: Dict[str, str]):
         if not isinstance(queries, dict):
@@ -255,6 +269,18 @@ class VespaEvaluator:
         except Exception as e:
             raise ValueError(f"Error calling vespa_query_fn with test inputs: {str(e)}")
 
+    def _find_max_k(self):
+        """
+        Find the maximum k value across all metrics.
+        """
+        return max(
+            max(self.accuracy_at_k) if self.accuracy_at_k else 0,
+            max(self.precision_recall_at_k) if self.precision_recall_at_k else 0,
+            max(self.mrr_at_k) if self.mrr_at_k else 0,
+            max(self.ndcg_at_k) if self.ndcg_at_k else 0,
+            max(self.map_at_k) if self.map_at_k else 0,
+        )
+
     def run(self) -> Dict[str, float]:
         """
         Execute the evaluation by running queries and computing IR metrics.
@@ -280,13 +306,7 @@ class VespaEvaluator:
                 ...
             }
         """
-        max_k = max(
-            max(self.accuracy_at_k) if self.accuracy_at_k else 0,
-            max(self.precision_recall_at_k) if self.precision_recall_at_k else 0,
-            max(self.mrr_at_k) if self.mrr_at_k else 0,
-            max(self.ndcg_at_k) if self.ndcg_at_k else 0,
-            max(self.map_at_k) if self.map_at_k else 0,
-        )
+        max_k = self._find_max_k()
 
         logger.info(f"Starting VespaEvaluator on {self.name}")
         logger.info(f"Number of queries: {len(self.queries_ids)}; max_k = {max_k}")
@@ -294,20 +314,10 @@ class VespaEvaluator:
         # Build query bodies using the provided vespa_query_fn
         query_bodies = []
 
-        # Check timing info with first query only
-        first_query = self.queries[0]
-        first_body = self.vespa_query_fn(first_query, max_k)
-        if "presentation.timing" not in first_body:
-            logger.warning(
-                "Timing information is not included in the query body. "
-                'Please include `"presentation.timing": True` in the query body to log search times.'
-            )
-        query_bodies.append(first_body)
-
-        # Add remaining queries without checking timing
-        for idx in range(1, len(self.queries_ids)):
-            query_text = self.queries[idx]
-            query_body = self.vespa_query_fn(query_text, max_k)
+        for query_text in self.queries:
+            query_body: dict = self.vespa_query_fn(query_text, max_k)
+            # Add default body parameters
+            query_body.update(self.default_body)
             query_bodies.append(query_body)
             logger.debug(f"Querying Vespa with: {query_body}")
 
