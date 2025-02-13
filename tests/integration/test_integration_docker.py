@@ -1064,6 +1064,81 @@ class TestMsmarcoApplication(TestApplicationCommon):
             )
         )
 
+    def test_query_many(self):
+        """
+        Integration test for the sync query_many method.
+        Sends multiple queries concurrently and asserts that a VespaQueryResponse is returned for each.
+        """
+
+        docs_to_feed = [
+            {
+                "id": f"{i}",
+                "fields": {
+                    "title": f"this is title {i}",
+                    "body": f"this is body {i}",
+                },
+            }
+            for i in range(10)
+        ]
+
+        self.app.feed_async_iterable(docs_to_feed)
+        queries = [
+            {
+                "yql": "select * from sources * where userQuery();",
+                "query": f"what is {i}",
+            }
+            for i in range(1000)
+        ]
+        # Run the sync wrapper of query_many method
+        start_time = time.time()
+        results = self.app.query_many(queries, num_connections=8, max_concurrent=1000)
+        end_time = time.time()
+        print(f"Time taken for 1000 queries: {end_time - start_time} seconds")
+        json_results = []
+        # Check that each result is an instance of VespaQueryResponse
+        for response in results:
+            self.assertIsInstance(response, VespaQueryResponse)
+            self.assertEqual(response.status_code, 200)
+            json_results.append(response.json)
+        # Check that the number of results is equal to the number of queries
+        self.assertEqual(len(results), len(queries))
+
+    def test_query_many_async(self):
+        docs_to_feed = [
+            {
+                "id": f"{i}",
+                "fields": {
+                    "title": f"this is title {i}",
+                    "body": f"this is body {i}",
+                },
+            }
+            for i in range(10)
+        ]
+
+        self.app.feed_async_iterable(docs_to_feed)
+        queries = [
+            {
+                "yql": "select * from sources * where userQuery();",
+                "query": f"what is {i}",
+            }
+            for i in range(1000)
+        ]
+        # Run the sync wrapper of query_many method
+        start_time = time.time()
+        results = asyncio.run(
+            self.app.query_many_async(queries, num_connections=8, max_concurrent=1000)
+        )
+        end_time = time.time()
+        print(f"Time taken for 1000 queries: {end_time - start_time} seconds")
+        json_results = []
+        # Check that each result is an instance of VespaQueryResponse
+        for response in results:
+            self.assertIsInstance(response, VespaQueryResponse)
+            self.assertEqual(response.status_code, 200)
+            json_results.append(response.json)
+        # Check that the number of results is equal to the number of queries
+        self.assertEqual(len(results), len(queries))
+
     def test_compress_large_feed_auto(self):
         for compress_arg in self.compress_args:
             with self.app.syncio(compress=compress_arg) as sync_app:

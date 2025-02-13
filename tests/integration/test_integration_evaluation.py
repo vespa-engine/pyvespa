@@ -137,6 +137,7 @@ def semantic_query_fn(query_text: str, top_k: int = 10) -> Dict[str, Any]:
         "ranking": "semantic",
         "input.query(q)": f"embed({query_text})",
         "hits": top_k,
+        "timeout": "2s",
     }
 
 
