@@ -312,7 +312,7 @@ class VespaEvaluator:
             logger.debug(f"Querying Vespa with: {query_body}")
 
         # Execute queries in parallel using query_many from the Vespa class
-        responses: List[VespaQueryResponse] = self.app.query_many_async(query_bodies)
+        responses: List[VespaQueryResponse] = self.app.query_many(query_bodies)
         for resp in responses:
             if resp.status_code != 200:
                 raise ValueError(
