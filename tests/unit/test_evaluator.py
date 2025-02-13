@@ -78,7 +78,7 @@ class TestVespaEvaluator(unittest.TestCase):
                 self.mock_responses = mock_responses
                 self.current_query = 0
 
-            async def query_many_async(self, queries):
+            def query_many(self, queries):
                 return self.mock_responses
 
         self.mock_app = MockVespaApp([q1_response, q2_response, q3_response])
