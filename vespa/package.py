@@ -2118,8 +2118,8 @@ class ContainerCluster(Cluster):
         >>> ContainerCluster(id="example_container",
         ...    components=[Component(id="e5", type="hugging-face-embedder",
         ...        parameters=[
-        ...            Parameter("transformer-model", {"url": "https://github.com/vespa-engine/sample-apps/raw/master/simple-semantic-search/model/e5-small-v2-int8.onnx"}),
-        ...            Parameter("tokenizer-model", {"url": "https://raw.githubusercontent.com/vespa-engine/sample-apps/master/simple-semantic-search/model/tokenizer.json"})
+        ...            Parameter("transformer-model", {"url": "https://github.com/vespa-engine/sample-apps/raw/master/examples/model-exporting/model/e5-small-v2-int8.onnx"}),
+        ...            Parameter("tokenizer-model", {"url": "https://raw.githubusercontent.com/vespa-engine/sample-apps/master/examples/model-exporting/model/tokenizer.json"})
         ...        ]
         ...    )],
         ...    auth_clients=[AuthClient(id="mtls", permissions=["read", "write"])],
