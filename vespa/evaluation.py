@@ -263,85 +263,61 @@ class VespaEvaluator:
 
     def _validate_vespa_query_fn(self, fn: Callable) -> None:
         """
-        Validate that vespa_query_fn is callable and has the correct signature.
-        It can take either:
-            (query_text: str, top_k: int)
-        or:
-            (query_text: str, top_k: int, query_id: Optional[str])
-        where query_id is optional and must be the last argument.
+        Simplified validation of vespa_query_fn.
 
-        :param fn: Function to validate.
-        :raises ValueError: If function doesn't meet requirements.
-        :raises TypeError: If function signature is incorrect.
+        The function must be callable and take either 2 or 3 parameters:
+            - (query_text: str, top_k: int) or
+            - (query_text: str, top_k: int, query_id: str) where query_id can also be Optional[str].
+        It must return a dict when called with test inputs.
         """
         if not callable(fn):
-            raise ValueError("vespa_query_fn must be a callable")
+            raise ValueError("vespa_query_fn must be callable")
 
         import inspect
-        import typing
 
         sig = inspect.signature(fn)
-        params = list(sig.parameters.items())
+        params = list(sig.parameters.values())
 
-        # Allow functions taking exactly 2 or 3 parameters.
-        if len(params) < 2:
-            raise TypeError(
-                f"vespa_query_fn must take exactly 2 parameters, got {len(params)}"
-            )
-        elif len(params) > 3:
-            raise TypeError(
-                f"vespa_query_fn must take exactly 2 or 3 parameters, got {len(params)}"
-            )
+        if len(params) not in (2, 3):
+            raise TypeError("vespa_query_fn must take 2 or 3 parameters")
 
-        # Define a helper to check type equality allowing Optional[str]
-        def check_type(actual, expected) -> bool:
-            if actual is inspect.Parameter.empty:
-                return True
-            if actual == expected:
-                return True
-            # Allow Optional[str] (i.e. Union[str, NoneType])
-            if expected is Optional[str]:
-                origin = typing.get_origin(actual)
-                if origin is typing.Union:
-                    args = typing.get_args(actual)
-                    if set(args) == {str, type(None)}:
-                        return True
-            return False
+        # Validate first parameter: query_text
+        if (
+            params[0].annotation is not inspect.Parameter.empty
+            and params[0].annotation is not str
+        ):
+            raise TypeError("Parameter 'query_text' must be of type str")
 
-        # Set up expected types.
-        if len(params) == 2:
-            expected_types = {
-                params[0][0]: str,
-                params[1][0]: int,
-            }
-        else:  # 3 parameters: (query_text: str, top_k: int, query_id: Optional[str])
-            expected_types = {
-                params[0][0]: str,
-                params[1][0]: int,
-                params[2][0]: Optional[str],
-            }
+        # Validate second parameter: top_k
+        if (
+            params[1].annotation is not inspect.Parameter.empty
+            and params[1].annotation is not int
+        ):
+            raise TypeError("Parameter 'top_k' must be of type int")
 
-        for param_name, expected_type in expected_types.items():
-            actual_type = params[[name for name, _ in params].index(param_name)][
-                1
-            ].annotation
-            if not check_type(actual_type, expected_type):
+        # If there's a third parameter, validate query_id
+        if len(params) == 3:
+            third = params[2]
+            if (
+                third.annotation is not inspect.Parameter.empty
+                and third.annotation not in (str, Optional[str])
+            ):
                 raise TypeError(
-                    f"Parameter '{param_name}' must be of type {expected_type.__name__ if expected_type is not Optional[str] else 'Optional[str]'}"
+                    "Parameter 'query_id' must be of type str or Optional[str]"
                 )
 
-        # Validate the function can be called with test inputs.
+        # Test the function with dummy inputs to ensure it returns a dict.
         try:
             if len(params) == 2:
                 result = fn("test query", 10)
+                self._vespa_query_fn_takes_query_id = False
             else:
                 result = fn("test query", 10, "test_id")
+                self._vespa_query_fn_takes_query_id = True
             if not isinstance(result, dict):
                 raise TypeError("vespa_query_fn must return a dict")
         except Exception as e:
-            raise ValueError(f"Error calling vespa_query_fn with test inputs: {str(e)}")
-
-        self._vespa_query_fn_takes_query_id = len(params) == 3
+            raise ValueError("Error calling vespa_query_fn with test inputs: " + str(e))
 
     def _find_max_k(self):
         """
