@@ -359,6 +359,10 @@ class VespaEvaluator:
                 query_body: dict = self.vespa_query_fn(query_text, max_k, qid)
             else:
                 query_body: dict = self.vespa_query_fn(query_text, max_k)
+            if not isinstance(query_body, dict):
+                raise ValueError(
+                    f"vespa_query_fn must return a dict, got: {type(query_body)}"
+                )
             # Add default body parameters
             query_body.update(self.default_body)
             query_bodies.append(query_body)
