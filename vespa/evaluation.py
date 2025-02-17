@@ -200,48 +200,64 @@ class VespaEvaluator:
                 filtered.append(qid)
         return filtered
 
-    def _validate_queries(self, queries: Dict[str, str]):
+    def _validate_queries(self, queries: Dict[Union[str, int], str]) -> Dict[str, str]:
+        """
+        Validate and normalize queries.
+        Converts query IDs to strings if they are ints.
+        """
         if not isinstance(queries, dict):
             raise ValueError("queries must be a dict of query_id => query_text")
+        normalized_queries = {}
         for qid, query_text in queries.items():
-            if not isinstance(qid, Union[str, int]) or not isinstance(query_text, str):
-                raise ValueError("Each query must be a string.", qid, query_text)
+            if not isinstance(qid, (str, int)):
+                raise ValueError("Query ID must be a string or an int.", qid)
+            if not isinstance(query_text, str):
+                raise ValueError("Query text must be a string.", query_text)
+            normalized_queries[str(qid)] = query_text
+        return normalized_queries
 
     def _validate_qrels(
-        self, qrels: Union[Dict[str, Union[Set[str], Dict[str, float]]], Dict[str, str]]
+        self,
+        qrels: Union[
+            Dict[Union[str, int], Union[Set[str], Dict[str, float]]],
+            Dict[Union[str, int], str],
+        ],
     ) -> Dict[str, Union[Set[str], Dict[str, float]]]:
+        """
+        Validate and normalize qrels.
+        Converts query IDs to strings if they are ints.
+        """
         if not isinstance(qrels, dict):
             raise ValueError(
-                "qrels must be a dict of query_id => set of relevant doc_ids or a dict of query_id => dict of doc_id => relevance"
+                "qrels must be a dict of query_id => set/dict of relevant doc_ids or a single doc_id string"
             )
         new_qrels: Dict[str, Union[Set[str], Dict[str, float]]] = {}
         for qid, relevant_docs in qrels.items():
-            if not isinstance(qid, str):
+            if not isinstance(qid, (str, int)):
                 raise ValueError(
-                    "Each qrel must be a string query_id and a set/dict of doc_ids.",
-                    qid,
-                    relevant_docs,
+                    "Query ID in qrels must be a string or an int.", qid, relevant_docs
                 )
+            normalized_qid = str(qid)
             if isinstance(relevant_docs, str):
-                new_qrels[qid] = {relevant_docs}
+                new_qrels[normalized_qid] = {relevant_docs}
             elif isinstance(relevant_docs, set):
-                new_qrels[qid] = relevant_docs
+                new_qrels[normalized_qid] = relevant_docs
             elif isinstance(relevant_docs, dict):
                 for doc_id, relevance in relevant_docs.items():
                     if not isinstance(doc_id, str) or not isinstance(
                         relevance, (int, float)
                     ):
                         raise ValueError(
-                            f"Relevance scores for query {qid} must be a dict of string doc_id => numeric relevance."
+                            f"Relevance scores for query {normalized_qid} must be a dict of string doc_id => numeric relevance."
                         )
                     if not 0 <= relevance <= 1:
                         raise ValueError(
-                            f"Relevance scores for query {qid} must be between 0 and 1."
+                            f"Relevance scores for query {normalized_qid} must be between 0 and 1."
                         )
-                new_qrels[qid] = relevant_docs
+                new_qrels[normalized_qid] = relevant_docs
             else:
                 raise ValueError(
-                    f"Relevant docs for query {qid} must be a set, string, or dict."
+                    f"Relevant docs for query {normalized_qid} must be a set, string, or dict."
                 )
         return new_qrels
 
