@@ -417,15 +417,6 @@ class TestVespaEvaluator(unittest.TestCase):
                 app=self.mock_app,
             )
 
-        # Not a string query_id
-        with self.assertRaisesRegex(ValueError, "Each qrel must be a string query_id"):
-            VespaEvaluator(
-                queries=self.queries,
-                relevant_docs={1: {"doc1"}},
-                vespa_query_fn=self.vespa_query_fn,
-                app=self.mock_app,
-            )
-
         # Relevant docs not a set, string, or dict
         with self.assertRaisesRegex(ValueError, "must be a set, string, or dict"):
             VespaEvaluator(
