@@ -40,6 +40,12 @@ class TestVespaEvaluator(unittest.TestCase):
             "q3": "doc6",
         }
 
+        self.relevant_docs_relevance = {
+            "q1": {"doc1": 1.0, "doc2": 0.5, "doc3": 0.2},
+            "q2": {"doc4": 0.8, "doc5": 0.6},
+            "q3": {"doc6": 1.0},
+        }
+
         # Mock Vespa responses
         # For q1: doc1 at rank 1, doc2 at rank 3, doc3 at rank 5
         q1_response = MockVespaResponse(
@@ -120,6 +126,16 @@ class TestVespaEvaluator(unittest.TestCase):
             q_id: {doc_id} for q_id, doc_id in self.relevant_docs_single.items()
         }
         self.assertEqual(evaluator.relevant_docs, relevant_docs_to_set)
+
+    def test_init_relevant_docs_with_relevance(self):
+        """Test initialization with relevant docs having relevance scores"""
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=self.relevant_docs_relevance,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+        )
+        self.assertEqual(evaluator.relevant_docs, self.relevant_docs_relevance)
 
     def test_custom_k_values(self):
         """Test initialization with custom k values"""
@@ -344,6 +360,156 @@ class TestVespaEvaluator(unittest.TestCase):
                 vespa_query_fn=fn5,
                 app=self.mock_app,
             )
+
+    def test_validate_qrels(self):
+        """Test validation of qrels with valid qrels"""
+        # Valid qrels
+        qrels1 = {
+            "q1": {"doc1", "doc2", "doc3"},
+            "q2": {"doc4", "doc5"},
+            "q3": {"doc6"},
+        }
+        qrels2 = {
+            "q1": "doc1",
+            "q2": "doc4",
+            "q3": "doc6",
+        }
+        qrels3 = {
+            "q1": {"doc1": 1.0, "doc2": 0.5, "doc3": 0.2},
+            "q2": {"doc4": 0.8, "doc5": 0.6},
+            "q3": {"doc6": 1.0},
+        }
+
+        # All should work without raising exceptions
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=qrels1,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+        )
+        self.assertIsInstance(evaluator, VespaEvaluator)
+
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=qrels2,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+        )
+        self.assertIsInstance(evaluator, VespaEvaluator)
+
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=qrels3,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+        )
+        self.assertIsInstance(evaluator, VespaEvaluator)
+
+    def test_validate_qrels_errors(self):
+        """Test validation of qrels with invalid qrels"""
+
+        # Not a dict
+        with self.assertRaisesRegex(ValueError, "qrels must be a dict"):
+            VespaEvaluator(
+                queries=self.queries,
+                relevant_docs="not_a_dict",
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+            )
+
+        # Not a string query_id
+        with self.assertRaisesRegex(ValueError, "Each qrel must be a string query_id"):
+            VespaEvaluator(
+                queries=self.queries,
+                relevant_docs={1: {"doc1"}},
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+            )
+
+        # Relevant docs not a set, string, or dict
+        with self.assertRaisesRegex(ValueError, "must be a set, string, or dict"):
+            VespaEvaluator(
+                queries=self.queries,
+                relevant_docs={"q1": 1},
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+            )
+
+        # Relevance scores not numeric
+        with self.assertRaisesRegex(
+            ValueError, "must be a dict of string doc_id => numeric relevance"
+        ):
+            VespaEvaluator(
+                queries=self.queries,
+                relevant_docs={"q1": {"doc1": "not_numeric"}},
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+            )
+
+        # Relevance scores not between 0 and 1
+        with self.assertRaisesRegex(ValueError, "must be between 0 and 1"):
+            VespaEvaluator(
+                queries=self.queries,
+                relevant_docs={"q1": {"doc1": 1.1}},
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+            )
+
+        with self.assertRaisesRegex(ValueError, "must be between 0 and 1"):
+            VespaEvaluator(
+                queries=self.queries,
+                relevant_docs={"q1": {"doc1": -0.1}},
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+            )
+
+    def test_filter_queries(self):
+        """Test filter_queries method"""
+        queries = {
+            "q1": "what is machine learning",
+            "q2": "how to code python",
+            "q3": "what is the capital of France",
+            "q4": "irrelevant query",
+        }
+
+        relevant_docs = {
+            "q1": {"doc1", "doc2", "doc3"},
+            "q2": {"doc4", "doc5"},
+            "q3": {"doc6"},
+        }
+
+        evaluator = VespaEvaluator(
+            queries=queries,
+            relevant_docs=relevant_docs,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+        )
+
+        # Test that queries with no relevant docs are filtered out
+        self.assertEqual(len(evaluator.queries_ids), 3)
+        self.assertNotIn("q4", evaluator.queries_ids)
+
+        # Test that queries with empty relevant docs are filtered out
+        relevant_docs["q4"] = set()
+        evaluator = VespaEvaluator(
+            queries=queries,
+            relevant_docs=relevant_docs,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+        )
+        self.assertEqual(len(evaluator.queries_ids), 3)
+        self.assertNotIn("q4", evaluator.queries_ids)
+
+        # Test that queries with relevant docs are not filtered out
+        relevant_docs["q4"] = {"doc7"}
+        evaluator = VespaEvaluator(
+            queries=queries,
+            relevant_docs=relevant_docs,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+        )
+        self.assertEqual(len(evaluator.queries_ids), 4)
+        self.assertIn("q4", evaluator.queries_ids)
 
 
 if __name__ == "__main__":
