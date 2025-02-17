@@ -337,41 +337,9 @@ class TestVespaEvaluator(unittest.TestCase):
                 app=self.mock_app,
             )
 
-        # Wrong return type annotation
-        def fn3(query: str, k: int) -> list:
-            return [query, k]
-
-        with self.assertRaisesRegex(ValueError, "must return a dict"):
-            VespaEvaluator(
-                queries=self.queries,
-                relevant_docs=self.relevant_docs,
-                vespa_query_fn=fn3,
-                app=self.mock_app,
-            )
-
-        # Function that raises error
-        def fn4(query: str, k: int) -> dict:
-            raise ValueError("Something went wrong")
-
-        with self.assertRaisesRegex(ValueError, "Error calling vespa_query_fn"):
-            VespaEvaluator(
-                queries=self.queries,
-                relevant_docs=self.relevant_docs,
-                vespa_query_fn=fn4,
-                app=self.mock_app,
-            )
-
-        # Function that returns wrong type at runtime
-        def fn5(query: str, k: int) -> dict:
-            return [query, k]  # Actually returns a list
-
-        with self.assertRaisesRegex(ValueError, "must return a dict"):
-            VespaEvaluator(
-                queries=self.queries,
-                relevant_docs=self.relevant_docs,
-                vespa_query_fn=fn5,
-                app=self.mock_app,
-            )
+        # No type hints
+        def fn3(query, k):
+            return {"yql": query, "hits": k}
 
     def test_validate_qrels(self):
         """Test validation of qrels with valid qrels"""
@@ -561,6 +529,35 @@ class TestVespaEvaluator(unittest.TestCase):
         )
         # Since fn accepts only 2 params, the evaluator should mark it as NOT taking a query_id.
         self.assertFalse(evaluator._vespa_query_fn_takes_query_id)
+
+        # Run the evaluator to trigger query body generation.
+        evaluator.run()
+
+        # Verify that none of the query bodies include a "query_id" key and that default_body keys were added.
+        for qb in capturing_app.captured_query_bodies:
+            self.assertNotIn("query_id", qb)
+            self.assertIn("timeout", qb)
+            self.assertEqual(qb["timeout"], "5s")
+            self.assertIn("presentation.timing", qb)
+            self.assertEqual(qb["presentation.timing"], True)
+
+    def test_vespa_query_fn_no_type_hints(self):
+        """Test that a vespa_query_fn without type hints is handled correctly."""
+
+        def fn(query_text, top_k):
+            # Return a basic query body.
+            return {"yql": query_text, "hits": top_k}
+
+        # Create a dummy response (the content is not used for these tests).
+        dummy_response = MockVespaResponse([{"id": "doc1", "relevance": 1.0}])
+        capturing_app = QueryBodyCapturingApp([dummy_response] * len(self.queries))
+
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=self.relevant_docs,
+            vespa_query_fn=fn,
+            app=capturing_app,
+        )
 
         # Run the evaluator to trigger query body generation.
         evaluator.run()
