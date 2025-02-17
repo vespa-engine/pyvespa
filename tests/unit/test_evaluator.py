@@ -1,7 +1,7 @@
 import unittest
 from vespa.evaluation import VespaEvaluator
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 
 @dataclass
@@ -16,6 +16,18 @@ class MockVespaResponse:
     @property
     def status_code(self):
         return 200
+
+
+class QueryBodyCapturingApp:
+    """Mock Vespa app that captures query bodies passed to query_many."""
+
+    def __init__(self, responses):
+        self.responses = responses
+        self.captured_query_bodies = None
+
+    def query_many(self, query_bodies):
+        self.captured_query_bodies = query_bodies
+        return self.responses
 
 
 class TestVespaEvaluator(unittest.TestCase):
@@ -293,7 +305,7 @@ class TestVespaEvaluator(unittest.TestCase):
         """Test validation of vespa_query_fn with invalid functions"""
 
         # Not a callable
-        with self.assertRaisesRegex(ValueError, "must be a callable"):
+        with self.assertRaisesRegex(ValueError, "must be callable"):
             VespaEvaluator(
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
@@ -305,7 +317,7 @@ class TestVespaEvaluator(unittest.TestCase):
         def fn1(query: str) -> dict:
             return {"yql": query}
 
-        with self.assertRaisesRegex(TypeError, "must take exactly 2 parameters"):
+        with self.assertRaisesRegex(TypeError, "must take 2 or 3 parameters"):
             VespaEvaluator(
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
@@ -505,7 +517,7 @@ class TestVespaEvaluator(unittest.TestCase):
     def test_vespa_query_fn_with_query_id(self):
         """Test that vespa_query_fn accepting query_id receives it as the third argument."""
 
-        def fn(query_text: str, top_k: int, query_id: Optional[str]) -> dict:
+        def fn(query_text: str, top_k: int, query_id: str) -> dict:
             return {
                 "yql": f'select * from sources * where text contains "{query_text}" and id="{query_id}";',
                 "hits": top_k,
@@ -529,6 +541,88 @@ class TestVespaEvaluator(unittest.TestCase):
         for qid, qb in zip(evaluator.queries_ids, query_bodies):
             self.assertIn("query_id", qb)
             self.assertEqual(qb["query_id"], qid)
+
+    def test_vespa_query_fn_without_query_id(self):
+        """Test that a vespa_query_fn accepting only 2 parameters does not receive a query_id."""
+
+        def fn(query_text: str, top_k: int) -> dict:
+            # Return a basic query body.
+            return {"yql": query_text, "hits": top_k}
+
+        # Create a dummy response (the content is not used for these tests).
+        dummy_response = MockVespaResponse([{"id": "doc1", "relevance": 1.0}])
+        capturing_app = QueryBodyCapturingApp([dummy_response] * len(self.queries))
+
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=self.relevant_docs,
+            vespa_query_fn=fn,
+            app=capturing_app,
+        )
+        # Since fn accepts only 2 params, the evaluator should mark it as NOT taking a query_id.
+        self.assertFalse(evaluator._vespa_query_fn_takes_query_id)
+
+        # Run the evaluator to trigger query body generation.
+        evaluator.run()
+
+        # Verify that none of the query bodies include a "query_id" key and that default_body keys were added.
+        for qb in capturing_app.captured_query_bodies:
+            self.assertNotIn("query_id", qb)
+            self.assertIn("timeout", qb)
+            self.assertEqual(qb["timeout"], "5s")
+            self.assertIn("presentation.timing", qb)
+            self.assertEqual(qb["presentation.timing"], True)
+
+    def test_vespa_query_fn_default_body_override(self):
+        """Test that keys from default_body override any conflicting keys returned by vespa_query_fn."""
+
+        def fn_override(query_text: str, top_k: int) -> dict:
+            # Return a query body that has conflicting values for default keys.
+            return {
+                "yql": query_text,
+                "hits": top_k,
+                "timeout": "10s",
+                "presentation.timing": False,
+            }
+
+        dummy_response = MockVespaResponse([{"id": "doc1", "relevance": 1.0}])
+        capturing_app = QueryBodyCapturingApp([dummy_response] * len(self.queries))
+
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=self.relevant_docs,
+            vespa_query_fn=fn_override,
+            app=capturing_app,
+        )
+        evaluator.run()
+
+        # After evaluator.run(), the default body should override the keys from fn_override.
+        for qb in capturing_app.captured_query_bodies:
+            self.assertEqual(qb["timeout"], "5s")
+            self.assertEqual(qb["presentation.timing"], True)
+
+    def test_vespa_query_fn_preserves_extra_keys(self):
+        """Test that extra keys returned by vespa_query_fn are preserved after merging with default_body."""
+
+        def fn_extra(query_text: str, top_k: int) -> dict:
+            # Return a query body that includes an extra key.
+            return {"yql": query_text, "hits": top_k, "extra": "value"}
+
+        dummy_response = MockVespaResponse([{"id": "doc1", "relevance": 1.0}])
+        capturing_app = QueryBodyCapturingApp([dummy_response] * len(self.queries))
+
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=self.relevant_docs,
+            vespa_query_fn=fn_extra,
+            app=capturing_app,
+        )
+        evaluator.run()
+
+        # Verify that the extra key is still present in each query body.
+        for qb in capturing_app.captured_query_bodies:
+            self.assertIn("extra", qb)
+            self.assertEqual(qb["extra"], "value")
 
 
 if __name__ == "__main__":
