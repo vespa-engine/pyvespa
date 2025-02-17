@@ -123,6 +123,7 @@ class VespaEvaluator:
         vespa_query_fn: Callable[[str, int, Optional[str]], dict],
         app: Vespa,
         name: str = "",
+        id_field: str = "id",
         accuracy_at_k: List[int] = [1, 3, 5, 10],
         precision_recall_at_k: List[int] = [1, 3, 5, 10],
         mrr_at_k: List[int] = [10],
@@ -137,6 +138,7 @@ class VespaEvaluator:
         :param vespa_query_fn: Callable, with signature: my_func(query:str, top_k: int)-> dict: Given a query string and top_k, returns a Vespa query body (dict).
         :param app: A `vespa.application.Vespa` instance.
         :param name: A name or tag for this evaluation run.
+        :param id_field: The field name in Vespa that contains the document ID (If set to 'vespa_internal_id' will try to use vespa document id, but this may fail in some cases, see https://docs.vespa.ai/en/documents.html#docid-in-results). Default is "id".
         :param accuracy_at_k: list of k-values for Accuracy@k
         :param precision_recall_at_k: list of k-values for Precision@k and Recall@k
         :param mrr_at_k: list of k-values for MRR@k
@@ -384,8 +386,16 @@ class VespaEvaluator:
             hits = resp.hits or []
             top_hit_list = []
             for hit in hits[:max_k]:
-                # doc_id extraction logic
-                doc_id = str(hit.get("id", "").split("::")[-1])
+                if self.id == "vespa_internal_id":
+                    full_id = hit.get("id", "")
+                    if "::" not in full_id:
+                        raise ValueError(
+                            f"Could not extract doc_id from hit: {hit}. See https://docs.vespa.ai/en/documents.html#docid-in-results"
+                        )
+                    doc_id = hit.get("id", "").split("::")[-1]
+                else:
+                    # doc_id extraction logic
+                    doc_id = str(hit.get("fields", {}).get(self.id_field, ""))
                 if not doc_id:
                     raise ValueError(f"Could not extract doc_id from hit: {hit}")
                 score = float(hit.get("relevance", float("nan")))
