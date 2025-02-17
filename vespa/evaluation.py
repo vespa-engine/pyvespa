@@ -78,6 +78,13 @@ class VespaEvaluator:
         #     "q2": "d101",
         #     # ...
         # }
+        # Or, relevant_docs can be a dict of query_id => map of doc_id => relevance
+        # relevant_docs = {
+        #     "q1": {"d12": 1, "d99": 0.1},
+        #     "q2": {"d101": 0.01},
+        #     # ...
+        # Note that for non-binary relevance, the relevance values should be in [0, 1], and that
+        # only the nDCG metric will be computed.
 
         def my_vespa_query_fn(query_text: str, top_k: int) -> dict:
             return {
@@ -110,7 +117,9 @@ class VespaEvaluator:
     def __init__(
         self,
         queries: Dict[str, str],
-        relevant_docs: Union[Dict[str, Set[str]], Dict[str, str]],
+        relevant_docs: Union[
+            Dict[str, Union[Set[str], Dict[str, float]]], Dict[str, str]
+        ],
         vespa_query_fn: Callable[[str, int], dict],
         app: Vespa,
         name: str = "",
@@ -201,17 +210,17 @@ class VespaEvaluator:
                 raise ValueError("Each query must be a string.", qid, query_text)
 
     def _validate_qrels(
-        self, qrels: Union[Dict[str, Set[str]], Dict[str, str]]
-    ) -> Dict[str, Set[str]]:
+        self, qrels: Union[Dict[str, Union[Set[str], Dict[str, float]]], Dict[str, str]]
+    ) -> Dict[str, Union[Set[str], Dict[str, float]]]:
         if not isinstance(qrels, dict):
             raise ValueError(
-                "qrels must be a dict of query_id => set of relevant doc_ids"
+                "qrels must be a dict of query_id => set of relevant doc_ids or a dict of query_id => dict of doc_id => relevance"
             )
-        new_qrels: Dict[str, Set[str]] = {}
+        new_qrels: Dict[str, Union[Set[str], Dict[str, float]]] = {}
         for qid, relevant_docs in qrels.items():
             if not isinstance(qid, str):
                 raise ValueError(
-                    "Each qrel must be a string query_id and a set of doc_ids.",
+                    "Each qrel must be a string query_id and a set/dict of doc_ids.",
                     qid,
                     relevant_docs,
                 )
@@ -219,9 +228,22 @@ class VespaEvaluator:
                 new_qrels[qid] = {relevant_docs}
             elif isinstance(relevant_docs, set):
                 new_qrels[qid] = relevant_docs
+            elif isinstance(relevant_docs, dict):
+                for doc_id, relevance in relevant_docs.items():
+                    if not isinstance(doc_id, str) or not isinstance(
+                        relevance, (int, float)
+                    ):
+                        raise ValueError(
+                            f"Relevance scores for query {qid} must be a dict of string doc_id => numeric relevance."
+                        )
+                    if not 0 <= relevance <= 1:
+                        raise ValueError(
+                            f"Relevance scores for query {qid} must be between 0 and 1."
+                        )
+                new_qrels[qid] = relevant_docs
             else:
                 raise ValueError(
-                    f"Relevant docs for query {qid} must be a set or string."
+                    f"Relevant docs for query {qid} must be a set, string, or dict."
                 )
         return new_qrels
 
@@ -431,15 +453,27 @@ class VespaEvaluator:
                 ndcg_at_k_list[k_val].append(ndcg_val)
 
             # MAP@K
+            # MAP@K
             for k_val in self.map_at_k:
                 num_correct = 0
                 sum_precisions = 0.0
                 top_k_hits = top_hits[:k_val]
                 for rank, (doc_id, _) in enumerate(top_k_hits, start=1):
-                    if doc_id in relevant:
+                    if isinstance(relevant, dict):
+                        if doc_id in relevant:
+                            num_correct += 1
+                            sum_precisions += (
+                                relevant[doc_id] / rank
+                            )  # Use relevance score
+                    elif doc_id in relevant:
                         num_correct += 1
                         sum_precisions += num_correct / rank
-                denom = min(k_val, len(relevant))
+                denom = min(
+                    k_val,
+                    len(relevant)
+                    if isinstance(relevant, set)
+                    else len(relevant.keys()),
+                )
                 avg_precision = sum_precisions / denom if denom > 0 else 0.0
                 map_at_k_list[k_val].append(avg_precision)
 
