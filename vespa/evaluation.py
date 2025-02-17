@@ -147,6 +147,7 @@ class VespaEvaluator:
         :param write_csv: If True, writes results to CSV
         :param csv_dir: Path in which to write the CSV file (default: current working dir).
         """
+        self.id_field = id_field
         self._validate_queries(queries)
         self._validate_vespa_query_fn(vespa_query_fn)
         relevant_docs = self._validate_qrels(relevant_docs)
@@ -386,7 +387,7 @@ class VespaEvaluator:
             hits = resp.hits or []
             top_hit_list = []
             for hit in hits[:max_k]:
-                if self.id == "vespa_internal_id":
+                if self.id_field == "vespa_internal_id":
                     full_id = hit.get("id", "")
                     if "::" not in full_id:
                         raise ValueError(
