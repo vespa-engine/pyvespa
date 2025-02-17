@@ -1,7 +1,7 @@
 import unittest
 from vespa.evaluation import VespaEvaluator
 from dataclasses import dataclass
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 
 @dataclass
@@ -510,6 +510,34 @@ class TestVespaEvaluator(unittest.TestCase):
         )
         self.assertEqual(len(evaluator.queries_ids), 4)
         self.assertIn("q4", evaluator.queries_ids)
+
+    def test_vespa_query_fn_with_query_id(self):
+        """Test that vespa_query_fn accepting query_id receives it as the third argument."""
+
+        def fn(query_text: str, top_k: int, query_id: Optional[str]) -> dict:
+            return {
+                "yql": f'select * from sources * where text contains "{query_text}" and id="{query_id}";',
+                "hits": top_k,
+                "query_id": query_id,  # Not for passing to Vespa, but for testing
+            }
+
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=self.relevant_docs,
+            vespa_query_fn=fn,
+            app=self.mock_app,
+        )
+        self.assertTrue(evaluator._vespa_query_fn_takes_query_id)
+        # Build query bodies and check that query_id is passed correctly.
+        query_bodies = []
+        max_k = evaluator._find_max_k()
+        for qid, query_text in zip(evaluator.queries_ids, evaluator.queries):
+            query_body = evaluator.vespa_query_fn(query_text, max_k, qid)
+            query_bodies.append(query_body)
+
+        for qid, qb in zip(evaluator.queries_ids, query_bodies):
+            self.assertIn("query_id", qb)
+            self.assertEqual(qb["query_id"], qid)
 
 
 if __name__ == "__main__":
