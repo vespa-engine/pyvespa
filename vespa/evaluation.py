@@ -305,19 +305,9 @@ class VespaEvaluator:
                 raise TypeError(
                     "Parameter 'query_id' must be of type str or Optional[str]"
                 )
-
-        # Test the function with dummy inputs to ensure it returns a dict.
-        try:
-            if len(params) == 2:
-                result = fn("test query", 10)
-                self._vespa_query_fn_takes_query_id = False
-            else:
-                result = fn("test query", 10, "test_id")
-                self._vespa_query_fn_takes_query_id = True
-            if not isinstance(result, dict):
-                raise TypeError("vespa_query_fn must return a dict")
-        except Exception as e:
-            raise ValueError("Error calling vespa_query_fn with test inputs: " + str(e))
+            self._vespa_query_fn_takes_query_id = True
+        else:
+            self._vespa_query_fn_takes_query_id = False
 
     def _find_max_k(self):
         """
