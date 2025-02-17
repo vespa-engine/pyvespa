@@ -204,7 +204,7 @@ class VespaEvaluator:
         if not isinstance(queries, dict):
             raise ValueError("queries must be a dict of query_id => query_text")
         for qid, query_text in queries.items():
-            if not isinstance(qid, str) or not isinstance(query_text, str):
+            if not isinstance(qid, Union[str, int]) or not isinstance(query_text, str):
                 raise ValueError("Each query must be a string.", qid, query_text)
 
     def _validate_qrels(
