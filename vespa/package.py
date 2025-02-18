@@ -984,7 +984,11 @@ class SecondPhaseRanking(object):
 
 
 class GlobalPhaseRanking(object):
-    def __init__(self, expression: str, rerank_count: int = 100) -> None:
+    def __init__(
+            self,
+            expression: str,
+            rerank_count: int = 100,
+            rank_score_drop_limit: Optional[float] = None) -> None:
         r"""
         Create a Vespa global phase ranking configuration.
 
@@ -998,10 +1002,15 @@ class GlobalPhaseRanking(object):
         :param rerank_count: Specifies the number of hits to be reranked in the second phase. Default value is 100.
 
         >>> GlobalPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10)
-        GlobalPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10)
+        GlobalPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10, None)
+
+        >>> GlobalPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10, rank_score_drop_limit=5)
+        GlobalPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10, į)
         """
         self.expression = expression
         self.rerank_count = rerank_count
+        self.rank_score_drop_limit = rank_score_drop_limit
+
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
@@ -1009,13 +1018,15 @@ class GlobalPhaseRanking(object):
         return (
             self.expression == other.expression
             and self.rerank_count == other.rerank_count
+            and self.rank_score_drop_limit == other.rank_score_drop_limit
         )
 
     def __repr__(self) -> str:
-        return "{0}({1}, {2})".format(
+        return "{0}({1}, {2}, {3})".format(
             self.__class__.__name__,
             repr(self.expression),
             repr(self.rerank_count),
+            repr(self.rank_score_drop_limit),
         )
 
 
