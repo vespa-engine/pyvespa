@@ -123,7 +123,7 @@ class VespaEvaluator:
         vespa_query_fn: Callable[[str, int, Optional[str]], dict],
         app: Vespa,
         name: str = "",
-        id_field: str = "id",
+        id_field: str = "",
         accuracy_at_k: List[int] = [1, 3, 5, 10],
         precision_recall_at_k: List[int] = [1, 3, 5, 10],
         mrr_at_k: List[int] = [10],
@@ -138,7 +138,7 @@ class VespaEvaluator:
         :param vespa_query_fn: Callable, with signature: my_func(query:str, top_k: int)-> dict: Given a query string and top_k, returns a Vespa query body (dict).
         :param app: A `vespa.application.Vespa` instance.
         :param name: A name or tag for this evaluation run.
-        :param id_field: The field name in Vespa that contains the document ID (If set to 'vespa_internal_id' will try to use vespa document id, but this may fail in some cases, see https://docs.vespa.ai/en/documents.html#docid-in-results). Default is "id".
+        :param id_field: Specify the field name in Vespa that contains the document ID (If unset, will try to use vespa internal document id, but this may fail in some cases, see https://docs.vespa.ai/en/documents.html#docid-in-results).
         :param accuracy_at_k: list of k-values for Accuracy@k
         :param precision_recall_at_k: list of k-values for Precision@k and Recall@k
         :param mrr_at_k: list of k-values for MRR@k
@@ -387,16 +387,19 @@ class VespaEvaluator:
             hits = resp.hits or []
             top_hit_list = []
             for hit in hits[:max_k]:
-                if self.id_field == "vespa_internal_id":
-                    full_id = hit.get("id", "")
-                    if "::" not in full_id:
-                        raise ValueError(
-                            f"Could not extract doc_id from hit: {hit}. See https://docs.vespa.ai/en/documents.html#docid-in-results"
-                        )
-                    doc_id = hit.get("id", "").split("::")[-1]
-                else:
-                    # doc_id extraction logic
-                    doc_id = str(hit.get("fields", {}).get(self.id_field, ""))
+                try:
+                    if self.id_field == "":
+                        full_id = hit.get("id", "")
+                        if "::" not in full_id:
+                            doc_id = str(hit.get("fields", {}).get("id", ""))
+                        doc_id = hit.get("id", "").split("::")[-1]
+                    else:
+                        # doc_id extraction logic
+                        doc_id = str(hit.get("fields", {}).get(self.id_field, ""))
+                except Exception as e:
+                    raise ValueError(
+                        f"Could not extract user-specified docid using vespa internal id or 'id' field: {hit}. Hint: Set a specific field field containing document id, using 'id_field'. See https://docs.vespa.ai/en/documents.html#docid-in-results"
+                    ) from e
                 if not doc_id:
                     raise ValueError(f"Could not extract doc_id from hit: {hit}")
                 score = float(hit.get("relevance", float("nan")))
@@ -437,6 +440,30 @@ class VespaEvaluator:
 
     def _compute_metrics(self, queries_result_list):
         num_queries = len(queries_result_list)
+        # Infer graded relevance on the fly instead of storing as a class variable.
+        graded = bool(self.relevant_docs) and isinstance(
+            next(iter(self.relevant_docs.values())), dict
+        )
+
+        if graded:
+            ndcg_at_k_list = {k: [] for k in self.ndcg_at_k}
+            for query_idx, top_hits in enumerate(queries_result_list):
+                qid = self.queries_ids[query_idx]
+                # For graded relevance, 'relevant_docs' is a dict: doc_id -> grade
+                relevant: Dict[str, float] = self.relevant_docs[qid]
+                for k_val in self.ndcg_at_k:
+                    predicted_relevance = [
+                        relevant.get(doc_id, 0.0) for doc_id, _ in top_hits[:k_val]
+                    ]
+                    dcg_pred = self._dcg_at_k(predicted_relevance, k_val)
+                    # Ideal ranking is the sorted graded scores in descending order
+                    ideal_relevances = sorted(relevant.values(), reverse=True)[:k_val]
+                    dcg_true = self._dcg_at_k(ideal_relevances, k_val)
+                    ndcg_val = dcg_pred / dcg_true if dcg_true > 0 else 0.0
+                    ndcg_at_k_list[k_val].append(ndcg_val)
+            metrics = {f"ndcg@{k}": mean(ndcg_at_k_list[k]) for k in self.ndcg_at_k}
+            return metrics
+
         num_hits_at_k = {k: 0 for k in self.accuracy_at_k}
         precision_at_k_list = {k: [] for k in self.precision_recall_at_k}
         recall_at_k_list = {k: [] for k in self.precision_recall_at_k}
