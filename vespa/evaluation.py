@@ -134,7 +134,7 @@ class VespaEvaluator:
     ):
         """
         :param queries: Dict of query_id => query text
-        :param relevant_docs: Dict of query_id => set of relevant doc_ids (the user-specified part of `id:<namespace>:<document-type>:<key/value-pair>:<user-specified>` in Vespa, see https://docs.vespa.ai/en/documents.html#document-ids)
+        :param relevant_docs: Dict of query_id => set of relevant doc_ids or query_id => dict of doc_id => relevance. See example usage.
         :param vespa_query_fn: Callable, with signature: my_func(query:str, top_k: int)-> dict: Given a query string and top_k, returns a Vespa query body (dict).
         :param app: A `vespa.application.Vespa` instance.
         :param name: A name or tag for this evaluation run.
@@ -387,19 +387,19 @@ class VespaEvaluator:
             hits = resp.hits or []
             top_hit_list = []
             for hit in hits[:max_k]:
-                try:
-                    if self.id_field == "":
-                        full_id = hit.get("id", "")
-                        if "::" not in full_id:
-                            doc_id = str(hit.get("fields", {}).get("id", ""))
-                        doc_id = hit.get("id", "").split("::")[-1]
+                # May be a Vespa internal id.
+                if self.id_field == "":
+                    full_id = hit.get("id", "")
+                    if (
+                        "::" not in full_id
+                    ):  # vespa internal id - eg. index:content/0/35c332d6bc52ae1f8378f7b3
+                        # Trying 'id' field as a fallback
+                        doc_id = str(hit.get("fields", {}).get("id", ""))
                     else:
-                        # doc_id extraction logic
-                        doc_id = str(hit.get("fields", {}).get(self.id_field, ""))
-                except Exception as e:
-                    raise ValueError(
-                        f"Could not extract user-specified docid using vespa internal id or 'id' field: {hit}. Hint: Set a specific field field containing document id, using 'id_field'. See https://docs.vespa.ai/en/documents.html#docid-in-results"
-                    ) from e
+                        doc_id = full_id.split("::")[-1]
+                else:
+                    # doc_id extraction logic
+                    doc_id = str(hit.get("fields", {}).get(self.id_field, ""))
                 if not doc_id:
                     raise ValueError(f"Could not extract doc_id from hit: {hit}")
                 score = float(hit.get("relevance", float("nan")))
@@ -408,7 +408,6 @@ class VespaEvaluator:
                 top_hit_list.append((doc_id, score))
 
             queries_result_list.append(top_hit_list)
-
         metrics = self._compute_metrics(queries_result_list)
         searchtime_stats = self._calculate_searchtime_stats()
         metrics.update(searchtime_stats)
