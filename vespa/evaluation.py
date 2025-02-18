@@ -489,7 +489,6 @@ class VespaEvaluator:
                 ndcg_at_k_list[k_val].append(ndcg_val)
 
             # MAP@K
-            # MAP@K
             for k_val in self.map_at_k:
                 num_correct = 0
                 sum_precisions = 0.0
