@@ -10,8 +10,15 @@ class MockVespaResponse:
 
     hits: List[Dict[str, Any]]
 
+    def add_namespace_to_hit_ids(self, hits) -> str:
+        new_hits = []
+        for hit in hits:
+            hit["id"] = f"id:mynamespace:mydoctype::{hit['id']}"
+            new_hits.append(hit)
+        return new_hits
+
     def get_json(self):
-        return {"root": {"children": self.hits}}
+        return {"root": {"children": self.add_namespace_to_hit_ids(self.hits)}}
 
     @property
     def status_code(self):
@@ -275,6 +282,99 @@ class TestVespaEvaluator(unittest.TestCase):
         # Average of all three queries: (0.7556 + 0.5 + 1) / 3 -> 2.2556 / 3 -> 0.7519
         expected_map = 0.7519  # Approximate value
         self.assertAlmostEqual(results["map@5"], expected_map, places=4)
+
+        def test_graded_ndcg_metric(self):
+            """Test graded NDCG@k calculations"""
+            queries = {"535": "06 bmw 325i radio oem not navigation system"}
+            relevant_docs = {
+                "535": {
+                    "B08VSJGP1N": 0.01,
+                    "B08VJ66CNL": 0.01,
+                    "B08SHMLP5S": 0.0,
+                    "B08QGZMCYQ": 0.0,
+                    "B08PB9TTKT": 1.0,
+                    "B08NVQ8MZX": 0.01,
+                    "B084TV3C1B": 0.01,
+                    "B0742BZXC2": 1.0,
+                    "B00DHUA9VA": 0.0,
+                    "B00B4PJC9K": 0.0,
+                    "B0072LFB68": 0.01,
+                    "B0051GN8JI": 0.01,
+                    "B000J1HDWI": 0.0,
+                    "B0007KPS3C": 0.0,
+                    "B01M0SFMIH": 1.0,
+                    "B0007KPRIS": 0.0,
+                }
+            }
+            # B08PB9TTKT 1 0.463
+            # B00B4PJC9K 2 0.431
+            # B0051GN8JI 3 0.419
+            # B084TV3C1B 4 0.417
+            # B08NVQ8MZX 5 0.41
+            # B00DHUA9VA 6 0.415
+            # B08SHMLP5S 7 0.415
+            # B08VSJGP1N 8 0.41
+            # B08QGZMCYQ 9 0.411
+            # B0007KPRIS 10 0.40
+            # B08VJ66CNL 11 0.40
+            # B000J1HDWI 12 0.40
+            # B0007KPS3C 13 0.39
+            # B0072LFB68 14 0.39
+            # B01M0SFMIH 15 0.39
+            # B0742BZXC2 16 0.37
+
+            # Mock Vespa responses - must match doc_ids in relevant_docs
+            q1_response = MockVespaResponse(
+                [
+                    {"id": "B08PB9TTKT", "relevance": 0.463},
+                    {"id": "B00B4PJC9K", "relevance": 0.431},
+                    {"id": "B0051GN8JI", "relevance": 0.419},
+                    {"id": "B084TV3C1B", "relevance": 0.417},
+                    {"id": "B08NVQ8MZX", "relevance": 0.41},
+                    {"id": "B00DHUA9VA", "relevance": 0.415},
+                    {"id": "B08SHMLP5S", "relevance": 0.415},
+                    {"id": "B08VSJGP1N", "relevance": 0.41},
+                    {"id": "B08QGZMCYQ", "relevance": 0.411},
+                    {"id": "B0007KPRIS", "relevance": 0.40},
+                    {"id": "B08VJ66CNL", "relevance": 0.40},
+                    {"id": "B000J1HDWI", "relevance": 0.40},
+                    {"id": "B0007KPS3C", "relevance": 0.39},
+                    {"id": "B0072LFB68", "relevance": 0.39},
+                    {"id": "B01M0SFMIH", "relevance": 0.39},
+                    {"id": "B0742BZXC2", "relevance": 0.37},
+                ]
+            )
+
+            class MockVespaApp:
+                def __init__(self, mock_responses):
+                    self.mock_responses = mock_responses
+                    self.current_query = 0
+
+                def query_many(self, queries):
+                    return self.mock_responses
+
+            mock_app = MockVespaApp([q1_response])
+
+            def mock_vespa_query_fn(query_text: str, top_k: int) -> dict:
+                return {
+                    "yql": f'select * from sources * where text contains "{query_text}";',
+                    "hits": top_k,
+                }
+
+            evaluator = VespaEvaluator(
+                queries=queries,
+                relevant_docs=relevant_docs,
+                vespa_query_fn=mock_vespa_query_fn,
+                app=mock_app,
+                accuracy_at_k=[],
+                precision_recall_at_k=[],
+                mrr_at_k=[],
+                ndcg_at_k=[10],
+                map_at_k=[],
+            )
+
+            results = evaluator.run()
+            self.assertAlmostEqual(results["ndcg@10"], 0.8208, places=4)
 
     def test_vespa_query_fn_validation(self):
         """Test validation of vespa_query_fn with valid functions"""
