@@ -449,7 +449,7 @@ class VespaEvaluator:
             ndcg_at_k_list = {k: [] for k in self.ndcg_at_k}
             for query_idx, top_hits in enumerate(queries_result_list):
                 qid = self.queries_ids[query_idx]
-                # For graded relevance, 'relevant_docs' is a dict: doc_id -> grade
+                # For graded relevance, 'relevant_docs' is a list of dicts: doc_id -> grade
                 relevant: Dict[str, float] = self.relevant_docs[qid]
                 for k_val in self.ndcg_at_k:
                     predicted_relevance = [
