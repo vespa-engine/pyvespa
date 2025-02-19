@@ -1005,7 +1005,7 @@ class GlobalPhaseRanking(object):
         GlobalPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10, None)
 
         >>> GlobalPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10, rank_score_drop_limit=5)
-        GlobalPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10, į)
+        GlobalPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10, 5)
         """
         self.expression = expression
         self.rerank_count = rerank_count
