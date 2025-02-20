@@ -534,7 +534,7 @@ class TestApplicationPackage(unittest.TestCase):
                         rerank_count=100, expression="bm25(title)", rank_score_drop_limit=0,
                     ),
                     global_phase=GlobalPhaseRanking(
-                        rerank_count=10, expression="sum(onnx(bert).logits{d0:0,d1:0})"
+                        rerank_count=10, expression="sum(onnx(bert).logits{d0:0,d1:0})", rank_score_drop_limit=0
                     ),
                     inherits="default",
                     constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
