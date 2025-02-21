@@ -12,7 +12,7 @@ readme = "README.md"
 keywords = ["vespa", "search engine", "data science"]
 classifiers = ["License :: OSI Approved :: Apache Software License"]
 dependencies = [
-    "requests",
+    "requests<=2.31.0",
     "requests_toolbelt",
     "docker",
     "jinja2",
@@ -102,7 +102,7 @@ dev = [
 ]
 
 [tool.setuptools]
-package-dir = {vespa = "vespa"}
+package-dir = { vespa = "vespa" }
 
 [tool.ruff]
 exclude = [
