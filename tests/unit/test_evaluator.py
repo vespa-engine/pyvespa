@@ -1,7 +1,10 @@
 import unittest
+import pandas as pd
 from vespa.evaluation import VespaEvaluator
 from dataclasses import dataclass
 from typing import List, Dict, Any
+import tempfile
+import os
 
 
 @dataclass
@@ -717,6 +720,149 @@ class TestVespaEvaluator(unittest.TestCase):
         for qb in capturing_app.captured_query_bodies:
             self.assertIn("extra", qb)
             self.assertEqual(qb["extra"], "value")
+
+    def test_file_writing_with_explicit_dirs(self):
+        """Test that when csv_dir and run_file_dir are specified the files are written in those directories."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            evaluator = VespaEvaluator(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                name="explicit",
+                write_csv=True,
+                csv_dir=tmp_dir,
+                write_run_file=True,
+                run_file_dir=tmp_dir,
+            )
+            evaluator.run()
+
+            # The CSV file name is defined by evaluator.csv_file,
+            # and should be placed in the directory given by csv_dir.
+            csv_path = os.path.join(tmp_dir, evaluator.csv_file)
+            self.assertTrue(
+                os.path.exists(csv_path),
+                "CSV file was not created in the explicit csv_dir",
+            )
+
+            # _write_run_file uses csv_dir (if provided) to write the run file
+            run_file_path = os.path.join(tmp_dir, evaluator.run_file)
+            self.assertTrue(
+                os.path.exists(run_file_path),
+                "Run file was not created in the explicit csv_dir",
+            )
+
+    def test_file_writing_default_paths(self):
+        """
+        Test that when no csv_dir or run_file_dir is provided the files are written in the current working directory.
+        """
+        cur_dir = os.getcwd()
+        try:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                os.chdir(tmp_dir)
+                evaluator = VespaEvaluator(
+                    queries=self.queries,
+                    relevant_docs=self.relevant_docs,
+                    vespa_query_fn=self.vespa_query_fn,
+                    app=self.mock_app,
+                    name="default",
+                    write_csv=True,
+                    write_run_file=True,
+                    map_at_k=[5],
+                    ndcg_at_k=[5],
+                    mrr_at_k=[5],
+                    precision_recall_at_k=[5],
+                    accuracy_at_k=[5],
+                )
+                metrics = evaluator.run()
+
+                # CSV file should be created in the current working directory (now tmp_dir)
+                csv_file = os.path.join(tmp_dir, evaluator.csv_file)
+                self.assertTrue(
+                    os.path.exists(csv_file),
+                    "CSV file was not created in the default directory",
+                )
+                # Assert same content as in metrics
+                df_results = pd.read_csv(csv_file)
+                # Assert correct metrics like in previous test methods
+                self.assertAlmostEqual(
+                    df_results["map@5"].values[0], metrics["map@5"], places=4
+                )
+                self.assertAlmostEqual(
+                    df_results["ndcg@5"].values[0], metrics["ndcg@5"], places=4
+                )
+                self.assertAlmostEqual(
+                    df_results["mrr@5"].values[0], metrics["mrr@5"], places=4
+                )
+                self.assertAlmostEqual(
+                    df_results["precision@5"].values[0],
+                    metrics["precision@5"],
+                    places=4,
+                )
+                self.assertAlmostEqual(
+                    df_results["recall@5"].values[0], metrics["recall@5"], places=4
+                )
+                # Run file
+                run_file = os.path.join(tmp_dir, evaluator.run_file)
+                self.assertTrue(
+                    os.path.exists(run_file),
+                    "Run file was not created in the default directory",
+                )
+                # Parse run file
+                df_run = pd.read_csv(run_file, sep=" ")
+                print(df_run)
+                # Assert correct contents of run file
+                # query_id iteration  product_idposition  score    runid
+                # q1     Q0      doc1                   1   0.90  default
+                # q1     Q0     doc10                   2   0.80  default
+                # q1     Q0      doc2                   3   0.70  default
+                # q1     Q0     doc11                   4   0.60  default
+                # q1     Q0      doc3                   5   0.50  default
+                # q2     Q0     doc12                   1   0.95  default
+                # q2     Q0      doc4                   2   0.85  default
+                # q2     Q0     doc13                   3   0.75  default
+                # q2     Q0      doc5                   4   0.65  default
+                # q2     Q0     doc14                   5   0.55  default
+                # q3     Q0      doc6                   1   0.90  default
+                # q3     Q0     doc16                   2   0.80  default
+                # q3     Q0     doc17                   3   0.70  default
+                # q3     Q0     doc18                   4   0.60  default
+                # q3     Q0     doc19                   5   0.50  default
+                self.assertEqual(df_run.shape[0], 15)
+                self.assertEqual(df_run.shape[1], 6)
+                self.assertEqual(
+                    df_run.columns.tolist(),
+                    [
+                        "query_id",
+                        "iteration",
+                        "product_id",
+                        "position",
+                        "score",
+                        "runid",
+                    ],
+                )
+                self.assertEqual(
+                    df_run["score"].values.tolist(),
+                    [
+                        0.9,
+                        0.8,
+                        0.7,
+                        0.6,
+                        0.5,
+                        0.95,
+                        0.85,
+                        0.75,
+                        0.65,
+                        0.55,
+                        0.9,
+                        0.8,
+                        0.7,
+                        0.6,
+                        0.5,
+                    ],
+                )
+        finally:
+            os.chdir(cur_dir)
 
 
 if __name__ == "__main__":
