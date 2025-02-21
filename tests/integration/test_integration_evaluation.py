@@ -201,6 +201,8 @@ class TestSemanticIntegration(unittest.TestCase):
             vespa_query_fn=semantic_query_fn,
             app=self.app,
             name="semantic",
+            write_csv=True,
+            write_run_file=True,
         )
 
         # Evaluate
