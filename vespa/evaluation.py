@@ -4,6 +4,7 @@ import csv
 import logging
 from typing import Dict, Set, Callable, List, Optional, Union
 import math
+from datetime import datetime
 from vespa.application import Vespa
 from vespa.io import VespaQueryResponse
 
@@ -131,6 +132,9 @@ class VespaEvaluator:
         map_at_k: List[int] = [100],
         write_csv: bool = False,
         csv_dir: Optional[str] = None,
+        write_run_file: bool = False,
+        run_file_dir: Optional[str] = None,
+        iteration: str = "Q0",
     ):
         """
         :param queries: Dict of query_id => query text
@@ -144,8 +148,11 @@ class VespaEvaluator:
         :param mrr_at_k: list of k-values for MRR@k
         :param ndcg_at_k: list of k-values for NDCG@k
         :param map_at_k: list of k-values for MAP@k
-        :param write_csv: If True, writes results to CSV
+        :param write_csv: If True, writes aggregated results (metrics) to CSV
         :param csv_dir: Path in which to write the CSV file (default: current working dir).
+        :param write_run_file: If True, writes a .run file with the results for each query
+        :param run_file_dir: Path in which to write the .run file (default: current working dir).
+        :param iteration: The iteration to use when writing the run file (default: "Q0").
         """
         self.id_field = id_field
         self._validate_queries(queries)
@@ -169,12 +176,18 @@ class VespaEvaluator:
         self.app = app
 
         self.name = name
+        self.dt_str = f"{datetime.now():%Y-%m-%d_%H-%M-%S}"
         self.write_csv = write_csv
         self.csv_dir = csv_dir
+        self.write_run_file = write_run_file
+        self.run_file_dir = run_file_dir
+        self.iteration = iteration
 
         self.primary_metric: Optional[str] = None
 
-        self.csv_file: str = f"Vespa-evaluation_{name}_results.csv"
+        self.csv_file: str = f"Vespa-evaluation_metrics_{self.name}_{self.dt_str}.csv"
+        self.run_file: str = f"Vespa-evaluation_run_{self.name}_{self.dt_str}.run"
+        self._validate_and_create_file_paths()
 
         # We'll collect metrics in a single pass, so define them up front.
         self.csv_headers = [
@@ -202,6 +215,20 @@ class VespaEvaluator:
             if qid in relevant_docs and len(relevant_docs[qid]) > 0:
                 filtered.append(qid)
         return filtered
+
+    def _validate_and_create_file_paths(self) -> None:
+        if self.write_csv:
+            if self.csv_dir is not None:
+                # Ensure the directory exists
+                os.makedirs(self.csv_dir, exist_ok=True)
+                self.csv_file = os.path.join(self.csv_dir, self.csv_file)
+
+        if self.write_run_file:
+            if self.run_file_dir is not None:
+                # Ensure the directory exists
+                os.makedirs(self.run_file_dir, exist_ok=True)
+                self.run_file = os.path.join(self.run_file_dir, self.run_file)
+        return
 
     def _validate_queries(self, queries: Dict[Union[str, int], str]) -> Dict[str, str]:
         """
@@ -408,6 +435,9 @@ class VespaEvaluator:
                 top_hit_list.append((doc_id, score))
 
             queries_result_list.append(top_hit_list)
+
+        if self.write_run_file:
+            self._write_run_file(queries_result_list)
         metrics = self._compute_metrics(queries_result_list)
         searchtime_stats = self._calculate_searchtime_stats()
         metrics.update(searchtime_stats)
@@ -587,15 +617,24 @@ class VespaEvaluator:
             else:
                 logger.info(f"{metric_name}: {value:.4f}")
 
+    def _write_run_file(self, queries_result_list):
+        header = ["query_id", "iteration", "product_id", "position", "score", "runid"]
+        header_str = " ".join(header)
+        with open(self.run_file, "w") as f_out:
+            f_out.write(f"{header_str}\n")
+            for query_idx, top_hits in enumerate(queries_result_list):
+                qid = self.queries_ids[query_idx]
+                for rank, (doc_id, score) in enumerate(top_hits, start=1):
+                    f_out.write(
+                        f"{qid} {self.iteration} {doc_id} {rank} {score} {self.name}\n"
+                    )
+        logger.info(f"Wrote run file to {self.run_file}")
+
     def _write_csv(self, metrics: Dict[str, float], searchtime_stats: Dict[str, float]):
-        csv_path = self.csv_file
-        if self.csv_dir is not None:
-            csv_path = os.path.join(self.csv_dir, csv_path)
-
         combined_metrics = {**metrics, **searchtime_stats}
-        write_header = not os.path.exists(csv_path)
+        write_header = not os.path.exists(self.csv_file)
 
-        with open(csv_path, mode="a", encoding="utf-8") as f_out:
+        with open(self.csv_file, mode="a", encoding="utf-8") as f_out:
             writer = csv.writer(f_out)
             if write_header:
                 header = sorted(combined_metrics.keys())
@@ -605,4 +644,4 @@ class VespaEvaluator:
             row = [self.name] + [combined_metrics[k] for k in row_keys]
             writer.writerow(row)
 
-        logger.info(f"Wrote IR evaluation metrics and search times to {csv_path}")
+        logger.info(f"Wrote IR evaluation metrics and search times to {self.csv_file}")
