@@ -936,10 +936,10 @@ class FirstPhaseRanking:
 
 class SecondPhaseRanking(object):
     def __init__(
-            self,
-            expression: str,
-            rerank_count: int = 100,
-            rank_score_drop_limit: Optional[float] = None,
+        self,
+        expression: str,
+        rerank_count: int = 100,
+        rank_score_drop_limit: Optional[float] = None,
     ) -> None:
         r"""
         Create a Vespa second phase ranking configuration.
@@ -985,10 +985,11 @@ class SecondPhaseRanking(object):
 
 class GlobalPhaseRanking(object):
     def __init__(
-            self,
-            expression: str,
-            rerank_count: int = 100,
-            rank_score_drop_limit: Optional[float] = None) -> None:
+        self,
+        expression: str,
+        rerank_count: int = 100,
+        rank_score_drop_limit: Optional[float] = None,
+    ) -> None:
         r"""
         Create a Vespa global phase ranking configuration.
 
@@ -1010,7 +1011,6 @@ class GlobalPhaseRanking(object):
         self.expression = expression
         self.rerank_count = rerank_count
         self.rank_score_drop_limit = rank_score_drop_limit
-
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
@@ -1123,6 +1123,8 @@ class RankProfileFields(TypedDict, total=False):
     rank_properties: List[Tuple[str, str]]
     inputs: List[Union[Tuple[str, str], Tuple[str, str, str]]]
     mutate: Mutate
+    filter_threshold: float
+    weakand: Dict[str, float]  # <-- NEW: weakand parameters
 
 
 class RankProfile(object):
@@ -1249,6 +1251,16 @@ class RankProfile(object):
         ...     num_threads_per_search = 2
         ... )
         RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, 2, None, None, None, None)
+
+        >>> #Example using weakand and filter_threshold
+        >>> RankProfile(
+        ...     name = "default",
+        ...     first_phase = "nativeRank(title, body)",
+        ...     filter_threshold = 0.01,
+        ...     weakand = {"stopword-limit": 0.5, "adjust-target": 0.1},
+        ... )
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, None, None, {'stopword-limit': 0.5, 'adjust-target': 0.1})
+
         """
         self.name = name
         self.first_phase = first_phase
@@ -1267,6 +1279,8 @@ class RankProfile(object):
         self.rank_properties = kwargs.get("rank_properties", None)
         self.inputs = kwargs.get("inputs", None)
         self.mutate = kwargs.get("mutate", None)
+        self.filter_threshold = kwargs.get("filter_threshold", None)
+        self.weakand = kwargs.get("weakand", None)  # <-- NEW: store weakand parameters
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
