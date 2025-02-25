@@ -10,8 +10,31 @@ class MockVespaResponse:
 
     hits: List[Dict[str, Any]]
 
+    def add_namespace_to_hit_ids(self, hits) -> str:
+        new_hits = []
+        for hit in hits:
+            hit["id"] = f"id:mynamespace:mydoctype::{hit['id']}"
+            new_hits.append(hit)
+        return new_hits
+
     def get_json(self):
-        return {"root": {"children": self.hits}}
+        return {"root": {"children": self.add_namespace_to_hit_ids(self.hits)}}
+
+    @property
+    def status_code(self):
+        return 200
+
+
+class QueryBodyCapturingApp:
+    """Mock Vespa app that captures query bodies passed to query_many."""
+
+    def __init__(self, responses):
+        self.responses = responses
+        self.captured_query_bodies = None
+
+    def query_many(self, query_bodies):
+        self.captured_query_bodies = query_bodies
+        return self.responses
 
 
 class TestVespaEvaluator(unittest.TestCase):
@@ -34,6 +57,12 @@ class TestVespaEvaluator(unittest.TestCase):
             "q1": "doc1",
             "q2": "doc4",
             "q3": "doc6",
+        }
+
+        self.relevant_docs_relevance = {
+            "q1": {"doc1": 1.0, "doc2": 0.5, "doc3": 0.2},
+            "q2": {"doc4": 0.8, "doc5": 0.6},
+            "q3": {"doc6": 1.0},
         }
 
         # Mock Vespa responses
@@ -74,10 +103,8 @@ class TestVespaEvaluator(unittest.TestCase):
                 self.mock_responses = mock_responses
                 self.current_query = 0
 
-            def query(self, body):
-                response = self.mock_responses[self.current_query]
-                self.current_query = (self.current_query + 1) % len(self.mock_responses)
-                return response
+            def query_many(self, queries):
+                return self.mock_responses
 
         self.mock_app = MockVespaApp([q1_response, q2_response, q3_response])
 
@@ -118,6 +145,16 @@ class TestVespaEvaluator(unittest.TestCase):
             q_id: {doc_id} for q_id, doc_id in self.relevant_docs_single.items()
         }
         self.assertEqual(evaluator.relevant_docs, relevant_docs_to_set)
+
+    def test_init_relevant_docs_with_relevance(self):
+        """Test initialization with relevant docs having relevance scores"""
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=self.relevant_docs_relevance,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+        )
+        self.assertEqual(evaluator.relevant_docs, self.relevant_docs_relevance)
 
     def test_custom_k_values(self):
         """Test initialization with custom k values"""
@@ -246,6 +283,96 @@ class TestVespaEvaluator(unittest.TestCase):
         expected_map = 0.7519  # Approximate value
         self.assertAlmostEqual(results["map@5"], expected_map, places=4)
 
+    def test_graded_ndcg_metric(self):
+        """Test graded NDCG@k calculations"""
+        queries = {"535": "06 bmw 325i radio oem not navigation system"}
+        relevant_docs = {
+            "535": {
+                "B08VSJGP1N": 0.01,
+                "B08VJ66CNL": 0.01,
+                "B08SHMLP5S": 0.0,
+                "B08QGZMCYQ": 0.0,
+                "B08PB9TTKT": 1.0,
+                "B08NVQ8MZX": 0.01,
+                "B084TV3C1B": 0.01,
+                "B0742BZXC2": 1.0,
+                "B00DHUA9VA": 0.0,
+                "B00B4PJC9K": 0.0,
+                "B0072LFB68": 0.01,
+                "B0051GN8JI": 0.01,
+                "B000J1HDWI": 0.0,
+                "B0007KPS3C": 0.0,
+                "B01M0SFMIH": 1.0,
+                "B0007KPRIS": 0.0,
+            }
+        }
+        # B08PB9TTKT 1 0.463
+        # B00B4PJC9K 2 0.431
+        # B0051GN8JI 3 0.419
+        # B084TV3C1B 4 0.417
+        # B08NVQ8MZX 5 0.41
+        # B00DHUA9VA 6 0.415
+        # B08SHMLP5S 7 0.415
+        # B08VSJGP1N 8 0.41
+        # B08QGZMCYQ 9 0.411
+        # B0007KPRIS 10 0.40
+        # B08VJ66CNL 11 0.40
+        # B000J1HDWI 12 0.40
+        # B0007KPS3C 13 0.39
+        # B0072LFB68 14 0.39
+        # B01M0SFMIH 15 0.39
+        # B0742BZXC2 16 0.37
+
+        # Mock Vespa responses - must match doc_ids in relevant_docs
+        q1_response = MockVespaResponse(
+            [
+                {"id": "B08PB9TTKT", "relevance": 0.463},
+                {"id": "B00B4PJC9K", "relevance": 0.431},
+                {"id": "B0051GN8JI", "relevance": 0.419},
+                {"id": "B084TV3C1B", "relevance": 0.417},
+                {"id": "B08NVQ8MZX", "relevance": 0.41},
+                {"id": "B00DHUA9VA", "relevance": 0.415},
+                {"id": "B08SHMLP5S", "relevance": 0.415},
+                {"id": "B08VSJGP1N", "relevance": 0.41},
+                {"id": "B08QGZMCYQ", "relevance": 0.411},
+                {"id": "B0007KPRIS", "relevance": 0.40},
+                {"id": "B08VJ66CNL", "relevance": 0.40},
+                {"id": "B000J1HDWI", "relevance": 0.40},
+                {"id": "B0007KPS3C", "relevance": 0.39},
+                {"id": "B0072LFB68", "relevance": 0.39},
+                {"id": "B01M0SFMIH", "relevance": 0.39},
+                {"id": "B0742BZXC2", "relevance": 0.37},
+            ]
+        )
+
+        class MockVespaApp:
+            def __init__(self, mock_responses):
+                self.mock_responses = mock_responses
+                self.current_query = 0
+
+            def query_many(self, queries):
+                return self.mock_responses
+
+        mock_app = MockVespaApp([q1_response])
+
+        def mock_vespa_query_fn(query_text: str, top_k: int) -> dict:
+            return {
+                "yql": f'select * from sources * where text contains "{query_text}";',
+                "hits": top_k,
+            }
+
+        evaluator = VespaEvaluator(
+            queries=queries,
+            relevant_docs=relevant_docs,
+            vespa_query_fn=mock_vespa_query_fn,
+            app=mock_app,
+            ndcg_at_k=[16],
+        )
+
+        results = evaluator.run()
+        print(results)
+        self.assertAlmostEqual(results["ndcg@16"], 0.7046, places=4)
+
     def test_vespa_query_fn_validation(self):
         """Test validation of vespa_query_fn with valid functions"""
 
@@ -275,7 +402,7 @@ class TestVespaEvaluator(unittest.TestCase):
         """Test validation of vespa_query_fn with invalid functions"""
 
         # Not a callable
-        with self.assertRaisesRegex(ValueError, "must be a callable"):
+        with self.assertRaisesRegex(ValueError, "must be callable"):
             VespaEvaluator(
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
@@ -287,7 +414,7 @@ class TestVespaEvaluator(unittest.TestCase):
         def fn1(query: str) -> dict:
             return {"yql": query}
 
-        with self.assertRaisesRegex(TypeError, "must take exactly 2 parameters"):
+        with self.assertRaisesRegex(TypeError, "must take 2 or 3 parameters"):
             VespaEvaluator(
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
@@ -307,41 +434,289 @@ class TestVespaEvaluator(unittest.TestCase):
                 app=self.mock_app,
             )
 
-        # Wrong return type annotation
-        def fn3(query: str, k: int) -> list:
-            return [query, k]
+        # No type hints
+        def fn3(query, k):
+            return {"yql": query, "hits": k}
 
-        with self.assertRaisesRegex(ValueError, "must return a dict"):
+    def test_validate_qrels(self):
+        """Test validation of qrels with valid qrels"""
+        # Valid qrels
+        qrels1 = {
+            "q1": {"doc1", "doc2", "doc3"},
+            "q2": {"doc4", "doc5"},
+            "q3": {"doc6"},
+        }
+        qrels2 = {
+            "q1": "doc1",
+            "q2": "doc4",
+            "q3": "doc6",
+        }
+        qrels3 = {
+            "q1": {"doc1": 1.0, "doc2": 0.5, "doc3": 0.2},
+            "q2": {"doc4": 0.8, "doc5": 0.6},
+            "q3": {"doc6": 1.0},
+        }
+
+        # All should work without raising exceptions
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=qrels1,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+        )
+        self.assertIsInstance(evaluator, VespaEvaluator)
+
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=qrels2,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+        )
+        self.assertIsInstance(evaluator, VespaEvaluator)
+
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=qrels3,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+        )
+        self.assertIsInstance(evaluator, VespaEvaluator)
+
+    def test_validate_qrels_errors(self):
+        """Test validation of qrels with invalid qrels"""
+
+        # Not a dict
+        with self.assertRaisesRegex(ValueError, "qrels must be a dict"):
             VespaEvaluator(
                 queries=self.queries,
-                relevant_docs=self.relevant_docs,
-                vespa_query_fn=fn3,
+                relevant_docs="not_a_dict",
+                vespa_query_fn=self.vespa_query_fn,
                 app=self.mock_app,
             )
 
-        # Function that raises error
-        def fn4(query: str, k: int) -> dict:
-            raise ValueError("Something went wrong")
-
-        with self.assertRaisesRegex(ValueError, "Error calling vespa_query_fn"):
+        # Relevant docs not a set, string, or dict
+        with self.assertRaisesRegex(ValueError, "must be a set, string, or dict"):
             VespaEvaluator(
                 queries=self.queries,
-                relevant_docs=self.relevant_docs,
-                vespa_query_fn=fn4,
+                relevant_docs={"q1": 1},
+                vespa_query_fn=self.vespa_query_fn,
                 app=self.mock_app,
             )
 
-        # Function that returns wrong type at runtime
-        def fn5(query: str, k: int) -> dict:
-            return [query, k]  # Actually returns a list
-
-        with self.assertRaisesRegex(ValueError, "must return a dict"):
+        # Relevance scores not numeric
+        with self.assertRaisesRegex(
+            ValueError, "must be a dict of string doc_id => numeric relevance"
+        ):
             VespaEvaluator(
                 queries=self.queries,
-                relevant_docs=self.relevant_docs,
-                vespa_query_fn=fn5,
+                relevant_docs={"q1": {"doc1": "not_numeric"}},
+                vespa_query_fn=self.vespa_query_fn,
                 app=self.mock_app,
             )
+
+        # Relevance scores not between 0 and 1
+        with self.assertRaisesRegex(ValueError, "must be between 0 and 1"):
+            VespaEvaluator(
+                queries=self.queries,
+                relevant_docs={"q1": {"doc1": 1.1}},
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+            )
+
+        with self.assertRaisesRegex(ValueError, "must be between 0 and 1"):
+            VespaEvaluator(
+                queries=self.queries,
+                relevant_docs={"q1": {"doc1": -0.1}},
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+            )
+
+    def test_filter_queries(self):
+        """Test filter_queries method"""
+        queries = {
+            "q1": "what is machine learning",
+            "q2": "how to code python",
+            "q3": "what is the capital of France",
+            "q4": "irrelevant query",
+        }
+
+        relevant_docs = {
+            "q1": {"doc1", "doc2", "doc3"},
+            "q2": {"doc4", "doc5"},
+            "q3": {"doc6"},
+        }
+
+        evaluator = VespaEvaluator(
+            queries=queries,
+            relevant_docs=relevant_docs,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+        )
+
+        # Test that queries with no relevant docs are filtered out
+        self.assertEqual(len(evaluator.queries_ids), 3)
+        self.assertNotIn("q4", evaluator.queries_ids)
+
+        # Test that queries with empty relevant docs are filtered out
+        relevant_docs["q4"] = set()
+        evaluator = VespaEvaluator(
+            queries=queries,
+            relevant_docs=relevant_docs,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+        )
+        self.assertEqual(len(evaluator.queries_ids), 3)
+        self.assertNotIn("q4", evaluator.queries_ids)
+
+        # Test that queries with relevant docs are not filtered out
+        relevant_docs["q4"] = {"doc7"}
+        evaluator = VespaEvaluator(
+            queries=queries,
+            relevant_docs=relevant_docs,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+        )
+        self.assertEqual(len(evaluator.queries_ids), 4)
+        self.assertIn("q4", evaluator.queries_ids)
+
+    def test_vespa_query_fn_with_query_id(self):
+        """Test that vespa_query_fn accepting query_id receives it as the third argument."""
+
+        def fn(query_text: str, top_k: int, query_id: str) -> dict:
+            return {
+                "yql": f'select * from sources * where text contains "{query_text}" and id="{query_id}";',
+                "hits": top_k,
+                "query_id": query_id,  # Not for passing to Vespa, but for testing
+            }
+
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=self.relevant_docs,
+            vespa_query_fn=fn,
+            app=self.mock_app,
+        )
+        self.assertTrue(evaluator._vespa_query_fn_takes_query_id)
+        # Build query bodies and check that query_id is passed correctly.
+        query_bodies = []
+        max_k = evaluator._find_max_k()
+        for qid, query_text in zip(evaluator.queries_ids, evaluator.queries):
+            query_body = evaluator.vespa_query_fn(query_text, max_k, qid)
+            query_bodies.append(query_body)
+
+        for qid, qb in zip(evaluator.queries_ids, query_bodies):
+            self.assertIn("query_id", qb)
+            self.assertEqual(qb["query_id"], qid)
+
+    def test_vespa_query_fn_without_query_id(self):
+        """Test that a vespa_query_fn accepting only 2 parameters does not receive a query_id."""
+
+        def fn(query_text: str, top_k: int) -> dict:
+            # Return a basic query body.
+            return {"yql": query_text, "hits": top_k}
+
+        # Create a dummy response (the content is not used for these tests).
+        dummy_response = MockVespaResponse([{"id": "doc1", "relevance": 1.0}])
+        capturing_app = QueryBodyCapturingApp([dummy_response] * len(self.queries))
+
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=self.relevant_docs,
+            vespa_query_fn=fn,
+            app=capturing_app,
+        )
+        # Since fn accepts only 2 params, the evaluator should mark it as NOT taking a query_id.
+        self.assertFalse(evaluator._vespa_query_fn_takes_query_id)
+
+        # Run the evaluator to trigger query body generation.
+        evaluator.run()
+
+        # Verify that none of the query bodies include a "query_id" key and that default_body keys were added.
+        for qb in capturing_app.captured_query_bodies:
+            self.assertNotIn("query_id", qb)
+            self.assertIn("timeout", qb)
+            self.assertEqual(qb["timeout"], "5s")
+            self.assertIn("presentation.timing", qb)
+            self.assertEqual(qb["presentation.timing"], True)
+
+    def test_vespa_query_fn_no_type_hints(self):
+        """Test that a vespa_query_fn without type hints is handled correctly."""
+
+        def fn(query_text, top_k):
+            # Return a basic query body.
+            return {"yql": query_text, "hits": top_k}
+
+        # Create a dummy response (the content is not used for these tests).
+        dummy_response = MockVespaResponse([{"id": "doc1", "relevance": 1.0}])
+        capturing_app = QueryBodyCapturingApp([dummy_response] * len(self.queries))
+
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=self.relevant_docs,
+            vespa_query_fn=fn,
+            app=capturing_app,
+        )
+
+        # Run the evaluator to trigger query body generation.
+        evaluator.run()
+
+        # Verify that none of the query bodies include a "query_id" key and that default_body keys were added.
+        for qb in capturing_app.captured_query_bodies:
+            self.assertNotIn("query_id", qb)
+            self.assertIn("timeout", qb)
+            self.assertEqual(qb["timeout"], "5s")
+            self.assertIn("presentation.timing", qb)
+            self.assertEqual(qb["presentation.timing"], True)
+
+    def test_vespa_query_fn_default_body_override(self):
+        """Test that keys from default_body override any conflicting keys returned by vespa_query_fn."""
+
+        def fn_override(query_text: str, top_k: int) -> dict:
+            # Return a query body that has conflicting values for default keys.
+            return {
+                "yql": query_text,
+                "hits": top_k,
+                "timeout": "10s",
+                "presentation.timing": False,
+            }
+
+        dummy_response = MockVespaResponse([{"id": "doc1", "relevance": 1.0}])
+        capturing_app = QueryBodyCapturingApp([dummy_response] * len(self.queries))
+
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=self.relevant_docs,
+            vespa_query_fn=fn_override,
+            app=capturing_app,
+        )
+        evaluator.run()
+
+        # After evaluator.run(), the default body should override the keys from fn_override.
+        for qb in capturing_app.captured_query_bodies:
+            self.assertEqual(qb["timeout"], "5s")
+            self.assertEqual(qb["presentation.timing"], True)
+
+    def test_vespa_query_fn_preserves_extra_keys(self):
+        """Test that extra keys returned by vespa_query_fn are preserved after merging with default_body."""
+
+        def fn_extra(query_text: str, top_k: int) -> dict:
+            # Return a query body that includes an extra key.
+            return {"yql": query_text, "hits": top_k, "extra": "value"}
+
+        dummy_response = MockVespaResponse([{"id": "doc1", "relevance": 1.0}])
+        capturing_app = QueryBodyCapturingApp([dummy_response] * len(self.queries))
+
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=self.relevant_docs,
+            vespa_query_fn=fn_extra,
+            app=capturing_app,
+        )
+        evaluator.run()
+
+        # Verify that the extra key is still present in each query body.
+        for qb in capturing_app.captured_query_bodies:
+            self.assertIn("extra", qb)
+            self.assertEqual(qb["extra"], "value")
 
 
 if __name__ == "__main__":

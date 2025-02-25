@@ -22,6 +22,7 @@ from vespa.application import (
     VespaAsync,
 )
 import httpx
+from typing import List
 
 
 class TestVespaRequestsUsage(unittest.TestCase):
@@ -609,6 +610,79 @@ class TestFeedAsyncIterable(unittest.TestCase):
         )
 
 
+class TestQueryMany(unittest.TestCase):
+    def setUp(self):
+        self.mock_session = AsyncMock()
+        self.mock_asyncio_patcher = patch("vespa.application.VespaAsync")
+        self.mock_asyncio = self.mock_asyncio_patcher.start()
+        self.mock_asyncio.return_value.__aenter__.return_value = self.mock_session
+        self.vespa = Vespa(url="http://localhost", port=8080)
+
+    def tearDown(self):
+        self.mock_asyncio_patcher.stop()
+
+    def test_query_many_happy_path(self):
+        # Arrange
+        query_data = [
+            {"query": "this is a test", "hits": 10, "ranking": "default"},
+            {"query": "this is another test", "hits": 20, "ranking": "default"},
+        ]
+        #
+        _responses: List[VespaQueryResponse] = self.vespa.query_many(
+            queries=query_data,
+            num_connections=2,
+            max_concurrent=100,
+        )
+
+        # Assert that app.query is called for each query
+        self.mock_session.query.assert_has_calls(
+            [unittest.mock.call(q) for q in query_data],
+            any_order=True,
+        )
+
+    def test_query_many_client_kwargs(self):
+        # Arrange
+        query_data = [
+            {"query": "this is a test", "hits": 10, "ranking": "default"},
+            {"query": "this is another test", "hits": 20, "ranking": "default"},
+        ]
+        #
+        _responses: List[VespaQueryResponse] = self.vespa.query_many(
+            queries=query_data,
+            num_connections=2,
+            max_concurrent=100,
+            client_kwargs={"timeout": 10},
+        )
+
+        # Assert that VespaAsync is initialized once with the client_kwargs
+        self.mock_asyncio.assert_called_once_with(
+            app=self.vespa,
+            connections=2,
+            total_timeout=None,
+            timeout=10,
+        )
+
+    def test_query_many_query_kwargs(self):
+        # Arrange
+        query_data = [
+            {"query": "this is a test", "hits": 10, "ranking": "default"},
+            {"query": "this is another test", "hits": 20, "ranking": "default"},
+        ]
+        #
+        _responses: List[VespaQueryResponse] = self.vespa.query_many(
+            queries=query_data,
+            num_connections=2,
+            max_concurrent=100,
+            query_param="custom",
+        )
+
+        # Assert that app.query is called for each query with the query_kwargs
+        self.mock_session.query.assert_has_calls(
+            [unittest.mock.call(q, query_param="custom") for q in query_data],
+            any_order=True,
+        )
+
+
 class TestCustomHTTPAdapterCompression(unittest.TestCase):
     def setUp(self):
         """Set up the CustomHTTPAdapter for testing."""
@@ -682,9 +756,10 @@ class TestCustomHTTPAdapterCompression(unittest.TestCase):
         request = Request(method="POST", url="http://test.com", data=b"test_data")
         prepared_request = session.prepare_request(request)
 
-        with patch.object(adapter, "_wait_with_backoff") as mock_backoff, patch(
-            "requests.adapters.HTTPAdapter.send"
-        ) as mock_send:
+        with (
+            patch.object(adapter, "_wait_with_backoff") as mock_backoff,
+            patch("requests.adapters.HTTPAdapter.send") as mock_send,
+        ):
             mock_response = Mock()
             mock_response.status_code = 429
             mock_send.side_effect = [mock_response, mock_response, mock_response]

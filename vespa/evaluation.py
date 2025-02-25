@@ -4,7 +4,6 @@ import csv
 import logging
 from typing import Dict, Set, Callable, List, Optional, Union
 import math
-import asyncio
 from vespa.application import Vespa
 from vespa.io import VespaQueryResponse
 
@@ -79,6 +78,13 @@ class VespaEvaluator:
         #     "q2": "d101",
         #     # ...
         # }
+        # Or, relevant_docs can be a dict of query_id => map of doc_id => relevance
+        # relevant_docs = {
+        #     "q1": {"d12": 1, "d99": 0.1},
+        #     "q2": {"d101": 0.01},
+        #     # ...
+        # Note that for non-binary relevance, the relevance values should be in [0, 1], and that
+        # only the nDCG metric will be computed.
 
         def my_vespa_query_fn(query_text: str, top_k: int) -> dict:
             return {
@@ -111,10 +117,13 @@ class VespaEvaluator:
     def __init__(
         self,
         queries: Dict[str, str],
-        relevant_docs: Union[Dict[str, Set[str]], Dict[str, str]],
-        vespa_query_fn: Callable[[str, int], dict],
+        relevant_docs: Union[
+            Dict[str, Union[Set[str], Dict[str, float]]], Dict[str, str]
+        ],
+        vespa_query_fn: Callable[[str, int, Optional[str]], dict],
         app: Vespa,
         name: str = "",
+        id_field: str = "",
         accuracy_at_k: List[int] = [1, 3, 5, 10],
         precision_recall_at_k: List[int] = [1, 3, 5, 10],
         mrr_at_k: List[int] = [10],
@@ -125,10 +134,11 @@ class VespaEvaluator:
     ):
         """
         :param queries: Dict of query_id => query text
-        :param relevant_docs: Dict of query_id => set of relevant doc_ids (the user-specified part of `id:<namespace>:<document-type>:<key/value-pair>:<user-specified>` in Vespa, see https://docs.vespa.ai/en/documents.html#document-ids)
+        :param relevant_docs: Dict of query_id => set of relevant doc_ids or query_id => dict of doc_id => relevance. See example usage.
         :param vespa_query_fn: Callable, with signature: my_func(query:str, top_k: int)-> dict: Given a query string and top_k, returns a Vespa query body (dict).
         :param app: A `vespa.application.Vespa` instance.
         :param name: A name or tag for this evaluation run.
+        :param id_field: Specify the field name in Vespa that contains the document ID (If unset, will try to use vespa internal document id, but this may fail in some cases, see https://docs.vespa.ai/en/documents.html#docid-in-results).
         :param accuracy_at_k: list of k-values for Accuracy@k
         :param precision_recall_at_k: list of k-values for Precision@k and Recall@k
         :param mrr_at_k: list of k-values for MRR@k
@@ -137,17 +147,13 @@ class VespaEvaluator:
         :param write_csv: If True, writes results to CSV
         :param csv_dir: Path in which to write the CSV file (default: current working dir).
         """
+        self.id_field = id_field
         self._validate_queries(queries)
-        self._validate_vespa_query_fn(
-            vespa_query_fn
-        )  # Add this line before _validate_qrels
+        self._validate_vespa_query_fn(vespa_query_fn)
         relevant_docs = self._validate_qrels(relevant_docs)
 
         # Filter out any queries that have no relevant docs
-        self.queries_ids = []
-        for qid in queries:
-            if qid in relevant_docs and len(relevant_docs[qid]) > 0:
-                self.queries_ids.append(qid)
+        self.queries_ids = self.filter_queries(queries, relevant_docs)
 
         self.queries = [queries[qid] for qid in self.queries_ids]
         self.relevant_docs = relevant_docs
@@ -159,7 +165,7 @@ class VespaEvaluator:
         self.map_at_k = map_at_k
         self.searchtimes: List[float] = []
 
-        self.vespa_query_fn = vespa_query_fn
+        self.vespa_query_fn: Callable = vespa_query_fn
         self.app = app
 
         self.name = name
@@ -180,81 +186,143 @@ class VespaEvaluator:
             "map@{}",
         ]
 
-    def _validate_queries(self, queries: Dict[str, str]):
+    @property
+    def default_body(self):
+        return {
+            "timeout": "5s",
+            "presentation.timing": True,
+        }
+
+    def filter_queries(
+        self, queries: Dict[str, str], relevant_docs: Dict[str, Set[str]]
+    ):
+        """Filter out queries that have no relevant docs"""
+        filtered = []
+        for qid in queries:
+            if qid in relevant_docs and len(relevant_docs[qid]) > 0:
+                filtered.append(qid)
+        return filtered
+
+    def _validate_queries(self, queries: Dict[Union[str, int], str]) -> Dict[str, str]:
+        """
+        Validate and normalize queries.
+        Converts query IDs to strings if they are ints.
+        """
         if not isinstance(queries, dict):
             raise ValueError("queries must be a dict of query_id => query_text")
+        normalized_queries = {}
         for qid, query_text in queries.items():
-            if not isinstance(qid, str) or not isinstance(query_text, str):
-                raise ValueError("Each query must be a string.", qid, query_text)
+            if not isinstance(qid, (str, int)):
+                raise ValueError("Query ID must be a string or an int.", qid)
+            if not isinstance(query_text, str):
+                raise ValueError("Query text must be a string.", query_text)
+            normalized_queries[str(qid)] = query_text
+        return normalized_queries
 
     def _validate_qrels(
-        self, qrels: Union[Dict[str, Set[str]], Dict[str, str]]
-    ) -> Dict[str, Set[str]]:
+        self,
+        qrels: Union[
+            Dict[Union[str, int], Union[Set[str], Dict[str, float]]],
+            Dict[Union[str, int], str],
+        ],
+    ) -> Dict[str, Union[Set[str], Dict[str, float]]]:
+        """
+        Validate and normalize qrels.
+        Converts query IDs to strings if they are ints.
+        """
         if not isinstance(qrels, dict):
             raise ValueError(
-                "qrels must be a dict of query_id => set of relevant doc_ids"
+                "qrels must be a dict of query_id => set/dict of relevant doc_ids or a single doc_id string"
             )
-        new_qrels: Dict[str, Set[str]] = {}
+        new_qrels: Dict[str, Union[Set[str], Dict[str, float]]] = {}
         for qid, relevant_docs in qrels.items():
-            if not isinstance(qid, str):
+            if not isinstance(qid, (str, int)):
                 raise ValueError(
-                    "Each qrel must be a string query_id and a set of doc_ids.",
-                    qid,
-                    relevant_docs,
+                    "Query ID in qrels must be a string or an int.", qid, relevant_docs
                 )
+            normalized_qid = str(qid)
             if isinstance(relevant_docs, str):
-                new_qrels[qid] = {relevant_docs}
+                new_qrels[normalized_qid] = {relevant_docs}
             elif isinstance(relevant_docs, set):
-                new_qrels[qid] = relevant_docs
+                new_qrels[normalized_qid] = relevant_docs
+            elif isinstance(relevant_docs, dict):
+                for doc_id, relevance in relevant_docs.items():
+                    if not isinstance(doc_id, str) or not isinstance(
+                        relevance, (int, float)
+                    ):
+                        raise ValueError(
+                            f"Relevance scores for query {normalized_qid} must be a dict of string doc_id => numeric relevance."
+                        )
+                    if not 0 <= relevance <= 1:
+                        raise ValueError(
+                            f"Relevance scores for query {normalized_qid} must be between 0 and 1."
+                        )
+                new_qrels[normalized_qid] = relevant_docs
             else:
                 raise ValueError(
-                    f"Relevant docs for query {qid} must be a set or string."
+                    f"Relevant docs for query {normalized_qid} must be a set, string, or dict."
                 )
         return new_qrels
 
-    def _validate_vespa_query_fn(self, fn: Callable[[str, int], dict]) -> None:
+    def _validate_vespa_query_fn(self, fn: Callable) -> None:
         """
-        Validate that vespa_query_fn is callable and has correct signature.
+        Simplified validation of vespa_query_fn.
 
-        :param fn: Function to validate
-        :raises ValueError: If function doesn't meet requirements
-        :raises TypeError: If function signature is incorrect
+        The function must be callable and take either 2 or 3 parameters:
+            - (query_text: str, top_k: int) or
+            - (query_text: str, top_k: int, query_id: str) where query_id can also be Optional[str].
+        It must return a dict when called with test inputs.
         """
         if not callable(fn):
-            raise ValueError("vespa_query_fn must be a callable")
+            raise ValueError("vespa_query_fn must be callable")
 
         import inspect
 
         sig = inspect.signature(fn)
-        params = list(sig.parameters.items())
+        params = list(sig.parameters.values())
 
-        # Check number of parameters
-        if len(params) != 2:
-            raise TypeError(
-                f"vespa_query_fn must take exactly 2 parameters (query_text, top_k), got {len(params)}"
-            )
+        if len(params) not in (2, 3):
+            raise TypeError("vespa_query_fn must take 2 or 3 parameters")
 
-        # Check parameter types from type hints
-        param_types = {name: param.annotation for name, param in params}
+        # Validate first parameter: query_text
+        if (
+            params[0].annotation is not inspect.Parameter.empty
+            and params[0].annotation is not str
+        ):
+            raise TypeError("Parameter 'query_text' must be of type str")
 
-        expected_types = {params[0][0]: str, params[1][0]: int}
+        # Validate second parameter: top_k
+        if (
+            params[1].annotation is not inspect.Parameter.empty
+            and params[1].annotation is not int
+        ):
+            raise TypeError("Parameter 'top_k' must be of type int")
 
-        for param_name, expected_type in expected_types.items():
-            if param_types.get(param_name) not in (
-                expected_type,
-                inspect.Parameter.empty,
+        # If there's a third parameter, validate query_id
+        if len(params) == 3:
+            third = params[2]
+            if (
+                third.annotation is not inspect.Parameter.empty
+                and third.annotation not in (str, Optional[str])
             ):
                 raise TypeError(
-                    f"Parameter '{param_name}' must be of type {expected_type.__name__}"
+                    "Parameter 'query_id' must be of type str or Optional[str]"
                 )
+            self._vespa_query_fn_takes_query_id = True
+        else:
+            self._vespa_query_fn_takes_query_id = False
 
-        # Validate the function can actually be called with test inputs
-        try:
-            result = fn("test query", 10)
-            if not isinstance(result, dict):
-                raise TypeError("vespa_query_fn must return a dict")
-        except Exception as e:
-            raise ValueError(f"Error calling vespa_query_fn with test inputs: {str(e)}")
+    def _find_max_k(self):
+        """
+        Find the maximum k value across all metrics.
+        """
+        return max(
+            max(self.accuracy_at_k) if self.accuracy_at_k else 0,
+            max(self.precision_recall_at_k) if self.precision_recall_at_k else 0,
+            max(self.mrr_at_k) if self.mrr_at_k else 0,
+            max(self.ndcg_at_k) if self.ndcg_at_k else 0,
+            max(self.map_at_k) if self.map_at_k else 0,
+        )
 
     def run(self) -> Dict[str, float]:
         """
@@ -281,13 +349,7 @@ class VespaEvaluator:
                 ...
             }
         """
-        max_k = max(
-            max(self.accuracy_at_k) if self.accuracy_at_k else 0,
-            max(self.precision_recall_at_k) if self.precision_recall_at_k else 0,
-            max(self.mrr_at_k) if self.mrr_at_k else 0,
-            max(self.ndcg_at_k) if self.ndcg_at_k else 0,
-            max(self.map_at_k) if self.map_at_k else 0,
-        )
+        max_k = self._find_max_k()
 
         logger.info(f"Starting VespaEvaluator on {self.name}")
         logger.info(f"Number of queries: {len(self.queries_ids)}; max_k = {max_k}")
@@ -295,27 +357,22 @@ class VespaEvaluator:
         # Build query bodies using the provided vespa_query_fn
         query_bodies = []
 
-        # Check timing info with first query only
-        first_query = self.queries[0]
-        first_body = self.vespa_query_fn(first_query, max_k)
-        if "presentation.timing" not in first_body:
-            logger.warning(
-                "Timing information is not included in the query body. "
-                'Please include `"presentation.timing": True` in the query body to log search times.'
-            )
-        query_bodies.append(first_body)
-
-        # Add remaining queries without checking timing
-        for idx in range(1, len(self.queries_ids)):
-            query_text = self.queries[idx]
-            query_body = self.vespa_query_fn(query_text, max_k)
+        for qid, query_text in zip(self.queries_ids, self.queries):
+            if getattr(self, "_vespa_query_fn_takes_query_id", False):
+                query_body: dict = self.vespa_query_fn(query_text, max_k, qid)
+            else:
+                query_body: dict = self.vespa_query_fn(query_text, max_k)
+            if not isinstance(query_body, dict):
+                raise ValueError(
+                    f"vespa_query_fn must return a dict, got: {type(query_body)}"
+                )
+            # Add default body parameters
+            query_body.update(self.default_body)
             query_bodies.append(query_body)
             logger.debug(f"Querying Vespa with: {query_body}")
 
         # Execute queries in parallel using query_many from the Vespa class
-        responses: List[VespaQueryResponse] = asyncio.run(
-            self.app.query_many(query_bodies)
-        )
+        responses: List[VespaQueryResponse] = self.app.query_many(query_bodies)
         for resp in responses:
             if resp.status_code != 200:
                 raise ValueError(
@@ -330,8 +387,19 @@ class VespaEvaluator:
             hits = resp.hits or []
             top_hit_list = []
             for hit in hits[:max_k]:
-                # doc_id extraction logic
-                doc_id = str(hit.get("id", "").split("::")[-1])
+                # May be a Vespa internal id.
+                if self.id_field == "":
+                    full_id = hit.get("id", "")
+                    if (
+                        "::" not in full_id
+                    ):  # vespa internal id - eg. index:content/0/35c332d6bc52ae1f8378f7b3
+                        # Trying 'id' field as a fallback
+                        doc_id = str(hit.get("fields", {}).get("id", ""))
+                    else:
+                        doc_id = full_id.split("::")[-1]
+                else:
+                    # doc_id extraction logic
+                    doc_id = str(hit.get("fields", {}).get(self.id_field, ""))
                 if not doc_id:
                     raise ValueError(f"Could not extract doc_id from hit: {hit}")
                 score = float(hit.get("relevance", float("nan")))
@@ -340,7 +408,6 @@ class VespaEvaluator:
                 top_hit_list.append((doc_id, score))
 
             queries_result_list.append(top_hit_list)
-
         metrics = self._compute_metrics(queries_result_list)
         searchtime_stats = self._calculate_searchtime_stats()
         metrics.update(searchtime_stats)
@@ -372,6 +439,30 @@ class VespaEvaluator:
 
     def _compute_metrics(self, queries_result_list):
         num_queries = len(queries_result_list)
+        # Infer graded relevance on the fly instead of storing as a class variable.
+        graded = bool(self.relevant_docs) and isinstance(
+            next(iter(self.relevant_docs.values())), dict
+        )
+
+        if graded:
+            ndcg_at_k_list = {k: [] for k in self.ndcg_at_k}
+            for query_idx, top_hits in enumerate(queries_result_list):
+                qid = self.queries_ids[query_idx]
+                # For graded relevance, 'relevant_docs' is a list of dicts: doc_id -> grade
+                relevant: Dict[str, float] = self.relevant_docs[qid]
+                for k_val in self.ndcg_at_k:
+                    predicted_relevance = [
+                        relevant.get(doc_id, 0.0) for doc_id, _ in top_hits[:k_val]
+                    ]
+                    dcg_pred = self._dcg_at_k(predicted_relevance, k_val)
+                    # Ideal ranking is the sorted graded scores in descending order
+                    ideal_relevances = sorted(relevant.values(), reverse=True)[:k_val]
+                    dcg_true = self._dcg_at_k(ideal_relevances, k_val)
+                    ndcg_val = dcg_pred / dcg_true if dcg_true > 0 else 0.0
+                    ndcg_at_k_list[k_val].append(ndcg_val)
+            metrics = {f"ndcg@{k}": mean(ndcg_at_k_list[k]) for k in self.ndcg_at_k}
+            return metrics
+
         num_hits_at_k = {k: 0 for k in self.accuracy_at_k}
         precision_at_k_list = {k: [] for k in self.precision_recall_at_k}
         recall_at_k_list = {k: [] for k in self.precision_recall_at_k}
@@ -429,10 +520,21 @@ class VespaEvaluator:
                 sum_precisions = 0.0
                 top_k_hits = top_hits[:k_val]
                 for rank, (doc_id, _) in enumerate(top_k_hits, start=1):
-                    if doc_id in relevant:
+                    if isinstance(relevant, dict):
+                        if doc_id in relevant:
+                            num_correct += 1
+                            sum_precisions += (
+                                relevant[doc_id] / rank
+                            )  # Use relevance score
+                    elif doc_id in relevant:
                         num_correct += 1
                         sum_precisions += num_correct / rank
-                denom = min(k_val, len(relevant))
+                denom = min(
+                    k_val,
+                    len(relevant)
+                    if isinstance(relevant, set)
+                    else len(relevant.keys()),
+                )
                 avg_precision = sum_precisions / denom if denom > 0 else 0.0
                 map_at_k_list[k_val].append(avg_precision)
 

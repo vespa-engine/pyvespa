@@ -713,19 +713,24 @@ class Vespa(object):
         asyncio.run(run())
         return
 
-    async def query_many(
+    async def query_many_async(
         self,
         queries: Iterable[Dict],
-        num_connections: int = 8,
+        num_connections: int = 1,
         max_concurrent: int = 100,
         client_kwargs: Dict = {},
         **query_kwargs,
     ) -> List[VespaQueryResponse]:
         """
-        Execute multiple asynchronous queries concurrently.
+        Execute many queries asynchronously using httpx.AsyncClient.
+        Number of concurrent requests is controlled by the max_concurrent parameter.
+        Each query will be retried up to 3 times using an exponential backoff strategy.
 
         :param queries: Iterable of query bodies (dictionaries) to be sent.
-        :param max_concurrent: Maximum concurrent connections.
+        :param num_connections: Number of connections to be used in the asynchronous client (uses http2). Defaults to 1.
+        :param max_concurrent: Maximum concurrent requests to be sent. Defaults to 100. Be careful with increasing too much.
+        :param client_kwargs: Additional arguments to be passed to the httpx.AsyncClient.
+        :param query_kwargs: Additional arguments to be passed to the query method.
         :return: List of VespaQueryResponse objects.
         """
         results = []
@@ -736,16 +741,50 @@ class Vespa(object):
             async def query_wrapper(query_body: Dict) -> VespaQueryResponse:
                 async with sem:
                     try:
-                        # Assuming client.query is implemented in VespaAsync similarly to the synchronous query
                         response = await client.query(query_body, **query_kwargs)
                         return response
-                    except Exception as e:
-                        # You can customize error handling or logging here as needed.
-                        return VespaQueryResponse(error=str(e))
+                    except HTTPError as e:
+                        return VespaQueryResponse(
+                            json=str(e),
+                            status_code=e.response.status_code,
+                            url=e.request.url,
+                            request_body=query_body,
+                        )
 
             tasks = [query_wrapper(q) for q in queries]
             results = await asyncio.gather(*tasks)
         return results
+
+    def query_many(
+        self,
+        queries: Iterable[Dict],
+        num_connections: int = 1,
+        max_concurrent: int = 100,
+        client_kwargs: Dict = {},
+        **query_kwargs,
+    ) -> List[VespaQueryResponse]:
+        """
+        Execute many queries asynchronously using httpx.AsyncClient.
+        This method is a wrapper around the query_many_async method that uses the asyncio event loop to run the coroutine.
+        Number of concurrent requests is controlled by the max_concurrent parameter.
+        Each query will be retried up to 3 times using an exponential backoff strategy.
+
+        :param queries: Iterable of query bodies (dictionaries) to be sent.
+        :param num_connections: Number of connections to be used in the asynchronous client (uses http2). Defaults to 1.
+        :param max_concurrent: Maximum concurrent requests to be sent. Defaults to 100. Be careful with increasing too much.
+        :param client_kwargs: Additional arguments to be passed to the httpx.AsyncClient.
+        :param query_kwargs: Additional arguments to be passed to the query method.
+        :return: List of VespaQueryResponse objects.
+        """
+        return self._check_for_running_loop_and_run_coroutine(
+            self.query_many_async(
+                queries=queries,
+                num_connections=num_connections,
+                max_concurrent=max_concurrent,
+                client_kwargs=client_kwargs,
+                **query_kwargs,
+            )
+        )
 
     def delete_data(
         self,
@@ -1654,7 +1693,9 @@ class VespaAsync(object):
             raise state.outcome.exception()
         return state.outcome.result()
 
-    @retry(wait=wait_exponential(multiplier=1), stop=stop_after_attempt(3))
+    @retry(
+        wait=wait_random_exponential(multiplier=1.5, max=60), stop=stop_after_attempt(5)
+    )
     async def query(
         self, body: Optional[Dict] = None, groupname: str = None, **kwargs
     ) -> VespaQueryResponse:
