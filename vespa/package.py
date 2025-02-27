@@ -134,7 +134,7 @@ class Summary(object):
                 if isinstance(field[1], str):
                     tmp_string += f"{field[1]}"
                 else:
-                    tmp_string += f'{", ".join(field[1])}'
+                    tmp_string += f"{', '.join(field[1])}"
                 final_list.append(tmp_string)
 
         final_list.append("}")
@@ -936,10 +936,10 @@ class FirstPhaseRanking:
 
 class SecondPhaseRanking(object):
     def __init__(
-            self,
-            expression: str,
-            rerank_count: int = 100,
-            rank_score_drop_limit: Optional[float] = None,
+        self,
+        expression: str,
+        rerank_count: int = 100,
+        rank_score_drop_limit: Optional[float] = None,
     ) -> None:
         r"""
         Create a Vespa second phase ranking configuration.
@@ -985,10 +985,11 @@ class SecondPhaseRanking(object):
 
 class GlobalPhaseRanking(object):
     def __init__(
-            self,
-            expression: str,
-            rerank_count: int = 100,
-            rank_score_drop_limit: Optional[float] = None) -> None:
+        self,
+        expression: str,
+        rerank_count: int = 100,
+        rank_score_drop_limit: Optional[float] = None,
+    ) -> None:
         r"""
         Create a Vespa global phase ranking configuration.
 
@@ -1010,7 +1011,6 @@ class GlobalPhaseRanking(object):
         self.expression = expression
         self.rerank_count = rerank_count
         self.rank_score_drop_limit = rank_score_drop_limit
-
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
@@ -2043,8 +2043,9 @@ class Nodes(object):
         ...    nodes=Nodes(
         ...        count="2",
         ...        parameters=[
-        ...            Parameter("resources", {"vcpu": "4.0", "memory": "16Gb", "disk": "125Gb"}),
-        ...            Parameter("gpu", {"count": "1", "memory": "16Gb"}),
+        ...            Parameter("resources", {"vcpu": "4.0", "memory": "16Gb", "disk": "125Gb"},
+        ...                children=[Parameter("gpu", {"count": "1", "memory": "16Gb"})]
+        ...            ),
         ...            Parameter("node", {"hostalias": "node1", "distribution-key": "0"}),
         ...        ]
         ...    )
