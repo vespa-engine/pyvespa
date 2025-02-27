@@ -134,7 +134,7 @@ class Summary(object):
                 if isinstance(field[1], str):
                     tmp_string += f"{field[1]}"
                 else:
-                    tmp_string += f'{", ".join(field[1])}'
+                    tmp_string += f"{', '.join(field[1])}"
                 final_list.append(tmp_string)
 
         final_list.append("}")
@@ -936,10 +936,10 @@ class FirstPhaseRanking:
 
 class SecondPhaseRanking(object):
     def __init__(
-            self,
-            expression: str,
-            rerank_count: int = 100,
-            rank_score_drop_limit: Optional[float] = None,
+        self,
+        expression: str,
+        rerank_count: int = 100,
+        rank_score_drop_limit: Optional[float] = None,
     ) -> None:
         r"""
         Create a Vespa second phase ranking configuration.
@@ -985,10 +985,11 @@ class SecondPhaseRanking(object):
 
 class GlobalPhaseRanking(object):
     def __init__(
-            self,
-            expression: str,
-            rerank_count: int = 100,
-            rank_score_drop_limit: Optional[float] = None) -> None:
+        self,
+        expression: str,
+        rerank_count: int = 100,
+        rank_score_drop_limit: Optional[float] = None,
+    ) -> None:
         r"""
         Create a Vespa global phase ranking configuration.
 
@@ -1010,7 +1011,6 @@ class GlobalPhaseRanking(object):
         self.expression = expression
         self.rerank_count = rerank_count
         self.rank_score_drop_limit = rank_score_drop_limit
-
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
@@ -1110,12 +1110,54 @@ class Mutate(object):
         )
 
 
+class MatchPhaseRanking(object):
+    def __init__(
+        self, attribute: str, order: Literal["ascending", "descending"], max_hits: int
+    ) -> None:
+        r"""
+        Create a Vespa match phase ranking configuration.
+
+        This is an optional phase that can be used to quickly select a subset of hits for
+        further ranking. Check the `Vespa documentation
+        <https://docs.vespa.ai/en/reference/schema-reference.html#match-phase>`__
+        for more detailed information about match phase ranking configuration.
+
+        :param attribute: The numeric attribute to use for filtering.
+        :param order: The sort order, either "ascending" or "descending".
+        :param max_hits: Maximum number of hits to pass to next phase.
+
+        >>> MatchPhaseRanking(attribute="popularity", order="descending", max_hits=1000)
+        MatchPhaseRanking('popularity', 'descending', 1000)
+        """
+        self.attribute = attribute
+        self.order = order
+        self.max_hits = max_hits
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (
+            self.attribute == other.attribute
+            and self.order == other.order
+            and self.max_hits == other.max_hits
+        )
+
+    def __repr__(self) -> str:
+        return "{0}({1}, {2}, {3})".format(
+            self.__class__.__name__,
+            repr(self.attribute),
+            repr(self.order),
+            repr(self.max_hits),
+        )
+
+
 class RankProfileFields(TypedDict, total=False):
     inherits: str
     constants: Dict
     functions: List[Function]
     summary_features: List
     match_features: List
+    match_phase: MatchPhaseRanking
     second_phase: SecondPhaseRanking
     global_phase: GlobalPhaseRanking
     weight: List[Tuple[str, int]]
@@ -1138,6 +1180,7 @@ class RankProfile(object):
         match_features: Optional[List] = None,
         second_phase: Optional[SecondPhaseRanking] = None,
         global_phase: Optional[GlobalPhaseRanking] = None,
+        match_phase: Optional[MatchPhaseRanking] = None,
         num_threads_per_search: Optional[int] = None,
         **kwargs: Unpack[RankProfileFields],
     ) -> None:
@@ -1171,6 +1214,8 @@ class RankProfile(object):
             See :class:`SecondPhaseRanking`.
         :param global_phase: Optional config specifying the global phase of ranking.
             See :class:`GlobalPhaseRanking`.
+        :param match_phase: Optional config specifying the match phase of ranking.
+            See :class:`MatchPhaseRanking`.
         :param num_threads_per_search: Overrides the global `persearch` value for this rank profile to a **lower** value.
         :key weight: A list of tuples containing the field and their weight
         :key rank_type: A list of tuples containing a field and the rank-type-name.
@@ -1182,10 +1227,10 @@ class RankProfile(object):
             `More info <https://docs.vespa.ai/en/reference/schema-reference.html#mutate>`__ about mutate operation.
 
         >>> RankProfile(name = "default", first_phase = "nativeRank(title, body)")
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, None, None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, None, None, None)
 
         >>> RankProfile(name = "new", first_phase = "BM25(title)", inherits = "default")
-        RankProfile('new', 'BM25(title)', 'default', None, None, None, None, None, None, None, None, None, None, None)
+        RankProfile('new', 'BM25(title)', 'default', None, None, None, None, None, None, None, None, None, None, None, None)
 
         >>> RankProfile(
         ...     name = "new",
@@ -1194,7 +1239,7 @@ class RankProfile(object):
         ...     constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
         ...     summary_features=["BM25(title)"]
         ... )
-        RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None, ['BM25(title)'], None, None, None, None, None, None, None, None)
+        RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None, ['BM25(title)'], None, None, None, None, None, None, None, None, None)
 
         >>> RankProfile(
         ...     name="bert",
@@ -1214,41 +1259,41 @@ class RankProfile(object):
         ...     ],
         ...     summary_features=["question_length", "doc_length"]
         ... )
-        RankProfile('bert', 'bm25(title) + bm25(body)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, [Function('question_length', 'sum(map(query(query_token_ids), f(a)(a > 0)))', None), Function('doc_length', 'sum(map(attribute(doc_token_ids), f(a)(a > 0)))', None)], ['question_length', 'doc_length'], None, SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10, None), None, None, None, None, None, None)
+        RankProfile('bert', 'bm25(title) + bm25(body)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, [Function('question_length', 'sum(map(query(query_token_ids), f(a)(a > 0)))', None), Function('doc_length', 'sum(map(attribute(doc_token_ids), f(a)(a > 0)))', None)], ['question_length', 'doc_length'], None, SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10, None), None, None, None, None, None, None, None)
 
         >>> RankProfile(
         ...     name = "default",
         ...     first_phase = "nativeRank(title, body)",
         ...     weight = [("title", 200), ("body", 100)]
         ... )
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, [('title', 200), ('body', 100)], None, None, None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, [('title', 200), ('body', 100)], None, None, None)
 
         >>> RankProfile(
         ...     name = "default",
         ...     first_phase = "nativeRank(title, body)",
         ...     rank_type = [("body", "about")]
         ... )
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, [('body', 'about')], None, None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, [('body', 'about')], None, None)
 
         >>> RankProfile(
         ...     name = "default",
         ...     first_phase = "nativeRank(title, body)",
         ...     rank_properties = [("fieldMatch(title).maxAlternativeSegmentations", "10")]
         ... )
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, [('fieldMatch(title).maxAlternativeSegmentations', '10')], None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, None, [('fieldMatch(title).maxAlternativeSegmentations', '10')], None)
 
         >>> RankProfile(
         ...    name = "default",
         ...    first_phase = FirstPhaseRanking(expression="nativeRank(title, body)", keep_rank_count=50)
         ... )
-        RankProfile('default', FirstPhaseRanking('nativeRank(title, body)', 50, None), None, None, None, None, None, None, None, None, None, None, None, None)
+        RankProfile('default', FirstPhaseRanking('nativeRank(title, body)', 50, None), None, None, None, None, None, None, None, None, None, None, None, None, None)
 
         >>> RankProfile(
         ...     name = "default",
         ...     first_phase = "nativeRank(title, body)",
         ...     num_threads_per_search = 2
         ... )
-        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, 2, None, None, None, None)
+        RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, 2, None, None, None, None)
         """
         self.name = name
         self.first_phase = first_phase
@@ -1259,6 +1304,7 @@ class RankProfile(object):
         self.match_features = kwargs.get("match_features", match_features)
         self.second_phase = kwargs.get("second_phase", second_phase)
         self.global_phase = kwargs.get("global_phase", global_phase)
+        self.match_phase = kwargs.get("match_phase", match_phase)
         self.num_threads_per_search = kwargs.get(
             "num_threads_per_search", num_threads_per_search
         )
@@ -1281,6 +1327,7 @@ class RankProfile(object):
             and self.match_features == other.match_features
             and self.second_phase == other.second_phase
             and self.global_phase == other.global_phase
+            and self.match_phase == other.match_phase
             and self.num_threads_per_search == other.num_threads_per_search
             and self.weight == other.weight
             and self.rank_type == other.rank_type
@@ -1290,7 +1337,7 @@ class RankProfile(object):
         )
 
     def __repr__(self) -> str:
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.first_phase),
@@ -1301,6 +1348,7 @@ class RankProfile(object):
             repr(self.match_features),
             repr(self.second_phase),
             repr(self.global_phase),
+            repr(self.match_phase),
             repr(self.num_threads_per_search),
             repr(self.weight),
             repr(self.rank_type),
