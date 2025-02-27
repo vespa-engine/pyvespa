@@ -632,128 +632,128 @@ class TestApplicationPackage(unittest.TestCase):
         platform.system() == "Windows", "Disabled on Windows due to path differences"
     )
     def test_schema_to_text(self):
-        expected_result = (
-            "schema msmarco {\n"
-            "    document msmarco inherits context {\n"
-            "        field id type string {\n"
-            "            indexing: attribute | summary\n"
-            "        }\n"
-            "        field title type string {\n"
-            "            indexing: index | summary\n"
-            "            index: enable-bm25\n"
-            "        }\n"
-            "        field body type string {\n"
-            "            indexing: index | summary\n"
-            "            index: enable-bm25\n"
-            "        }\n"
-            "        field embedding type tensor<float>(x[128]) {\n"
-            "            indexing: attribute | summary\n"
-            "            attribute {\n"
-            "                fast-search\n"
-            "                fast-access\n"
-            "            }\n"
-            "        }\n"
-            "    }\n"
-            "    fieldset default {\n"
-            "        fields: title, body\n"
-            "    }\n"
-            "    onnx-model bert {\n"
-            "        file: files/bert.onnx\n"
-            "        input input_ids: input_ids\n"
-            "        input token_type_ids: token_type_ids\n"
-            "        input attention_mask: attention_mask\n"
-            "        output logits: logits\n"
-            "    }\n"
-            "    rank-profile default {\n"
-            "        first-phase {\n"
-            "            expression {\n"
-            "                nativeRank(title, body)\n"
-            "            }\n"
-            "        }\n"
-            "    }\n"
-            "    rank-profile bm25 inherits default {\n"
-            "        first-phase {\n"
-            "            expression {\n"
-            "                bm25(title) + bm25(body)\n"
-            "            }\n"
-            "        }\n"
-            "        num-threads-per-search: 4\n"
-            "    }\n"
-            "    rank-profile bert inherits default {\n"
-            "        constants {\n"
-            "            TOKEN_NONE: 0\n"
-            "            TOKEN_CLS: 101\n"
-            "            TOKEN_SEP: 102\n"
-            "        }\n"
-            "        function question_length() {\n"
-            "            expression {\n"
-            "                sum(map(query(query_token_ids), f(a)(a > 0)))\n"
-            "            }\n"
-            "        }\n"
-            "        function doc_length() {\n"
-            "            expression {\n"
-            "                sum(map(attribute(doc_token_ids), f(a)(a > 0)))\n"
-            "            }\n"
-            "        }\n"
-            "        function input_ids() {\n"
-            "            expression {\n"
-            "                tensor<float>(d0[1],d1[128])(\n"
-            "                    if (d1 == 0,\n"
-            "                        TOKEN_CLS,\n"
-            "                    if (d1 < question_length + 1,\n"
-            "                        query(query_token_ids){d0:(d1-1)},\n"
-            "                    if (d1 == question_length + 1,\n"
-            "                        TOKEN_SEP,\n"
-            "                    if (d1 < question_length + doc_length + 2,\n"
-            "                        attribute(doc_token_ids){d0:(d1-question_length-2)},\n"
-            "                    if (d1 == question_length + doc_length + 2,\n"
-            "                        TOKEN_SEP,\n"
-            "                        TOKEN_NONE\n"
-            "                    ))))))\n"
-            "            }\n"
-            "        }\n"
-            "        function attention_mask() {\n"
-            "            expression {\n"
-            "                map(input_ids, f(a)(a > 0))\n"
-            "            }\n"
-            "        }\n"
-            "        function token_type_ids() {\n"
-            "            expression {\n"
-            "                tensor<float>(d0[1],d1[128])(\n"
-            "                    if (d1 < question_length,\n"
-            "                        0,\n"
-            "                    if (d1 < question_length + doc_length,\n"
-            "                        1,\n"
-            "                        TOKEN_NONE\n"
-            "                    )))\n"
-            "            }\n"
-            "        }\n"
-            "        first-phase {\n"
-            "            expression {\n"
-            "                bm25(title) + bm25(body)\n"
-            "            }\n"
-            "        }\n"
-            "        second-phase {\n"
-            "            rerank-count: 100\n"
-            "            expression {\n"
-            "                bm25(title)\n"
-            "            }\n"
-            "        }\n"
-            "        global-phase {\n"
-            "            rerank-count: 10\n"
-            "            expression {\n"
-            "                sum(onnx(bert).logits{d0:0,d1:0})\n"
-            "            }\n"
-            "        }\n"
-            "        summary-features {\n"
-            "            onnx(bert).logits\n"
-            "            input_ids\n"
-            "            attention_mask\n"
-            "            token_type_ids\n"
-            "        }\n"
-            "    }\n"
-            "}"
-        )
+        expected_result = """schema msmarco {
+    document msmarco inherits context {
+        field id type string {
+            indexing: attribute | summary
+        }
+        field title type string {
+            indexing: index | summary
+            index: enable-bm25
+        }
+        field body type string {
+            indexing: index | summary
+            index: enable-bm25
+        }
+        field embedding type tensor<float>(x[128]) {
+            indexing: attribute | summary
+            attribute {
+                fast-search
+                fast-access
+            }
+        }
+    }
+    fieldset default {
+        fields: title, body
+    }
+    onnx-model bert {
+        file: files/bert.onnx
+        input input_ids: input_ids
+        input token_type_ids: token_type_ids
+        input attention_mask: attention_mask
+        output logits: logits
+    }
+    rank-profile default {
+        first-phase {
+            expression {
+                nativeRank(title, body)
+            }
+        }
+    }
+    rank-profile bm25 inherits default {
+        first-phase {
+            expression {
+                bm25(title) + bm25(body)
+            }
+        }
+        num-threads-per-search: 4
+    }
+    rank-profile bert inherits default {
+        constants {
+            TOKEN_NONE: 0
+            TOKEN_CLS: 101
+            TOKEN_SEP: 102
+        }
+        function question_length() {
+            expression {
+                sum(map(query(query_token_ids), f(a)(a > 0)))
+            }
+        }
+        function doc_length() {
+            expression {
+                sum(map(attribute(doc_token_ids), f(a)(a > 0)))
+            }
+        }
+        function input_ids() {
+            expression {
+                tensor<float>(d0[1],d1[128])(
+                    if (d1 == 0,
+                        TOKEN_CLS,
+                    if (d1 < question_length + 1,
+                        query(query_token_ids){d0:(d1-1)},
+                    if (d1 == question_length + 1,
+                        TOKEN_SEP,
+                    if (d1 < question_length + doc_length + 2,
+                        attribute(doc_token_ids){d0:(d1-question_length-2)},
+                    if (d1 == question_length + doc_length + 2,
+                        TOKEN_SEP,
+                        TOKEN_NONE
+                    ))))))
+            }
+        }
+        function attention_mask() {
+            expression {
+                map(input_ids, f(a)(a > 0))
+            }
+        }
+        function token_type_ids() {
+            expression {
+                tensor<float>(d0[1],d1[128])(
+                    if (d1 < question_length,
+                        0,
+                    if (d1 < question_length + doc_length,
+                        1,
+                        TOKEN_NONE
+                    )))
+            }
+        }
+        first-phase {
+            expression {
+                bm25(title) + bm25(body)
+            }
+        }
+        second-phase {
+            expression {
+                bm25(title)
+            }
+            rerank-count: 100
+            rank-score-drop-limit: 0
+        }
+        global-phase {
+            expression {
+                sum(onnx(bert).logits{d0:0,d1:0})
+            }
+            rerank-count: 10
+            rank-score-drop-limit: 0
+        }
+        summary-features {
+            onnx(bert).logits
+            input_ids
+            attention_mask
+            token_type_ids
+        }
+    }
+}"""
         self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
 
     def test_services_to_text(self):
@@ -1121,64 +1121,63 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
         )
 
     def test_schema_to_text(self):
-        expected_result = (
-            "schema testapp {\n"
-            "    document testapp {\n"
-            "        field id type string {\n"
-            "            indexing: attribute | summary\n"
-            "        }\n"
-            "        field title type string {\n"
-            "            indexing: index | summary\n"
-            "            index: enable-bm25\n"
-            "        }\n"
-            "        field body type string {\n"
-            "            indexing: index | summary\n"
-            "            index: enable-bm25\n"
-            "        }\n"
-            "        field tensor_field type tensor<float>(x[128]) {\n"
-            "            indexing: attribute\n"
-            "            attribute {\n"
-            "                distance-metric: euclidean\n"
-            "                fast-search\n"
-            "                fast-access\n"
-            "            }\n"
-            "            index {\n"
-            "                hnsw {\n"
-            "                    max-links-per-node: 16\n"
-            "                    neighbors-to-explore-at-insert: 200\n"
-            "                }\n"
-            "            }\n"
-            "        }\n"
-            "    }\n"
-            "    field embedding type tensor<bfloat16>(x[384]) {\n"
-            '        indexing: (input title || "") . " " . (input body || "") | embed embedder | attribute | index\n'
-            "        index: hnsw\n"
-            "    }\n"
-            "    fieldset default {\n"
-            "        fields: title, body\n"
-            "    }\n"
-            "    rank-profile default {\n"
-            "        first-phase {\n"
-            "            expression {\n"
-            "                nativeRank(title, body)\n"
-            "            }\n"
-            "        }\n"
-            "    }\n"
-            "    rank-profile bm25 inherits default {\n"
-            "        first-phase {\n"
-            "            expression {\n"
-            "                bm25(title) + bm25(body)\n"
-            "            }\n"
-            "        }\n"
-            "        global-phase {\n"
-            "            rerank-count: 10\n"
-            "            expression {\n"
-            "                bm25(title)\n"
-            "            }\n"
-            "        }\n"
-            "    }\n"
-            "}"
-        )
+        self.maxDiff = None
+        expected_result = """schema testapp {
+    document testapp {
+        field id type string {
+            indexing: attribute | summary
+        }
+        field title type string {
+            indexing: index | summary
+            index: enable-bm25
+        }
+        field body type string {
+            indexing: index | summary
+            index: enable-bm25
+        }
+        field tensor_field type tensor<float>(x[128]) {
+            indexing: attribute
+            attribute {
+                distance-metric: euclidean
+                fast-search
+                fast-access
+            }
+            index {
+                hnsw {
+                    max-links-per-node: 16
+                    neighbors-to-explore-at-insert: 200
+                }
+            }
+        }
+    }
+    field embedding type tensor<bfloat16>(x[384]) {
+        indexing: (input title || "") . " " . (input body || "") | embed embedder | attribute | index
+        index: hnsw
+    }
+    fieldset default {
+        fields: title, body
+    }
+    rank-profile default {
+        first-phase {
+            expression {
+                nativeRank(title, body)
+            }
+        }
+    }
+    rank-profile bm25 inherits default {
+        first-phase {
+            expression {
+                bm25(title) + bm25(body)
+            }
+        }
+        global-phase {
+            expression {
+                bm25(title)
+            }
+            rerank-count: 10
+        }
+    }
+}"""
         self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
 
     def test_services_to_text(self):

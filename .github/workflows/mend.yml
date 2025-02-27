@@ -1,0 +1,44 @@
+# ******** Mend Unified CLI Template for Github Actions ********
+#
+# You may wish to alter this file to override the build tool and Mend scanning technologies.
+#
+# For more configuration options, please check the technical documentation portal:
+# 📚 https://docs.mend.io/bundle/integrations/page/scan_with_the_mend_cli.html
+#
+# ******** Description ********
+# mend dep will automatically use package managers and file system scanning to detect open source components.
+# mend code will automatically detect languages and frameworks used in your projects to scan for code weaknesses.
+
+# If you are NOT using a service user, and have multiple organizations, don't forget to call the scope -s parameter to set the organization
+
+name: Mend CLI Scan
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  mend:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+    - name: Mend CLI Scan
+      env:
+        MEND_EMAIL: ${{secrets.MEND_EMAIL}}
+        MEND_USER_KEY: ${{secrets.MEND_USER_KEY}}
+        MEND_URL: https://saas-eu.mend.io
+      run: |
+        echo Downloading Mend CLI
+        curl https://downloads.mend.io/cli/linux_amd64/mend -o /usr/local/bin/mend && chmod +x /usr/local/bin/mend
+        echo run Mend dependencies scan
+        mend dep -u --non-interactive --scope "$GITHUB_REPOSITORY_OWNER//${{github.event.repository.name}}"
+        echo Run Mend code scan
+        mend code --non-interactive --scope "$GITHUB_REPOSITORY_OWNER//${{github.event.repository.name}}"
