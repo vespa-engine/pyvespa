@@ -148,7 +148,7 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
             {% if value.first_phase.keep_rank_count %}
             keep-rank-count: {{ value.first_phase.keep_rank_count }}
             {% endif %}
-            {% if value.first_phase.rank_score_drop_limit %}
+            {% if value.first_phase.rank_score_drop_limit != None %}
             rank-score-drop-limit: {{ value.first_phase.rank_score_drop_limit }}
             {% endif %}
         }
@@ -156,18 +156,24 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
         {% endif %}
         {% if value.second_phase %}
         second-phase {
-            rerank-count: {{ value.second_phase.rerank_count }}
             expression {
                 {{ value.second_phase.expression }}
             }
+            rerank-count: {{ value.second_phase.rerank_count }}
+            {% if value.second_phase.rank_score_drop_limit != None %}
+            rank-score-drop-limit: {{ value.second_phase.rank_score_drop_limit }}
+            {% endif %}
         }
         {% endif %}
         {% if value.global_phase %}
         global-phase {
-            rerank-count: {{ value.global_phase.rerank_count }}
             expression {
                 {{ value.global_phase.expression }}
             }
+            rerank-count: {{ value.global_phase.rerank_count }}
+            {% if value.global_phase.rank_score_drop_limit != None %}
+            rank-score-drop-limit: {{ value.global_phase.rank_score_drop_limit }}
+            {% endif %}
         }
         {% endif %}
         {% if value.summary_features %}
