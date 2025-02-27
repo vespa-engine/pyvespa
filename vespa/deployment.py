@@ -1054,7 +1054,7 @@ class VespaCloud(VespaDeployment):
         print(output.stdout.decode("utf-8"))
 
     def _set_application(self):
-        vespa_cli_command = f"vespa config set application {self.tenant}.{self.application}{self.instance}"
+        vespa_cli_command = f"vespa config set application {self.tenant}.{self.application}.{self.instance}"
         print("Running: " + vespa_cli_command)
         output = subprocess.run(
             shlex.split(vespa_cli_command),
@@ -1089,7 +1089,7 @@ class VespaCloud(VespaDeployment):
             # If cert/key not found in application root: look in ~/.vespa/tenant.app.default/
             home_vespa_dir = (
                 VESPA_HOME / f"{self.tenant}.{self.application}.{self.instance}"
-            )  # TODO Support other instance names
+            )
             cert, key = _check_dir(home_vespa_dir)
             if cert and key:
                 self.data_cert_path = cert
