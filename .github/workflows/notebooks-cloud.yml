@@ -3,8 +3,7 @@ name: Notebooks - cloud
 on:
   workflow_dispatch:
   pull_request:
-    branches:
-      - master
+    paths: ["docs/sphinx/source/**/*cloud.ipynb", "vespa/deployment.py"]
   push:
     branches:
       - master
