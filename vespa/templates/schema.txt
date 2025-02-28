@@ -141,6 +141,13 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
         }
         {% endfor %}
         {% endif %}
+        {% if value.match_phase %}
+        match-phase {
+            attribute: {{ value.match_phase.attribute }}
+            order: {{ value.match_phase.order }}
+            max-hits: {{ value.match_phase.max_hits }}
+        }
+        {% endif %}
         {% if value.first_phase %}
         {% if value.first_phase is string %}
         first-phase {
