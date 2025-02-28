@@ -17,7 +17,7 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
                 indexing: {{ field.indexing_to_text }}
                 {% endif %}
                 {% if field.index %}
-                {% if field.index is mapping or field.index is dict or (field.index.items is defined and field.index.keys is defined) %}
+                {% if field.index is mapping %}
                 index {
                     {% for key, value in field.index.items() %}
                     {{ key }}: {{ value }}
