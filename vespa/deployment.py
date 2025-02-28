@@ -459,6 +459,7 @@ class VespaCloud(VespaDeployment):
         output_file: IO = sys.stdout,
         application_root: Optional[str] = None,
         cluster: Optional[str] = None,
+        instance: str = "default",
     ) -> None:
         """
         Deploy application to the Vespa Cloud (cloud.vespa.ai)
@@ -508,6 +509,7 @@ class VespaCloud(VespaDeployment):
         :param output_file: Output file to write output messages. Default is sys.stdout
         :param application_root: Directory for application root. (location of services.xml, models/, schemas/, etc.). If application is packaged with maven, use the generated <myapp>/target/application directory.
         :param cluster: Name of the cluster to target for when retrieving endpoints. Will affect which endpoints are used for initializing :class:`Vespa` instance in :func:`VespaCloud.get_application` and :func:`VespaCloud.deploy`.
+        :param instance: Name of the application instance. Default is "default".
         """
         self.tenant = tenant
         self.application = application
@@ -517,6 +519,7 @@ class VespaCloud(VespaDeployment):
             raise ValueError(
                 "Either application_package or application_root must be set for deployment."
             )
+        self.instance = instance
         self.output = output_file
         self.api_key = self._read_private_key(key_location, key_content)
         self.control_plane_auth_method = None  # "api_key" or "access_token"
@@ -633,7 +636,7 @@ class VespaCloud(VespaDeployment):
         region = self.get_dev_region()
         job = "dev-" + region
         run = self._start_deployment(
-            instance=instance,
+            instance=instance or self.instance,
             job=job,
             disk_folder=disk_folder,
             application_zip_bytes=None,
@@ -747,7 +750,7 @@ class VespaCloud(VespaDeployment):
                 f"Only region: {region} available in dev environment.", file=self.output
             )
         elif environment == "prod":
-            valid_regions = self.get_prod_regions(instance=instance)
+            valid_regions = self.get_prod_regions(instance=instance or self.instance)
             if region is not None:
                 if region not in valid_regions:
                     raise ValueError(
@@ -759,7 +762,9 @@ class VespaCloud(VespaDeployment):
             raise ValueError("Environment must be 'dev' or 'prod'.")
         if endpoint_type == "mtls":
             mtls_endpoint = self.get_mtls_endpoint(
-                instance=instance, region=region, environment=environment
+                instance=instance or self.instance,
+                region=region,
+                environment=environment,
             )
             app: Vespa = Vespa(
                 url=mtls_endpoint,
@@ -770,7 +775,9 @@ class VespaCloud(VespaDeployment):
         elif endpoint_type == "token":
             try:  # May have client_token_id set but the deployed app was not configured to use it
                 token_endpoint = self.get_token_endpoint(
-                    instance=instance, region=region, environment=environment
+                    instance=instance or self.instance,
+                    region=region,
+                    environment=environment,
                 )
             except Exception as _:
                 raise ValueError(
@@ -889,7 +896,7 @@ class VespaCloud(VespaDeployment):
         region = self.get_dev_region()
         job = "dev-" + region
         run = self._start_deployment(
-            instance=instance,
+            instance=instance or self.instance,
             job=job,
             disk_folder=disk_folder,
             application_zip_bytes=data,
@@ -897,7 +904,7 @@ class VespaCloud(VespaDeployment):
         )
         self._follow_deployment(instance, job, run)
         app: Vespa = self.get_application(
-            instance=instance, environment="dev", endpoint_type="mtls"
+            instance=instance or self.instance, environment="dev", endpoint_type="mtls"
         )
         return app
 
@@ -1047,9 +1054,7 @@ class VespaCloud(VespaDeployment):
         print(output.stdout.decode("utf-8"))
 
     def _set_application(self):
-        vespa_cli_command = (
-            f"vespa config set application {self.tenant}.{self.application}"
-        )
+        vespa_cli_command = f"vespa config set application {self.tenant}.{self.application}.{self.instance}"
         print("Running: " + vespa_cli_command)
         output = subprocess.run(
             shlex.split(vespa_cli_command),
@@ -1083,8 +1088,8 @@ class VespaCloud(VespaDeployment):
         else:
             # If cert/key not found in application root: look in ~/.vespa/tenant.app.default/
             home_vespa_dir = (
-                VESPA_HOME / f"{self.tenant}.{self.application}.default"
-            )  # TODO Support other instance names
+                VESPA_HOME / f"{self.tenant}.{self.application}.{self.instance}"
+            )
             cert, key = _check_dir(home_vespa_dir)
             if cert and key:
                 self.data_cert_path = cert
