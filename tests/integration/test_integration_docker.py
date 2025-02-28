@@ -9,6 +9,8 @@ import time
 import requests
 import random
 
+from vespa.package import ApplicationPackage
+
 from typing import List, Dict, Optional
 from vespa.io import VespaResponse, VespaQueryResponse
 from vespa.resources import get_resource_path
@@ -19,7 +21,6 @@ from vespa.package import (
     Schema,
     FieldSet,
     RankProfile,
-    ApplicationPackage,
     QueryProfile,
     QueryProfileType,
     QueryTypeField,
@@ -2214,3 +2215,67 @@ class TestCrossencoderPersearchThreads(unittest.TestCase):
     def tearDown(self) -> None:
         self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
+
+
+class TestRankProfileCustomSettingsDeployment(unittest.TestCase):
+    def setUp(self) -> None:
+        # Create a document with an indexed field "text"
+        document = Document(
+            fields=[Field(name="text", type="string", indexing=["index", "summary"])]
+        )
+        # Create a custom rank profile similar to the unit test
+        rank_profile_filter = RankProfile(
+            name="optimized",
+            first_phase="bm25(text)",
+            filter_threshold=0.05,
+        )
+        rank_profile_stopwords = RankProfile(
+            name="stopwords",
+            first_phase="bm25(text)",
+            weakand={"stopword-limit": 0.6},
+        )
+        rank_profile_adjust = RankProfile(
+            name="adjust",
+            first_phase="bm25(text)",
+            weakand={"adjust-target": 0.5},
+        )
+        schema = Schema(
+            name="testrank",
+            document=document,
+            fieldsets=[FieldSet(name="default", fields=["text"])],
+            rank_profiles=[
+                rank_profile_filter,
+                rank_profile_stopwords,
+                rank_profile_adjust,
+            ],
+        )
+        self.app_package = ApplicationPackage(name="testrank", schema=[schema])
+        self.vespa_docker = VespaDocker(port=8089)
+        self.app = self.vespa_docker.deploy(application_package=self.app_package)
+
+    def test_rank_profile_custom_query(self):
+        # Feed 10 documents with a "text" field
+        # TODO: Update to test for number of matched documents according to the settings
+        # Currently it only tests that it can be deployed.
+        docs_to_feed = [
+            {"id": str(i), "fields": {"text": f"This is test document number {i}"}}
+            for i in range(10)
+        ]
+        self.app.feed_iterable(docs_to_feed, schema="testrank")
+        # Query for documents containing the term "test"
+        response = self.app.query(
+            body={
+                "yql": 'select * from sources * where weakAnd(text contains "test")',
+            }
+        )
+        self.assertTrue(response.is_successful())
+        # Assert that all 10 documents are retrieved.
+        self.assertEqual(response.number_documents_retrieved, 10)
+
+    def tearDown(self) -> None:
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
+        self.vespa_docker.container.remove()
+
+
+if __name__ == "__main__":
+    unittest.main()

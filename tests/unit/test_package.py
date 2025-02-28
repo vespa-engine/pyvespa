@@ -1961,3 +1961,47 @@ class TestServiceConfig(unittest.TestCase):
 </services>"""
         self.assertEqual(expected, application_package.services_to_text)
         self.assertTrue(validate_services(application_package.services_to_text))
+
+
+class TestRankProfileCustomSettings(unittest.TestCase):
+    def test_rank_profile_with_filter_and_weakand(self):
+        # Create a minimal schema with a dummy document to allow rank profile rendering.
+        dummy_document = Document(fields=[Field(name="dummy", type="string")])
+        rank_profile = RankProfile(
+            name="optimized",
+            first_phase="nativeRank(dummy)",
+            inherits="baseline",
+            filter_threshold=0.05,
+            weakand={"stopword-limit": 0.6, "adjust-target": 0.01},
+        )
+        schema = Schema(
+            name="test_schema",
+            document=dummy_document,
+            rank_profiles=[rank_profile],
+        )
+        # Expected text for the rank profile block.
+        expected_schema = """\
+schema test_schema {
+    document test_schema {
+        field dummy type string {
+        }
+    }
+    rank-profile optimized inherits baseline {
+        filter-threshold: 0.05
+        weakand {
+            stopword-limit: 0.6
+            adjust-target: 0.01
+        }
+        first-phase {
+            expression {
+                nativeRank(dummy)
+            }
+        }
+    }
+}"""
+        # Compare the expected and actual schema text.
+        actual_schema = schema.schema_to_text
+        self.assertEqual(
+            actual_schema,
+            expected_schema,
+        )
