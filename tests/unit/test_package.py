@@ -1963,6 +1963,49 @@ class TestServiceConfig(unittest.TestCase):
         self.assertTrue(validate_services(application_package.services_to_text))
 
 
+class TestPredicateField(unittest.TestCase):
+    def setUp(self):
+        self.app_package = ApplicationPackage(name="predicatetest")
+
+        # Add a document with a predicate field
+        self.app_package.schema.add_fields(
+            Field(name="id", type="string", indexing=["attribute", "summary"]),
+            Field(
+                name="predicate_field",
+                type="predicate",
+                indexing=["attribute"],
+                index={
+                    "arity": 2,
+                    "lower-bound": 3,
+                    "upper-bound": 200,
+                    "dense-posting-list-threshold": 0.25,
+                },
+            ),
+        )
+
+    def test_predicate_field_schema(self):
+        expected_result = """schema predicatetest {
+    document predicatetest {
+        field id type string {
+            indexing: attribute | summary
+        }
+        field predicate_field type predicate {
+            indexing: attribute
+            index {
+                arity: 2
+                lower-bound: 3
+                upper-bound: 200
+                dense-posting-list-threshold: 0.25
+            }
+        }
+    }
+}"""
+        print()
+        print(self.app_package.schema.schema_to_text)
+        print()
+        print(expected_result)
+        self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
+
 class TestRankProfileCustomSettings(unittest.TestCase):
     def test_rank_profile_with_filter_and_weakand(self):
         # Create a minimal schema with a dummy document to allow rank profile rendering.
