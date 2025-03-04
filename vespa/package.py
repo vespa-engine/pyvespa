@@ -1165,6 +1165,8 @@ class RankProfileFields(TypedDict, total=False):
     rank_properties: List[Tuple[str, str]]
     inputs: List[Union[Tuple[str, str], Tuple[str, str, str]]]
     mutate: Mutate
+    filter_threshold: float
+    weakand: Dict[str, float]  # <-- NEW: weakand parameters
 
 
 class RankProfile(object):
@@ -1313,6 +1315,8 @@ class RankProfile(object):
         self.rank_properties = kwargs.get("rank_properties", None)
         self.inputs = kwargs.get("inputs", None)
         self.mutate = kwargs.get("mutate", None)
+        self.filter_threshold = kwargs.get("filter_threshold", None)
+        self.weakand = kwargs.get("weakand", None)  # <-- NEW: store weakand parameters
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
