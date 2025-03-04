@@ -116,6 +116,16 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
 {% endif %}
 {% for key, value in rank_profiles.items() %}
     rank-profile {{ key }}{% if value.inherits %} inherits {{ value.inherits }}{% endif %} {
+        {% if value.filter_threshold %}
+        filter-threshold: {{ value.filter_threshold }}
+        {% endif %}
+        {% if value.weakand %}
+        weakand {
+            {% for key, val in value.weakand.items() %}
+            {{ key }}: {{ val }}
+            {% endfor %}
+        }
+        {% endif %}
         {% if value.constants %}
         constants {
         {% for constant_name, constant_value in value.constants.items() %}
@@ -127,9 +137,7 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
         inputs {
         {% for input in value.inputs %}
             {{ input.0 }} {{ input.1 }} {% if input.2 %}: {{ input.2 }}{% endif %}
-            
         {% endfor %}
-        
         }
         {% endif %}
         {% if value.functions %}
