@@ -1961,3 +1961,90 @@ class TestServiceConfig(unittest.TestCase):
 </services>"""
         self.assertEqual(expected, application_package.services_to_text)
         self.assertTrue(validate_services(application_package.services_to_text))
+
+
+class TestPredicateField(unittest.TestCase):
+    def setUp(self):
+        self.app_package = ApplicationPackage(name="predicatetest")
+
+        # Add a document with a predicate field
+        self.app_package.schema.add_fields(
+            Field(name="id", type="string", indexing=["attribute", "summary"]),
+            Field(
+                name="predicate_field",
+                type="predicate",
+                indexing=["attribute"],
+                index={
+                    "arity": 2,
+                    "lower-bound": 3,
+                    "upper-bound": 200,
+                    "dense-posting-list-threshold": 0.25,
+                },
+            ),
+        )
+
+    def test_predicate_field_schema(self):
+        expected_result = """schema predicatetest {
+    document predicatetest {
+        field id type string {
+            indexing: attribute | summary
+        }
+        field predicate_field type predicate {
+            indexing: attribute
+            index {
+                arity: 2
+                lower-bound: 3
+                upper-bound: 200
+                dense-posting-list-threshold: 0.25
+            }
+        }
+    }
+}"""
+        print()
+        print(self.app_package.schema.schema_to_text)
+        print()
+        print(expected_result)
+        self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
+
+class TestRankProfileCustomSettings(unittest.TestCase):
+    def test_rank_profile_with_filter_and_weakand(self):
+        # Create a minimal schema with a dummy document to allow rank profile rendering.
+        dummy_document = Document(fields=[Field(name="dummy", type="string")])
+        rank_profile = RankProfile(
+            name="optimized",
+            first_phase="nativeRank(dummy)",
+            inherits="baseline",
+            filter_threshold=0.05,
+            weakand={"stopword-limit": 0.6, "adjust-target": 0.01},
+        )
+        schema = Schema(
+            name="test_schema",
+            document=dummy_document,
+            rank_profiles=[rank_profile],
+        )
+        # Expected text for the rank profile block.
+        expected_schema = """\
+schema test_schema {
+    document test_schema {
+        field dummy type string {
+        }
+    }
+    rank-profile optimized inherits baseline {
+        filter-threshold: 0.05
+        weakand {
+            stopword-limit: 0.6
+            adjust-target: 0.01
+        }
+        first-phase {
+            expression {
+                nativeRank(dummy)
+            }
+        }
+    }
+}"""
+        # Compare the expected and actual schema text.
+        actual_schema = schema.schema_to_text
+        self.assertEqual(
+            actual_schema,
+            expected_schema,
+        )
