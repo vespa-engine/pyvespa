@@ -19,7 +19,7 @@ class Grouping:
     This class provides a set of static methods that build grouping syntax strings
     which can be combined to form a valid Vespa “select=…” grouping expression.
 
-    For a guide to groping in vespa, see https://docs.vespa.ai/en/grouping.html.
+    For a guide to grouping in vespa, see https://docs.vespa.ai/en/grouping.html.
     For the reference docs, see https://docs.vespa.ai/en/reference/grouping-syntax.html.
 
     Minimal Example:
