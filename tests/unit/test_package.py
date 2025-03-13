@@ -13,6 +13,7 @@ from vespa.package import (
     Function,
     SecondPhaseRanking,
     GlobalPhaseRanking,
+    MatchPhaseRanking,
     Mutate,
     RankProfile,
     OnnxModel,
@@ -1224,6 +1225,76 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
         )
         self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)
 
+    def test_rank_profile_match_phase(self):
+        rank_profile = RankProfile(
+            name="match_phase_test",
+            first_phase="bm25(title) + bm25(body)",
+            match_phase=MatchPhaseRanking(
+                attribute="popularity", order="descending", max_hits=1000
+            ),
+        )
+        self.assertEqual(rank_profile.name, "match_phase_test")
+        self.assertEqual(rank_profile.first_phase, "bm25(title) + bm25(body)")
+        self.assertEqual(rank_profile.match_phase.attribute, "popularity")
+        self.assertEqual(rank_profile.match_phase.order, "descending")
+        self.assertEqual(rank_profile.match_phase.max_hits, 1000)
+
+    def test_schema_to_text_with_match_phase(self):
+        schema = Schema(
+            name="test_match_phase",
+            document=Document(
+                fields=[
+                    Field(name="title", type="string", indexing=["index", "summary"]),
+                    Field(name="body", type="string", indexing=["index", "summary"]),
+                    Field(name="popularity", type="int", indexing=["attribute"]),
+                ]
+            ),
+            rank_profiles=[
+                RankProfile(name="default", first_phase="nativeRank(title, body)"),
+                RankProfile(
+                    name="match_phase_test",
+                    first_phase="bm25(title) + bm25(body)",
+                    match_phase=MatchPhaseRanking(
+                        attribute="popularity", order="descending", max_hits=1000
+                    ),
+                ),
+            ],
+        )
+        expected_schema = """schema test_match_phase {
+    document test_match_phase {
+        field title type string {
+            indexing: index | summary
+        }
+        field body type string {
+            indexing: index | summary
+        }
+        field popularity type int {
+            indexing: attribute
+        }
+    }
+    rank-profile default {
+        first-phase {
+            expression {
+                nativeRank(title, body)
+            }
+        }
+    }
+    rank-profile match_phase_test {
+        match-phase {
+            attribute: popularity
+            order: descending
+            max-hits: 1000
+        }
+        first-phase {
+            expression {
+                bm25(title) + bm25(body)
+            }
+        }
+    }
+}"""
+
+        self.assertEqual(schema.schema_to_text, expected_schema)
+
 
 class TestSimplifiedApplicationPackageWithMultipleSchemas(unittest.TestCase):
     def setUp(self) -> None:
@@ -1890,3 +1961,90 @@ class TestServiceConfig(unittest.TestCase):
 </services>"""
         self.assertEqual(expected, application_package.services_to_text)
         self.assertTrue(validate_services(application_package.services_to_text))
+
+
+class TestPredicateField(unittest.TestCase):
+    def setUp(self):
+        self.app_package = ApplicationPackage(name="predicatetest")
+
+        # Add a document with a predicate field
+        self.app_package.schema.add_fields(
+            Field(name="id", type="string", indexing=["attribute", "summary"]),
+            Field(
+                name="predicate_field",
+                type="predicate",
+                indexing=["attribute"],
+                index={
+                    "arity": 2,
+                    "lower-bound": 3,
+                    "upper-bound": 200,
+                    "dense-posting-list-threshold": 0.25,
+                },
+            ),
+        )
+
+    def test_predicate_field_schema(self):
+        expected_result = """schema predicatetest {
+    document predicatetest {
+        field id type string {
+            indexing: attribute | summary
+        }
+        field predicate_field type predicate {
+            indexing: attribute
+            index {
+                arity: 2
+                lower-bound: 3
+                upper-bound: 200
+                dense-posting-list-threshold: 0.25
+            }
+        }
+    }
+}"""
+        print()
+        print(self.app_package.schema.schema_to_text)
+        print()
+        print(expected_result)
+        self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
+
+class TestRankProfileCustomSettings(unittest.TestCase):
+    def test_rank_profile_with_filter_and_weakand(self):
+        # Create a minimal schema with a dummy document to allow rank profile rendering.
+        dummy_document = Document(fields=[Field(name="dummy", type="string")])
+        rank_profile = RankProfile(
+            name="optimized",
+            first_phase="nativeRank(dummy)",
+            inherits="baseline",
+            filter_threshold=0.05,
+            weakand={"stopword-limit": 0.6, "adjust-target": 0.01},
+        )
+        schema = Schema(
+            name="test_schema",
+            document=dummy_document,
+            rank_profiles=[rank_profile],
+        )
+        # Expected text for the rank profile block.
+        expected_schema = """\
+schema test_schema {
+    document test_schema {
+        field dummy type string {
+        }
+    }
+    rank-profile optimized inherits baseline {
+        filter-threshold: 0.05
+        weakand {
+            stopword-limit: 0.6
+            adjust-target: 0.01
+        }
+        first-phase {
+            expression {
+                nativeRank(dummy)
+            }
+        }
+    }
+}"""
+        # Compare the expected and actual schema text.
+        actual_schema = schema.schema_to_text
+        self.assertEqual(
+            actual_schema,
+            expected_schema,
+        )

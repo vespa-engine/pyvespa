@@ -17,7 +17,15 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
                 indexing: {{ field.indexing_to_text }}
                 {% endif %}
                 {% if field.index %}
+                {% if field.index is mapping %}
+                index {
+                    {% for key, value in field.index.items() %}
+                    {{ key }}: {{ value }}
+                    {% endfor %}
+                }
+                {% else %}
                 index: {{ field.index }}
+                {% endif %}
                 {% endif %}
                 {% if field.ann or field.attribute %}
                 attribute {
@@ -108,6 +116,16 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
 {% endif %}
 {% for key, value in rank_profiles.items() %}
     rank-profile {{ key }}{% if value.inherits %} inherits {{ value.inherits }}{% endif %} {
+        {% if value.filter_threshold %}
+        filter-threshold: {{ value.filter_threshold }}
+        {% endif %}
+        {% if value.weakand %}
+        weakand {
+            {% for key, val in value.weakand.items() %}
+            {{ key }}: {{ val }}
+            {% endfor %}
+        }
+        {% endif %}
         {% if value.constants %}
         constants {
         {% for constant_name, constant_value in value.constants.items() %}
@@ -119,9 +137,7 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
         inputs {
         {% for input in value.inputs %}
             {{ input.0 }} {{ input.1 }} {% if input.2 %}: {{ input.2 }}{% endif %}
-            
         {% endfor %}
-        
         }
         {% endif %}
         {% if value.functions %}
@@ -132,6 +148,13 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
             }
         }
         {% endfor %}
+        {% endif %}
+        {% if value.match_phase %}
+        match-phase {
+            attribute: {{ value.match_phase.attribute }}
+            order: {{ value.match_phase.order }}
+            max-hits: {{ value.match_phase.max_hits }}
+        }
         {% endif %}
         {% if value.first_phase %}
         {% if value.first_phase is string %}
