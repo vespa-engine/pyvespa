@@ -857,6 +857,7 @@ class Vespa(object):
         slices: int = 1,
         selection: str = "true",
         wanted_document_count: int = 500,
+        slice_id: Optional[int] = None,
         **kwargs,
     ) -> Generator[Generator[VespaVisitResponse, None, None], None, None]:
         """
@@ -875,7 +876,9 @@ class Vespa(object):
         :param schema: The schema that we are visiting data from.
         :param namespace: The namespace that we are visiting data from.
         :param slices: Number of slices to use for parallel GET.
+        :param selection: Selection expression to filter documents.
         :param wanted_document_count: Best effort number of documents to retrieve for each request. May contain less if there are not enough documents left.
+        :param slice_id: Slice id to use for the visit. If None, all slices will be used.
         :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)
         :return: A generator of slices, each containing a generator of responses.
         :raises HTTPError: if one occurred
@@ -889,6 +892,7 @@ class Vespa(object):
                 slices=slices,
                 selection=selection,
                 wanted_document_count=wanted_document_count,
+                slice_id=slice_id,
                 **kwargs,
             )
 
@@ -1410,6 +1414,7 @@ class VespaSync(object):
         slices: int = 1,
         selection: str = "true",
         wanted_document_count: int = 500,
+        slice_id: Optional[int] = None,
         **kwargs,
     ) -> Generator[Generator[VespaVisitResponse, None, None], None, None]:
         """
@@ -1423,6 +1428,8 @@ class VespaSync(object):
         :param namespace: The namespace that we are visiting data from.
         :param slices: Number of slices to use for parallel GET.
         :param wanted_document_count: Best effort number of documents to retrieve for each request. May contain less if there are not enough documents left.
+        :param selection: Selection expression to use. Defaults to "true". See https://docs.vespa.ai/en/reference/document-select-language.html
+        :param slice_id: Slice id to use. Defaults to -1, which means all slices.
         :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)
         :return: A generator of slices, each containing a generator of responses.
         :raises HTTPError: if one occurred
@@ -1442,6 +1449,11 @@ class VespaSync(object):
             self.app.end_point,
             target,
         )
+        # Validate that if slice_id is provided, it's in range [0, slices)
+        if slice_id is not None and slice_id >= slices:
+            raise ValueError(
+                f"slice_id must be in range [0, {slices - 1}]. Got {slice_id} instead."
+            )
 
         @retry(retry=retry_if_exception_type(HTTPError), stop=stop_after_attempt(3))
         def visit_request(end_point: str, params: Dict[str, str]):
@@ -1469,10 +1481,15 @@ class VespaSync(object):
                 else:
                     break
 
-        with ThreadPoolExecutor(max_workers=slices) as executor:
-            futures = [executor.submit(visit_slice, slice) for slice in range(slices)]
-            for future in as_completed(futures):
-                yield future.result()
+        if slice_id is None:
+            with ThreadPoolExecutor(max_workers=slices) as executor:
+                futures = [
+                    executor.submit(visit_slice, slice) for slice in range(slices)
+                ]
+                for future in as_completed(futures):
+                    yield future.result()
+        else:
+            yield visit_slice(slice_id)
 
     def get_data(
         self,

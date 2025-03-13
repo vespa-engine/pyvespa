@@ -393,8 +393,10 @@ class VespaEvaluator:
                 raise ValueError(
                     f"vespa_query_fn must return a dict, got: {type(query_body)}"
                 )
-            # Add default body parameters
-            query_body.update(self.default_body)
+            # Add default body parameters only if not already specified
+            for key, value in self.default_body.items():
+                if key not in query_body:
+                    query_body[key] = value
             query_bodies.append(query_body)
             logger.debug(f"Querying Vespa with: {query_body}")
 

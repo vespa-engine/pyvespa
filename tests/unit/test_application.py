@@ -166,6 +166,56 @@ class TestVespaRequestsUsage(unittest.TestCase):
                 "&timeout=200s"
             ) in urls
 
+    def test_visit_slice_id(self):
+        app = Vespa(url="http://localhost", port=8080)
+        with requests_mock.Mocker() as m:
+            m.get(
+                "http://localhost:8080/ApplicationStatus",
+                status_code=200,
+            )
+            m.get(
+                "http://localhost:8080/document/v1/foo/foo/docid/",
+                [
+                    {"json": {"continuation": "AAA"}, "status_code": 200},
+                    {"json": {}, "status_code": 200},
+                ],
+            )
+
+            results = []
+            for slice in app.visit(
+                schema="foo",
+                namespace="foo",
+                content_cluster_name="content",
+                timeout="200s",
+                slices=10,
+                slice_id=2,
+            ):
+                for response in slice:
+                    results.append(response)
+            assert len(results) == 2
+
+            urls = [response.url for response in results]
+            assert (
+                "http://localhost:8080/document/v1/foo/foo/docid/"
+                "?cluster=content"
+                "&selection=true"
+                "&wantedDocumentCount=500"
+                "&slices=10"
+                "&sliceId=2"
+                "&timeout=200s"
+                "&continuation=AAA"
+            ) in urls
+
+            assert (
+                "http://localhost:8080/document/v1/foo/foo/docid/"
+                "?cluster=content"
+                "&selection=true"
+                "&wantedDocumentCount=500"
+                "&slices=10"
+                "&sliceId=2"
+                "&timeout=200s"
+            ) in urls
+
 
 class TestVespa(unittest.TestCase):
     def test_end_point(self):
