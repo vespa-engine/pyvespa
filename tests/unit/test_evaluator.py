@@ -667,34 +667,6 @@ class TestVespaEvaluator(unittest.TestCase):
             self.assertIn("presentation.timing", qb)
             self.assertEqual(qb["presentation.timing"], True)
 
-    def test_vespa_query_fn_default_body_override(self):
-        """Test that keys from default_body override any conflicting keys returned by vespa_query_fn."""
-
-        def fn_override(query_text: str, top_k: int) -> dict:
-            # Return a query body that has conflicting values for default keys.
-            return {
-                "yql": query_text,
-                "hits": top_k,
-                "timeout": "10s",
-                "presentation.timing": False,
-            }
-
-        dummy_response = MockVespaResponse([{"id": "doc1", "relevance": 1.0}])
-        capturing_app = QueryBodyCapturingApp([dummy_response] * len(self.queries))
-
-        evaluator = VespaEvaluator(
-            queries=self.queries,
-            relevant_docs=self.relevant_docs,
-            vespa_query_fn=fn_override,
-            app=capturing_app,
-        )
-        evaluator.run()
-
-        # After evaluator.run(), the default body should override the keys from fn_override.
-        for qb in capturing_app.captured_query_bodies:
-            self.assertEqual(qb["timeout"], "5s")
-            self.assertEqual(qb["presentation.timing"], True)
-
     def test_vespa_query_fn_preserves_extra_keys(self):
         """Test that extra keys returned by vespa_query_fn are preserved after merging with default_body."""
 
@@ -717,6 +689,33 @@ class TestVespaEvaluator(unittest.TestCase):
         for qb in capturing_app.captured_query_bodies:
             self.assertIn("extra", qb)
             self.assertEqual(qb["extra"], "value")
+
+    def test_vespa_query_fn_respects_user_params(self):
+        """Test that user-provided parameters in vespa_query_fn are not overridden by default_body."""
+
+        def fn_with_timeout(query_text: str, top_k: int) -> dict:
+            # Return a query body with a custom timeout
+            return {
+                "yql": query_text,
+                "hits": top_k,
+                "timeout": "10s",  # Different from default "5s"
+            }
+
+        dummy_response = MockVespaResponse([{"id": "doc1", "relevance": 1.0}])
+        capturing_app = QueryBodyCapturingApp([dummy_response] * len(self.queries))
+
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=self.relevant_docs,
+            vespa_query_fn=fn_with_timeout,
+            app=capturing_app,
+        )
+        evaluator.run()
+
+        # After evaluator.run(), the user-provided timeout should be preserved
+        for qb in capturing_app.captured_query_bodies:
+            self.assertEqual(qb["timeout"], "10s")  # User's value preserved
+            self.assertEqual(qb["presentation.timing"], True)  # Default added
 
 
 if __name__ == "__main__":
