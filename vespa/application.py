@@ -857,7 +857,7 @@ class Vespa(object):
         slices: int = 1,
         selection: str = "true",
         wanted_document_count: int = 500,
-        slice_id: int = -1,
+        slice_id: Optional[int] = None,
         **kwargs,
     ) -> Generator[Generator[VespaVisitResponse, None, None], None, None]:
         """
@@ -878,7 +878,7 @@ class Vespa(object):
         :param slices: Number of slices to use for parallel GET.
         :param selection: Selection expression to filter documents.
         :param wanted_document_count: Best effort number of documents to retrieve for each request. May contain less if there are not enough documents left.
-        :param slice_id: Slice id to use for the visit. If -1, all slices will be used.
+        :param slice_id: Slice id to use for the visit. If None, all slices will be used.
         :param kwargs: Additional HTTP request parameters (https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters)
         :return: A generator of slices, each containing a generator of responses.
         :raises HTTPError: if one occurred
@@ -1414,7 +1414,7 @@ class VespaSync(object):
         slices: int = 1,
         selection: str = "true",
         wanted_document_count: int = 500,
-        slice_id: int = -1,
+        slice_id: Optional[int] = None,
         **kwargs,
     ) -> Generator[Generator[VespaVisitResponse, None, None], None, None]:
         """
@@ -1449,10 +1449,10 @@ class VespaSync(object):
             self.app.end_point,
             target,
         )
-        # Validate that if slice_id is set, slice_id is in range [0, slices)
-        if slice_id >= 0 and slice_id >= slices:
+        # Validate that if slice_id is provided, it's in range [0, slices)
+        if slice_id is not None and slice_id >= slices:
             raise ValueError(
-                f"slice_id must be in range [0, {slices - 1}] or -1. Got {slice_id} instead."
+                f"slice_id must be in range [0, {slices - 1}]. Got {slice_id} instead."
             )
 
         @retry(retry=retry_if_exception_type(HTTPError), stop=stop_after_attempt(3))
@@ -1481,7 +1481,7 @@ class VespaSync(object):
                 else:
                     break
 
-        if slice_id == -1:
+        if slice_id is None:
             with ThreadPoolExecutor(max_workers=slices) as executor:
                 futures = [
                     executor.submit(visit_slice, slice) for slice in range(slices)
