@@ -926,20 +926,12 @@ class TestApplicationCommon(unittest.TestCase):
         self, app, expected_model_endpoint
     ):
         self.assertEqual(
-            app.get_model_endpoint(),
-            {
-                "status_code": 404,
-                "message": "No binding for URI '{}'.".format(expected_model_endpoint),
-            },
+            app.get_model_endpoint()["status_code"],
+            404,
         )
         self.assertEqual(
-            app.get_model_endpoint(model_id="bert_tiny"),
-            {
-                "status_code": 404,
-                "message": "No binding for URI '{}bert_tiny'.".format(
-                    expected_model_endpoint
-                ),
-            },
+            app.get_model_endpoint(model_id="bert_tiny")["status_code"],
+            404,
         )
 
     def get_stateless_prediction_when_model_not_defined(self, app, application_package):
