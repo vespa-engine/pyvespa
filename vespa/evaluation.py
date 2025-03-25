@@ -57,61 +57,62 @@ class VespaEvaluator:
     - Logs/returns these metrics.
     - Optionally writes out to CSV.
 
-    Example usage::
+    Example usage:
+        ```python
+            from vespa.application import Vespa
+            from vespa.evaluation import VespaEvaluator
 
-        from vespa.application import Vespa
-        from vespa.evaluation import VespaEvaluator
-
-        queries = {
-            "q1": "What is the best GPU for gaming?",
-            "q2": "How to bake sourdough bread?",
-            # ...
-        }
-        relevant_docs = {
-            "q1": {"d12", "d99"},
-            "q2": {"d101"},
-            # ...
-        }
-        # relevant_docs can also be a dict of query_id => single relevant doc_id
-        # relevant_docs = {
-        #     "q1": "d12",
-        #     "q2": "d101",
-        #     # ...
-        # }
-        # Or, relevant_docs can be a dict of query_id => map of doc_id => relevance
-        # relevant_docs = {
-        #     "q1": {"d12": 1, "d99": 0.1},
-        #     "q2": {"d101": 0.01},
-        #     # ...
-        # Note that for non-binary relevance, the relevance values should be in [0, 1], and that
-        # only the nDCG metric will be computed.
-
-        def my_vespa_query_fn(query_text: str, top_k: int) -> dict:
-            return {
-                "yql": 'select * from sources * where userInput("' + query_text + '");',
-                "hits": top_k,
-                "ranking": "your_ranking_profile",
+            queries = {
+                "q1": "What is the best GPU for gaming?",
+                "q2": "How to bake sourdough bread?",
+                # ...
             }
+            relevant_docs = {
+                "q1": {"d12", "d99"},
+                "q2": {"d101"},
+                # ...
+            }
+            # relevant_docs can also be a dict of query_id => single relevant doc_id
+            # relevant_docs = {
+            #     "q1": "d12",
+            #     "q2": "d101",
+            #     # ...
+            # }
+            # Or, relevant_docs can be a dict of query_id => map of doc_id => relevance
+            # relevant_docs = {
+            #     "q1": {"d12": 1, "d99": 0.1},
+            #     "q2": {"d101": 0.01},
+            #     # ...
+            # Note that for non-binary relevance, the relevance values should be in [0, 1], and that
+            # only the nDCG metric will be computed.
 
-        app = Vespa(url="http://localhost", port=8080)
+            def my_vespa_query_fn(query_text: str, top_k: int) -> dict:
+                return {
+                    "yql": 'select * from sources * where userInput("' + query_text + '");',
+                    "hits": top_k,
+                    "ranking": "your_ranking_profile",
+                }
 
-        evaluator = VespaEvaluator(
-            queries=queries,
-            relevant_docs=relevant_docs,
-            vespa_query_fn=my_vespa_query_fn,
-            app=app,
-            name="test-run",
-            accuracy_at_k=[1, 3, 5],
-            precision_recall_at_k=[1, 3, 5],
-            mrr_at_k=[10],
-            ndcg_at_k=[10],
-            map_at_k=[100],
-            write_csv=True
-        )
+            app = Vespa(url="http://localhost", port=8080)
 
-        results = evaluator()
-        print("Primary metric:", evaluator.primary_metric)
-        print("All results:", results)
+            evaluator = VespaEvaluator(
+                queries=queries,
+                relevant_docs=relevant_docs,
+                vespa_query_fn=my_vespa_query_fn,
+                app=app,
+                name="test-run",
+                accuracy_at_k=[1, 3, 5],
+                precision_recall_at_k=[1, 3, 5],
+                mrr_at_k=[10],
+                ndcg_at_k=[10],
+                map_at_k=[100],
+                write_csv=True
+            )
+
+            results = evaluator()
+            print("Primary metric:", evaluator.primary_metric)
+            print("All results:", results)
+        ```
     """
 
     def __init__(
@@ -133,20 +134,22 @@ class VespaEvaluator:
         csv_dir: Optional[str] = None,
     ):
         """
-        :param queries: Dict of query_id => query text
-        :param relevant_docs: Dict of query_id => set of relevant doc_ids or query_id => dict of doc_id => relevance. See example usage.
-        :param vespa_query_fn: Callable, with signature: my_func(query:str, top_k: int)-> dict: Given a query string and top_k, returns a Vespa query body (dict).
-        :param app: A `vespa.application.Vespa` instance.
-        :param name: A name or tag for this evaluation run.
-        :param id_field: Specify the field name in Vespa that contains the document ID (If unset, will try to use vespa internal document id, but this may fail in some cases, see https://docs.vespa.ai/en/documents.html#docid-in-results).
-        :param accuracy_at_k: list of k-values for Accuracy@k
-        :param precision_recall_at_k: list of k-values for Precision@k and Recall@k
-        :param mrr_at_k: list of k-values for MRR@k
-        :param ndcg_at_k: list of k-values for NDCG@k
-        :param map_at_k: list of k-values for MAP@k
-        :param write_csv: If True, writes results to CSV
-        :param csv_dir: Path in which to write the CSV file (default: current working dir).
+        Args:
+            queries (dict): A dictionary of query_id => query text.
+            relevant_docs (dict): A dictionary of query_id => set of relevant doc_ids or query_id => dict of doc_id => relevance. See example usage.
+            vespa_query_fn (callable): A callable with the signature `my_func(query: str, top_k: int) -> dict`. Given a query string and top_k, returns a Vespa query body (dict).
+            app (Vespa): A `vespa.application.Vespa` instance.
+            name (str): A name or tag for this evaluation run.
+            id_field (str, optional): The field name in Vespa that contains the document ID. If unset, will try to use the Vespa internal document ID, but this may fail in some cases (see https://docs.vespa.ai/en/documents.html#docid-in-results).
+            accuracy_at_k (list of int): List of k-values for Accuracy@k.
+            precision_recall_at_k (list of int): List of k-values for Precision@k and Recall@k.
+            mrr_at_k (list of int): List of k-values for MRR@k.
+            ndcg_at_k (list of int): List of k-values for NDCG@k.
+            map_at_k (list of int): List of k-values for MAP@k.
+            write_csv (bool): If True, writes results to CSV.
+            csv_dir (str, optional): Path to write the CSV file (default is the current working directory).
         """
+
         self.id_field = id_field
         self._validate_queries(queries)
         self._validate_vespa_query_fn(vespa_query_fn)
@@ -266,12 +269,13 @@ class VespaEvaluator:
 
     def _validate_vespa_query_fn(self, fn: Callable) -> None:
         """
-        Simplified validation of vespa_query_fn.
+        Validates the vespa_query_fn function.
 
-        The function must be callable and take either 2 or 3 parameters:
-            - (query_text: str, top_k: int) or
-            - (query_text: str, top_k: int, query_id: str) where query_id can also be Optional[str].
-        It must return a dict when called with test inputs.
+        The function must be callable and accept either 2 or 3 parameters:
+            - (query_text: str, top_k: int) 
+            - or (query_text: str, top_k: int, query_id: Optional[str])
+
+        It must return a dictionary when called with test inputs.
         """
         if not callable(fn):
             raise ValueError("vespa_query_fn must be callable")
@@ -326,28 +330,30 @@ class VespaEvaluator:
 
     def run(self) -> Dict[str, float]:
         """
-        Execute the evaluation by running queries and computing IR metrics.
+        Executes the evaluation by running queries and computing IR metrics.
 
         This method:
-        1. Executes all configured queries against the Vespa application
-        2. Collects search results and timing information
-        3. Computes configured IR metrics (Accuracy@k, Precision@k, Recall@k, MRR@k, NDCG@k, MAP@k)
-        4. Records search timing statistics
-        5. Logs results and optionally writes them to CSV
+        1. Executes all configured queries against the Vespa application.
+        2. Collects search results and timing information.
+        3. Computes the configured IR metrics (Accuracy@k, Precision@k, Recall@k, MRR@k, NDCG@k, MAP@k).
+        4. Records search timing statistics.
+        5. Logs results and optionally writes them to CSV.
 
         Returns:
-            Dict[str, float]: Dictionary containing:
+            dict: A dictionary containing:
                 - IR metrics with names like "accuracy@k", "precision@k", etc.
-                - Search time statistics ("searchtime_avg", "searchtime_q50", etc.)
-                where values are floats between 0 and 1 for metrics, seconds for timing.
+                - Search time statistics ("searchtime_avg", "searchtime_q50", etc.).
+                The values are floats between 0 and 1 for metrics and in seconds for timing.
 
-        Example returned metrics:
-            {
-                "accuracy@1": 0.75,
-                "ndcg@10": 0.68,
-                "searchtime_avg": 0.0123,
-                ...
-            }
+        Example:
+            ```python
+                {
+                    "accuracy@1": 0.75,
+                    "ndcg@10": 0.68,
+                    "searchtime_avg": 0.0123,
+                    ...
+                }
+            ```
         """
         max_k = self._find_max_k()
 

@@ -1,8 +1,8 @@
 site_name: Vespa python API
-site_url: https://pyvespa-md
+site_url: https://pyvespa-md # temporary
 repo_url: https://github.com/vespa-engine/pyvespa
 docs_dir: docs/sphinx/source
-exclude_docs: '*ipynb'
+# exclude_docs: '*ipynb' 
 
 use_directory_urls: false
 theme:
@@ -27,6 +27,8 @@ theme:
       name: Light mode
     primary: green
     accent: deep purple
+  features:
+      - content.code.copy
 
 
 markdown_extensions:
@@ -39,6 +41,7 @@ markdown_extensions:
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.superfences
+  
 
 nav:
   - Hybrid Search - Quickstart: getting-started-pyvespa.ipynb

@@ -49,7 +49,7 @@ class QueryField:
             operation: The operation name (e.g. 'contains', 'matches')
             value_str: The formatted value string
             annotations: Optional annotations dictionary
-            **kwargs: Additional keyword arguments to merge with annotations
+            kwargs: Additional keyword arguments to merge with annotations
         """
         if kwargs:
             annotations = annotations or {}
@@ -271,14 +271,16 @@ class Query:
         """Specify the source schema(s) to query.
 
         Example:
-            >>> import vespa.querybuilder as qb
-            >>> from vespa.package import Schema, Document
-            >>> query = qb.select("*").from_("schema1", "schema2")
-            >>> str(query)
-            'select * from schema1, schema2'
-            >>> query = qb.select("*").from_(Schema(name="schema1", document=Document()), Schema(name="schema2", document=Document()))
-            >>> str(query)
-            'select * from schema1, schema2'
+            ```python
+                >>> import vespa.querybuilder as qb
+                >>> from vespa.package import Schema, Document
+                >>> query = qb.select("*").from_("schema1", "schema2")
+                >>> str(query)
+                'select * from schema1, schema2'
+                >>> query = qb.select("*").from_(Schema(name="schema1", document=Document()), Schema(name="schema2", document=Document()))
+                >>> str(query)
+                'select * from schema1, schema2'
+            ```
 
         Args:
             sources: The source schema(s) to query.
@@ -296,7 +298,7 @@ class Query:
     def where(self, condition: Union[Condition, bool]) -> Query:
         """Adds a where clause to filter query results.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#where
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#where>
 
         Args:
             condition: Filter condition that can be:
@@ -307,24 +309,28 @@ class Query:
         Returns:
             Query: Self for method chaining
 
-        Examples:
-            >>> import vespa.querybuilder as qb
-            >>> # Using field conditions
-            >>> f1 = qb.QueryField("f1")
-            >>> query = qb.select("*").from_("sd1").where(f1.contains("v1"))
-            >>> str(query)
-            'select * from sd1 where f1 contains "v1"'
-
-            >>> # Using boolean
-            >>> query = qb.select("*").from_("sd1").where(True)
-            >>> str(query)
-            'select * from sd1 where true'
-
-            >>> # Using complex conditions
-            >>> condition = f1.contains("v1") & qb.QueryField("f2").contains("v2")
-            >>> query = qb.select("*").from_("sd1").where(condition)
-            >>> str(query)
-            'select * from sd1 where f1 contains "v1" and f2 contains "v2"'
+        Example:
+            ```python
+                >>> import vespa.querybuilder as qb
+                >>> # Using field conditions
+                >>> f1 = qb.QueryField("f1")
+                >>> query = qb.select("*").from_("sd1").where(f1.contains("v1"))
+                >>> str(query)
+                'select * from sd1 where f1 contains "v1"'
+            ```
+            ```python
+                >>> # Using boolean
+                >>> query = qb.select("*").from_("sd1").where(True)
+                >>> str(query)
+                'select * from sd1 where true'
+            ```
+            ```python
+                >>> # Using complex conditions
+                >>> condition = f1.contains("v1") & qb.QueryField("f2").contains("v2")
+                >>> query = qb.select("*").from_("sd1").where(condition)
+                >>> str(query)
+                'select * from sd1 where f1 contains "v1" and f2 contains "v2"'
+            ```
         """
         if isinstance(condition, QueryField):
             self.condition = condition
@@ -342,28 +348,30 @@ class Query:
     ) -> Query:
         """Orders results by specified fields.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#order-by
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#order-by>
 
         Args:
             fields: Field names or QueryField objects to order by
-            annotations: Optional annotations like "locale", "strength", etc. See https://docs.vespa.ai/en/reference/sorting.html#special-sorting-attributes for details.
+            annotations: Optional annotations like "locale", "strength", etc. See <https://docs.vespa.ai/en/reference/sorting.html#special-sorting-attributes> for details.
 
         Returns:
             Query: Self for method chaining
 
-        Examples:
-            >>> import vespa.querybuilder as qb
-            >>> # Simple ordering
-            >>> query = qb.select("*").from_("sd1").order_by("price")
-            >>> str(query)
-            'select * from sd1 order by price asc'
+        Example:
+            ```python
+                >>> import vespa.querybuilder as qb
+                >>> # Simple ordering
+                >>> query = qb.select("*").from_("sd1").order_by("price")
+                >>> str(query)
+                'select * from sd1 order by price asc'
 
-            >>> # Multiple fields with annotation
-            >>> query = qb.select("*").from_("sd1").order_by(
-            ...     "price", annotations={"locale": "en_US"}, ascending=False
-            ... ).order_by("name", annotations={"locale": "no_NO"}, ascending=True)
-            >>> str(query)
-            'select * from sd1 order by {"locale":"en_US"}price desc, {"locale":"no_NO"}name asc'
+                >>> # Multiple fields with annotation
+                >>> query = qb.select("*").from_("sd1").order_by(
+                ...     "price", annotations={"locale": "en_US"}, ascending=False
+                ... ).order_by("name", annotations={"locale": "no_NO"}, ascending=True)
+                >>> str(query)
+                'select * from sd1 order by {"locale":"en_US"}price desc, {"locale":"no_NO"}name asc'
+            ```
         """
         direction = "asc" if ascending else "desc"
         if annotations:
@@ -395,7 +403,7 @@ class Query:
     def set_limit(self, limit: int) -> Query:
         """Sets maximum number of results to return.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#limit-offset
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#limit-offset>
 
         Args:
             limit (int): Maximum number of hits to return
@@ -403,12 +411,14 @@ class Query:
         Returns:
             Query: Self for method chaining
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> f1 = qb.QueryField("f1")
             >>> query = qb.select("*").from_("sd1").where(f1.contains("v1")).set_limit(5)
             >>> str(query)
             'select * from sd1 where f1 contains "v1" limit 5'
+            ```
         """
         self.limit_value = limit
         return self
@@ -416,7 +426,7 @@ class Query:
     def set_offset(self, offset: int) -> Query:
         """Sets number of initial results to skip for pagination.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#limit-offset
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#limit-offset>
 
         Args:
             offset (int): Number of results to skip
@@ -424,12 +434,14 @@ class Query:
         Returns:
             Query: Self for method chaining
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> f1 = qb.QueryField("f1")
             >>> query = qb.select("*").from_("sd1").where(f1.contains("v1")).set_offset(10)
             >>> str(query)
             'select * from sd1 where f1 contains "v1" offset 10'
+            ```
         """
         self.offset_value = offset
         return self
@@ -437,7 +449,7 @@ class Query:
     def set_timeout(self, timeout: int) -> Query:
         """Sets query timeout in milliseconds.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#timeout
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#timeout>
 
         Args:
             timeout (int): Timeout in milliseconds
@@ -445,12 +457,14 @@ class Query:
         Returns:
             Query: Self for method chaining
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> f1 = qb.QueryField("f1")
             >>> query = qb.select("*").from_("sd1").where(f1.contains("v1")).set_timeout(500)
             >>> str(query)
             'select * from sd1 where f1 contains "v1" timeout 500'
+            ```
         """
         self.timeout_value = timeout
         return self
@@ -458,7 +472,7 @@ class Query:
     def add_parameter(self, key: str, value: Any) -> Query:
         """Adds a query parameter.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#parameter-substitution
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#parameter-substitution>
 
         Args:
             key (str): Parameter name
@@ -467,12 +481,14 @@ class Query:
         Returns:
             Query: Self for method chaining
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> condition = qb.userInput("@myvar")
             >>> query = qb.select("*").from_("sd1").where(condition).add_parameter("myvar", "test")
             >>> str(query)
             'select * from sd1 where userInput(@myvar)&myvar=test'
+            ```
         """
         self.parameters[key] = value
         return self
@@ -480,7 +496,7 @@ class Query:
     def param(self, key: str, value: Any) -> Query:
         """Alias for add_parameter().
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#parameter-substitution
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#parameter-substitution>
 
         Args:
             key (str): Parameter name
@@ -489,30 +505,33 @@ class Query:
         Returns:
             Query: Self for method chaining
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> condition = qb.userInput("@animal")
             >>> query = qb.select("*").from_("sd1").where(condition).param("animal", "panda")
             >>> str(query)
             'select * from sd1 where userInput(@animal)&animal=panda'
+            ```
         """
         return self.add_parameter(key, value)
 
     def groupby(self, group_expression: str, continuations: List = []) -> Query:
         """Groups results by specified expression.
 
-        For more information, see https://docs.vespa.ai/en/grouping.html
+        For more information, see <https://docs.vespa.ai/en/grouping.html>
 
-        Also see :class:`vespa.querybuilder.Grouping` for available methods to build group expressions.
+        Also see <class:vespa.querybuilder.Grouping> for available methods to build group expressions.
 
         Args:
-            - group_expression (str): Grouping expression
-            - continuations (List): List of continuation tokens (see https://docs.vespa.ai/en/grouping.html#pagination)
+            group_expression (str): Grouping expression
+            continuations (List): List of continuation tokens (see <https://docs.vespa.ai/en/grouping.html#pagination>)
 
         Returns:
-            :class:`vespa.querybuilder.Query`: Self for method chaining
+            <class:vespa.querybuilder.Query>: Self for method chaining
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> from vespa.querybuilder import Grouping as G
             >>> # Group by customer with sum of price
@@ -540,7 +559,9 @@ class Query:
             >>> query = qb.select("*").from_("purchase").where(True).groupby(grouping, continuations=["foo", "bar"])
             >>> str(query)
             "select * from purchase where true | { 'continuations':['foo', 'bar'] }all(group(time.year(a)) each(output(count())))"
+            ```
         """
+
         if continuations:
             cont_str = self._format_continuations(continuations)
         else:
@@ -578,27 +599,27 @@ class Query:
 class Q:
     """Wrapper class for QueryBuilder static methods. Methods are exposed as module-level functions.
     To use:
+        ```python
+        import vespa.querybuilder as qb
 
-    ```python
-    import vespa.querybuilder as qb
-
-    query = qb.select("*").from_("sd1") # or any of the other Q class methods
-    ```
+        query = qb.select("*").from_("sd1") # or any of the other Q class methods
+        ```
     """
 
     @staticmethod
     def select(fields: Union[str, List[str], List[QueryField]]) -> Query:
         """Creates a new query selecting specified fields.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#select
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#select>
 
         Args:
-            fields (Union[str, List[str], List[QueryField]): Field names or QueryField objects to select
+            fields (Union[str, List[str], List[QueryField]]): Field names or QueryField objects to select
 
         Returns:
             Query: New query object
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> query = qb.select("*").from_("sd1")
             >>> str(query)
@@ -607,36 +628,41 @@ class Q:
             >>> query = qb.select(["title", "url"])
             >>> str(query)
             'select title, url from *'
+            ```
         """
+
         return Query(select_fields=fields)
 
     @staticmethod
     def any(*conditions: Condition) -> Condition:
-        """Combines multiple conditions with OR operator.
+        """"Combines multiple conditions with OR operator.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#or
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#or>
 
         Args:
-            *conditions (Condition): Variable number of Condition objects to combine with OR
+            conditions (Condition): Variable number of Condition objects to combine with OR
 
         Returns:
             Condition: Combined condition using OR operators
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> f1, f2 = qb.QueryField("f1"), qb.QueryField("f2")
             >>> condition = qb.any(f1 > 10, f2 == "v2")
             >>> query = qb.select("*").from_("sd1").where(condition)
             >>> str(query)
             'select * from sd1 where f1 > 10 or f2 = "v2"'
+            ```
         """
+
         return Condition.any(*conditions)
 
     @staticmethod
     def all(*conditions: Condition) -> Condition:
         """Combines multiple conditions with AND operator.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#and
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#and>
 
         Args:
             *conditions (Condition): Variable number of Condition objects to combine with AND
@@ -644,13 +670,15 @@ class Q:
         Returns:
             Condition: Combined condition using AND operators
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> f1, f2 = qb.QueryField("f1"), qb.QueryField("f2")
             >>> condition = qb.all(f1 > 10, f2 == "v2")
             >>> query = qb.select("*").from_("sd1").where(condition)
             >>> str(query)
             'select * from sd1 where f1 > 10 and f2 = "v2"'
+            ```
         """
         return Condition.all(*conditions)
 
@@ -658,7 +686,7 @@ class Q:
     def userQuery(value: str = "") -> Condition:
         """Creates a userQuery operator for text search.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#userquery
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#userquery>
 
         Args:
             value (str): Optional query string. Default is empty string.
@@ -666,7 +694,8 @@ class Q:
         Returns:
             Condition: A userQuery condition
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> # Basic userQuery
             >>> condition = qb.userQuery()
@@ -679,6 +708,7 @@ class Q:
             >>> query = qb.select("*").from_("documents").where(condition)
             >>> str(query)
             'select * from documents where userQuery("search terms")'
+            ```
         """
         return Condition(f'userQuery("{value}")') if value else Condition("userQuery()")
 
@@ -690,7 +720,7 @@ class Q:
     ) -> Condition:
         """Creates a dot product calculation condition.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#dotproduct.
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#dotproduct>.
 
         Args:
             field (str): Field containing vectors
@@ -701,7 +731,8 @@ class Q:
         Returns:
             Condition: A dot product calculation condition
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> # Using dict weights with annotation
             >>> condition = qb.dotProduct(
@@ -712,16 +743,19 @@ class Q:
             >>> query = qb.select("*").from_("sd1").where(condition)
             >>> str(query)
             'select * from sd1 where ({label:"myDotProduct"}dotProduct(weightedset_field, {"feature1": 1, "feature2": 2}))'
+            
             >>> # Using list weights
             >>> condition = qb.dotProduct("weightedset_field", [0.4, 0.6])
             >>> query = qb.select("*").from_("sd1").where(condition)
             >>> str(query)
             'select * from sd1 where dotProduct(weightedset_field, [0.4, 0.6])'
+            
             >>> # Using parameter substitution
             >>> condition = qb.dotProduct("weightedset_field", "@myweights")
             >>> query = qb.select("*").from_("sd1").where(condition).add_parameter("myweights", [0.4, 0.6])
             >>> str(query)
             'select * from sd1 where dotProduct(weightedset_field, "@myweights")&myweights=[0.4, 0.6]'
+            ```
         """
         weights_str = json.dumps(weights)
         expr = f"dotProduct({field}, {weights_str})"
@@ -740,18 +774,19 @@ class Q:
     ) -> Condition:
         """Creates a weighted set condition.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#weightedset.
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#weightedset>.
 
         Args:
             field (str): Field containing weighted set data
             weights (Union[List[float], Dict[str, float], str]):
-                Either list of numeric weights or dict mapping elements to weights or a parameter substitution string starting with
+                Either list of numeric weights or dict mapping elements to weights or a parameter substitution string starting with '@'
             annotations (Optional[Dict]): Optional annotations like targetNumHits
 
         Returns:
             Condition: A weighted set condition
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> # using map weights
             >>> condition = qb.weightedSet(
@@ -762,16 +797,19 @@ class Q:
             >>> query = qb.select("*").from_("sd1").where(condition)
             >>> str(query)
             'select * from sd1 where ({targetNumHits:10}weightedSet(weightedset_field, {"element1": 1, "element2": 2}))'
+            
             >>> # using list weights
             >>> condition = qb.weightedSet("weightedset_field", [0.4, 0.6])
             >>> query = qb.select("*").from_("sd1").where(condition)
             >>> str(query)
             'select * from sd1 where weightedSet(weightedset_field, [0.4, 0.6])'
+            
             >>> # using parameter substitution
             >>> condition = qb.weightedSet("weightedset_field", "@myweights")
             >>> query = qb.select("*").from_("sd1").where(condition).add_parameter("myweights", [0.4, 0.6])
             >>> str(query)
             'select * from sd1 where weightedSet(weightedset_field, "@myweights")&myweights=[0.4, 0.6]'
+            ```
         """
         weights_str = json.dumps(weights)
         expr = f"weightedSet({field}, {weights_str})"
@@ -787,7 +825,7 @@ class Q:
     def nonEmpty(condition: Union[Condition, QueryField]) -> Condition:
         """Creates a nonEmpty operator to check if a field has content.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#nonempty
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#nonempty>.
 
         Args:
             condition (Union[Condition, QueryField]): Field or condition to check
@@ -795,14 +833,17 @@ class Q:
         Returns:
             Condition: A nonEmpty condition
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> field = qb.QueryField("title")
             >>> condition = qb.nonEmpty(field)
             >>> query = qb.select("*").from_("sd1").where(condition)
             >>> str(query)
             'select * from sd1 where nonEmpty(title)'
+            ```
         """
+
         if isinstance(condition, QueryField):
             expr = str(condition)
         else:
@@ -817,7 +858,7 @@ class Q:
     ) -> Condition:
         """Creates a Weighted AND (WAND) operator for efficient top-k retrieval.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#wand
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#wand>.
 
         Args:
             field (str): Field name to search
@@ -828,7 +869,8 @@ class Q:
         Returns:
             Condition: A WAND condition
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> # Using list weights
             >>> condition = qb.wand("description", weights=[0.4, 0.6])
@@ -846,6 +888,7 @@ class Q:
             >>> query = qb.select("*").from_("sd1").where(condition)
             >>> str(query)
             'select * from sd1 where ({targetHits: 100}wand(title, {"hello": 0.3, "world": 0.7}))'
+            ```
         """
         weights_str = json.dumps(weights)
         expr = f"wand({field}, {weights_str})"
@@ -861,7 +904,7 @@ class Q:
     def weakAnd(*conditions, annotations: Optional[Dict[str, Any]] = None) -> Condition:
         """Creates a weakAnd operator for less strict AND matching.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#weakand
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#weakand>.
 
         Args:
             *conditions (Condition): Variable number of conditions to combine
@@ -870,7 +913,8 @@ class Q:
         Returns:
             Condition: A weakAnd condition
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> f1, f2 = qb.QueryField("f1"), qb.QueryField("f2")
             >>> condition = qb.weakAnd(f1 == "v1", f2 == "v2")
@@ -887,6 +931,7 @@ class Q:
             >>> query = qb.select("*").from_("sd1").where(condition)
             >>> str(query)
             'select * from sd1 where ({"targetHits": 100}weakAnd(f1 = "v1", f2 = "v2"))'
+            ```
         """
         conditions_str = ", ".join(cond.build() for cond in conditions)
         expr = f"weakAnd({conditions_str})"
@@ -908,7 +953,7 @@ class Q:
     ) -> Condition:
         """Creates a geolocation search condition.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#geolocation.
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#geolocation>.
 
         Args:
             field (str): Field containing location data
@@ -920,7 +965,8 @@ class Q:
         Returns:
             Condition: A geolocation search condition
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> condition = qb.geoLocation(
             ...     "location_field",
@@ -932,6 +978,7 @@ class Q:
             >>> query = qb.select("*").from_("sd1").where(condition)
             >>> str(query)
             'select * from sd1 where ({targetHits:100}geoLocation(location_field, 37.7749, -122.4194, "10km"))'
+            ```
         """
         expr = f'geoLocation({field}, {lat}, {lng}, "{radius}")'
         if annotations:
@@ -948,7 +995,7 @@ class Q:
     ) -> Condition:
         """Creates a nearest neighbor search condition.
 
-        See https://docs.vespa.ai/en/reference/query-language-reference.html#nearestneighbor for more information.
+        See <https://docs.vespa.ai/en/reference/query-language-reference.html#nearestneighbor> for more information.
 
         Args:
             field (str): Vector field to search in
@@ -958,7 +1005,8 @@ class Q:
         Returns:
             Condition: A nearest neighbor search condition
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> condition = qb.nearestNeighbor(
             ...     field="dense_rep",
@@ -967,6 +1015,7 @@ class Q:
             >>> query = qb.select(["id, text"]).from_("m").where(condition)
             >>> str(query)
             'select id, text from m where ({targetHits:100}nearestNeighbor(dense_rep, q_dense))'
+            ```
         """
         if "targetHits" not in annotations:
             raise ValueError("targetHits annotation is required")
@@ -982,7 +1031,7 @@ class Q:
     def rank(*queries) -> Condition:
         """Creates a rank condition for combining multiple queries.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#rank
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#rank>
 
         Args:
             *queries: Variable number of Query objects to combine
@@ -990,7 +1039,8 @@ class Q:
         Returns:
             Condition: A rank condition
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> condition = qb.rank(
             ...     qb.nearestNeighbor("field", "queryVector"),
@@ -1001,6 +1051,7 @@ class Q:
             >>> query = qb.select("*").from_("sd1").where(condition)
             >>> str(query)
             'select * from sd1 where rank(({targetHits:100}nearestNeighbor(field, queryVector)), a contains "A", b contains "B", c contains "C")'
+            ```
         """
         queries_str = ", ".join(query.build() for query in queries)
         return Condition(f"rank({queries_str})")
@@ -1009,7 +1060,7 @@ class Q:
     def phrase(*terms, annotations: Optional[Dict[str, Any]] = None) -> Condition:
         """Creates a phrase search operator for exact phrase matching.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#phrase
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#phrase>
 
         Args:
             *terms (str): Terms that make up the phrase
@@ -1018,12 +1069,14 @@ class Q:
         Returns:
             Condition: A phrase condition
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> condition = qb.phrase("new", "york", "city")
             >>> query = qb.select("*").from_("sd1").where(condition)
             >>> str(query)
             'select * from sd1 where phrase("new", "york", "city")'
+            ```
         """
         terms_str = ", ".join(f'"{term}"' for term in terms)
         expr = f"phrase({terms_str})"
@@ -1042,9 +1095,9 @@ class Q:
         annotations: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Condition:
-        """Creates a near operator for proximity search.
+        """Creates a near search operator for finding terms within a specified distance.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#near
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#near>
 
         Args:
             *terms (str): Terms to search for
@@ -1055,12 +1108,14 @@ class Q:
         Returns:
             Condition: A near condition
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> condition = qb.near("machine", "learning", distance=5)
             >>> query = qb.select("*").from_("sd1").where(condition)
             >>> str(query)
             'select * from sd1 where ({distance:5}near("machine", "learning"))'
+            ```
         """
         terms_str = ", ".join(f'"{term}"' for term in terms)
         expr = f"near({terms_str})"
@@ -1087,7 +1142,7 @@ class Q:
     ) -> Condition:
         """Creates an ordered near operator for ordered proximity search.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#onear
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#onear>
 
         Args:
             *terms (str): Terms to search for in order
@@ -1097,12 +1152,14 @@ class Q:
         Returns:
             Condition: An onear condition
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> condition = qb.onear("deep", "learning", distance=3)
             >>> query = qb.select("*").from_("sd1").where(condition)
             >>> str(query)
             'select * from sd1 where ({distance:3}onear("deep", "learning"))'
+            ```
         """
         terms_str = ", ".join(f'"{term}"' for term in terms)
         expr = f"onear({terms_str})"
@@ -1124,7 +1181,7 @@ class Q:
     def sameElement(*conditions) -> Condition:
         """Creates a sameElement operator to match conditions in same array element.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#sameelement
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#sameelement>
 
         Args:
             *conditions (Condition): Conditions that must match in same element
@@ -1132,8 +1189,8 @@ class Q:
         Returns:
             Condition: A sameElement condition
 
-
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> persons = qb.QueryField("persons")
             >>> first_name = qb.QueryField("first_name")
@@ -1149,6 +1206,7 @@ class Q:
             >>> query = qb.select("*").from_("sd1").where(condition)
             >>> str(query)
             'select * from sd1 where persons contains sameElement(first_name contains "Joe", last_name contains "Smith", year_of_birth < 1940)'
+            ```
         """
         conditions_str = ", ".join(cond.build() for cond in conditions)
         expr = f"sameElement({conditions_str})"
@@ -1158,7 +1216,7 @@ class Q:
     def equiv(*terms) -> Condition:
         """Creates an equiv operator for matching equivalent terms.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#equiv
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#equiv>
 
         Args:
             terms (List[str]): List of equivalent terms
@@ -1167,13 +1225,15 @@ class Q:
         Returns:
             Condition: An equiv condition
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> fieldName = qb.QueryField("fieldName")
             >>> condition = fieldName.contains(qb.equiv("Snoop Dogg", "Calvin Broadus"))
             >>> query = qb.select("*").from_("sd1").where(condition)
             >>> str(query)
             'select * from sd1 where fieldName contains equiv("Snoop Dogg", "Calvin Broadus")'
+            ```
         """
         terms_str = ", ".join(f'"{term}"' for term in terms)
         expr = f"equiv({terms_str})"
@@ -1183,7 +1243,7 @@ class Q:
     def uri(value: str, annotations: Optional[Dict[str, Any]] = None) -> Condition:
         """Creates a uri operator for matching URIs.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#uri
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#uri>
 
         Args:
             field (str): Field name containing URI
@@ -1192,14 +1252,15 @@ class Q:
         Returns:
             Condition: A uri condition
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> url = "vespa.ai/foo"
             >>> condition = qb.uri(url)
             >>> query = qb.select("*").from_("sd1").where(condition)
             >>> str(query)
             'select * from sd1 where uri("vespa.ai/foo")'
-
+            ```
         """
         expr = f'uri("{value}")'
         if annotations:
@@ -1216,7 +1277,7 @@ class Q:
     ) -> Condition:
         """Creates a fuzzy operator for approximate string matching.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#fuzzy
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#fuzzy>
 
         Args:
             term (str): Term to fuzzy match
@@ -1226,7 +1287,8 @@ class Q:
         Returns:
             Condition: A fuzzy condition
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> condition = qb.fuzzy("parantesis")
             >>> query = qb.select("*").from_("sd1").where(condition)
@@ -1238,9 +1300,8 @@ class Q:
             >>> query = qb.select("*").from_("sd1").where(condition)
             >>> str(query)
             'select * from sd1 where ({prefixLength:1,maxEditDistance:2}fuzzy("parantesis"))'
-
+            ```
         """
-
         expr = f'fuzzy("{value}")'
         if annotations:
             annotations_str = ",".join(
@@ -1256,7 +1317,7 @@ class Q:
     ) -> Condition:
         """Creates a userInput operator for query evaluation.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#userinput.
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#userinput>.
 
         Args:
             value (Optional[str]): The input variable name, e.g. "@myvar"
@@ -1265,7 +1326,8 @@ class Q:
         Returns:
             Condition: A condition representing the userInput operator
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> condition = qb.userInput("@myvar")
             >>> query = qb.select("*").from_("sd1").where(condition)
@@ -1283,6 +1345,7 @@ class Q:
             >>> query = qb.select("*").from_("sd1").where(condition).param("animal", "panda")
             >>> str(query)
             'select * from sd1 where userInput(@animal)&animal=panda'
+            ```
         """
         if value is None:
             expr = "userInput()"
@@ -1306,7 +1369,7 @@ class Q:
     ) -> Condition:
         """Creates a predicate condition for filtering documents based on specific attributes.
 
-        For more information, see https://docs.vespa.ai/en/reference/query-language-reference.html#predicate.
+        For more information, see <https://docs.vespa.ai/en/reference/query-language-reference.html#predicate>.
 
         Args:
             field (str): The predicate field name
@@ -1317,6 +1380,7 @@ class Q:
             Condition: A condition representing the predicate operation
 
         Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> condition = qb.predicate(
             ...     "predicate_field",
@@ -1326,6 +1390,7 @@ class Q:
             >>> query = qb.select("*").from_("sd1").where(condition)
             >>> str(query)
             'select * from sd1 where predicate(predicate_field,{"gender":"Female"},{"age":20L})'
+            ```
         """
         if attributes is None:
             attributes_str = "0"
@@ -1349,13 +1414,16 @@ class Q:
         Returns:
             Condition: A true condition
 
-        Examples:
+        Example:
+            ```python
             >>> import vespa.querybuilder as qb
             >>> condition = qb.true()
             >>> query = qb.select("*").from_("sd1").where(condition)
             >>> str(query)
             'select * from sd1 where true'
+            ```
         """
+
         return Condition("true")
 
     @staticmethod
@@ -1365,11 +1433,13 @@ class Q:
         Returns:
             Condition: A false condition
 
-        Examples:
-            >>> import vespa.querybuilder as qb
-            >>> condition = qb.false()
-            >>> query = qb.select("*").from_("sd1").where(condition)
-            >>> str(query)
-            'select * from sd1 where false'
+        Example:
+            ```python
+                >>> import vespa.querybuilder as qb
+                >>> condition = qb.false()
+                >>> query = qb.select("*").from_("sd1").where(condition)
+                >>> str(query)
+                'select * from sd1 where false'
+            ```
         """
         return Condition("false")
