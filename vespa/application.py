@@ -126,7 +126,7 @@ class Vespa(object):
         self.key = key
         self.vespa_cloud_secret_token = vespa_cloud_secret_token
         self._application_package = application_package
-        self.pyvespa_version = src.__version__
+        self.pyvespa_version = vespa.__version__
         self.base_headers = {"User-Agent": f"pyvespa/{self.pyvespa_version}"}
         if port is None:
             self.end_point = self.url

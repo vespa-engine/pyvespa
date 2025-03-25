@@ -615,7 +615,7 @@ class VespaCloud(VespaDeployment):
             keepalive_expiry=10,
         )
         self.base_url = "https://api-ctl.vespa-cloud.com:4443"
-        self.pyvespa_version = src.__version__
+        self.pyvespa_version = vespa.__version__
         self.base_headers = {"User-Agent": f"pyvespa/{self.pyvespa_version}"}
         self.auth_client_token_id = auth_client_token_id
         self.cluster = cluster
