@@ -62,7 +62,7 @@ plugins:
               paths: [.] 
               options:
                   crossref_replace: true
-                  docstring_style: sphinx
+                  docstring_style: google
                   show_source: false
                   show_symbol_type_heading: true
                   docstring_section_style: table
