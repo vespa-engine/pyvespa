@@ -59,59 +59,59 @@ class VespaEvaluator:
 
     Example usage:
         ```python
-            from vespa.application import Vespa
-            from vespa.evaluation import VespaEvaluator
+        from vespa.application import Vespa
+        from vespa.evaluation import VespaEvaluator
 
-            queries = {
-                "q1": "What is the best GPU for gaming?",
-                "q2": "How to bake sourdough bread?",
-                # ...
+        queries = {
+            "q1": "What is the best GPU for gaming?",
+            "q2": "How to bake sourdough bread?",
+            # ...
+        }
+        relevant_docs = {
+            "q1": {"d12", "d99"},
+            "q2": {"d101"},
+            # ...
+        }
+        # relevant_docs can also be a dict of query_id => single relevant doc_id
+        # relevant_docs = {
+        #     "q1": "d12",
+        #     "q2": "d101",
+        #     # ...
+        # }
+        # Or, relevant_docs can be a dict of query_id => map of doc_id => relevance
+        # relevant_docs = {
+        #     "q1": {"d12": 1, "d99": 0.1},
+        #     "q2": {"d101": 0.01},
+        #     # ...
+        # Note that for non-binary relevance, the relevance values should be in [0, 1], and that
+        # only the nDCG metric will be computed.
+
+        def my_vespa_query_fn(query_text: str, top_k: int) -> dict:
+            return {
+                "yql": 'select * from sources * where userInput("' + query_text + '");',
+                "hits": top_k,
+                "ranking": "your_ranking_profile",
             }
-            relevant_docs = {
-                "q1": {"d12", "d99"},
-                "q2": {"d101"},
-                # ...
-            }
-            # relevant_docs can also be a dict of query_id => single relevant doc_id
-            # relevant_docs = {
-            #     "q1": "d12",
-            #     "q2": "d101",
-            #     # ...
-            # }
-            # Or, relevant_docs can be a dict of query_id => map of doc_id => relevance
-            # relevant_docs = {
-            #     "q1": {"d12": 1, "d99": 0.1},
-            #     "q2": {"d101": 0.01},
-            #     # ...
-            # Note that for non-binary relevance, the relevance values should be in [0, 1], and that
-            # only the nDCG metric will be computed.
 
-            def my_vespa_query_fn(query_text: str, top_k: int) -> dict:
-                return {
-                    "yql": 'select * from sources * where userInput("' + query_text + '");',
-                    "hits": top_k,
-                    "ranking": "your_ranking_profile",
-                }
+        app = Vespa(url="http://localhost", port=8080)
 
-            app = Vespa(url="http://localhost", port=8080)
+        evaluator = VespaEvaluator(
+            queries=queries,
+            relevant_docs=relevant_docs,
+            vespa_query_fn=my_vespa_query_fn,
+            app=app,
+            name="test-run",
+            accuracy_at_k=[1, 3, 5],
+            precision_recall_at_k=[1, 3, 5],
+            mrr_at_k=[10],
+            ndcg_at_k=[10],
+            map_at_k=[100],
+            write_csv=True
+        )
 
-            evaluator = VespaEvaluator(
-                queries=queries,
-                relevant_docs=relevant_docs,
-                vespa_query_fn=my_vespa_query_fn,
-                app=app,
-                name="test-run",
-                accuracy_at_k=[1, 3, 5],
-                precision_recall_at_k=[1, 3, 5],
-                mrr_at_k=[10],
-                ndcg_at_k=[10],
-                map_at_k=[100],
-                write_csv=True
-            )
-
-            results = evaluator()
-            print("Primary metric:", evaluator.primary_metric)
-            print("All results:", results)
+        results = evaluator()
+        print("Primary metric:", evaluator.primary_metric)
+        print("All results:", results)
         ```
     """
 
@@ -347,12 +347,12 @@ class VespaEvaluator:
 
         Example:
             ```python
-                {
-                    "accuracy@1": 0.75,
-                    "ndcg@10": 0.68,
-                    "searchtime_avg": 0.0123,
-                    ...
-                }
+            {
+                "accuracy@1": 0.75,
+                "ndcg@10": 0.68,
+                "searchtime_avg": 0.0123,
+                ...
+            }
             ```
         """
         max_k = self._find_max_k()

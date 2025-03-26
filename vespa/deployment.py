@@ -84,11 +84,11 @@ class VespaDocker(VespaDeployment):
 
         Example usage:
             ```python
-                from vespa.deployment import VespaDocker
+            from vespa.deployment import VespaDocker
 
-                vespa_docker = VespaDocker(port=8080)
-                # or initialize from a running container:
-                vespa_docker = VespaDocker('http://localhost', 8080, None, None, 4294967296, 'vespaengine/vespa')
+            vespa_docker = VespaDocker(port=8080)
+            # or initialize from a running container:
+            vespa_docker = VespaDocker('http://localhost', 8080, None, None, 4294967296, 'vespaengine/vespa')
             ```
 
         **Note**:
@@ -549,7 +549,7 @@ class VespaCloud(VespaDeployment):
             auth_client_token_id (str, optional): Token-based data plane authentication. This token name must be configured in the Vespa Cloud Console. It configures Vespa's services.xml, and the token must have read and write permissions.
             output_file (str, optional): Output file to write output messages. Default is sys.stdout.
             application_root (str, optional): Directory for the application root (location of services.xml, models/, schemas/, etc.). If the application is packaged with Maven, use the generated `<myapp>/target/application` directory.
-            cluster (str, optional): Name of the cluster to target when retrieving endpoints. This affects which endpoints are used for initializing the :class:`Vespa` instance in :func:`VespaCloud.get_application` and :func:`VespaCloud.deploy`.
+            cluster (str, optional): Name of the cluster to target when retrieving endpoints. This affects which endpoints are used for initializing the :class:`Vespa` instance in `VespaCloud.get_application` and `VespaCloud.deploy`.
             instance (str, optional): Name of the application instance. Default is "default".
 
         Raises:
@@ -675,7 +675,7 @@ class VespaCloud(VespaDeployment):
             max_wait (int, optional): Seconds to wait for the deployment to complete.
 
         Returns:
-            Vespa: A Vespa connection instance. This instance connects to the mTLS endpoint. To connect to the token endpoint, use :func:`VespaCloud.get_application(endpoint_type="token")`.
+            Vespa: A Vespa connection instance. This instance connects to the mTLS endpoint. To connect to the token endpoint, use `VespaCloud.get_application(endpoint_type="token")`.
 
         Raises:
             RuntimeError: If deployment fails or if there are issues with the deployment process.
@@ -785,9 +785,9 @@ class VespaCloud(VespaDeployment):
 
         Example usage:
             ```python
-                vespa_cloud = VespaCloud(...)
-                app: Vespa = vespa_cloud.get_application()
-                # Feed, query, visit, etc.
+            vespa_cloud = VespaCloud(...)
+            app: Vespa = vespa_cloud.get_application()
+            # Feed, query, visit, etc.
             ```
 
         Args:
@@ -865,27 +865,27 @@ class VespaCloud(VespaDeployment):
 
         Example usage:
             ```python
-                vespa_cloud = VespaCloud(...)
-                build_no = vespa_cloud.deploy_to_prod()
-                status = vespa_cloud.check_production_build_status(build_no)
-                # This can yield one of three responses:
-                # 1. If the revision (build_no), or higher, has successfully converged everywhere, and nothing older has then been deployed on top of that again. Nothing more will happen in this case.
-                # {
-                #     "deployed": True,
-                #     "status": "done"
-                # }
+            vespa_cloud = VespaCloud(...)
+            build_no = vespa_cloud.deploy_to_prod()
+            status = vespa_cloud.check_production_build_status(build_no)
+            # This can yield one of three responses:
+            # 1. If the revision (build_no), or higher, has successfully converged everywhere, and nothing older has then been deployed on top of that again. Nothing more will happen in this case.
+            # {
+            #     "deployed": True,
+            #     "status": "done"
+            # }
 
-                # 2. If the revision (build_no), or newer, has not yet converged, but the system is (most likely) still trying to deploy it. There is a point in polling again later when this is the response.
-                # {
-                #     "deployed": False,
-                #     "status": "deploying"
-                # }
-                # 3. If the revision, or newer, has not yet converged everywhere, and it's never going to, because it was similar to the previous build, or marked obsolete by a user. There is no point in asking again for this revision.
-                # {
-                #     "deployed": False,
-                #     "status": "done"
-                # }
-            ```python
+            # 2. If the revision (build_no), or newer, has not yet converged, but the system is (most likely) still trying to deploy it. There is a point in polling again later when this is the response.
+            # {
+            #     "deployed": False,
+            #     "status": "deploying"
+            # }
+            # 3. If the revision, or newer, has not yet converged everywhere, and it's never going to, because it was similar to the previous build, or marked obsolete by a user. There is no point in asking again for this revision.
+            # {
+            #     "deployed": False,
+            #     "status": "done"
+            # }
+            ```
 
         Args:
             build_no (int): The build number to check.
@@ -923,12 +923,12 @@ class VespaCloud(VespaDeployment):
 
         Example usage:
             ```python
-                vespa_cloud = VespaCloud(...)
-                build_no = vespa_cloud.deploy_to_prod()
-                success = vespa_cloud.wait_for_prod_deployment(build_no, max_wait=3600, poll_interval=5)
-                print(success)
-                # Output: True
-            ```python
+            vespa_cloud = VespaCloud(...)
+            build_no = vespa_cloud.deploy_to_prod()
+            success = vespa_cloud.wait_for_prod_deployment(build_no, max_wait=3600, poll_interval=5)
+            print(success)
+            # Output: True
+            ```
 
         Args:
             build_no (int): The build number to check.
@@ -963,14 +963,15 @@ class VespaCloud(VespaDeployment):
 
         Example usage:
             ```python
-                vespa_cloud = VespaCloud(...)
-                vespa_cloud.deploy_to_dev_from_directory(
-                    instance="my-instance",
-                    application_root="/path/to/application",
-                    max_wait=3600,
-                    version="8.435.13"
-                )
-            ```python
+            vespa_cloud = VespaCloud(...)
+            vespa_cloud.deploy_to_dev_from_directory(
+                instance="my-instance",
+                application_root="/path/to/application",
+                max_wait=3600,
+                version="8.435.13"
+            )
+            ```
+
 
         Args:
             instance (str): The name of the instance where the application will be run.
@@ -1009,8 +1010,8 @@ class VespaCloud(VespaDeployment):
 
         Example usage:
             ```python
-                vespa_cloud = VespaCloud(...)
-                vespa_cloud.delete_instance(instance="my-instance")
+            vespa_cloud = VespaCloud(...)
+            vespa_cloud.delete_instance(instance="my-instance")
             ```
 
         Args:
@@ -1592,7 +1593,7 @@ class VespaCloud(VespaDeployment):
         """
         Get the endpoint URL of a mTLS endpoint for the application.
         Will return the first mTLS endpoint found if multiple exist.
-        Use :func:`VespaCloud.get_all_endpoints` to get all endpoints.
+        Use `VespaCloud.get_all_endpoints` to get all endpoints.
 
         Tip: See the 'endpoint'-tab in Vespa Cloud Console for available endpoints.
 
@@ -1618,7 +1619,7 @@ class VespaCloud(VespaDeployment):
         """
         Get the endpoint URL of a token endpoint for the application.
         Will return the first token endpoint found if multiple exist.
-        Use :func:`VespaCloud.get_all_endpoints` to get all endpoints.
+        Use `VespaCloud.get_all_endpoints` to get all endpoints.
 
         Tip: See the 'endpoint'-tab in Vespa Cloud Console for available endpoints.
 

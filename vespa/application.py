@@ -106,16 +106,16 @@ class Vespa(object):
             output_file (str): Output file to write output messages.
             application_package (str): Application package definition used to deploy the application.
 
-        Examples:
+        Example usage:
             ```python
-                >>> Vespa(url="https://cord19.vespa.ai")   # doctest: +SKIP
+            Vespa(url="https://cord19.vespa.ai")   # doctest: +SKIP
 
-                >>> Vespa(url="http://localhost", port=8080)
-                Vespa(http://localhost, 8080)
+            Vespa(url="http://localhost", port=8080)
+            Vespa(http://localhost, 8080)
 
-                >>> Vespa(url="https://token-endpoint..z.vespa-app.cloud", vespa_cloud_secret_token="your_token")  # doctest: +SKIP
+            Vespa(url="https://token-endpoint..z.vespa-app.cloud", vespa_cloud_secret_token="your_token")  # doctest: +SKIP
 
-                >>> Vespa(url="https://mtls-endpoint..z.vespa-app.cloud", cert="/path/to/cert.pem", key="/path/to/key.pem")  # doctest: +SKIP
+            Vespa(url="https://mtls-endpoint..z.vespa-app.cloud", cert="/path/to/cert.pem", key="/path/to/key.pem")  # doctest: +SKIP
             ```
         """
         self.output_file = output_file
@@ -154,15 +154,14 @@ class Vespa(object):
 
         Example usage:
             ```python
-
             async with app.asyncio() as async_app:
                 response = await async_app.query(body=body)
 
-                # passing kwargs
-                limits = httpx.Limits(max_keepalive_connections=5, max_connections=5, keepalive_expiry=15)
-                timeout = httpx.Timeout(connect=3, read=4, write=2, pool=5)
-                async with app.asyncio(connections=5, timeout=timeout, limits=limits) as async_app:
-                    response = await async_app.query(body=body)
+            # passing kwargs
+            limits = httpx.Limits(max_keepalive_connections=5, max_connections=5, keepalive_expiry=15)
+            timeout = httpx.Timeout(connect=3, read=4, write=2, pool=5)
+            async with app.asyncio(connections=5, timeout=timeout, limits=limits) as async_app:
+                response = await async_app.query(body=body)
 
             ```
         See `VespaAsync` for more details on the parameters.
@@ -388,14 +387,14 @@ class Vespa(object):
 
         Example usage:
             ```python
-                app = Vespa(url="localhost", port=8080)
-                data = [
-                    {"id": "1", "fields": {"field1": "value1"}},
-                    {"id": "2", "fields": {"field1": "value2"}},
-                ]
-                def callback(response, id):
-                    print(f"Response for id {id}: {response.status_code}")
-                app.feed_iterable(data, schema="schema_name", callback=callback)
+            app = Vespa(url="localhost", port=8080)
+            data = [
+                {"id": "1", "fields": {"field1": "value1"}},
+                {"id": "2", "fields": {"field1": "value2"}},
+            ]
+            def callback(response, id):
+                print(f"Response for id {id}: {response.status_code}")
+            app.feed_iterable(data, schema="schema_name", callback=callback)
             ```
 
         Args:
@@ -818,9 +817,9 @@ class Vespa(object):
 
         Example usage:
             ```python
-                app = Vespa(url="localhost", port=8080)
-                response = app.delete_data(schema="schema_name", data_id="1")
-                print(response)
+            app = Vespa(url="localhost", port=8080)
+            response = app.delete_data(schema="schema_name", data_id="1")
+            print(response)
             ```
 
         Args:
@@ -1714,7 +1713,7 @@ class VespaAsync(object):
                 )
             ```
 
-        **Accessing via :func:`Vespa.asyncio`**:
+        **Accessing via `Vespa.asyncio`**:
             ```python
             app = Vespa(url="localhost", port=8080)
             async with app.asyncio(timeout=timeout, limits=limits) as async_app:

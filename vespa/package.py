@@ -42,27 +42,27 @@ class Summary(object):
 
         Example:
             ```py
-                >>> Summary(None, None, ["dynamic"])
+                Summary(None, None, ["dynamic"])
                 Summary(None, None, ['dynamic'])
 
-                >>> Summary(
+                Summary(
                     "title",
                     "string",
                     [("source", "title")]
-                ... )
+                )
                 Summary('title', 'string', [('source', 'title')])
 
-                >>> Summary(
-                ...     "title",
-                ...     "string",
-                ...     [("source", ["title", "abstract"])]
-                ... )
+                Summary(
+                    "title",
+                    "string",
+                    [("source", ["title", "abstract"])]
+                )
                 Summary('title', 'string', [('source', ['title', 'abstract'])])
 
-                >>> Summary(
-                ...     name="artist",
-                ...     type="string",
-                ... )
+                Summary(
+                    name="artist",
+                    type="string",
+                )
                 Summary('artist', 'string', None)
             ```
         """
@@ -86,24 +86,24 @@ class Summary(object):
 
         Example:
             ```python
-            >>> Summary(None, None, ["dynamic"]).as_lines
+            Summary(None, None, ["dynamic"]).as_lines
             ['summary: dynamic']
             ```
 
             ```python
-            >>> Summary(
-            ...     "artist",
-            ...     "string",
-            ... ).as_lines
+            Summary(
+                "artist",
+                "string",
+            ).as_lines
             ['summary artist type string {}']
             ```
 
             ```python
-            >>> Summary(
-            ...     "artist",
-            ...     "string",
-            ...     [("bolding", "on"), ("sources", "artist")],
-            ... ).as_lines
+            Summary(
+                "artist",
+                "string",
+                [("bolding", "on"), ("sources", "artist")],
+            ).as_lines
             ['summary artist type string {', '    bolding: on', '    sources: artist', '}']
             ```
         """
@@ -239,38 +239,38 @@ class StructField:
 
         Example:
             ```python
-            >>> StructField(
-            ...     name = "first_name",
-            ... )
+            StructField(
+                name = "first_name",
+            )
             StructField('first_name', None, None, None, None, None, None)
             ```
 
             ```python
-            >>> StructField(
-            ...     name = "first_name",
-            ...     indexing = ["attribute"],
-            ...     attribute = ["fast-search"],
-            ... )
+            StructField(
+                name = "first_name",
+                indexing = ["attribute"],
+                attribute = ["fast-search"],
+            )
             StructField('first_name', ['attribute'], ['fast-search'], None, None, None, None)
             ```
 
             ```python
-            >>> StructField(
-            ...     name = "last_name",
-            ...     match = ["exact", ("exact-terminator", '"@%"')],
-            ...     query_command = ['"exact %%"'],
-            ...     summary = Summary(None, None, fields=["dynamic", ("bolding", "on")])
-            ... )
+            StructField(
+                name = "last_name",
+                match = ["exact", ("exact-terminator", '"@%"')],
+                query_command = ['"exact %%"'],
+                summary = Summary(None, None, fields=["dynamic", ("bolding", "on")])
+            )
             StructField('last_name', None, None, ['exact', ('exact-terminator', '"@%"')], ['"exact %%"'], Summary(None, None, ['dynamic', ('bolding', 'on')]), None)
             ```
 
             ```python
-            >>> StructField(
-            ...     name = "first_name",
-            ...     indexing = ["attribute"],
-            ...     attribute = ["fast-search"],
-            ...     rank = "filter",
-            ... )
+            StructField(
+                name = "first_name",
+                indexing = ["attribute"],
+                attribute = ["fast-search"],
+                rank = "filter",
+            )
             StructField('first_name', ['attribute'], ['fast-search'], None, None, None, 'filter')
             ```
         """
@@ -383,117 +383,117 @@ class Field(object):
 
         Example:
             ```python
-            >>> Field(name = "title", type = "string", indexing = ["index", "summary"], index = "enable-bm25")
+            Field(name = "title", type = "string", indexing = ["index", "summary"], index = "enable-bm25")
             Field('title', 'string', ['index', 'summary'], 'enable-bm25', None, None, None, None, None, None, True, None, None, None, [], None)
             ```
 
             ```python
-            >>> Field(
-            ...     name = "abstract",
-            ...     type = "string",
-            ...     indexing = ["attribute"],
-            ...     attribute=["fast-search", "fast-access"]
-            ... )
+            Field(
+                name = "abstract",
+                type = "string",
+                indexing = ["attribute"],
+                attribute=["fast-search", "fast-access"]
+            )
             Field('abstract', 'string', ['attribute'], None, ['fast-search', 'fast-access'], None, None, None, None, None, True, None, None, None, [], None)
             ```
 
             ```python
-            >>> Field(name="tensor_field",
-            ...     type="tensor<float>(x[128])",
-            ...     indexing=["attribute"],
-            ...     ann=HNSW(
-            ...         distance_metric="euclidean",
-            ...         max_links_per_node=16,
-            ...         neighbors_to_explore_at_insert=200,
-            ...     ),
-            ... )
+            Field(name="tensor_field",
+                type="tensor<float>(x[128])",
+                indexing=["attribute"],
+                ann=HNSW(
+                    distance_metric="euclidean",
+                    max_links_per_node=16,
+                    neighbors_to_explore_at_insert=200,
+                ),
+            )
             Field('tensor_field', 'tensor<float>(x[128])', ['attribute'], None, None, HNSW('euclidean', 16, 200), None, None, None, None, True, None, None, None, [], None)
             ```
 
             ```python
-            >>> Field(
-            ...     name = "abstract",
-            ...     type = "string",
-            ...     match = ["exact", ("exact-terminator", '"@%"',)],
-            ... )
+            Field(
+                name = "abstract",
+                type = "string",
+                match = ["exact", ("exact-terminator", '"@%"',)],
+            )
             Field('abstract', 'string', None, None, None, None, ['exact', ('exact-terminator', '"@%"')], None, None, None, True, None, None, None, [], None)
             ```
 
             ```python
-            >>> Field(
-            ...     name = "abstract",
-            ...     type = "string",
-            ...     weight = 200,
-            ... )
+            Field(
+                name = "abstract",
+                type = "string",
+                weight = 200,
+            )
             Field('abstract', 'string', None, None, None, None, None, 200, None, None, True, None, None, None, [], None)
             ```
 
             ```python
-            >>> Field(
-            ...     name = "abstract",
-            ...     type = "string",
-            ...     bolding = True,
-            ... )
+            Field(
+                name = "abstract",
+                type = "string",
+                bolding = True,
+            )
             Field('abstract', 'string', None, None, None, None, None, None, True, None, True, None, None, None, [], None)
             ```
 
             ```python
-            >>> Field(
-            ...     name = "abstract",
-            ...     type = "string",
-            ...     summary = Summary(None, None, ["dynamic", ["bolding", "on"]]),
-            ... )
+            Field(
+                name = "abstract",
+                type = "string",
+                summary = Summary(None, None, ["dynamic", ["bolding", "on"]]),
+            )
             Field('abstract', 'string', None, None, None, None, None, None, None, Summary(None, None, ['dynamic', ['bolding', 'on']]), True, None, None, None, [], None)
             ```
 
             ```python
-            >>> Field(
-            ...     name = "abstract",
-            ...     type = "string",
-            ...     stemming = "shortest",
-            ... )
+            Field(
+                name = "abstract",
+                type = "string",
+                stemming = "shortest",
+            )
             Field('abstract', 'string', None, None, None, None, None, None, None, None, True, 'shortest', None, None, [], None)
             ```
 
             ```python
-            >>> Field(
-            ...     name = "abstract",
-            ...     type = "string",
-            ...     rank = "filter",
-            ... )
+            Field(
+                name = "abstract",
+                type = "string",
+                rank = "filter",
+            )
             Field('abstract', 'string', None, None, None, None, None, None, None, None, True, None, 'filter', None, [], None)
             ```
 
             ```python
-            >>> Field(
-            ...     name = "abstract",
-            ...     type = "string",
-            ...     query_command = ['"exact %%"'],
-            ... )
+            Field(
+                name = "abstract",
+                type = "string",
+                query_command = ['"exact %%"'],
+            )
             Field('abstract', 'string', None, None, None, None, None, None, None, None, True, None, None, ['"exact %%"'], [], None)
             ```
 
             ```python
-            >>> Field(
-            ...     name = "abstract",
-            ...     type = "string",
-            ...     struct_fields = [
-            ...         StructField(
-            ...             name = "first_name",
-            ...             indexing = ["attribute"],
-            ...             attribute = ["fast-search"],
-            ...         ),
-            ...     ],
-            ... )
+            Field(
+                name = "abstract",
+                type = "string",
+                struct_fields = [
+                    StructField(
+                        name = "first_name",
+                        indexing = ["attribute"],
+                        attribute = ["fast-search"],
+                    ),
+                ],
+            )
             Field('abstract', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [StructField('first_name', ['attribute'], ['fast-search'], None, None, None, None)], None)
             ```
 
             ```python
-            >>> Field(
-            ...     name = "artist",
-            ...     type = "string",
-            ...     alias = ["artist_name"],
-            ... )
+            Field(
+                name = "artist",
+                type = "string",
+                alias = ["artist_name"],
+            )
             Field('artist', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], ['artist_name'])
             ```
         """
@@ -607,11 +607,11 @@ class ImportedField(object):
 
         Example:
             ```python
-            >>> ImportedField(
-            ...     name="global_category_ctrs",
-            ...     reference_field="category_ctr_ref",
-            ...     field_to_import="ctrs",
-            ... )
+            ImportedField(
+                name="global_category_ctrs",
+                reference_field="category_ctr_ref",
+                field_to_import="ctrs",
+            )
             ImportedField('global_category_ctrs', 'category_ctr_ref', 'ctrs')
             ```
         """
@@ -651,16 +651,16 @@ class Struct(object):
 
         Example:
             ```python
-            >>> Struct("person")
+            Struct("person")
             Struct('person', None)
 
-            >>> Struct(
-            ...     "person",
-            ...     [
-            ...         Field("first_name", "string"),
-            ...         Field("last_name", "string"),
-            ...     ],
-            ... )
+            Struct(
+                "person",
+                [
+                    Field("first_name", "string"),
+                    Field("last_name", "string"),
+                ],
+            )
             Struct('person', [Field('first_name', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], None), Field('last_name', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], None)])
             ```
         """
@@ -704,28 +704,28 @@ class DocumentSummary(object):
 
         Example:
             ```python
-            >>> DocumentSummary(
-            ...     name="document-summary",
-            ... )
+            DocumentSummary(
+                name="document-summary",
+            )
             DocumentSummary('document-summary', None, None, None, None)
 
-            >>> DocumentSummary(
-            ...     name="which-inherits",
-            ...     inherits="base-document-summary",
-            ... )
+            DocumentSummary(
+                name="which-inherits",
+                inherits="base-document-summary",
+            )
             DocumentSummary('which-inherits', 'base-document-summary', None, None, None)
 
-            >>> DocumentSummary(
-            ...     name="with-field",
-            ...     summary_fields=[Summary("title", "string", [("source", "title")])]
-            ... )
+            DocumentSummary(
+                name="with-field",
+                summary_fields=[Summary("title", "string", [("source", "title")])]
+            )
             DocumentSummary('with-field', None, [Summary('title', 'string', [('source', 'title')])], None, None)
 
-            >>> DocumentSummary(
-            ...     name="with-bools",
-            ...     from_disk=True,
-            ...     omit_summary_features=True,
-            ... )
+            DocumentSummary(
+                name="with-bools",
+                from_disk=True,
+                omit_summary_features=True,
+            )
             DocumentSummary('with-bools', None, None, True, True)
             ```
         """
@@ -776,13 +776,13 @@ class Document(object):
 
         Example:
             ```python
-            >>> Document()
+            Document()
             Document(None, None, None)
 
-            >>> Document(fields=[Field(name="title", type="string")])
+            Document(fields=[Field(name="title", type="string")])
             Document([Field('title', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], None)], None, None)
 
-            >>> Document(fields=[Field(name="title", type="string")], inherits="context")
+            Document(fields=[Field(name="title", type="string")], inherits="context")
             Document([Field('title', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], None)], context, None)
             ```
         """
@@ -868,7 +868,7 @@ class FieldSet(object):
 
         Example:
             ```
-            >>> FieldSet(name="default", fields=["title", "body"])
+            FieldSet(name="default", fields=["title", "body"])
             FieldSet('default', ['title', 'body'])
             ```
         """
@@ -913,26 +913,26 @@ class Function(object):
 
         Example:
             ```
-                >>> Function(
-                ...     name="myfeature",
-                ...     expression="fieldMatch(bar) + freshness(foo)",
-                ...     args=["foo", "bar"]
-                ... )
+                Function(
+                    name="myfeature",
+                    expression="fieldMatch(bar) + freshness(foo)",
+                    args=["foo", "bar"]
+                )
                 Function('myfeature', 'fieldMatch(bar) + freshness(foo)', ['foo', 'bar'])
             ```
 
             It is possible to define functions with multi-line expressions:
             ```
-                >>> Function(
-                ...     name="token_type_ids",
-                ...     expression="tensor<float>(d0[1],d1[128])(\n"
-                ...                "    if (d1 < question_length,\n"
-                ...                "        0,\n"
-                ...                "    if (d1 < question_length + doc_length,\n"
-                ...                "        1,\n"
-                ...                "        TOKEN_NONE\n"
-                ...                "    )))",
-                ... )
+                Function(
+                    name="token_type_ids",
+                    expression="tensor<float>(d0[1],d1[128])(\n"
+                               "    if (d1 < question_length,\n"
+                               "        0,\n"
+                               "    if (d1 < question_length + doc_length,\n"
+                               "        1,\n"
+                               "        TOKEN_NONE\n"
+                               "    )))",
+                )
                 Function('token_type_ids', 'tensor<float>(d0[1],d1[128])(\n    if (d1 < question_length,\n        0,\n    if (d1 < question_length + doc_length,\n        1,\n        TOKEN_NONE\n    )))', None)
             ```
         """
@@ -993,10 +993,10 @@ class FirstPhaseRanking:
 
         Example:
             ```
-            >>> FirstPhaseRanking("myFeature * 10")
+            FirstPhaseRanking("myFeature * 10")
             FirstPhaseRanking('myFeature * 10', None, None)
 
-            >>> FirstPhaseRanking(expression="myFeature * 10", keep_rank_count=50, rank_score_drop_limit=10)
+            FirstPhaseRanking(expression="myFeature * 10", keep_rank_count=50, rank_score_drop_limit=10)
             FirstPhaseRanking('myFeature * 10', 50, 10)
             ```
         """
@@ -1050,10 +1050,10 @@ class SecondPhaseRanking(object):
 
         Example:
             ```
-            >>> SecondPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10)
+            SecondPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10)
             SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10, None)
 
-            >>> SecondPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10, rank_score_drop_limit=5)
+            SecondPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10, rank_score_drop_limit=5)
             SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10, 5)
             ```
         """
@@ -1107,10 +1107,10 @@ class GlobalPhaseRanking(object):
 
         Example:
             ```
-                >>> GlobalPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10)
+                GlobalPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10)
                 GlobalPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10, None)
 
-                >>> GlobalPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10, rank_score_drop_limit=5)
+                GlobalPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10, rank_score_drop_limit=5)
                 GlobalPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10, 5)
             ```
         """
@@ -1171,18 +1171,18 @@ class Mutate(object):
 
         Example:
             ```python
-            >>> enable_mutating_operations(
-            ...     on_match={
-            ...         'attribute': 'popularity',
-            ...         'operation_string': 'add',
-            ...         'operation_value': 5
-            ...     },
-            ...     on_first_phase={
-            ...         'attribute': 'score',
-            ...         'operation_string': 'subtract',
-            ...         'operation_value': 3
-            ...     }
-            ... )
+            enable_mutating_operations(
+                on_match={
+                    'attribute': 'popularity',
+                    'operation_string': 'add',
+                    'operation_value': 5
+                },
+                on_first_phase={
+                    'attribute': 'score',
+                    'operation_string': 'subtract',
+                    'operation_value': 3
+                }
+            )
             enable_mutating_operations({'attribute': 'popularity', 'operation_string': 'add', 'operation_value': 5},
                                         {'attribute': 'score', 'operation_string': 'subtract', 'operation_value': 3})
             ```
@@ -1255,7 +1255,7 @@ class MatchPhaseRanking(object):
 
         Example:
             ```python
-            >>> MatchPhaseRanking(attribute="popularity", order="descending", max_hits=1000)
+            MatchPhaseRanking(attribute="popularity", order="descending", max_hits=1000)
             MatchPhaseRanking('popularity', 'descending', 1000)
             ```
         """
@@ -1350,73 +1350,73 @@ class RankProfile(object):
 
             Example:
                 ```python
-                >>> RankProfile(name = "default", first_phase = "nativeRank(title, body)")
+                RankProfile(name = "default", first_phase = "nativeRank(title, body)")
                 RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, None, None, None)
 
-                >>> RankProfile(name = "new", first_phase = "BM25(title)", inherits = "default")
+                RankProfile(name = "new", first_phase = "BM25(title)", inherits = "default")
                 RankProfile('new', 'BM25(title)', 'default', None, None, None, None, None, None, None, None, None, None, None, None)
 
-                >>> RankProfile(
-                ...     name = "new",
-                ...     first_phase = "BM25(title)",
-                ...     inherits = "default",
-                ...     constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
-                ...     summary_features=["BM25(title)"]
-                ... )
+                RankProfile(
+                    name = "new",
+                    first_phase = "BM25(title)",
+                    inherits = "default",
+                    constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
+                    summary_features=["BM25(title)"]
+                )
                 RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None, ['BM25(title)'], None, None, None, None, None, None, None, None, None)
 
-                >>> RankProfile(
-                ...     name="bert",
-                ...     first_phase="bm25(title) + bm25(body)",
-                ...     second_phase=SecondPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10),
-                ...     inherits="default",
-                ...     constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
-                ...     functions=[
-                ...         Function(
-                ...             name="question_length",
-                ...             expression="sum(map(query(query_token_ids), f(a)(a > 0)))"
-                ...         ),
-                ...         Function(
-                ...             name="doc_length",
-                ...             expression="sum(map(attribute(doc_token_ids), f(a)(a > 0)))"
-                ...         )
-                ...     ],
-                ...     summary_features=["question_length", "doc_length"]
-                ... )
+                RankProfile(
+                    name="bert",
+                    first_phase="bm25(title) + bm25(body)",
+                    second_phase=SecondPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10),
+                    inherits="default",
+                    constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
+                    functions=[
+                        Function(
+                            name="question_length",
+                            expression="sum(map(query(query_token_ids), f(a)(a > 0)))"
+                        ),
+                        Function(
+                            name="doc_length",
+                            expression="sum(map(attribute(doc_token_ids), f(a)(a > 0)))"
+                        )
+                    ],
+                    summary_features=["question_length", "doc_length"]
+                )
                 RankProfile('bert', 'bm25(title) + bm25(body)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, [Function('question_length', 'sum(map(query(query_token_ids), f(a)(a > 0)))', None), Function('doc_length', 'sum(map(attribute(doc_token_ids), f(a)(a > 0)))', None)], ['question_length', 'doc_length'], None, SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10, None), None, None, None, None, None, None, None)
 
-                >>> RankProfile(
-                ...     name = "default",
-                ...     first_phase = "nativeRank(title, body)",
-                ...     weight = [("title", 200), ("body", 100)]
-                ... )
+                RankProfile(
+                    name = "default",
+                    first_phase = "nativeRank(title, body)",
+                    weight = [("title", 200), ("body", 100)]
+                )
                 RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, [('title', 200), ('body', 100)], None, None, None)
 
-                >>> RankProfile(
-                ...     name = "default",
-                ...     first_phase = "nativeRank(title, body)",
-                ...     rank_type = [("body", "about")]
-                ... )
+                RankProfile(
+                    name = "default",
+                    first_phase = "nativeRank(title, body)",
+                    rank_type = [("body", "about")]
+                )
                 RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, [('body', 'about')], None, None)
 
-                >>> RankProfile(
-                ...     name = "default",
-                ...     first_phase = "nativeRank(title, body)",
-                ...     rank_properties = [("fieldMatch(title).maxAlternativeSegmentations", "10")]
-                ... )
+                RankProfile(
+                    name = "default",
+                    first_phase = "nativeRank(title, body)",
+                    rank_properties = [("fieldMatch(title).maxAlternativeSegmentations", "10")]
+                )
                 RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, None, [('fieldMatch(title).maxAlternativeSegmentations', '10')], None)
 
-                >>> RankProfile(
-                ...    name = "default",
-                ...    first_phase = FirstPhaseRanking(expression="nativeRank(title, body)", keep_rank_count=50)
-                ... )
+                RankProfile(
+                   name = "default",
+                   first_phase = FirstPhaseRanking(expression="nativeRank(title, body)", keep_rank_count=50)
+                )
                 RankProfile('default', FirstPhaseRanking('nativeRank(title, body)', 50, None), None, None, None, None, None, None, None, None, None, None, None, None, None)
 
-                >>> RankProfile(
-                ...     name = "default",
-                ...     first_phase = "nativeRank(title, body)",
-                ...     num_threads_per_search = 2
-                ... )
+                RankProfile(
+                    name = "default",
+                    first_phase = "nativeRank(title, body)",
+                    num_threads_per_search = 2
+                )
                 RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, 2, None, None, None, None)
                 ```
         """
@@ -1507,16 +1507,16 @@ class OnnxModel(object):
 
         Example:
             ```python
-            >>> OnnxModel(
-            ...     model_name="bert",
-            ...     model_file_path="bert.onnx",
-            ...     inputs={
-            ...         "input_ids": "input_ids",
-            ...         "token_type_ids": "token_type_ids",
-            ...         "attention_mask": "attention_mask",
-            ...     },
-            ...     outputs={"logits": "logits"},
-            ... )
+            OnnxModel(
+                model_name="bert",
+                model_file_path="bert.onnx",
+                inputs={
+                    "input_ids": "input_ids",
+                    "token_type_ids": "token_type_ids",
+                    "attention_mask": "attention_mask",
+                },
+                outputs={"logits": "logits"},
+            )
             OnnxModel('bert', 'bert.onnx', {'input_ids': 'input_ids', 'token_type_ids': 'token_type_ids', 'attention_mask': 'attention_mask'}, {'logits': 'logits'})
             ```
         """
@@ -1587,7 +1587,7 @@ class Schema(object):
 
         Example:
             ```python
-            >>> Schema(name="schema_name", document=Document())
+            Schema(name="schema_name", document=Document())
             Schema('schema_name', Document(None, None, None), None, None, [], False, None, [], None)
             ```
         """
@@ -1638,7 +1638,7 @@ class Schema(object):
 
         Example:
             ```python
-            >>> schema.add_fields([Field(name="title", type="string"), Field(name="body", type="text")])
+            schema.add_fields([Field(name="title", type="string"), Field(name="body", type="text")])
             schema.add_fields([Field('title', 'string'), Field('body', 'text')])
             ```
         """
@@ -1776,10 +1776,10 @@ class QueryTypeField(object):
 
         Example:
             ```python
-            >>> QueryTypeField(
-            ...     name="ranking.features.query(title_bert)",
-            ...     type="tensor<float>(x[768])"
-            ... )
+            QueryTypeField(
+                name="ranking.features.query(title_bert)",
+                type="tensor<float>(x[768])"
+            )
             QueryTypeField('ranking.features.query(title_bert)', 'tensor<float>(x[768])')
             ```
         """

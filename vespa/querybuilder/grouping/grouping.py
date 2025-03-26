@@ -24,16 +24,16 @@ class Grouping:
 
     Minimal Example:
         ```python
-        >>> from vespa.querybuilder import Grouping as G
-        >>> # Build a simple grouping expression which groups on "my_attribute"
-        >>> # and outputs the count of matching documents under each group:
-        >>> expr = G.all(
-        ...     G.group("my_attribute"),
-        ...     G.each(
-        ...         G.output(G.count())
-        ...     )
-        ... )
-        >>> print(expr)
+        from vespa.querybuilder import Grouping as G
+        # Build a simple grouping expression which groups on "my_attribute"
+        # and outputs the count of matching documents under each group:
+        expr = G.all(
+            G.group("my_attribute"),
+            G.each(
+                G.output(G.count())
+            )
+        )
+        print(expr)
         all(group(my_attribute) each(output(count())))
         ```
 
@@ -45,20 +45,20 @@ class Grouping:
     For multi-level (nested) grouping, you can nest additional calls to “group(...)”
     or “each(...)” inside. For example:
         ```python
-        >>> # Nested grouping:
-        >>> # 1) Group by 'category'
-        >>> # 2) Within each category, group by 'sub_category'
-        >>> # 3) Output the count() under each sub-category
-        >>> nested_expr = G.all(
-        ...     G.group("category"),
-        ...     G.each(
-        ...         G.group("sub_category"),
-        ...         G.each(
-        ...             G.output(G.count())
-        ...         )
-        ...     )
-        ... )
-        >>> print(nested_expr)
+        # Nested grouping:
+        # 1) Group by 'category'
+        # 2) Within each category, group by 'sub_category'
+        # 3) Output the count() under each sub-category
+        nested_expr = G.all(
+            G.group("category"),
+            G.each(
+                G.group("sub_category"),
+                G.each(
+                    G.output(G.count())
+                )
+            )
+        )
+        print(nested_expr)
         all(group(category) each(group(sub_category) each(output(count()))))
         ```
 
@@ -84,9 +84,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.all(G.group("my_attribute"), G.each(G.output(G.count())))
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.all(G.group("my_attribute"), G.each(G.output(G.count())))
+            print(expr)
             all(group(my_attribute) each(output(count())))
             ```
         """
@@ -105,9 +105,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.each("output(count())", "output(avg(price))")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.each("output(count())", "output(avg(price))")
+            print(expr)
             each(output(count()) output(avg(price)))
             ```
         """
@@ -125,9 +125,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.group("my_map.key")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.group("my_map.key")
+            print(expr)
             group(my_map.key)
             ```
         """
@@ -149,13 +149,13 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.count()
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.count()
+            print(expr)
             count()
 
-            >>> sort_expr = f"-{expr}"
-            >>> print(sort_expr)
+            sort_expr = f"-{expr}"
+            print(sort_expr)
             -count()
             ```
         """
@@ -181,9 +181,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.sum("my_numeric_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.sum("my_numeric_field")
+            print(expr)
             sum(my_numeric_field)
             ```
         """
@@ -202,9 +202,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.avg("my_numeric_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.avg("my_numeric_field")
+            print(expr)
             avg(my_numeric_field)
             ```
         """
@@ -223,9 +223,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.min("some_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.min("some_field")
+            print(expr)
             min(some_field)
             ```
         """
@@ -244,9 +244,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.max("relevance()")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.max("relevance()")
+            print(expr)
             max(relevance())
             ```
         """
@@ -265,9 +265,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.stddev("my_numeric_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.stddev("my_numeric_field")
+            print(expr)
             stddev(my_numeric_field)
             ```
         """
@@ -286,9 +286,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.xor("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.xor("my_field")
+            print(expr)
             xor(my_field)
             ```
         """
@@ -310,9 +310,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.output(G.count(), G.sum("price"))
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.output(G.count(), G.sum("price"))
+            print(expr)
             output(count(),sum(price))
             ```
         """
@@ -331,9 +331,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.order(G.sum(G.relevance()), -G.count())
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.order(G.sum(G.relevance()), -G.count())
+            print(expr)
             order(sum(relevance()),-count())
             ```
         """
@@ -351,9 +351,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.precision(1000)
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.precision(1000)
+            print(expr)
             precision(1000)
             ```
         """
@@ -379,9 +379,9 @@ class Grouping:
     #         str: A Vespa grouping expression string of the form 'alias(...)'.
 
     #     Example:
-    #         >>> from vespa.querybuilder import Grouping as G
-    #         >>> expr = G.alias("myalias", "count()")
-    #         >>> print(expr)
+    #         from vespa.querybuilder import Grouping as G
+    #         expr = G.alias("myalias", "count()")
+    #         print(expr)
     #         alias(myalias,count())
     #     """
     #     return f"alias({alias_name},{expression})"
@@ -402,9 +402,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.add("my_field", "5", "10")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.add("my_field", "5", "10")
+            print(expr)
             add(my_field, 5, 10)
             ```
         """
@@ -422,9 +422,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.sub("my_field", "2")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.sub("my_field", "2")
+            print(expr)
             sub(my_field, 2)
             ```
         """
@@ -442,9 +442,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.mul("my_field", "2", "3")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.mul("my_field", "2", "3")
+            print(expr)
             mul(my_field, 2, 3)
             ```
         """
@@ -462,9 +462,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.div("my_field", "2")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.div("my_field", "2")
+            print(expr)
             div(my_field, 2)
             ```
         """
@@ -482,9 +482,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.mod("my_field", "100")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.mod("my_field", "100")
+            print(expr)
             mod(my_field,100)
             ```
         """
@@ -506,9 +506,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.and_("fieldA", "fieldB")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.and_("fieldA", "fieldB")
+            print(expr)
             and(fieldA, fieldB)
             ```
         """
@@ -526,9 +526,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.or_("fieldA", "fieldB")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.or_("fieldA", "fieldB")
+            print(expr)
             or(fieldA, fieldB)
             ```
         """
@@ -548,9 +548,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.xor_expr("fieldA", "fieldB")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.xor_expr("fieldA", "fieldB")
+            print(expr)
             xor(fieldA, fieldB)
             ```
         """
@@ -572,9 +572,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.strlen("my_string_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.strlen("my_string_field")
+            print(expr)
             strlen(my_string_field)
             ```
         """
@@ -592,9 +592,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.strcat("fieldA", "_", "fieldB")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.strcat("fieldA", "_", "fieldB")
+            print(expr)
             strcat(fieldA,_,fieldB)
             ```
         """
@@ -616,9 +616,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.todouble("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.todouble("my_field")
+            print(expr)
             todouble(my_field)
             ```
         """
@@ -636,9 +636,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.tolong("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.tolong("my_field")
+            print(expr)
             tolong(my_field)
             ```
         """
@@ -656,9 +656,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.tostring("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.tostring("my_field")
+            print(expr)
             tostring(my_field)
             ```
         """
@@ -676,9 +676,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.toraw("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.toraw("my_field")
+            print(expr)
             toraw(my_field)
             ```
         """
@@ -700,9 +700,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.cat("fieldA", "fieldB")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.cat("fieldA", "fieldB")
+            print(expr)
             cat(fieldA,fieldB)
             ```
         """
@@ -724,9 +724,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.md5("my_field", 16)
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.md5("my_field", 16)
+            print(expr)
             md5(my_field, 16)
             ```
         """
@@ -748,9 +748,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.xorbit("my_field", 16)
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.xorbit("my_field", 16)
+            print(expr)
             xorbit(my_field, 16)
             ```
         """
@@ -769,9 +769,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.relevance()
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.relevance()
+            print(expr)
             relevance()
             ```
         """
@@ -793,9 +793,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.array_at("my_array", 0)
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.array_at("my_array", 0)
+            print(expr)
             array.at(my_array, 0)
             ```
         """
@@ -817,9 +817,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.zcurve_x("location_zcurve")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.zcurve_x("location_zcurve")
+            print(expr)
             zcurve.x(location_zcurve)
             ```
         """
@@ -837,9 +837,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.zcurve_y("location_zcurve")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.zcurve_y("location_zcurve")
+            print(expr)
             zcurve.y(location_zcurve)
             ```
         """
@@ -861,9 +861,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.time_dayofmonth("timestamp_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.time_dayofmonth("timestamp_field")
+            print(expr)
             time.dayofmonth(timestamp_field)
             ```
         """
@@ -881,9 +881,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.time_dayofweek("timestamp_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.time_dayofweek("timestamp_field")
+            print(expr)
             time.dayofweek(timestamp_field)
             ```
         """
@@ -901,9 +901,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.time_dayofyear("timestamp_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.time_dayofyear("timestamp_field")
+            print(expr)
             time.dayofyear(timestamp_field)
             ```
         """
@@ -921,9 +921,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.time_hourofday("timestamp_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.time_hourofday("timestamp_field")
+            print(expr)
             time.hourofday(timestamp_field)
             ```
         """
@@ -941,9 +941,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.time_minuteofhour("timestamp_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.time_minuteofhour("timestamp_field")
+            print(expr)
             time.minuteofhour(timestamp_field)
             ```
         """
@@ -961,9 +961,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.time_monthofyear("timestamp_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.time_monthofyear("timestamp_field")
+            print(expr)
             time.monthofyear(timestamp_field)
             ```
         """
@@ -981,9 +981,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.time_secondofminute("timestamp_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.time_secondofminute("timestamp_field")
+            print(expr)
             time.secondofminute(timestamp_field)
             ```
         """
@@ -1001,9 +1001,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.time_year("timestamp_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.time_year("timestamp_field")
+            print(expr)
             time.year(timestamp_field)
             ```
         """
@@ -1021,9 +1021,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.time_date("timestamp_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.time_date("timestamp_field")
+            print(expr)
             time.date(timestamp_field)
             ```
         """
@@ -1044,9 +1044,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.math_exp("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.math_exp("my_field")
+            print(expr)
             math.exp(my_field)
             ```
         """
@@ -1064,9 +1064,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.math_log("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.math_log("my_field")
+            print(expr)
             math.log(my_field)
             ```
         """
@@ -1084,9 +1084,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.math_log1p("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.math_log1p("my_field")
+            print(expr)
             math.log1p(my_field)
             ```
         """
@@ -1104,9 +1104,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.math_log10("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.math_log10("my_field")
+            print(expr)
             math.log10(my_field)
             ```
         """
@@ -1124,9 +1124,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.math_sqrt("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.math_sqrt("my_field")
+            print(expr)
             math.sqrt(my_field)
             ```
         """
@@ -1144,9 +1144,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.math_cbrt("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.math_cbrt("my_field")
+            print(expr)
             math.cbrt(my_field)
             ```
         """
@@ -1164,9 +1164,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.math_sin("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.math_sin("my_field")
+            print(expr)
             math.sin(my_field)
             ```
         """
@@ -1184,9 +1184,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.math_cos("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.math_cos("my_field")
+            print(expr)
             math.cos(my_field)
             ```
         """
@@ -1204,9 +1204,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.math_tan("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.math_tan("my_field")
+            print(expr)
             math.tan(my_field)
             ```
         """
@@ -1224,9 +1224,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.math_asin("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.math_asin("my_field")
+            print(expr)
             math.asin(my_field)
             ```
         """
@@ -1244,9 +1244,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.math_acos("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.math_acos("my_field")
+            print(expr)
             math.acos(my_field)
             ```
         """
@@ -1264,9 +1264,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.math_atan("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.math_atan("my_field")
+            print(expr)
             math.atan(my_field)
             ```
         """
@@ -1284,9 +1284,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.math_sinh("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.math_sinh("my_field")
+            print(expr)
             math.sinh(my_field)
             ```
         """
@@ -1304,9 +1304,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.math_cosh("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.math_cosh("my_field")
+            print(expr)
             math.cosh(my_field)
             ```
         """
@@ -1324,9 +1324,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.math_tanh("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.math_tanh("my_field")
+            print(expr)
             math.tanh(my_field)
             ```
         """
@@ -1344,9 +1344,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.math_asinh("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.math_asinh("my_field")
+            print(expr)
             math.asinh(my_field)
             ```
         """
@@ -1364,9 +1364,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.math_acosh("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.math_acosh("my_field")
+            print(expr)
             math.acosh(my_field)
             ```
         """
@@ -1384,9 +1384,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.math_atanh("my_field")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.math_atanh("my_field")
+            print(expr)
             math.atanh(my_field)
             ```
         """
@@ -1407,9 +1407,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.math_pow("my_field", "2")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.math_pow("my_field", "2")
+            print(expr)
             math.pow(my_field,2)
             ```
         """
@@ -1431,9 +1431,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.math_hypot("my_field_x", "my_field_y")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.math_hypot("my_field_x", "my_field_y")
+            print(expr)
             math.hypot(my_field_x, my_field_y)
             ```
         """
@@ -1455,9 +1455,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.size("my_array")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.size("my_array")
+            print(expr)
             size(my_array)
             ```
         """
@@ -1475,9 +1475,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.sort("my_array")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.sort("my_array")
+            print(expr)
             sort(my_array)
             ```
         """
@@ -1495,9 +1495,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.reverse("my_array")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.reverse("my_array")
+            print(expr)
             reverse(my_array)
             ```
         """
@@ -1523,9 +1523,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.fixedwidth("my_field",10)
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.fixedwidth("my_field",10)
+            print(expr)
             fixedwidth(my_field,10)
             ```
         """
@@ -1543,13 +1543,13 @@ class Grouping:
             buckets (List[str]): A list of bucket definitions.
 
         Returns:
-            str: A Vespa expression string of the form 'predefined(value, ( ... ))'.
+            str: A Vespa expression string of the form 'predefined(value, ( ))'.
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.predefined("my_field", ["bucket(-inf,0)", "bucket[0,10)", "bucket[10,inf)"])
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.predefined("my_field", ["bucket(-inf,0)", "bucket[0,10)", "bucket[10,inf)"])
+            print(expr)
             predefined(my_field,bucket(-inf,0),bucket[0,10),bucket[10,inf))
             ```
         """
@@ -1573,9 +1573,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.interpolatedlookup("my_sorted_array", "4.2")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.interpolatedlookup("my_sorted_array", "4.2")
+            print(expr)
             interpolatedlookup(my_sorted_array, 4.2)
             ```
         """
@@ -1599,14 +1599,14 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.summary()
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.summary()
+            print(expr)
             summary()
             ```
             ```python
-            >>> expr = G.summary("my_summary_class")
-            >>> print(expr)
+            expr = G.summary("my_summary_class")
+            print(expr)
             summary(my_summary_class)
             ```
         """
@@ -1629,9 +1629,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.as_(G.each(G.output(G.count())), "mylabel")
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.as_(G.each(G.output(G.count())), "mylabel")
+            print(expr)
             each(output(count())) as(mylabel)
             ```
         """
@@ -1652,9 +1652,9 @@ class Grouping:
 
         Example:
             ```python
-            >>> from vespa.querybuilder import Grouping as G
-            >>> expr = G.alias("my_alias", G.add("fieldA", "fieldB"))
-            >>> print(expr)
+            from vespa.querybuilder import Grouping as G
+            expr = G.alias("my_alias", G.add("fieldA", "fieldB"))
+            print(expr)
             alias(my_alias,add(fieldA, fieldB))
             ```
 

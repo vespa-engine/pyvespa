@@ -22,22 +22,22 @@ The [Vespa FAQ](https://docs.vespa.ai/en/faq.html) is a great resource, also see
 Install ``pyvespa``:
 
 ```bash
-  $ python3 -m pip install pyvespa
+  python3 -m pip install pyvespa
 ```
 
 Install [jupyter notebook](https://jupyter.org/install#jupyter-notebook) to run the notebooks in a browser:
 
 ```bash
-  $ git clone --depth 1 https://github.com/vespa-engine/pyvespa.git
-  $ jupyter notebook --notebook-dir pyvespa/docs/sphinx/source
+  git clone --depth 1 https://github.com/vespa-engine/pyvespa.git
+  jupyter notebook --notebook-dir pyvespa/docs/sphinx/source
 ```
 Many of the pyvespa guides / notebooks use Docker -
 minimum memory requirement is 4 Gb unless other documented:
 
 ```bash
-  $ docker info | grep "Total Memory"
+  docker info | grep "Total Memory"
   or
-  $ podman info | grep "memTotal"
+  podman info | grep "memTotal"
 ```
 
 One can also use [Vespa Cloud](getting-started-pyvespa-cloud) to run the notebooks.
