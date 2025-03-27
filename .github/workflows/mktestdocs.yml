@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
   pull_request:
     branches:
-      - migration-to-mk-docs-docstring-replacement
+      - master
   push:
     branches:
-      - migration-to-mk-docs-docstring-replacement
+      - mastee
 jobs:
   mk-docs-test:
     runs-on: ubuntu-latest
