@@ -4,11 +4,9 @@ on:
   workflow_dispatch:
   pull_request:
     branches:
-      - master
       - migration-to-mk-docs-docstring-replacement
   push:
     branches:
-      - master
       - migration-to-mk-docs-docstring-replacement
 jobs:
   mk-docs-test:
