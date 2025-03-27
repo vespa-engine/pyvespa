@@ -1,0 +1,31 @@
+name: Docs test
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+jobs:
+  docs-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+          cache-dependency-path: |
+            pyproject.toml
+
+      - name: Install dependencies
+        run: |
+          pip install -e .[docs]
+
+      - name: Run doctests
+        run: pytest tests/doctest.py --doctest-modules
+
+
+
