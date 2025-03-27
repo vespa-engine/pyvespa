@@ -28,7 +28,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -e .[dev,docs,notebooks]
+          pip install -e .[docs]
       - name: Run tests
         run: |
           pytest tests/mktestdocs -s -v
