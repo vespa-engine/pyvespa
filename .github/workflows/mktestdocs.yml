@@ -1,4 +1,4 @@
-name: Docs test
+name: MkDocs test
 
 on:
   workflow_dispatch:
@@ -9,9 +9,15 @@ on:
     branches:
       - master
 jobs:
-  docs-test:
+  mk-docs-test:
     runs-on: ubuntu-latest
     steps:
+      - name: Install Pandoc
+        run: |
+          wget https://github.com/jgm/pandoc/releases/download/3.3/pandoc-3.3-1-amd64.deb
+          sudo dpkg -i pandoc-3.3-1-amd64.deb
+      - uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
