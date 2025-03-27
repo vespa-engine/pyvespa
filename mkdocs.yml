@@ -54,6 +54,17 @@ nav:
   - Evaluating a Vespa Application: evaluating-vespa-application-cloud.ipynb
   - Troubleshooting: troubleshooting.md
   - Examples: /examples/*
+  - API Reference: 
+      - api/summary.md
+      - Application: api/vespa/application.md
+      - Deployment: api/vespa/deployment.md
+      - Evaluation: api/vespa/evaluation.md
+      - Exceptions: api/vespa/exceptions.md
+      - IO: api/vespa/io.md
+      - Package: api/vespa/package.md
+      - Querybuilder: 
+          - api/vespa/querybuilder/builder/builder.md
+          - Grouping: api/vespa/querybuilder/grouping/grouping.md
 plugins:
     - search
     - autorefs
@@ -77,6 +88,7 @@ plugins:
                   annotations_path: brief
 
     - mkdocs-autoapi:
+        autoapi_add_nav_entry: False
         autoapi_dir: vespa
         autoapi_keep_files: True
         autoapi_root: api
