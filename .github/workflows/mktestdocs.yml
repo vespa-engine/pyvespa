@@ -33,5 +33,5 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest --verbose tests/mktestdocs/*
+          pytest tests/mktestdocs -s -v
 
