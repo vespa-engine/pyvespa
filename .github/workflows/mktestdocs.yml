@@ -1,4 +1,4 @@
-name: MkDocs test
+name: MKDocs test
 
 on:
   workflow_dispatch:
@@ -30,8 +30,7 @@ jobs:
         run: |
           pip install -e .[docs]
 
-      - name: Run doctests
-        run: pytest tests/doctest.py --doctest-modules
-
-
+      - name: Run tests
+        run: |
+          pyvespa % pytest --verbose tests/mktestdocs/*
 
