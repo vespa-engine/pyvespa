@@ -5,9 +5,11 @@ on:
   pull_request:
     branches:
       - master
+      - migration-to-mk-docs-docstring-replacement
   push:
     branches:
       - master
+      - migration-to-mk-docs-docstring-replacement
 jobs:
   mk-docs-test:
     runs-on: ubuntu-latest
