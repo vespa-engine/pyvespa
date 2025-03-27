@@ -29,8 +29,9 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -e .[docs]
+          pip install pytest
 
       - name: Run tests
         run: |
-          pyvespa % pytest --verbose tests/mktestdocs/*
+          pytest --verbose tests/mktestdocs/*
 
