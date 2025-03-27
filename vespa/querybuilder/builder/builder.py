@@ -274,6 +274,7 @@ class Query:
             ```python
             import vespa.querybuilder as qb
             from vespa.package import Schema, Document
+
             query = qb.select("*").from_("schema1", "schema2")
             str(query)
             'select * from schema1, schema2'
@@ -312,6 +313,7 @@ class Query:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             # Using field conditions
             f1 = qb.QueryField("f1")
             query = qb.select("*").from_("sd1").where(f1.contains("v1"))
@@ -360,6 +362,7 @@ class Query:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             # Simple ordering
             query = qb.select("*").from_("sd1").order_by("price")
             str(query)
@@ -414,6 +417,7 @@ class Query:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             f1 = qb.QueryField("f1")
             query = qb.select("*").from_("sd1").where(f1.contains("v1")).set_limit(5)
             str(query)
@@ -437,6 +441,7 @@ class Query:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             f1 = qb.QueryField("f1")
             query = qb.select("*").from_("sd1").where(f1.contains("v1")).set_offset(10)
             str(query)
@@ -460,6 +465,7 @@ class Query:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             f1 = qb.QueryField("f1")
             query = qb.select("*").from_("sd1").where(f1.contains("v1")).set_timeout(500)
             str(query)
@@ -484,6 +490,7 @@ class Query:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             condition = qb.userInput("@myvar")
             query = qb.select("*").from_("sd1").where(condition).add_parameter("myvar", "test")
             str(query)
@@ -508,6 +515,7 @@ class Query:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             condition = qb.userInput("@animal")
             query = qb.select("*").from_("sd1").where(condition).param("animal", "panda")
             str(query)
@@ -534,6 +542,7 @@ class Query:
             ```python
             import vespa.querybuilder as qb
             from vespa.querybuilder import Grouping as G
+            
             # Group by customer with sum of price
             grouping = G.all(
                 G.group("customer"),
@@ -621,6 +630,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             query = qb.select("*").from_("sd1")
             str(query)
             'select * from sd1'
@@ -648,6 +658,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             f1, f2 = qb.QueryField("f1"), qb.QueryField("f2")
             condition = qb.any(f1 > 10, f2 == "v2")
             query = qb.select("*").from_("sd1").where(condition)
@@ -673,6 +684,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             f1, f2 = qb.QueryField("f1"), qb.QueryField("f2")
             condition = qb.all(f1 > 10, f2 == "v2")
             query = qb.select("*").from_("sd1").where(condition)
@@ -697,6 +709,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             # Basic userQuery
             condition = qb.userQuery()
             query = qb.select("*").from_("sd1").where(condition)
@@ -734,6 +747,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             # Using dict weights with annotation
             condition = qb.dotProduct(
                 "weightedset_field",
@@ -788,6 +802,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             # using map weights
             condition = qb.weightedSet(
                 "weightedset_field",
@@ -836,6 +851,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             field = qb.QueryField("title")
             condition = qb.nonEmpty(field)
             query = qb.select("*").from_("sd1").where(condition)
@@ -872,6 +888,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             # Using list weights
             condition = qb.wand("description", weights=[0.4, 0.6])
             query = qb.select("*").from_("sd1").where(condition)
@@ -916,6 +933,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             f1, f2 = qb.QueryField("f1"), qb.QueryField("f2")
             condition = qb.weakAnd(f1 == "v1", f2 == "v2")
             query = qb.select("*").from_("sd1").where(condition)
@@ -968,6 +986,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             condition = qb.geoLocation(
                 "location_field",
                 37.7749,
@@ -1008,6 +1027,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             condition = qb.nearestNeighbor(
                 field="dense_rep",
                 query_vector="q_dense",
@@ -1042,6 +1062,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             condition = qb.rank(
                 qb.nearestNeighbor("field", "queryVector"),
                 qb.QueryField("a").contains("A"),
@@ -1072,6 +1093,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             condition = qb.phrase("new", "york", "city")
             query = qb.select("*").from_("sd1").where(condition)
             str(query)
@@ -1111,6 +1133,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             condition = qb.near("machine", "learning", distance=5)
             query = qb.select("*").from_("sd1").where(condition)
             str(query)
@@ -1155,6 +1178,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             condition = qb.onear("deep", "learning", distance=3)
             query = qb.select("*").from_("sd1").where(condition)
             str(query)
@@ -1192,6 +1216,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             persons = qb.QueryField("persons")
             first_name = qb.QueryField("first_name")
             last_name = qb.QueryField("last_name")
@@ -1228,6 +1253,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             fieldName = qb.QueryField("fieldName")
             condition = fieldName.contains(qb.equiv("Snoop Dogg", "Calvin Broadus"))
             query = qb.select("*").from_("sd1").where(condition)
@@ -1255,6 +1281,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             url = "vespa.ai/foo"
             condition = qb.uri(url)
             query = qb.select("*").from_("sd1").where(condition)
@@ -1290,6 +1317,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             condition = qb.fuzzy("parantesis")
             query = qb.select("*").from_("sd1").where(condition)
             str(query)
@@ -1329,6 +1357,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             condition = qb.userInput("@myvar")
             query = qb.select("*").from_("sd1").where(condition)
             str(query)
@@ -1382,6 +1411,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             condition = qb.predicate(
                 "predicate_field",
                 attributes={"gender": "Female"},
@@ -1417,6 +1447,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             condition = qb.true()
             query = qb.select("*").from_("sd1").where(condition)
             str(query)
@@ -1436,6 +1467,7 @@ class Q:
         Example:
             ```python
             import vespa.querybuilder as qb
+
             condition = qb.false()
             query = qb.select("*").from_("sd1").where(condition)
             str(query)
