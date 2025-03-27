@@ -1,5 +1,5 @@
 site_name: Vespa python API
-site_url: https://pyvespa-md # temporary
+site_url: ""
 repo_url: https://github.com/vespa-engine/pyvespa
 docs_dir: docs/sphinx/source
 # exclude_docs: '*ipynb' 
