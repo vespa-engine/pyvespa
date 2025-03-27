@@ -68,6 +68,8 @@ docs = [
     "mkdocs-jupyter",
     "mkdocstrings[python]",
     "mkdocs-autoapi",
+    "mktestdocs",
+    "pyest"
 ]
 feed = [
     "PyYAML",
