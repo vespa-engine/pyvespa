@@ -176,6 +176,41 @@ class Vespa(object):
             VespaAsync: Instance of Vespa asynchronous layer.
         """
 
+        return VespaAsync(
+            app=self,
+            connections=connections,
+            total_timeout=total_timeout,
+            timeout=timeout,
+            **kwargs,
+        )
+
+    def syncio(
+        self,
+        connections: Optional[int] = 8,
+        compress: Union[str, bool] = "auto",
+    ) -> "VespaSync":
+        """
+        Access Vespa synchronous connection layer.
+        Should be used as a context manager.
+
+        Example usage:
+
+            ```python
+            with app.syncio() as sync_app:
+                response = sync_app.query(body=body)
+            ```
+
+        See <class.VespaSync> for more details.
+
+        Args:
+            connections (int): Number of allowed concurrent connections.
+            total_timeout (float): Total timeout in seconds.
+            compress (Union[str, bool], optional): Whether to compress the request body. Defaults to "auto", 
+                which will compress if the body is larger than 1024 bytes.
+
+        Returns:
+            VespaAsyncLayer: Instance of Vespa asynchronous layer.
+        """
         return VespaSync(
             app=self,
             pool_connections=connections,
