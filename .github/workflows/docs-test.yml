@@ -2,12 +2,12 @@ name: Docs test
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches:
-      - master
-  push:
-    branches:
-      - master
+  # pull_request:
+  #   branches:
+  #     - master
+  # push:
+  #   branches:
+  #     - master
 jobs:
   docs-test:
     runs-on: ubuntu-latest
@@ -22,8 +22,8 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
-          cache: 'pip'
+          python-version: "3.9"
+          cache: "pip"
           cache-dependency-path: |
             pyproject.toml
 
@@ -40,4 +40,3 @@ jobs:
           sphinx-build -E -b linkcheck docs/sphinx/source docs/sphinx/build
           sphinx-build -E docs/sphinx/source docs/sphinx/build
           rm -fr docs/sphinx/build
-

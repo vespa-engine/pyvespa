@@ -73,7 +73,8 @@ class VespaQueryResponse(VespaResponse):
         """
         For debugging when the response does not have hits.
 
-        :return: JSON object with full response
+        Returns:
+            JSON object with full response
         """
         return self.json
 
