@@ -32,4 +32,19 @@ jobs:
       - name: Run tests
         run: |
           pytest tests/mktestdocs -s -v
+  mk-docs-deploy-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: Install dependencies
+        run: pip install mkdocs mkdocs-material
+
+      - name: Test build
+        run: mkdocs build --strict
