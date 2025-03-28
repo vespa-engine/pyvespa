@@ -1927,7 +1927,6 @@ class QueryProfile(object):
         self.fields = [] if not fields else fields
 
     def add_fields(self, *fields: QueryField) -> None:
-       def add_fields(fields):
         """
         Add `QueryField` objects to the Query Profile.
 
