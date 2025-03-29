@@ -19,6 +19,7 @@ from vespa.package import (
 from vespa.deployment import VespaDocker
 from vespa.evaluation import VespaEvaluator
 from vespa.io import VespaResponse
+import httpx
 
 # Reference metrics from your Sentence Transformers (semantic) runs:
 # Code used to produce these metrics:
@@ -194,13 +195,21 @@ class TestSemanticIntegration(unittest.TestCase):
         queries & relevant docs from the NanoMSMARCO subset,
         then compare the results to the reference values from ST.
         """
+        custom_timeout = httpx.Timeout(connect=2.0, read=10.0, write=3.0, pool=15.0)
 
+        # Set up client_kwargs with the custom timeout
+        client_kwargs = {
+            "timeout": custom_timeout,
+            "limits": httpx.Limits(max_keepalive_connections=10),
+            "follow_redirects": False,
+        }
         evaluator = VespaEvaluator(
             queries=self.ids_to_query,
             relevant_docs=self.relevant_docs,
             vespa_query_fn=semantic_query_fn,
             app=self.app,
             name="semantic",
+            client_kwargs=client_kwargs,
         )
 
         # Evaluate
