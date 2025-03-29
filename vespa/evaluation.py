@@ -132,6 +132,7 @@ class VespaEvaluator:
         map_at_k: List[int] = [100],
         write_csv: bool = False,
         csv_dir: Optional[str] = None,
+        client_kwargs: Dict = {},
     ):
         """
         Args:
@@ -148,6 +149,7 @@ class VespaEvaluator:
             map_at_k (list of int): List of k-values for MAP@k.
             write_csv (bool): If True, writes results to CSV.
             csv_dir (str, optional): Path to write the CSV file (default is the current working directory).
+            client_kwargs (dict): Additional keyword arguments to pass to the httpx.AsyncClient used for querying Vespa.
         """
 
         self.id_field = id_field
@@ -174,6 +176,7 @@ class VespaEvaluator:
         self.name = name
         self.write_csv = write_csv
         self.csv_dir = csv_dir
+        self.client_kwargs = client_kwargs
 
         self.primary_metric: Optional[str] = None
 
@@ -272,7 +275,7 @@ class VespaEvaluator:
         Validates the vespa_query_fn function.
 
         The function must be callable and accept either 2 or 3 parameters:
-            - (query_text: str, top_k: int) 
+            - (query_text: str, top_k: int)
             - or (query_text: str, top_k: int, query_id: Optional[str])
 
         It must return a dictionary when called with test inputs.
@@ -380,7 +383,9 @@ class VespaEvaluator:
             logger.debug(f"Querying Vespa with: {query_body}")
 
         # Execute queries in parallel using query_many from the Vespa class
-        responses: List[VespaQueryResponse] = self.app.query_many(query_bodies)
+        responses: List[VespaQueryResponse] = self.app.query_many(
+            query_bodies, client_kwargs=self.client_kwargs
+        )
         for resp in responses:
             if resp.status_code != 200:
                 raise ValueError(
