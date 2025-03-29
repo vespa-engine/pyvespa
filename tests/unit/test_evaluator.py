@@ -2,6 +2,7 @@ import unittest
 from vespa.evaluation import VespaEvaluator
 from dataclasses import dataclass
 from typing import List, Dict, Any
+import httpx
 
 
 @dataclass
@@ -25,15 +26,19 @@ class MockVespaResponse:
         return 200
 
 
-class QueryBodyCapturingApp:
-    """Mock Vespa app that captures query bodies passed to query_many."""
+class MockVespaApp:
+    """Universal mock Vespa app for all tests"""
 
     def __init__(self, responses):
         self.responses = responses
+        # For testing purposes - capture what was passed
         self.captured_query_bodies = None
+        self.captured_client_kwargs = None
 
-    def query_many(self, query_bodies):
+    def query_many(self, query_bodies, client_kwargs=None, **kwargs):
+        # Store captured values for test validation
         self.captured_query_bodies = query_bodies
+        self.captured_client_kwargs = client_kwargs
         return self.responses
 
 
@@ -97,14 +102,6 @@ class TestVespaEvaluator(unittest.TestCase):
                 {"id": "doc19", "relevance": 0.5},
             ]
         )
-
-        class MockVespaApp:
-            def __init__(self, mock_responses):
-                self.mock_responses = mock_responses
-                self.current_query = 0
-
-            def query_many(self, queries):
-                return self.mock_responses
 
         self.mock_app = MockVespaApp([q1_response, q2_response, q3_response])
 
@@ -344,14 +341,6 @@ class TestVespaEvaluator(unittest.TestCase):
                 {"id": "B0742BZXC2", "relevance": 0.37},
             ]
         )
-
-        class MockVespaApp:
-            def __init__(self, mock_responses):
-                self.mock_responses = mock_responses
-                self.current_query = 0
-
-            def query_many(self, queries):
-                return self.mock_responses
 
         mock_app = MockVespaApp([q1_response])
 
@@ -616,7 +605,7 @@ class TestVespaEvaluator(unittest.TestCase):
 
         # Create a dummy response (the content is not used for these tests).
         dummy_response = MockVespaResponse([{"id": "doc1", "relevance": 1.0}])
-        capturing_app = QueryBodyCapturingApp([dummy_response] * len(self.queries))
+        capturing_app = MockVespaApp([dummy_response] * len(self.queries))
 
         evaluator = VespaEvaluator(
             queries=self.queries,
@@ -647,7 +636,7 @@ class TestVespaEvaluator(unittest.TestCase):
 
         # Create a dummy response (the content is not used for these tests).
         dummy_response = MockVespaResponse([{"id": "doc1", "relevance": 1.0}])
-        capturing_app = QueryBodyCapturingApp([dummy_response] * len(self.queries))
+        capturing_app = MockVespaApp([dummy_response] * len(self.queries))
 
         evaluator = VespaEvaluator(
             queries=self.queries,
@@ -675,7 +664,7 @@ class TestVespaEvaluator(unittest.TestCase):
             return {"yql": query_text, "hits": top_k, "extra": "value"}
 
         dummy_response = MockVespaResponse([{"id": "doc1", "relevance": 1.0}])
-        capturing_app = QueryBodyCapturingApp([dummy_response] * len(self.queries))
+        capturing_app = MockVespaApp([dummy_response] * len(self.queries))
 
         evaluator = VespaEvaluator(
             queries=self.queries,
@@ -702,7 +691,7 @@ class TestVespaEvaluator(unittest.TestCase):
             }
 
         dummy_response = MockVespaResponse([{"id": "doc1", "relevance": 1.0}])
-        capturing_app = QueryBodyCapturingApp([dummy_response] * len(self.queries))
+        capturing_app = MockVespaApp([dummy_response] * len(self.queries))
 
         evaluator = VespaEvaluator(
             queries=self.queries,
@@ -716,6 +705,48 @@ class TestVespaEvaluator(unittest.TestCase):
         for qb in capturing_app.captured_query_bodies:
             self.assertEqual(qb["timeout"], "10s")  # User's value preserved
             self.assertEqual(qb["presentation.timing"], True)  # Default added
+
+    def test_client_kwargs_passed_to_query_many(self):
+        """Test that client_kwargs are correctly passed to query_many."""
+        # Create a custom timeout
+        custom_timeout = httpx.Timeout(connect=2.0, read=10.0, write=3.0, pool=15.0)
+
+        # Set up client_kwargs with the custom timeout
+        client_kwargs = {
+            "timeout": custom_timeout,
+            "limits": httpx.Limits(max_keepalive_connections=10),
+            "follow_redirects": False,
+        }
+
+        # Create a dummy response
+        dummy_response = MockVespaResponse([{"id": "doc1", "relevance": 1.0}])
+        capturing_app = MockVespaApp([dummy_response] * len(self.queries))
+
+        # Create evaluator with client_kwargs
+        evaluator = VespaEvaluator(
+            queries=self.queries,
+            relevant_docs=self.relevant_docs,
+            vespa_query_fn=self.vespa_query_fn,
+            app=capturing_app,
+            client_kwargs=client_kwargs,
+        )
+
+        # Run the evaluator
+        evaluator.run()
+
+        # Verify that client_kwargs were passed correctly to query_many
+        self.assertEqual(capturing_app.captured_client_kwargs, client_kwargs)
+
+        # Verify the individual values
+        self.assertEqual(
+            capturing_app.captured_client_kwargs["timeout"], custom_timeout
+        )
+        self.assertEqual(
+            capturing_app.captured_client_kwargs["limits"].max_keepalive_connections, 10
+        )
+        self.assertEqual(
+            capturing_app.captured_client_kwargs["follow_redirects"], False
+        )
 
 
 if __name__ == "__main__":
