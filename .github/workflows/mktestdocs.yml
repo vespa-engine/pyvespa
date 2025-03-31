@@ -48,4 +48,4 @@ jobs:
           pip install -e .[docs]
 
       - name: Test build
-        run: mkdocs build --site-dir docs/mkdocs/build
+        run: mkdocs build
