@@ -12,8 +12,10 @@ jobs:
   mk-docs-test:
     runs-on: ubuntu-latest
     steps:
+      - name: Install pandoc
+        run: |
+          sudo apt-get install -y pandoc
       - uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -28,7 +30,10 @@ jobs:
       - name: Run tests
         run: |
           pytest tests/mktestdocs -s -v
-
+      - name: Convert notebooks to markdown
+        run: |
+          python3 -m nbconvert --to markdown docs/sphinx/source/*.ipynb
+          python3 -m nbconvert --to markdown docs/sphinx/source/examples/*.ipynb
       - name: Linkcheck
         run: |
           mkdocs-linkcheck docs/sphinx/source/
