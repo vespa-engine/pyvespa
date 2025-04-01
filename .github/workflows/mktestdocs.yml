@@ -28,9 +28,7 @@ jobs:
       - name: Run tests
         run: |
           pytest tests/mktestdocs -s -v
+
       - name: Linkcheck
         run: |
-          mkdocs-linkcheck
-
-      - name: Test build
-        run: mkdocs build
+          mkdocs-linkcheck docs/sphinx/source/
