@@ -63,6 +63,8 @@ unittest = [
 ]
 docs = [
     "ipykernel",
+    "nbconvert",
+    "jupyter",
     "mkdocs-material",
     "mkdocs-jupyter",
     "mkdocstrings[python]",
