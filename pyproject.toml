@@ -31,6 +31,9 @@ requires-python = ">=3.9"
 [[project.authors]]
 name = "Thiago G. Martins"
 
+[[project.authors]]
+name = "Thomas Thoresen"
+
 [[project.maintainers]]
 name = "Thomas Thoresen"
 email = "thomas@vespa.ai"
@@ -59,15 +62,14 @@ unittest = [
     "mypy>=1.14.1",
 ]
 docs = [
-    "sphinx",
-    "nbsphinx",
-    "sphinx-rtd-theme>=0.5.0",
     "ipykernel",
-    "sphinx-copybutton",
+    "nbconvert",
+    "jupyter",
     "mkdocs-material",
     "mkdocs-jupyter",
     "mkdocstrings[python]",
     "mkdocs-autoapi",
+    "mkdocs-linkcheck",
     "mktestdocs",
     "pytest",
 ]

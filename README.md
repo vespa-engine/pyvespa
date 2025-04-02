@@ -8,14 +8,14 @@
   <img alt="#Vespa" width="200" src="https://assets.vespa.ai/logos/Vespa-logo-dark-RGB.svg" style="margin-bottom: 25px;">
 </picture>
 
-[![Documentation Status](https://readthedocs.org/projects/pyvespa/badge/?version=latest)](https://pyvespa.readthedocs.io/en/latest/?badge=latest)
+[![Documentation Status](https://readthedocs.org/projects/pyvespa/badge/?version=latest)](https://vespa-engine.github.io/pyvespa/?badge=latest)
 
 ![GitHub Release](https://img.shields.io/github/v/release/vespa-engine/pyvespa)
 ![PyPI - Version](https://img.shields.io/pypi/v/pyvespa)
 ![PyPI - Downloads](https://img.shields.io/pypi/dm/pyvespa)
 
 
-[pyvespa site / documentation](https://pyvespa.readthedocs.io/en/latest/index.html)
+[pyvespa site / documentation](https://vespa-engine.github.io/pyvespa/index.html)
 
 [Vespa](https://vespa.ai/) is the scalable open-sourced serving engine that enables users to store,
 compute and rank big data at user serving time.

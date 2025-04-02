@@ -5,7 +5,7 @@
 !!!warning
     pyvespa is under active development and backward incompatible changes may occur.
 
-[Hybrid Search](getting-started-pyvespa.ipynb) - Quickstart is a good primer on how to create an application, feed data and run queries. See Examples for use cases. The following blog post series will get you started:
+[Hybrid Search](https://vespa-engine.github.io/pyvespa//getting-started-pyvespa) - Quickstart is a good primer on how to create an application, feed data and run queries. See Examples for use cases. The following blog post series will get you started:
 
 * [Run search engine experiments in Vespa from python](https://blog.vespa.ai/run-search-engine-experiments-in-Vespa-from-python/)
 
@@ -40,4 +40,4 @@ minimum memory requirement is 4 Gb unless other documented:
   podman info | grep "memTotal"
 ```
 
-One can also use [Vespa Cloud](getting-started-pyvespa-cloud) to run the notebooks.
+One can also use [Vespa Cloud](https://vespa-engine.github.io/pyvespa/getting-started-pyvespa-cloud) to run the notebooks.

@@ -27,13 +27,12 @@ jobs:
 
       - name: Install Sphinx
         run: |
-          sudo apt-get install -y pandoc
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[docs,feed]
 
       - name: Build site
         run: |
-          sphinx-build -E -D nbsphinx_allow_errors=True -b html docs/sphinx/source docs/sphinx/build
+          mkdocs build --site-dir docs/sphinx/build
 
           # Add front matter and strip liquid macros from html files
           find docs/sphinx/build -name \*.html | \

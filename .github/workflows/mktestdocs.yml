@@ -7,22 +7,20 @@ on:
       - master
   push:
     branches:
-      - mastee
+      - master
 jobs:
   mk-docs-test:
     runs-on: ubuntu-latest
     steps:
-      - name: Install Pandoc
+      - name: Install pandoc
         run: |
-          wget https://github.com/jgm/pandoc/releases/download/3.3/pandoc-3.3-1-amd64.deb
-          sudo dpkg -i pandoc-3.3-1-amd64.deb
+          sudo apt-get install -y pandoc
       - uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
-          cache: 'pip'
+          python-version: "3.9"
+          cache: "pip"
           cache-dependency-path: |
             pyproject.toml
 
@@ -32,20 +30,11 @@ jobs:
       - name: Run tests
         run: |
           pytest tests/mktestdocs -s -v
-  mk-docs-deploy-test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.9"
-
-      - name: Install dependencies
-        run: |
-          pip install -e .[docs]
-
-      - name: Test build
-        run: mkdocs build
+      # Disable linkcheck for now
+      # - name: Convert notebooks to markdown
+      #   run: |
+      #     python3 -m nbconvert --to markdown docs/sphinx/source/*.ipynb
+      #     python3 -m nbconvert --to markdown docs/sphinx/source/examples/*.ipynb
+      # - name: Linkcheck
+      #   run: |
+      #     mkdocs-linkcheck docs/sphinx/source/
