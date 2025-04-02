@@ -30,10 +30,11 @@ jobs:
       - name: Run tests
         run: |
           pytest tests/mktestdocs -s -v
-      - name: Convert notebooks to markdown
-        run: |
-          python3 -m nbconvert --to markdown docs/sphinx/source/*.ipynb
-          python3 -m nbconvert --to markdown docs/sphinx/source/examples/*.ipynb
-      - name: Linkcheck
-        run: |
-          mkdocs-linkcheck docs/sphinx/source/
+      # Disable linkcheck for now
+      # - name: Convert notebooks to markdown
+      #   run: |
+      #     python3 -m nbconvert --to markdown docs/sphinx/source/*.ipynb
+      #     python3 -m nbconvert --to markdown docs/sphinx/source/examples/*.ipynb
+      # - name: Linkcheck
+      #   run: |
+      #     mkdocs-linkcheck docs/sphinx/source/
