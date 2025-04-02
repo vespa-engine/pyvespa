@@ -4,7 +4,7 @@ Also see the [Vespa FAQ](https://docs.vespa.ai/en/faq.html) and [Vespa support](
 
 ## Vespa.ai and pyvespa
 
-Both [Vespa](https://vespa.ai/) and pyvespa APIs change regularly - make sure to use the latest version of [vespaengine/vespa](https://hub.docker.com/r/vespaengine/vespa) by running `docker pull vespaengine/vespa` and [install pyvespa](index).
+Both [Vespa](https://vespa.ai/) and pyvespa APIs change regularly - make sure to use the latest version of [vespaengine/vespa](https://hub.docker.com/r/vespaengine/vespa) by running `docker pull vespaengine/vespa` and [install pyvespa](https://vespa-engine.github.io/pyvespa).
 
 To check the current version, run:
 
