@@ -12,6 +12,7 @@ import tiktoken
 import urllib.parse
 import shutil
 import os
+import hashlib
 
 encoding = tiktoken.encoding_for_model("gpt-4o-mini")
 note_pattern = re.compile(r"{%\s*include.*?%}", flags=re.DOTALL)
@@ -338,12 +339,20 @@ def main():
         shutil.rmtree(MARKDOWN_DIR, ignore_errors=True)
         os.makedirs(MARKDOWN_DIR, exist_ok=True)
 
+    def safe_filename(name, max_length=100):
+        if len(name) <= max_length:
+            return name
+        hash_part = hashlib.md5(name.encode()).hexdigest()
+        base = name[:max_length - len(hash_part) - 1]
+        return f"{base}_{hash_part}"
+
     for op in operations:
         id = op["put"]
         doc_id = op["fields"]["path"]
         doc_id = doc_id.replace("/", "-")
+        safe_doc_id = safe_filename(doc_id)
         if WRITE_MARKDOWN:
-            with open(f"{MARKDOWN_DIR}/{doc_id}.md", "w") as f:
+            with open(f"{MARKDOWN_DIR}/{safe_doc_id}.md", "w") as f:
                 f.write(op["fields"]["content"])
         if id in questions_expansion:
             op["fields"]["questions"] = questions_expansion[id]
