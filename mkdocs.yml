@@ -2,7 +2,7 @@ site_name: Vespa python API
 site_url: ""
 repo_url: https://github.com/vespa-engine/pyvespa
 docs_dir: docs/sphinx/source
-# exclude_docs: '*ipynb' 
+exclude_docs: 'conf.py'
 
 use_directory_urls: false
 theme:
