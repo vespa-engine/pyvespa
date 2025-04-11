@@ -55,8 +55,8 @@ jobs:
 
       - name: Convert all notebooks to md
         run: |
-          jupyter nbconvert --to markdown docs/sphinx/source/examples/*.ipynb --output-dir='./markdown_noteboks/'
-          jupyter nbconvert --to markdown docs/sphinx/source/*.ipynb --output-dir='./markdown_noteboks/'
+          jupyter nbconvert --to markdown docs/sphinx/source/examples/*.ipynb --output-dir='./markdown_notebooks/'
+          jupyter nbconvert --to markdown docs/sphinx/source/*.ipynb --output-dir='./markdown_nooteboks/'
 
       - name: Feed paragraphs site
         run: |
