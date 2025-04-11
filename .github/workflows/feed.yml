@@ -53,9 +53,14 @@ jobs:
           export VESPA_CLI_DATA_PLANE_KEY
           ./feed_to_vespa.py _config.yml
 
+      - name: Convert all notebooks to md
+        run: |
+          jupyter nbconvert --to markdown docs/sphinx/source/examples/*.ipynb --output-dir='./markdown_notebooks/'
+          jupyter nbconvert --to markdown docs/sphinx/source/*.ipynb --output-dir='./markdown_nooteboks/'
+
       - name: Feed paragraphs site
         run: |
-          ./feed-split.py pyvespa_index.json https://pyvespa.readthedocs.io/en/latest questions.jsonl
+          ./feed-split.py pyvespa_index.json https://vespa-engine.github.io/pyvespa/ questions.jsonl
           ./feed_to_vespa.py _paragraphs_config.yml
 
       - name: Feed suggestions
