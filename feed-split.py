@@ -23,6 +23,9 @@ exclude_feeding = ["/404.html"]
 
 WRITE_MARKDOWN = True  # Set to True to write content to markdown files for debugging
 MARKDOWN_DIR = "markdown_after"  # Directory to write markdown files to
+MARKDOWN_NOTEBOOKS_DIR = (
+    "markdown_notebooks"  # Directory containing markdown notebook files
+)
 
 
 def what_language(el):
@@ -163,26 +166,29 @@ def split_reference(markdown_text):
         chunks.append((_id, current_header, "\n".join(current_chunk)))
 
     return chunks
+
+
 def get_markdown_notebook_path(path):
-    markdown_noteboks = Path('markdown_noteboks')
-    notebook_names = [file.stem for file in markdown_noteboks.iterdir() if file.is_file()]
+    markdown_notebooks = Path(MARKDOWN_NOTEBOOKS_DIR)
+    notebook_names = [
+        file.stem for file in markdown_notebooks.iterdir() if file.is_file()
+    ]
 
     match_path = re.search(r"/([^.]+)", path)
-    
+
     if match_path:
         rel_path = match_path.group(1)
         match_examples_path = re.search(r"examples/([^.]+)", rel_path)
         if rel_path in notebook_names:
-            return f"markdown_noteboks/{rel_path}.md"               
+            return f"{MARKDOWN_NOTEBOOKS_DIR}/{rel_path}.md"
         elif match_examples_path:
             rel_examples_path = match_examples_path.group(1)
-            return f"markdown_noteboks/{rel_examples_path}.md" 
+            return f"{MARKDOWN_NOTEBOOKS_DIR}/{rel_examples_path}.md"
         else:
             None
-           
+
 
 def split_md(md, path):
-
     lines = md.split("\n")
     header = ""
     text = ""
@@ -191,14 +197,12 @@ def split_md(md, path):
     in_code_block = False  # Track whether we're inside a code block
 
     for line in lines:
-
         # Toggle in_code_block state if we detect code block
         if line.strip().startswith("```"):
             in_code_block = not in_code_block
 
         if in_code_block and line.strip().startswith("#"):
             continue
-
 
         if line.startswith("#") and not in_code_block:
             if text:
@@ -220,7 +224,7 @@ def split_md(md, path):
                 else:
                     id = "-".join(header.split())
             elif "=" in header:
-                header = header.split('=')[0]
+                header = header.split("=")[0]
                 id = "-".join(header.split())
             else:
                 # Normal header, create id based on path rule
@@ -241,7 +245,7 @@ def split_md(md, path):
     return data
 
 
-def split_text(path, soup = None):
+def split_text(path, soup=None):
     split_tables(soup)
     split_lists(soup)
     md = markdownify(
@@ -249,19 +253,24 @@ def split_text(path, soup = None):
         heading_style="ATX",
         code_language_callback=what_language,
         strip=["img"],
-        )
-    local_nb_path = get_markdown_notebook_path(path)   
+    )
+    local_nb_path = get_markdown_notebook_path(path)
     if path == "/reference-api.html":
         data = split_reference(md)
     elif local_nb_path:
         with open(local_nb_path, "r") as md_f:
             md_content = md_f.read()
-        md = re.sub(r"<style.*?>.*?</style>", "", md_content, flags=re.DOTALL | re.IGNORECASE)
-        md = re.sub(r"<script.*?>.*?</script>", "", md_content, flags=re.DOTALL | re.IGNORECASE)
-        data = split_md(md, path) 
+        md = re.sub(
+            r"<style.*?>.*?</style>", "", md_content, flags=re.DOTALL | re.IGNORECASE
+        )
+        md = re.sub(
+            r"<script.*?>.*?</script>", "", md_content, flags=re.DOTALL | re.IGNORECASE
+        )
+        data = split_md(md, path)
     else:
         data = split_md(md, path)
     return data
+
 
 def remove_notext_tags(soup):
     for remove_tag in soup.find_all(["style"]):
@@ -405,7 +414,7 @@ def main():
         if len(name) <= max_length:
             return name
         hash_part = hashlib.md5(name.encode()).hexdigest()
-        base = name[:max_length - len(hash_part) - 1]
+        base = name[: max_length - len(hash_part) - 1]
         return f"{base}_{hash_part}"
 
     for op in operations:
