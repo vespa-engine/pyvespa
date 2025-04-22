@@ -30,11 +30,10 @@ jobs:
       - name: Run tests
         run: |
           pytest tests/mktestdocs -s -v
-      # Disable linkcheck for now
-      # - name: Convert notebooks to markdown
-      #   run: |
-      #     python3 -m nbconvert --to markdown docs/sphinx/source/*.ipynb
-      #     python3 -m nbconvert --to markdown docs/sphinx/source/examples/*.ipynb
-      # - name: Linkcheck
-      #   run: |
-      #     mkdocs-linkcheck docs/sphinx/source/
+      - name: Convert notebooks to markdown
+        run: |
+            python3 -m nbconvert --clear-output --to markdown docs/sphinx/source/*.ipynb --output-dir='./markdown_notebooks/'
+            python3 -m nbconvert --clear-output --to markdown docs/sphinx/source/examples/*.ipynb --output-dir='./markdown_notebooks/'
+      - name: Linkcheck
+        run: |
+          mkdocs-linkcheck markdown_notebooks --exclude "^(\.{0,2}/|_static/|{url})"
