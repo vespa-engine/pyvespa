@@ -13,6 +13,7 @@ from vespa.package import (
     Function,
     SecondPhaseRanking,
     GlobalPhaseRanking,
+    MatchPhaseRanking,
     Mutate,
     RankProfile,
     OnnxModel,
@@ -29,7 +30,13 @@ from vespa.package import (
     ApplicationPackage,
     AuthClient,
     DeploymentConfiguration,
+    Struct,
+    StructField,
+    ServicesConfiguration,
+    ApplicationConfiguration,
 )
+from vespa.configuration.vt import compare_xml
+from vespa.configuration.services import *
 
 
 class TestField(unittest.TestCase):
@@ -519,15 +526,20 @@ class TestApplicationPackage(unittest.TestCase):
                     name="bm25",
                     first_phase="bm25(title) + bm25(body)",
                     inherits="default",
+                    num_threads_per_search=4,
                 ),
                 RankProfile(
                     name="bert",
                     first_phase="bm25(title) + bm25(body)",
                     second_phase=SecondPhaseRanking(
-                        rerank_count=100, expression="bm25(title)"
+                        rerank_count=100,
+                        expression="bm25(title)",
+                        rank_score_drop_limit=0,
                     ),
-                    global_phase=SecondPhaseRanking(
-                        rerank_count=10, expression="sum(onnx(bert).logits{d0:0,d1:0})"
+                    global_phase=GlobalPhaseRanking(
+                        rerank_count=10,
+                        expression="sum(onnx(bert).logits{d0:0,d1:0})",
+                        rank_score_drop_limit=0,
                     ),
                     inherits="default",
                     constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
@@ -621,127 +633,128 @@ class TestApplicationPackage(unittest.TestCase):
         platform.system() == "Windows", "Disabled on Windows due to path differences"
     )
     def test_schema_to_text(self):
-        expected_result = (
-            "schema msmarco {\n"
-            "    document msmarco inherits context {\n"
-            "        field id type string {\n"
-            "            indexing: attribute | summary\n"
-            "        }\n"
-            "        field title type string {\n"
-            "            indexing: index | summary\n"
-            "            index: enable-bm25\n"
-            "        }\n"
-            "        field body type string {\n"
-            "            indexing: index | summary\n"
-            "            index: enable-bm25\n"
-            "        }\n"
-            "        field embedding type tensor<float>(x[128]) {\n"
-            "            indexing: attribute | summary\n"
-            "            attribute {\n"
-            "                fast-search\n"
-            "                fast-access\n"
-            "            }\n"
-            "        }\n"
-            "    }\n"
-            "    fieldset default {\n"
-            "        fields: title, body\n"
-            "    }\n"
-            "    onnx-model bert {\n"
-            "        file: files/bert.onnx\n"
-            "        input input_ids: input_ids\n"
-            "        input token_type_ids: token_type_ids\n"
-            "        input attention_mask: attention_mask\n"
-            "        output logits: logits\n"
-            "    }\n"
-            "    rank-profile default {\n"
-            "        first-phase {\n"
-            "            expression {\n"
-            "                nativeRank(title, body)\n"
-            "            }\n"
-            "        }\n"
-            "    }\n"
-            "    rank-profile bm25 inherits default {\n"
-            "        first-phase {\n"
-            "            expression {\n"
-            "                bm25(title) + bm25(body)\n"
-            "            }\n"
-            "        }\n"
-            "    }\n"
-            "    rank-profile bert inherits default {\n"
-            "        constants {\n"
-            "            TOKEN_NONE: 0\n"
-            "            TOKEN_CLS: 101\n"
-            "            TOKEN_SEP: 102\n"
-            "        }\n"
-            "        function question_length() {\n"
-            "            expression {\n"
-            "                sum(map(query(query_token_ids), f(a)(a > 0)))\n"
-            "            }\n"
-            "        }\n"
-            "        function doc_length() {\n"
-            "            expression {\n"
-            "                sum(map(attribute(doc_token_ids), f(a)(a > 0)))\n"
-            "            }\n"
-            "        }\n"
-            "        function input_ids() {\n"
-            "            expression {\n"
-            "                tensor<float>(d0[1],d1[128])(\n"
-            "                    if (d1 == 0,\n"
-            "                        TOKEN_CLS,\n"
-            "                    if (d1 < question_length + 1,\n"
-            "                        query(query_token_ids){d0:(d1-1)},\n"
-            "                    if (d1 == question_length + 1,\n"
-            "                        TOKEN_SEP,\n"
-            "                    if (d1 < question_length + doc_length + 2,\n"
-            "                        attribute(doc_token_ids){d0:(d1-question_length-2)},\n"
-            "                    if (d1 == question_length + doc_length + 2,\n"
-            "                        TOKEN_SEP,\n"
-            "                        TOKEN_NONE\n"
-            "                    ))))))\n"
-            "            }\n"
-            "        }\n"
-            "        function attention_mask() {\n"
-            "            expression {\n"
-            "                map(input_ids, f(a)(a > 0))\n"
-            "            }\n"
-            "        }\n"
-            "        function token_type_ids() {\n"
-            "            expression {\n"
-            "                tensor<float>(d0[1],d1[128])(\n"
-            "                    if (d1 < question_length,\n"
-            "                        0,\n"
-            "                    if (d1 < question_length + doc_length,\n"
-            "                        1,\n"
-            "                        TOKEN_NONE\n"
-            "                    )))\n"
-            "            }\n"
-            "        }\n"
-            "        first-phase {\n"
-            "            expression {\n"
-            "                bm25(title) + bm25(body)\n"
-            "            }\n"
-            "        }\n"
-            "        second-phase {\n"
-            "            rerank-count: 100\n"
-            "            expression {\n"
-            "                bm25(title)\n"
-            "            }\n"
-            "        }\n"
-            "        global-phase {\n"
-            "            rerank-count: 10\n"
-            "            expression {\n"
-            "                sum(onnx(bert).logits{d0:0,d1:0})\n"
-            "            }\n"
-            "        }\n"
-            "        summary-features {\n"
-            "            onnx(bert).logits\n"
-            "            input_ids\n"
-            "            attention_mask\n"
-            "            token_type_ids\n"
-            "        }\n"
-            "    }\n"
-            "}"
-        )
+        expected_result = """schema msmarco {
+    document msmarco inherits context {
+        field id type string {
+            indexing: attribute | summary
+        }
+        field title type string {
+            indexing: index | summary
+            index: enable-bm25
+        }
+        field body type string {
+            indexing: index | summary
+            index: enable-bm25
+        }
+        field embedding type tensor<float>(x[128]) {
+            indexing: attribute | summary
+            attribute {
+                fast-search
+                fast-access
+            }
+        }
+    }
+    fieldset default {
+        fields: title, body
+    }
+    onnx-model bert {
+        file: files/bert.onnx
+        input input_ids: input_ids
+        input token_type_ids: token_type_ids
+        input attention_mask: attention_mask
+        output logits: logits
+    }
+    rank-profile default {
+        first-phase {
+            expression {
+                nativeRank(title, body)
+            }
+        }
+    }
+    rank-profile bm25 inherits default {
+        first-phase {
+            expression {
+                bm25(title) + bm25(body)
+            }
+        }
+        num-threads-per-search: 4
+    }
+    rank-profile bert inherits default {
+        constants {
+            TOKEN_NONE: 0
+            TOKEN_CLS: 101
+            TOKEN_SEP: 102
+        }
+        function question_length() {
+            expression {
+                sum(map(query(query_token_ids), f(a)(a > 0)))
+            }
+        }
+        function doc_length() {
+            expression {
+                sum(map(attribute(doc_token_ids), f(a)(a > 0)))
+            }
+        }
+        function input_ids() {
+            expression {
+                tensor<float>(d0[1],d1[128])(
+                    if (d1 == 0,
+                        TOKEN_CLS,
+                    if (d1 < question_length + 1,
+                        query(query_token_ids){d0:(d1-1)},
+                    if (d1 == question_length + 1,
+                        TOKEN_SEP,
+                    if (d1 < question_length + doc_length + 2,
+                        attribute(doc_token_ids){d0:(d1-question_length-2)},
+                    if (d1 == question_length + doc_length + 2,
+                        TOKEN_SEP,
+                        TOKEN_NONE
+                    ))))))
+            }
+        }
+        function attention_mask() {
+            expression {
+                map(input_ids, f(a)(a > 0))
+            }
+        }
+        function token_type_ids() {
+            expression {
+                tensor<float>(d0[1],d1[128])(
+                    if (d1 < question_length,
+                        0,
+                    if (d1 < question_length + doc_length,
+                        1,
+                        TOKEN_NONE
+                    )))
+            }
+        }
+        first-phase {
+            expression {
+                bm25(title) + bm25(body)
+            }
+        }
+        second-phase {
+            expression {
+                bm25(title)
+            }
+            rerank-count: 100
+            rank-score-drop-limit: 0
+        }
+        global-phase {
+            expression {
+                sum(onnx(bert).logits{d0:0,d1:0})
+            }
+            rerank-count: 10
+            rank-score-drop-limit: 0
+        }
+        summary-features {
+            onnx(bert).logits
+            input_ids
+            attention_mask
+            token_type_ids
+        }
+    }
+}"""
         self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
 
     def test_services_to_text(self):
@@ -766,6 +779,9 @@ class TestApplicationPackage(unittest.TestCase):
         )
 
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result)
+        )
 
     def test_query_profile_to_text(self):
         expected_result = (
@@ -849,6 +865,9 @@ class TestApplicationPackageStreaming(unittest.TestCase):
             "</services>"
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result)
+        )
 
 
 class TestSchemaInheritance(unittest.TestCase):
@@ -1028,6 +1047,9 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
         )
 
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
 
 class TestSimplifiedApplicationPackage(unittest.TestCase):
@@ -1100,64 +1122,63 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
         )
 
     def test_schema_to_text(self):
-        expected_result = (
-            "schema testapp {\n"
-            "    document testapp {\n"
-            "        field id type string {\n"
-            "            indexing: attribute | summary\n"
-            "        }\n"
-            "        field title type string {\n"
-            "            indexing: index | summary\n"
-            "            index: enable-bm25\n"
-            "        }\n"
-            "        field body type string {\n"
-            "            indexing: index | summary\n"
-            "            index: enable-bm25\n"
-            "        }\n"
-            "        field tensor_field type tensor<float>(x[128]) {\n"
-            "            indexing: attribute\n"
-            "            attribute {\n"
-            "                distance-metric: euclidean\n"
-            "                fast-search\n"
-            "                fast-access\n"
-            "            }\n"
-            "            index {\n"
-            "                hnsw {\n"
-            "                    max-links-per-node: 16\n"
-            "                    neighbors-to-explore-at-insert: 200\n"
-            "                }\n"
-            "            }\n"
-            "        }\n"
-            "    }\n"
-            "    field embedding type tensor<bfloat16>(x[384]) {\n"
-            '        indexing: (input title || "") . " " . (input body || "") | embed embedder | attribute | index\n'
-            "        index: hnsw\n"
-            "    }\n"
-            "    fieldset default {\n"
-            "        fields: title, body\n"
-            "    }\n"
-            "    rank-profile default {\n"
-            "        first-phase {\n"
-            "            expression {\n"
-            "                nativeRank(title, body)\n"
-            "            }\n"
-            "        }\n"
-            "    }\n"
-            "    rank-profile bm25 inherits default {\n"
-            "        first-phase {\n"
-            "            expression {\n"
-            "                bm25(title) + bm25(body)\n"
-            "            }\n"
-            "        }\n"
-            "        global-phase {\n"
-            "            rerank-count: 10\n"
-            "            expression {\n"
-            "                bm25(title)\n"
-            "            }\n"
-            "        }\n"
-            "    }\n"
-            "}"
-        )
+        self.maxDiff = None
+        expected_result = """schema testapp {
+    document testapp {
+        field id type string {
+            indexing: attribute | summary
+        }
+        field title type string {
+            indexing: index | summary
+            index: enable-bm25
+        }
+        field body type string {
+            indexing: index | summary
+            index: enable-bm25
+        }
+        field tensor_field type tensor<float>(x[128]) {
+            indexing: attribute
+            attribute {
+                distance-metric: euclidean
+                fast-search
+                fast-access
+            }
+            index {
+                hnsw {
+                    max-links-per-node: 16
+                    neighbors-to-explore-at-insert: 200
+                }
+            }
+        }
+    }
+    field embedding type tensor<bfloat16>(x[384]) {
+        indexing: (input title || "") . " " . (input body || "") | embed embedder | attribute | index
+        index: hnsw
+    }
+    fieldset default {
+        fields: title, body
+    }
+    rank-profile default {
+        first-phase {
+            expression {
+                nativeRank(title, body)
+            }
+        }
+    }
+    rank-profile bm25 inherits default {
+        first-phase {
+            expression {
+                bm25(title) + bm25(body)
+            }
+        }
+        global-phase {
+            expression {
+                bm25(title)
+            }
+            rerank-count: 10
+        }
+    }
+}"""
         self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
 
     def test_services_to_text(self):
@@ -1182,6 +1203,9 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
         )
 
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
     def test_query_profile_to_text(self):
         expected_result = (
@@ -1200,6 +1224,76 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
             "</query-profile-type>"
         )
         self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)
+
+    def test_rank_profile_match_phase(self):
+        rank_profile = RankProfile(
+            name="match_phase_test",
+            first_phase="bm25(title) + bm25(body)",
+            match_phase=MatchPhaseRanking(
+                attribute="popularity", order="descending", max_hits=1000
+            ),
+        )
+        self.assertEqual(rank_profile.name, "match_phase_test")
+        self.assertEqual(rank_profile.first_phase, "bm25(title) + bm25(body)")
+        self.assertEqual(rank_profile.match_phase.attribute, "popularity")
+        self.assertEqual(rank_profile.match_phase.order, "descending")
+        self.assertEqual(rank_profile.match_phase.max_hits, 1000)
+
+    def test_schema_to_text_with_match_phase(self):
+        schema = Schema(
+            name="test_match_phase",
+            document=Document(
+                fields=[
+                    Field(name="title", type="string", indexing=["index", "summary"]),
+                    Field(name="body", type="string", indexing=["index", "summary"]),
+                    Field(name="popularity", type="int", indexing=["attribute"]),
+                ]
+            ),
+            rank_profiles=[
+                RankProfile(name="default", first_phase="nativeRank(title, body)"),
+                RankProfile(
+                    name="match_phase_test",
+                    first_phase="bm25(title) + bm25(body)",
+                    match_phase=MatchPhaseRanking(
+                        attribute="popularity", order="descending", max_hits=1000
+                    ),
+                ),
+            ],
+        )
+        expected_schema = """schema test_match_phase {
+    document test_match_phase {
+        field title type string {
+            indexing: index | summary
+        }
+        field body type string {
+            indexing: index | summary
+        }
+        field popularity type int {
+            indexing: attribute
+        }
+    }
+    rank-profile default {
+        first-phase {
+            expression {
+                nativeRank(title, body)
+            }
+        }
+    }
+    rank-profile match_phase_test {
+        match-phase {
+            attribute: popularity
+            order: descending
+            max-hits: 1000
+        }
+        first-phase {
+            expression {
+                bm25(title) + bm25(body)
+            }
+        }
+    }
+}"""
+
+        self.assertEqual(schema.schema_to_text, expected_schema)
 
 
 class TestSimplifiedApplicationPackageWithMultipleSchemas(unittest.TestCase):
@@ -1270,6 +1364,9 @@ class TestSimplifiedApplicationPackageWithMultipleSchemas(unittest.TestCase):
             "</services>"
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
 
 class TestComponentSetup(unittest.TestCase):
@@ -1335,6 +1432,9 @@ class TestComponentSetup(unittest.TestCase):
             "</services>"
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
 
 class TestClientTokenSetup(unittest.TestCase):
@@ -1384,6 +1484,9 @@ class TestClientTokenSetup(unittest.TestCase):
         )
 
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
 
 class TestClientsWithCluster(unittest.TestCase):
@@ -1448,6 +1551,9 @@ class TestClientsWithCluster(unittest.TestCase):
             "</services>"
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
 
 class TestValidAppName(unittest.TestCase):
@@ -1579,6 +1685,9 @@ class TestCluster(unittest.TestCase):
             "</services>"
         )
         self.assertEqual(self.app_package.services_to_text, expected_result)
+        self.assertTrue(
+            compare_xml(self.app_package.services_to_text_vt, expected_result),
+        )
 
 
 class TestAuthClientEquality(unittest.TestCase):
@@ -1648,3 +1757,294 @@ class TestDeploymentConfiguration(unittest.TestCase):
         )
 
         self.assertEqual(expected_result, app_package.deployment_to_text)
+
+
+class TestSchemaStructField(unittest.TestCase):
+    def setUp(self):
+        self.app_package = ApplicationPackage(name="struct")
+
+        mystruct = Struct("mystruct", [Field("key", "string"), Field("value", "int")])
+
+        my_array = Field(
+            "my_array",
+            "array<mystruct>",
+            ["summary"],
+            struct_fields=[
+                StructField(
+                    "key",
+                    indexing=["attribute"],
+                    attribute=["fast-search"],
+                    rank="filter",
+                )
+            ],
+        )
+
+        self.app_package.schema.document = Document([my_array], None, [mystruct])
+
+    def test_schema_to_text(self):
+        expected_result = (
+            "schema struct {\n"
+            "    document struct {\n"
+            "        field my_array type array<mystruct> {\n"
+            "            indexing: summary\n"
+            "            struct-field key {\n"
+            "                indexing: attribute\n"
+            "                attribute {\n"
+            "                    fast-search\n"
+            "                }\n"
+            "                rank: filter\n"
+            "            }\n"
+            "        }\n"
+            "        struct mystruct {\n"
+            "            field key type string {\n"
+            "            }\n"
+            "            field value type int {\n"
+            "            }\n"
+            "        }\n"
+            "    }\n"
+            "}"
+        )
+        self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
+
+
+class TestVTequality(unittest.TestCase):
+    def test_application_configuration(self):
+        app_config = ApplicationConfiguration(
+            name="container.handler.observability.application-userdata",
+            value={"version": "my-version"},
+        )
+        app_config_vt = app_config.to_vt()
+        vt_str = str(app_config_vt.to_xml())
+        app_config_str = app_config.to_text
+        self.assertTrue(compare_xml(app_config_str, vt_str))
+
+    def test_cluster_configuration(self):
+        clusters = [
+            ContainerCluster(
+                id="test_container",
+                nodes=Nodes(
+                    count="1",
+                    parameters=[
+                        Parameter(
+                            "resources",
+                            {"vcpu": "4.0", "memory": "16Gb", "disk": "125Gb"},
+                            [Parameter("gpu", {"count": "1", "memory": "16Gb"})],
+                        ),
+                    ],
+                ),
+                components=[
+                    Component(
+                        id="e5",
+                        type="hugging-face-embedder",
+                        parameters=[
+                            Parameter(
+                                "transformer-model", {"path": "model/model.onnx"}
+                            ),
+                            Parameter(
+                                "tokenizer-model", {"path": "model/tokenizer.json"}
+                            ),
+                        ],
+                    )
+                ],
+                auth_clients=[
+                    AuthClient(
+                        id="mtls",
+                        permissions=["read", "write"],
+                        parameters=[
+                            Parameter("certificate", {"file": "security/clients.pem"})
+                        ],
+                    ),
+                    AuthClient(
+                        id="token",
+                        permissions=["read"],
+                        parameters=[Parameter("token", {"id": "accessToken"})],
+                    ),
+                ],
+            ),
+            ContentCluster(id="test_content", document_name="test"),
+        ]
+        for cluster_config in clusters:
+            vt_str = str(cluster_config.to_vt().to_xml())
+            cluster_config_str = cluster_config.to_xml_string()
+            self.assertTrue(compare_xml(cluster_config_str, vt_str))
+
+
+class TestServiceConfig(unittest.TestCase):
+    def test_default_service_config_to_text(self):
+        self.maxDiff = None
+        application_name = "test"
+        service_config = ServicesConfiguration(application_name=application_name)
+        app_package = ApplicationPackage(
+            name=application_name, services_config=service_config
+        )
+        expected_result = '<?xml version="1.0" encoding="UTF-8" ?>\n<services version="1.0">\n  <container id="test_container" version="1.0"></container>\n</services>'
+        self.assertEqual(expected_result, app_package.services_to_text)
+        self.assertTrue(
+            compare_xml(app_package.services_to_text_vt, expected_result),
+        )
+
+    def test_document_expiry(self):
+        # Create a Schema with name music and a field with name artist, title and timestamp
+        # Ref https://docs.vespa.ai/en/documents.html#document-expiry
+        application_name = "music"
+        music_schema = Schema(
+            name=application_name,
+            document=Document(
+                fields=[
+                    Field(
+                        name="artist",
+                        type="string",
+                        indexing=["attribute", "summary"],
+                    ),
+                    Field(
+                        name="title",
+                        type="string",
+                        indexing=["attribute", "summary"],
+                    ),
+                    Field(
+                        name="timestamp",
+                        type="long",
+                        indexing=["attribute", "summary"],
+                        attribute=["fast-access"],
+                    ),
+                ]
+            ),
+        )
+        # Create a ServicesConfiguration with document-expiry set to 1 day (timestamp > now() - 86400)
+        services_config = ServicesConfiguration(
+            application_name=application_name,
+            services_config=services(
+                container(
+                    search(),
+                    document_api(),
+                    document_processing(),
+                    id=f"{application_name}_container",
+                    version="1.0",
+                ),
+                content(
+                    redundancy("1"),
+                    documents(
+                        document(
+                            type=application_name,
+                            mode="index",
+                            selection="music.timestamp > now() - 86400",
+                        ),
+                        garbage_collection="true",
+                    ),
+                    nodes(node(distribution_key="0", hostalias="node1")),
+                    id=f"{application_name}_content",
+                    version="1.0",
+                ),
+            ),
+        )
+        application_package = ApplicationPackage(
+            name=application_name,
+            schema=[music_schema],
+            services_config=services_config,
+        )
+        expected = """<?xml version="1.0" encoding="UTF-8" ?>
+<services>
+  <container id="music_container" version="1.0">
+    <search></search>
+    <document-api></document-api>
+    <document-processing></document-processing>
+  </container>
+  <content id="music_content" version="1.0">
+    <redundancy>1</redundancy>
+    <documents garbage-collection="true">
+      <document type="music" mode="index" selection="music.timestamp &gt; now() - 86400"></document>
+    </documents>
+    <nodes>
+      <node distribution-key="0" hostalias="node1"></node>
+    </nodes>
+  </content>
+</services>"""
+        self.assertEqual(expected, application_package.services_to_text)
+        self.assertTrue(validate_services(application_package.services_to_text))
+
+
+class TestPredicateField(unittest.TestCase):
+    def setUp(self):
+        self.app_package = ApplicationPackage(name="predicatetest")
+
+        # Add a document with a predicate field
+        self.app_package.schema.add_fields(
+            Field(name="id", type="string", indexing=["attribute", "summary"]),
+            Field(
+                name="predicate_field",
+                type="predicate",
+                indexing=["attribute"],
+                index={
+                    "arity": 2,
+                    "lower-bound": 3,
+                    "upper-bound": 200,
+                    "dense-posting-list-threshold": 0.25,
+                },
+            ),
+        )
+
+    def test_predicate_field_schema(self):
+        expected_result = """schema predicatetest {
+    document predicatetest {
+        field id type string {
+            indexing: attribute | summary
+        }
+        field predicate_field type predicate {
+            indexing: attribute
+            index {
+                arity: 2
+                lower-bound: 3
+                upper-bound: 200
+                dense-posting-list-threshold: 0.25
+            }
+        }
+    }
+}"""
+        print()
+        print(self.app_package.schema.schema_to_text)
+        print()
+        print(expected_result)
+        self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
+
+class TestRankProfileCustomSettings(unittest.TestCase):
+    def test_rank_profile_with_filter_and_weakand(self):
+        # Create a minimal schema with a dummy document to allow rank profile rendering.
+        dummy_document = Document(fields=[Field(name="dummy", type="string")])
+        rank_profile = RankProfile(
+            name="optimized",
+            first_phase="nativeRank(dummy)",
+            inherits="baseline",
+            filter_threshold=0.05,
+            weakand={"stopword-limit": 0.6, "adjust-target": 0.01},
+        )
+        schema = Schema(
+            name="test_schema",
+            document=dummy_document,
+            rank_profiles=[rank_profile],
+        )
+        # Expected text for the rank profile block.
+        expected_schema = """\
+schema test_schema {
+    document test_schema {
+        field dummy type string {
+        }
+    }
+    rank-profile optimized inherits baseline {
+        filter-threshold: 0.05
+        weakand {
+            stopword-limit: 0.6
+            adjust-target: 0.01
+        }
+        first-phase {
+            expression {
+                nativeRank(dummy)
+            }
+        }
+    }
+}"""
+        # Compare the expected and actual schema text.
+        actual_schema = schema.schema_to_text
+        self.assertEqual(
+            actual_schema,
+            expected_schema,
+        )

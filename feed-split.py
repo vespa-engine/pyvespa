@@ -12,13 +12,20 @@ import tiktoken
 import urllib.parse
 import shutil
 import os
+import hashlib
+from pathlib import Path
 
 encoding = tiktoken.encoding_for_model("gpt-4o-mini")
 note_pattern = re.compile(r"{%\s*include.*?%}", flags=re.DOTALL)
 highlight_pattern = re.compile(r"{%\s*.*?\s%}", flags=re.DOTALL)
 
+exclude_feeding = ["/404.html"]
+
 WRITE_MARKDOWN = True  # Set to True to write content to markdown files for debugging
 MARKDOWN_DIR = "markdown_after"  # Directory to write markdown files to
+MARKDOWN_NOTEBOOKS_DIR = (
+    "markdown_notebooks"  # Directory containing markdown notebook files
+)
 
 
 def what_language(el):
@@ -161,7 +168,84 @@ def split_reference(markdown_text):
     return chunks
 
 
-def split_text(soup, path):
+def get_markdown_notebook_path(path):
+    markdown_notebooks = Path(MARKDOWN_NOTEBOOKS_DIR)
+    notebook_names = [
+        file.stem for file in markdown_notebooks.iterdir() if file.is_file()
+    ]
+
+    match_path = re.search(r"/([^.]+)", path)
+
+    if match_path:
+        rel_path = match_path.group(1)
+        match_examples_path = re.search(r"examples/([^.]+)", rel_path)
+        if rel_path in notebook_names:
+            return f"{MARKDOWN_NOTEBOOKS_DIR}/{rel_path}.md"
+        elif match_examples_path:
+            rel_examples_path = match_examples_path.group(1)
+            return f"{MARKDOWN_NOTEBOOKS_DIR}/{rel_examples_path}.md"
+        else:
+            None
+
+
+def split_md(md, path):
+    lines = md.split("\n")
+    header = ""
+    text = ""
+    id = ""
+    data = []
+    in_code_block = False  # Track whether we're inside a code block
+
+    for line in lines:
+        # Toggle in_code_block state if we detect code block
+        if line.strip().startswith("```"):
+            in_code_block = not in_code_block
+
+        if in_code_block and line.strip().startswith("#"):
+            continue
+
+        if line.startswith("#") and not in_code_block:
+            if text:
+                data.append((id, header, text))
+                text = ""
+            header = line.lstrip("#").strip()
+
+            blacktick_match = re.match(r"`?", header)
+            if blacktick_match:
+                header = re.sub("`", "", header)
+
+            # Check if it's a function/method signature
+            if "(" in header and ")" in header:
+                # Strip argument list from header
+                match = re.match(r"([a-zA-Z0-9_]+)\s*\(", header)
+                if match:
+                    id = match.group(1)
+                    header = match.group(1)
+                else:
+                    id = "-".join(header.split())
+            elif "=" in header:
+                header = header.split("=")[0]
+                id = "-".join(header.split())
+            else:
+                # Normal header, create id based on path rule
+                if path in {
+                    "/",
+                    "/examples",
+                    "/api",
+                    "/troubleshooting.html",
+                }:
+                    id = "-".join(header.split()).lower()
+                else:
+                    id = "-".join(header.split())
+        else:
+            text = text + "\n" + line
+
+    data.append((id, header, text))  # Flush any last data
+
+    return data
+
+
+def split_text(path, soup=None):
     split_tables(soup)
     split_lists(soup)
     md = markdownify(
@@ -170,35 +254,21 @@ def split_text(soup, path):
         code_language_callback=what_language,
         strip=["img"],
     )
+    local_nb_path = get_markdown_notebook_path(path)
     if path == "/reference-api.html":
         data = split_reference(md)
+    elif local_nb_path:
+        with open(local_nb_path, "r") as md_f:
+            md_content = md_f.read()
+        md = re.sub(
+            r"<style.*?>.*?</style>", "", md_content, flags=re.DOTALL | re.IGNORECASE
+        )
+        md = re.sub(
+            r"<script.*?>.*?</script>", "", md_content, flags=re.DOTALL | re.IGNORECASE
+        )
+        data = split_md(md, path)
     else:
-        lines = md.split("\n")
-        header = ""
-        text = ""
-        id = ""
-        data = []
-
-        for line in lines:
-            if line.startswith("#"):
-                if text:
-                    data.append((id, header, text))
-                    text = ""
-                header = line.lstrip("#")
-                # Ugly hack: rst -> html conversion will lowercase the id - put .rst files in set below, with .html suffix
-                if path in {
-                    "/",
-                    "/examples.html",
-                    "/reference-api.html",
-                    "/troubleshooting.html",
-                }:
-                    id = "-".join(header.split()).lower()
-                else:
-                    id = "-".join(header.split())
-            else:
-                text = text + "\n" + line
-
-        data.append((id, header, text))  # Flush any last data
+        data = split_md(md, path)
     return data
 
 
@@ -274,11 +344,13 @@ def main():
         docs = json.load(fp)
         operations = []
         for doc in docs:
+            if doc["fields"]["path"] in exclude_feeding:
+                continue
             html_doc = doc["fields"]["html"]
             html_doc = xml_fixup(html_doc)
             soup = BeautifulSoup(html_doc, "html5lib")
             remove_notext_tags(soup)
-            data = split_text(soup, doc["fields"]["path"])
+            data = split_text(doc["fields"]["path"], soup)
             for paragraph_id, header, paragraph in data:
                 paragraph = paragraph.lstrip("\n").lstrip(" ")
                 paragraph = paragraph.rstrip("\n")
@@ -338,12 +410,20 @@ def main():
         shutil.rmtree(MARKDOWN_DIR, ignore_errors=True)
         os.makedirs(MARKDOWN_DIR, exist_ok=True)
 
+    def safe_id(name, max_length=100):
+        if len(name) <= max_length:
+            return name
+        hash_part = hashlib.md5(name.encode()).hexdigest()
+        base = name[: max_length - len(hash_part) - 1]
+        return f"{base}_{hash_part}"
+
     for op in operations:
         id = op["put"]
         doc_id = op["fields"]["path"]
         doc_id = doc_id.replace("/", "-")
+        safe_doc_id = safe_id(doc_id)
         if WRITE_MARKDOWN:
-            with open(f"{MARKDOWN_DIR}/{doc_id}.md", "w") as f:
+            with open(f"{MARKDOWN_DIR}/{safe_doc_id}.md", "w") as f:
                 f.write(op["fields"]["content"])
         if id in questions_expansion:
             op["fields"]["questions"] = questions_expansion[id]

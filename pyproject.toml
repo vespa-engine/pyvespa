@@ -12,7 +12,7 @@ readme = "README.md"
 keywords = ["vespa", "search engine", "data science"]
 classifiers = ["License :: OSI Approved :: Apache Software License"]
 dependencies = [
-    "requests==2.31",
+    "requests",
     "requests_toolbelt",
     "docker",
     "jinja2",
@@ -22,12 +22,17 @@ dependencies = [
     "tenacity>=8.4.1",
     "typing_extensions",
     "python-dateutil",
+    "fastcore>=1.7.8",
+    "lxml",
 ]
 
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 
 [[project.authors]]
 name = "Thiago G. Martins"
+
+[[project.authors]]
+name = "Thomas Thoresen"
 
 [[project.maintainers]]
 name = "Thomas Thoresen"
@@ -53,12 +58,20 @@ unittest = [
     "pytest",
     "requests-mock",
     "vespacli",
+    "pytest-asyncio",
+    "mypy>=1.14.1",
 ]
 docs = [
-    "sphinx",
-    "nbsphinx",
-    "sphinx-rtd-theme>=0.5.0",
     "ipykernel",
+    "nbconvert",
+    "jupyter",
+    "mkdocs-material",
+    "mkdocs-jupyter",
+    "mkdocstrings[python]",
+    "mkdocs-autoapi",
+    "mkdocs-linkcheck",
+    "mktestdocs",
+    "pytest",
 ]
 feed = [
     "PyYAML",
@@ -81,21 +94,23 @@ notebooks = [
     "plotly",
     "torch",
     "openai",
+    "datasets>=2.19.1",
     "ir_datasets",
     "pytrec_eval",
     "papermill",
     "ipywidgets",
+    "matplotlib",
 ]
 dev = [
     "pre-commit",
     "vespacli",
-    "datasets",
+    "datasets>=2.19.1",
     "pyvespa[unittest]",
     "pyvespa[build]",
 ]
 
 [tool.setuptools]
-package-dir = {vespa = "vespa"}
+package-dir = { vespa = "vespa" }
 
 [tool.ruff]
 exclude = [
@@ -134,7 +149,7 @@ vespa = ["py.typed", "templates/*"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F"]
-ignore = []
+ignore = ["F822", "F405", "F403"]
 fixable = ["ALL"]
 unfixable = []
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"

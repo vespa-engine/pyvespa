@@ -6,7 +6,6 @@ from zipfile import ZipFile
 
 import requests
 import argparse
-from vespacli._version_generated import vespa_version
 
 
 class VespaBinaryDownloader:
@@ -38,8 +37,6 @@ class VespaBinaryDownloader:
         )
         if self.version == "latest":
             self.version = self.get_latest_version()
-        elif self.version == "current":
-            self.version = vespa_version
 
     def _validate_version(self, version):
         # Must be either "latest", "current", or a valid version number (X.Y.Z) (optional "v" prefix)

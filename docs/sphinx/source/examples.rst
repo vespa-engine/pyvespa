@@ -23,4 +23,9 @@ Examples
    examples/feed_performance_cloud.ipynb
    examples/cross-encoders-for-global-reranking.ipynb
    examples/evaluating-with-snowflake-arctic-embed.ipynb
-   examples/colpali-document-retrieval-vision-language-models.ipynb
+   examples/simplified-retrieval-with-colpali-vlm_Vespa-cloud.ipynb
+   examples/colpali-document-retrieval-vision-language-models-cloud.ipynb
+   examples/colpali-benchmark-vqa-vlm_Vespa-cloud.ipynb
+   examples/pdf-retrieval-with-ColQwen2-vlm_Vespa-cloud.ipynb
+   examples/visual_pdf_rag_with_vespa_colpali_cloud.ipynb
+   examples/visual_pdf_rag_with_vespa_colpali_cloud.ipynb

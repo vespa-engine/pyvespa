@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->
+<services version="1.0" xmlns:deploy="vespa" xmlns:preprocess="properties" minimum-required-vespa-version="8.338.38">
+
+    <!-- See https://docs.vespa.ai/en/reference/services-container.html -->
+    <container id="default" version="1.0">
+
+        <!-- See https://docs.vespa.ai/en/embedding.html#huggingface-embedder -->
+        <component id="e5-small-q" type="hugging-face-embedder">
+            <transformer-model url="https://github.com/vespa-engine/sample-apps/raw/master/examples/model-exporting/model/e5-small-v2-int8.onnx"/>
+            <tokenizer-model url="https://raw.githubusercontent.com/vespa-engine/sample-apps/master/examples/model-exporting/model/tokenizer.json"/>
+            <!-- E5 prompt instructions -->
+            <prepend>
+                <query>query:</query>
+                <document>passage:</document>
+            </prepend>
+        </component>
+
+        <document-processing/>
+        <document-api/>
+        <search/>
+
+        <nodes>
+            <node hostalias="node1" />
+        </nodes>
+    </container>
+
+    <!-- See https://docs.vespa.ai/en/reference/services-content.html -->
+    <content id="mail" version="1.0">
+        <min-redundancy>2</min-redundancy>
+        <documents>
+            <document type="mail" mode="streaming" />
+            <document-processing chain="indexing" cluster="default" />
+        </documents>
+        <nodes>
+            <node hostalias="node1" distribution-key="0" />
+        </nodes>
+    </content>
+
+</services>

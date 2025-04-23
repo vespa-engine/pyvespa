@@ -59,7 +59,25 @@ VespaCloud
    :members:
    :special-members: __init__
 
+################
+vespa.evaluation
+################
 
+VespaEvaluator
+**************
+.. autoclass:: vespa.evaluation.VespaEvaluator
+   :members:
+   :special-members: __init__
+
+################
+vespa.querybuilder
+################
+
+.. automodule:: vespa.querybuilder
+   :members:
+   :undoc-members:
+   :special-members: __init__
+   :show-inheritance:
 
 ################
 vespa.exceptions
@@ -244,6 +262,8 @@ Schema
    :members:
    :special-members: __init__
 
+.. autoattribute:: vespa.package.Schema.schema_to_text
+   :annotation: str
 
 SecondPhaseRanking
 ******************
@@ -251,6 +271,11 @@ SecondPhaseRanking
    :members:
    :special-members: __init__
 
+ServicesConfiguration
+*********************
+.. autoclass:: vespa.package.ServicesConfiguration
+   :members:
+   :special-members: __init__
 
 Struct
 ******

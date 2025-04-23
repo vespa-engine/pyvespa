@@ -14,6 +14,15 @@ from vespa.application import Vespa, raise_for_status
 from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse
 import requests_mock
+from unittest.mock import Mock
+from requests import Request, Session
+import gzip
+from vespa.application import (
+    CustomHTTPAdapter,
+    VespaAsync,
+)
+import httpx
+from typing import List
 
 
 class TestVespaRequestsUsage(unittest.TestCase):
@@ -154,6 +163,56 @@ class TestVespaRequestsUsage(unittest.TestCase):
                 "&wantedDocumentCount=500"
                 "&slices=1"
                 "&sliceId=0"
+                "&timeout=200s"
+            ) in urls
+
+    def test_visit_slice_id(self):
+        app = Vespa(url="http://localhost", port=8080)
+        with requests_mock.Mocker() as m:
+            m.get(
+                "http://localhost:8080/ApplicationStatus",
+                status_code=200,
+            )
+            m.get(
+                "http://localhost:8080/document/v1/foo/foo/docid/",
+                [
+                    {"json": {"continuation": "AAA"}, "status_code": 200},
+                    {"json": {}, "status_code": 200},
+                ],
+            )
+
+            results = []
+            for slice in app.visit(
+                schema="foo",
+                namespace="foo",
+                content_cluster_name="content",
+                timeout="200s",
+                slices=10,
+                slice_id=2,
+            ):
+                for response in slice:
+                    results.append(response)
+            assert len(results) == 2
+
+            urls = [response.url for response in results]
+            assert (
+                "http://localhost:8080/document/v1/foo/foo/docid/"
+                "?cluster=content"
+                "&selection=true"
+                "&wantedDocumentCount=500"
+                "&slices=10"
+                "&sliceId=2"
+                "&timeout=200s"
+                "&continuation=AAA"
+            ) in urls
+
+            assert (
+                "http://localhost:8080/document/v1/foo/foo/docid/"
+                "?cluster=content"
+                "&selection=true"
+                "&wantedDocumentCount=500"
+                "&slices=10"
+                "&sliceId=2"
                 "&timeout=200s"
             ) in urls
 
@@ -599,3 +658,228 @@ class TestFeedAsyncIterable(unittest.TestCase):
         self.assertEqual(
             callback.call_args[0][0].json["message"], "Missing fields in input dict"
         )
+
+
+class TestQueryMany(unittest.TestCase):
+    def setUp(self):
+        self.mock_session = AsyncMock()
+        self.mock_asyncio_patcher = patch("vespa.application.VespaAsync")
+        self.mock_asyncio = self.mock_asyncio_patcher.start()
+        self.mock_asyncio.return_value.__aenter__.return_value = self.mock_session
+        self.vespa = Vespa(url="http://localhost", port=8080)
+
+    def tearDown(self):
+        self.mock_asyncio_patcher.stop()
+
+    def test_query_many_happy_path(self):
+        # Arrange
+        query_data = [
+            {"query": "this is a test", "hits": 10, "ranking": "default"},
+            {"query": "this is another test", "hits": 20, "ranking": "default"},
+        ]
+        #
+        _responses: List[VespaQueryResponse] = self.vespa.query_many(
+            queries=query_data,
+            num_connections=2,
+            max_concurrent=100,
+        )
+
+        # Assert that app.query is called for each query
+        self.mock_session.query.assert_has_calls(
+            [unittest.mock.call(q) for q in query_data],
+            any_order=True,
+        )
+
+    def test_query_many_client_kwargs(self):
+        # Arrange
+        query_data = [
+            {"query": "this is a test", "hits": 10, "ranking": "default"},
+            {"query": "this is another test", "hits": 20, "ranking": "default"},
+        ]
+        #
+        _responses: List[VespaQueryResponse] = self.vespa.query_many(
+            queries=query_data,
+            num_connections=2,
+            max_concurrent=100,
+            client_kwargs={"timeout": 10},
+        )
+
+        # Assert that VespaAsync is initialized once with the client_kwargs
+        self.mock_asyncio.assert_called_once_with(
+            app=self.vespa,
+            connections=2,
+            total_timeout=None,
+            timeout=10,
+        )
+
+    def test_query_many_query_kwargs(self):
+        # Arrange
+        query_data = [
+            {"query": "this is a test", "hits": 10, "ranking": "default"},
+            {"query": "this is another test", "hits": 20, "ranking": "default"},
+        ]
+        #
+        _responses: List[VespaQueryResponse] = self.vespa.query_many(
+            queries=query_data,
+            num_connections=2,
+            max_concurrent=100,
+            query_param="custom",
+        )
+
+        # Assert that app.query is called for each query with the query_kwargs
+        self.mock_session.query.assert_has_calls(
+            [unittest.mock.call(q, query_param="custom") for q in query_data],
+            any_order=True,
+        )
+
+
+class TestCustomHTTPAdapterCompression(unittest.TestCase):
+    def setUp(self):
+        """Set up the CustomHTTPAdapter for testing."""
+        self.adapter = CustomHTTPAdapter(compress="auto")
+
+    def test_compression_auto_with_large_body(self):
+        """Test auto compression with a large request body."""
+        request = Request(method="POST", url="http://test.com", data=b"test_data" * 300)
+        self.adapter.check_size = Mock(return_value=5000)  # Simulate large content
+        prepared_request = request.prepare()
+
+        self.adapter._maybe_compress_request(prepared_request)
+        self.assertIn("Content-Encoding", prepared_request.headers)
+        self.assertEqual(prepared_request.headers["Content-Encoding"], "gzip")
+
+    def test_no_compression_auto_with_small_body(self):
+        """Test no compression with a small request body."""
+        request = Request(method="POST", url="http://test.com", data=b"test_data")
+        self.adapter.check_size = Mock(return_value=10)  # Simulate small content
+        prepared_request = request.prepare()
+
+        self.adapter._maybe_compress_request(prepared_request)
+        self.assertNotIn("Content-Encoding", prepared_request.headers)
+
+    def test_force_compression(self):
+        """Test forced compression when compress=True."""
+        self.adapter = CustomHTTPAdapter(compress=True)
+        request = Request(method="POST", url="http://test.com", data=b"test_data")
+        prepared_request = request.prepare()
+
+        self.adapter._maybe_compress_request(prepared_request)
+        self.assertIn("Content-Encoding", prepared_request.headers)
+        self.assertEqual(prepared_request.headers["Content-Encoding"], "gzip")
+
+    def test_disable_compression(self):
+        """Test no compression when compress=False."""
+        self.adapter = CustomHTTPAdapter(compress=False)
+        request = Request(method="POST", url="http://test.com", data=b"test_data")
+        prepared_request = request.prepare()
+
+        self.adapter._maybe_compress_request(prepared_request)
+        self.assertNotIn("Content-Encoding", prepared_request.headers)
+
+    def test_invalid_compression_value(self):
+        """Test invalid compress value raises error."""
+        with self.assertRaises(ValueError):
+            CustomHTTPAdapter(compress="invalid_value")
+
+    def test_compress_request_body(self):
+        """Test if request body is compressed when compress=True."""
+        adapter = CustomHTTPAdapter(compress=True)
+        session = Session()
+        session.mount("http://", adapter)
+
+        request = Request(method="POST", url="http://test.com", data=b"test_data")
+        prepared_request = session.prepare_request(request)
+        # Mock sending the request
+        with patch("requests.adapters.HTTPAdapter.send") as mock_send:
+            adapter.send(prepared_request)
+
+            mock_send.assert_called_once()
+            args, _ = mock_send.call_args
+            self.assertEqual(args[0].body, gzip.compress(b"test_data"))
+
+    def test_retry_on_429_status(self):
+        """Test retry logic when response status is 429."""
+        adapter = CustomHTTPAdapter(num_retries_429=2)
+        session = Session()
+        session.mount("http://", adapter)
+
+        request = Request(method="POST", url="http://test.com", data=b"test_data")
+        prepared_request = session.prepare_request(request)
+
+        with (
+            patch.object(adapter, "_wait_with_backoff") as mock_backoff,
+            patch("requests.adapters.HTTPAdapter.send") as mock_send,
+        ):
+            mock_response = Mock()
+            mock_response.status_code = 429
+            mock_send.side_effect = [mock_response, mock_response, mock_response]
+
+            adapter.send(prepared_request)
+
+            self.assertEqual(mock_send.call_count, 3)
+            self.assertEqual(mock_backoff.call_count, mock_send.call_count)
+
+
+class MockVespa:
+    def __init__(
+        self,
+        base_headers=None,
+        auth_method=None,
+        vespa_cloud_secret_token=None,
+        cert=None,
+        key=None,
+    ):
+        self.base_headers = base_headers or {}
+        self.auth_method = auth_method
+        self.vespa_cloud_secret_token = vespa_cloud_secret_token
+        self.cert = cert
+        self.key = key
+
+
+# Test class
+class TestVespaAsync:
+    def test_init_default(self):
+        app = MockVespa()
+        vespa_async = VespaAsync(app)
+        assert vespa_async.app == app
+        assert vespa_async.httpx_client is None
+        assert vespa_async.connections == 1
+        assert vespa_async.total_timeout is None
+        assert vespa_async.timeout == httpx.Timeout(5)
+        assert vespa_async.kwargs == {}
+        assert vespa_async.headers == app.base_headers
+        assert vespa_async.limits == httpx.Limits(max_keepalive_connections=1)
+
+    def test_init_total_timeout_warns(self):
+        app = MockVespa()
+        with pytest.warns(DeprecationWarning, match="total_timeout is deprecated"):
+            vespa_async = VespaAsync(app, total_timeout=10)
+        assert vespa_async.total_timeout == 10
+
+    def test_init_timeout_int(self):
+        app = MockVespa()
+        vespa_async = VespaAsync(app, timeout=10)
+        assert vespa_async.timeout == httpx.Timeout(10)
+
+    def test_init_timeout_timeout(self):
+        app = MockVespa()
+        timeout = httpx.Timeout(connect=5, read=10, write=15, pool=20)
+        vespa_async = VespaAsync(app, timeout=timeout)
+        assert vespa_async.timeout == timeout
+
+    def test_init_keepalive_expiry_warning(self):
+        app = MockVespa()
+        limits = httpx.Limits(keepalive_expiry=31)
+        with pytest.warns(
+            UserWarning, match="Keepalive expiry is set to more than 30 seconds"
+        ):
+            _vespa_async = VespaAsync(app, limits=limits)
+
+    def test_init_no_keepalive_expiry_warning(self):
+        app = MockVespa()
+        limits = httpx.Limits(keepalive_expiry=1)
+        _vespa_async = VespaAsync(app, limits=limits)
+
+
+if __name__ == "__main__":
+    unittest.main()

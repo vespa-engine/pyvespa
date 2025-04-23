@@ -294,6 +294,16 @@ class TestDeployProdWithTests(unittest.TestCase):
             / "testapps"
             / "production-deployment-with-tests"
         )
+        # Vespa won't deploy without validation override for certificate-removal
+        tomorrow = datetime.now() + timedelta(days=1)
+        formatted_date = tomorrow.strftime("%Y-%m-%d")
+        app_package = ApplicationPackage(name="empty")
+        app_package.validations = [
+            Validation(ValidationID("certificate-removal"), until=formatted_date)
+        ]
+        # Write validations_to_text to "validation-overrides.xml"
+        with open(self.application_root / "validation-overrides.xml", "w") as f:
+            f.write(app_package.validations_to_text)
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
             application="pyvespa-integration",
@@ -337,3 +347,29 @@ class TestDeployProdWithTests(unittest.TestCase):
             f.write(app_package.deployment_config.to_xml_string())
         # This will delete the deployment
         self.vespa_cloud._start_prod_deployment(self.application_root)
+
+
+class TestGetClusterEndpoint(unittest.TestCase):
+    def setUp(self) -> None:
+        tenant_name = "vespa-team"
+        application = "vespacloud-docsearch"
+
+        self.vespa_cloud = VespaCloud(
+            tenant=tenant_name,
+            application_root=application,
+            key_content=os.getenv("VESPA_TEAM_API_KEY", None),
+            application=application,
+            cluster="playground",
+        )
+
+    def test_cluster_endpoints(self):
+        all_endpoints = self.vespa_cloud.get_all_endpoints(environment="prod")
+        self.assertGreater(len(all_endpoints), 2)
+        playground_endpoint = self.vespa_cloud.get_mtls_endpoint(
+            cluster="playground", environment="prod"
+        )
+        self.assertIn("vespa-app.cloud/", playground_endpoint)
+        default_endpoint = self.vespa_cloud.get_mtls_endpoint(
+            cluster="default", environment="prod"
+        )
+        self.assertIn("vespa-app.cloud/", default_endpoint)

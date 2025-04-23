@@ -1,0 +1,101 @@
+site_name: Vespa python API
+site_url: ""
+repo_url: https://github.com/vespa-engine/pyvespa
+docs_dir: docs/sphinx/source
+exclude_docs: 'conf.py'
+
+use_directory_urls: false
+theme:
+  name: material
+  logo: _static/logo/Vespa-logo-white-rgb.svg
+  favicon: _static/logo-symbol/Vespa-isolated-symbol-white-rgb.svg
+  font:
+    text: Merriweather Sans
+    code: Red Hat Mono
+  palette:
+  #dark
+  - scheme: slate
+    toggle: 
+      icon: material/weather-sunny
+      name: Dark mode
+    primary: green
+    accent: yellow
+  #light
+  - scheme: default
+    toggle:
+      icon: material/weather-night
+      name: Light mode
+    primary: green
+    accent: deep purple
+  features:
+      - content.code.copy
+
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.highlight:
+        anchor_linenums: true
+        line_spans: __span
+        pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  
+
+nav:
+  - Hybrid Search - Quickstart: getting-started-pyvespa.ipynb
+  - Hybrid Search - Quickstart on Vespa Cloud: getting-started-pyvespa-cloud.ipynb
+  - Advanced Configuration: advanced-configuration.ipynb
+  - Authenticating to Vespa Cloud: authenticating-to-vespa-cloud.ipynb
+  - Application packages: application-packages.ipynb
+  - Querying Vespa: query.ipynb
+  - Read and write operations: reads-writes.ipynb
+  - Evaluating a Vespa Application: evaluating-vespa-application-cloud.ipynb
+  - Troubleshooting: troubleshooting.md
+  - Examples: /examples/*
+  - API Reference: 
+      - api/summary.md
+      - Application: api/vespa/application.md
+      - Deployment: api/vespa/deployment.md
+      - Evaluation: api/vespa/evaluation.md
+      - Exceptions: api/vespa/exceptions.md
+      - IO: api/vespa/io.md
+      - Package: api/vespa/package.md
+      - Querybuilder: 
+          - api/vespa/querybuilder/builder/builder.md
+          - Grouping: api/vespa/querybuilder/grouping/grouping.md
+plugins:
+    - search
+    - autorefs
+    - mkdocs-jupyter:
+        ignore_h1_titles: True
+    - mkdocstrings:
+        handlers:
+            python:
+              paths: [.] 
+              options:
+                  crossref_replace: true
+                  docstring_style: google
+                  show_source: false
+                  show_symbol_type_heading: true
+                  docstring_section_style: table
+                  show_symbol_type_toc: true 
+                  show_root_heading: true
+                  show_root_toc_entry: true
+                  members_order: source
+                  merge_init_into_class: true
+                  annotations_path: brief
+
+    - mkdocs-autoapi:
+        autoapi_add_nav_entry: False
+        autoapi_dir: vespa
+        autoapi_keep_files: True
+        autoapi_root: api
+        autoapi_ignore:
+            - "configuration/*"
+            - "configuration/*/*"
+            - "resources/*"
+            - "utils/*"
+        autoapi_file_patterns:
+            - "*.py"

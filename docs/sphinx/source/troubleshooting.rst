@@ -18,7 +18,7 @@ Docker Memory
 -------------
 pyvespa will start a Docker container with 4G memory by default -
 make sure Docker settings have at least this.
-Use the Docker Desktop settings or ``docker info | grep "Total Memory"`` to validate.
+Use the Docker Desktop settings or ``docker info | grep "Total Memory"`` or ``podman info | grep "memTotal"`` to validate.
 
 
 Port conflicts / Docker
@@ -62,7 +62,7 @@ Future pyvespa versions might throw an exception in these cases.
 See `Feed block <https://docs.vespa.ai/en/operations/feed-block.html>`__ -
 Vespa stops writes before the disk goes full.
 Add more disk / clean up, or follow the
-`example <https://pyvespa.readthedocs.io/en/latest/application-packages.html#Deploy-from-modified-files>`__
+`example <https://vespa-engine.github.io/pyvespa/application-packages.html#Deploy-from-modified-files>`__
 to reconfigure for higher usage.
 
 

@@ -40,16 +40,20 @@ VESPA_HOME = Path(os.getenv("VESPA_HOME", Path.home() / ".vespa"))
 class VespaDeployment:
     def read_app_package_from_disk(self, application_root: Path) -> bytes:
         """
-        Read the contents of an application package on disk into a zip file.
+        Reads the contents of an application package on disk into a zip file.
 
-        :param application_root: Application package directory root
-        :return: The zipped application package as bytes.
+        Args:
+            application_root (str): The directory root of the application package.
+
+        Returns:
+            bytes: The zipped application package.
         """
+
         tmp_zip = "tmp_app_package.zip"
         orig_dir = os.getcwd()
         zipf = zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED)
         os.chdir(application_root)  # Workaround to avoid the top-level directory
-        for root, dirs, files in os.walk("."):
+        for root, dirs, files in os.walk(".", followlinks=True):
             for file in files:
                 zipf.write(os.path.join(root, file))
         zipf.close()
@@ -78,31 +82,33 @@ class VespaDocker(VespaDeployment):
 
         Make sure to start the Docker daemon before instantiating this class.
 
-        Example usage::
-
+        Example usage:
+            ```python
             from vespa.deployment import VespaDocker
 
-            #
             vespa_docker = VespaDocker(port=8080)
             # or initialize from a running container:
-            vespa_docker
-            VespaDocker('http://localhost', 8080, None, None, 4294967296, 'vespaengine/vespa')
+            vespa_docker = VespaDocker('http://localhost', 8080, None, None, 4294967296, 'vespaengine/vespa')
+            ```
 
         **Note**:
 
         It is **NOT** possible to refer to Volume Mounts in your Application Package.
-        This means that for example .onnx-model files that is part of the Application Package **must** be on your host machine, so
+        This means that for example .onnx-model files that are part of the Application Package **must** be on your host machine, so
         that it can be uploaded as part of the Application Package to the Vespa container.
 
-        :param port: Container port. Default is 8080.
-        :param cfgsrv_port: Vespa Config Server port. Default is 19071.
-        :param debug_port: Port to connect to, to debug the vespa container. Default is 5005.
-        :param output_file: Output file to write output messages.
-        :param container_memory: Docker container memory available to the application in bytes. Default is 4GB.
-        :param container: Used when instantiating VespaDocker from a running container.
-        :param volumes: A list of strings which each one of its elements specifies a mount volume. For example: `['/home/user1/:/mnt/vol2','/var/www:/mnt/vol1']`. NB! The Application Package can NOT refer to Volume Mount paths. See note above.
-        :param container_image: Docker container image.
+        Args:
+            port (int): The port for the container. Default is 8080.
+            cfgsrv_port (int): The Vespa Config Server port. Default is 19071.
+            debug_port (int): The port to connect to for debugging the Vespa container. Default is 5005.
+            output_file (str): The file to write output messages to.
+            container_memory (int): Memory available to the container in bytes. Default is 4GB.
+            container (str, optional): Used when instantiating `VespaDocker` from a running container.
+            volumes (list of str, optional): A list of volume mount strings, such as `['/home/user1/:/mnt/vol2', '/var/www:/mnt/vol1']`. The Application Package cannot reference volume mounts.
+            container_image (str): The Docker container image to use.
+
         """
+
         self.container = container
         container_id = None
         container_name = None
@@ -154,11 +160,17 @@ class VespaDocker(VespaDeployment):
         """
         Instantiate VespaDocker from a running container.
 
-        :param name_or_id: Name or id of the container.
-        :param output_file: Output file to write output messages.
-        :raises ValueError: Exception if container not found
-        :return: VespaDocker instance associated with the running container.
+        Args:
+            name_or_id (str): The name or id of the running container.
+            output_file (str): The file to write output messages to.
+
+        Raises:
+            ValueError: If the specified container is not found.
+
+        Returns:
+            VespaDocker: An instance of VespaDocker associated with the running container.
         """
+
         client = docker.from_env()
         try:
             container = client.containers.get(name_or_id)
@@ -193,12 +205,15 @@ class VespaDocker(VespaDeployment):
         """
         Deploy the application package into a Vespa container.
 
-        :param application_package: ApplicationPackage to be deployed.
-        :param max_wait_configserver: Seconds to wait for the config server to start.
-        :param max_wait_deployment: Seconds to wait for the deployment.
-        :param max_wait_docker: Seconds to wait for the docker container to start.
-        :param debug: Add the configured debug_port to the docker port mapping.
-        :return: a Vespa connection instance.
+        Args:
+            application_package (ApplicationPackage): The application package to be deployed.
+            max_wait_configserver (int): Maximum seconds to wait for the config server to start.
+            max_wait_deployment (int): Maximum seconds to wait for the deployment to complete.
+            max_wait_docker (int): Maximum seconds to wait for the Docker container to start.
+            debug (bool): If True, adds the configured debug_port to the Docker port mapping.
+
+        Returns:
+            VespaConnection: A Vespa connection instance once the deployment is complete.
         """
         return self._deploy_data(
             application_package,
@@ -220,14 +235,19 @@ class VespaDocker(VespaDeployment):
     ) -> Vespa:
         """
         Deploy from a directory tree.
-        Used when making changes to application package files not supported by pyvespa -
-        this is why this method is not found in the ApplicationPackage class.
 
-        :param application_name: Application package name.
-        :param application_root: Application package directory root
-        :param debug: Add the configured debug_port to the docker port mapping.
-        :return: a Vespa connection instance.
+        This method is used when making changes to application package files that are not supported by pyvespa.
+        This is why this method is not found in the ApplicationPackage class.
+
+        Args:
+            application_name (str): The name of the application package.
+            application_root (str): The root directory of the application package.
+            debug (bool): If True, adds the configured debug_port to the Docker port mapping.
+
+        Returns:
+            VespaConnection: A Vespa connection instance once the deployment is complete.
         """
+
         data = self.read_app_package_from_disk(application_root)
         return self._deploy_data(
             ApplicationPackage(name=application_name),
@@ -240,12 +260,18 @@ class VespaDocker(VespaDeployment):
 
     def wait_for_config_server_start(self, max_wait: int = 300) -> None:
         """
-        Waits for Config Server to start inside the Docker image
+        Waits for the Config Server to start inside the Docker image.
 
-        :param max_wait: Seconds to wait for the application endpoint
-        :raises RuntimeError: Raises runtime error if the config server does not start within max_wait
-        :return:
+        Args:
+            max_wait (int): The maximum number of seconds to wait for the application endpoint to become available.
+
+        Raises:
+            RuntimeError: If the config server does not start within the specified max_wait time.
+
+        Returns:
+            None
         """
+
         try_interval = 5
         waited = 0
         while not self._check_configuration_server() and (waited < max_wait):
@@ -265,13 +291,18 @@ class VespaDocker(VespaDeployment):
 
     def start_services(self, max_wait: int = 120) -> None:
         """
-        Start Vespa services inside the docker image, first waiting for the Config Server, then for other services.
+        Start Vespa services inside the Docker image, first waiting for the Config Server, then for other services.
 
-        :param max_wait: Seconds to wait for the application endpoint
+        Args:
+            max_wait (int): The maximum number of seconds to wait for the application endpoint to become available.
 
-        :raises RuntimeError: if a container has not been set
-        :return: None
+        Raises:
+            RuntimeError: If a container has not been set or the services fail to start within the specified max_wait time.
+
+        Returns:
+            None
         """
+
         if self.container:
             start_config = self.container.exec_run(
                 "bash -c '/opt/vespa/bin/vespa-start-configserver'"
@@ -296,11 +327,15 @@ class VespaDocker(VespaDeployment):
 
     def stop_services(self) -> None:
         """
-        Stop Vespa services inside the docker image, first stopping the services, then stopping the Config Server.
+        Stop Vespa services inside the Docker image, first stopping the services, then stopping the Config Server.
 
-        :raises RuntimeError: if a container has not been set
-        :return: None
+        Raises:
+            RuntimeError: If a container has not been set or an error occurs while stopping the services.
+
+        Returns:
+            None
         """
+
         if self.container:
             stop_services = self.container.exec_run(
                 "bash -c '/opt/vespa/bin/vespa-stop-services'"
@@ -317,10 +352,14 @@ class VespaDocker(VespaDeployment):
 
     def restart_services(self) -> None:
         """
-        Restart Vespa services inside the docker image, it is equivalent to calling self.stop_services() followed by self.start_services().
+        Restart Vespa services inside the Docker image. This is equivalent to calling 
+        `self.stop_services()` followed by `self.start_services()`.
 
-        :raises RuntimeError: if a container has not been set
-        :return: None
+        Raises:
+            RuntimeError: If a container has not been set or an error occurs during the restart process.
+
+        Returns:
+            None
         """
         self.stop_services()
         self.start_services()
@@ -342,14 +381,18 @@ class VespaDocker(VespaDeployment):
         docker_timeout: int,
     ) -> Vespa:
         """
-        Deploys an Application Package as zipped data
+        Deploys an Application Package as zipped data.
 
-        :param application: Application package
-        :param max_wait_configserver: Seconds to wait for the config server to start
-        :param max_wait_application: Seconds to wait for the application deployment
+        Args:
+            application (ApplicationPackage): The application package to be deployed.
+            max_wait_configserver (int): Seconds to wait for the config server to start.
+            max_wait_application (int): Seconds to wait for the application deployment.
 
-        :raises RuntimeError: Exception if deployment fails
-        :return: A Vespa connection instance
+        Raises:
+            RuntimeError: If the deployment fails or if there is an issue with the application package.
+
+        Returns:
+            Vespa: A Vespa connection instance after the deployment is successful.
         """
         self._run_vespa_engine_container(
             application_name=application.name,
@@ -434,8 +477,10 @@ class VespaDocker(VespaDeployment):
 
     def _check_configuration_server(self) -> bool:
         """
-        Check if configuration server is running and ready for deployment
-        :return: True if configuration server is running.
+        Check if the configuration server is running and ready for deployment.
+
+        Returns:
+            bool: True if the configuration server is running and ready for deployment, False otherwise.
         """
         if self.container is None:
             return False
@@ -458,20 +503,20 @@ class VespaCloud(VespaDeployment):
         auth_client_token_id: Optional[str] = None,
         output_file: IO = sys.stdout,
         application_root: Optional[str] = None,
+        cluster: Optional[str] = None,
+        instance: str = "default",
     ) -> None:
         """
-        Deploy application to the Vespa Cloud (cloud.vespa.ai)
+        Deploy an application to the Vespa Cloud (cloud.vespa.ai).
+
         There are several ways to initialize VespaCloud:
-        The choices are:
-        - Application source: From python-defined application package or from application_root folder.
-        - Control plane access: With api-key (must be added to Vespa Cloud Console) or access token, obtained by interactive login.
-        - Data plane access: mTLS is used by default, but Vespa applications can also be configured to use token based authentication. (token must be added to Vespa Cloud Console, and corresponding auth_token_id must be provided)
+        - Application source: From a Python-defined application package or from the application_root folder.
+        - Control plane access: Using an API key (must be added to Vespa Cloud Console) or an access token, obtained by interactive login.
+        - Data plane access: mTLS is used by default, but Vespa applications can also be configured to use token-based authentication (token must be added to Vespa Cloud Console, and the corresponding auth_token_id must be provided).
 
-        Below are some examples of how to initialize VespaCloud.
-
-        Example usage::
-
-            # 1. Initialize VespaCloud with application package and existing api-key for control plane access.
+        Example usage:
+            ```python
+            # 1. Initialize VespaCloud with an application package and existing API key for control plane access.
             vespa_cloud = VespaCloud(
                 tenant="my-tenant",
                 application="my-application",
@@ -486,26 +531,32 @@ class VespaCloud(VespaDeployment):
                 application_root="/path/to/application",
             )
 
-            # 3. Initialize VespaCloud with application package and token based data plane access.
+            # 3. Initialize VespaCloud with an application package and token-based data plane access.
             vespa_cloud = VespaCloud(
                 tenant="my-tenant",
                 application="my-application",
                 application_package=app_package,
                 auth_client_token_id="my-token-id", # Must be added in Vespa Cloud Console
             )
+            ```
 
+        Args:
+            tenant (str): Tenant name registered in the Vespa Cloud.
+            application (str): Application name in the Vespa Cloud.
+            application_package (ApplicationPackage): Application package to be deployed. Either this or application_root must be set.
+            key_location (str, optional): Location of the control plane key used for signing HTTP requests to the Vespa Cloud.
+            key_content (str, optional): Content of the control plane key used for signing HTTP requests to the Vespa Cloud. Use only when the key file is not available.
+            auth_client_token_id (str, optional): Token-based data plane authentication. This token name must be configured in the Vespa Cloud Console. It configures Vespa's services.xml, and the token must have read and write permissions.
+            output_file (str, optional): Output file to write output messages. Default is sys.stdout.
+            application_root (str, optional): Directory for the application root (location of services.xml, models/, schemas/, etc.). If the application is packaged with Maven, use the generated `<myapp>/target/application` directory.
+            cluster (str, optional): Name of the cluster to target when retrieving endpoints. This affects which endpoints are used for initializing the :class:`Vespa` instance in `VespaCloud.get_application` and `VespaCloud.deploy`.
+            instance (str, optional): Name of the application instance. Default is "default".
 
-        :param tenant: Tenant name registered in the Vespa Cloud.
-        :param application: Application name in the Vespa Cloud.
-        :param application_package: ApplicationPackage to be deployed. Either this or application_root must be set.
-        :param key_location: Location of the control plane key used for signing HTTP requests to the Vespa Cloud.
-        :param key_content: Content of the control plane key used for signing HTTP requests to the Vespa Cloud. Use only when
-            key file is not available.
-        :param auth_client_token_id: Use token based data plane authentication. This is the token name configured in the Vespa Cloud Console.
-            This is used to configure Vespa services.xml. The token is given read and write permissions. If initiliazing from application_root, make sure
-            that services.xml is configured to use the provided token_id.
-        :param output_file: Output file to write output messages. Default is sys.stdout
-        :param application_root: Directory for application root. (location of services.xml, models/, schemas/, etc.). If application is packaged with maven, use the generated <myapp>/target/application directory.
+        Raises:
+            RuntimeError: If deployment fails.
+            
+        Returns:
+            Vespa: A Vespa connection instance for interacting with the deployed application.
         """
         self.tenant = tenant
         self.application = application
@@ -515,6 +566,7 @@ class VespaCloud(VespaDeployment):
             raise ValueError(
                 "Either application_package or application_root must be set for deployment."
             )
+        self.instance = instance
         self.output = output_file
         self.api_key = self._read_private_key(key_location, key_content)
         self.control_plane_auth_method = None  # "api_key" or "access_token"
@@ -566,6 +618,7 @@ class VespaCloud(VespaDeployment):
         self.pyvespa_version = vespa.__version__
         self.base_headers = {"User-Agent": f"pyvespa/{self.pyvespa_version}"}
         self.auth_client_token_id = auth_client_token_id
+        self.cluster = cluster
         if auth_client_token_id is not None:
             if self.application_package is not None:
                 # TODO: Should add some check to see if the auth_client_token_id is added to AuthClients.
@@ -609,17 +662,23 @@ class VespaCloud(VespaDeployment):
         self,
         instance: Optional[str] = "default",
         disk_folder: Optional[str] = None,
-        max_wait: int = 300,
+        version: Optional[str] = None,
+        max_wait: int = 1800,
     ) -> Vespa:
         """
         Deploy the given application package as the given instance in the Vespa Cloud dev environment.
 
-        :param instance: Name of this instance of the application, in the Vespa Cloud.
-        :param disk_folder: Disk folder to save the required Vespa config files. Default to application name
-            folder within user's current working directory.
-        :param max_wait: Seconds to wait for the deployment.
+        Args:
+            instance (str): Name of this instance of the application in the Vespa Cloud.
+            disk_folder (str, optional): Disk folder to save the required Vespa config files. Defaults to the application name folder within the user's current working directory.
+            version (str, optional): Vespa version to use for deployment. Defaults to None, meaning the latest version. Should only be set based on instructions from the Vespa team. Must be a valid Vespa version, e.g., "8.435.13".
+            max_wait (int, optional): Seconds to wait for the deployment to complete.
 
-        :return: a Vespa connection instance. Returns a connection to the mtls endpoint. To connect to the token endpoint, use :func:`VespaCloud.get_application(endpoint_type="token")`.
+        Returns:
+            Vespa: A Vespa connection instance. This instance connects to the mTLS endpoint. To connect to the token endpoint, use `VespaCloud.get_application(endpoint_type="token")`.
+
+        Raises:
+            RuntimeError: If deployment fails or if there are issues with the deployment process.
         """
         if not disk_folder:
             disk_folder = os.path.join(os.getcwd(), self.application)
@@ -627,8 +686,14 @@ class VespaCloud(VespaDeployment):
 
         region = self.get_dev_region()
         job = "dev-" + region
-        run = self._start_deployment(instance, job, disk_folder, None)
-        self._follow_deployment(instance, job, run)
+        run = self._start_deployment(
+            instance=instance or self.instance,
+            job=job,
+            disk_folder=disk_folder,
+            application_zip_bytes=None,
+            version=version,
+        )
+        self._follow_deployment(instance, job, run, max_wait)
         app: Vespa = self.get_application(
             instance=instance, environment="dev", endpoint_type="mtls"
         )
@@ -647,11 +712,16 @@ class VespaCloud(VespaDeployment):
         If submitting an application that is not yet packaged, tests should be located in <application_root>/tests.
         If submitting an application packaged with maven, application_root should refer to the generated <myapp>/target/application directory.
 
-        :param instance: Name of this instance of the application, in the Vespa Cloud.
-        :param application_root: Path to either save the required Vespa config files (if initialized with application_package) or read them from (if initialized with application_root).
-        :param source_url: Optional source URL (including commit hash) for the deployment. This is a URL to the source code repository, e.g. GitHub, that is used to build the application package. Example: https://github.com/vespa-cloud/vector-search/commit/474d7771bd938d35dc5dcfd407c21c019d15df3c.
-            The source URL will show up in the Vespa Cloud Console next to the build number.
+        Args:
+            instance (str): Name of this instance of the application in the Vespa Cloud.
+            application_root (str): Path to either save the required Vespa config files (if initialized with application_package) or read them from (if initialized with application_root).
+            source_url (str, optional): Optional source URL (including commit hash) for the deployment. This is a URL to the source code repository, e.g., GitHub, that is used to build the application package. Example: <https://github.com/vespa-cloud/vector-search/commit/474d7771bd938d35dc5dcfd407c21c019d15df3c>. The source URL will show up in the Vespa Cloud Console next to the build number.
 
+        Raises:
+            RuntimeError: If deployment fails or if there are issues with the deployment process.
+
+        Note:
+            This feature is still experimental and may not have full stability in production. Future releases will provide better support for this functionality.
         """
         logging.warning(
             "Deploying to production is in beta and may fail in unexpected ways. Expect better support in future releases."
@@ -713,21 +783,28 @@ class VespaCloud(VespaDeployment):
         Get a connection to the Vespa application instance.
         Will only work if the application is already deployed.
 
-        Example usage::
-
+        Example usage:
+            ```python
             vespa_cloud = VespaCloud(...)
             app: Vespa = vespa_cloud.get_application()
             # Feed, query, visit, etc.
+            ```
 
-        :param instance: Name of this instance of the application, in the Vespa Cloud. Default is "default".
-        :param environment: Environment of the application. Default is "dev". Options are "dev" or "prod".
-        :param endpoint_type: Type of endpoint to connect to. Default is "mtls". Options are "mtls" or "token".
-        :param vespa_cloud_secret_token: Vespa Cloud Secret Token. Only required if endpoint_type is "token".
-        :param region: Region of the application in Vespa cloud, eg "aws-us-east-1c". If not provided, the first region from the environment will be used.
-        :param max_wait: Seconds to wait for the application to be up. Default is 60 seconds.
+        Args:
+            instance (str, optional): Name of this instance of the application in the Vespa Cloud. Default is "default".
+            environment (str, optional): Environment of the application. Default is "dev". Options are "dev" or "prod".
+            endpoint_type (str, optional): Type of endpoint to connect to. Default is "mtls". Options are "mtls" or "token".
+            vespa_cloud_secret_token (str, optional): Vespa Cloud Secret Token. Only required if endpoint_type is "token".
+            region (str, optional): Region of the application in Vespa Cloud, e.g., "aws-us-east-1c". If not provided, the first region from the environment will be used.
+            max_wait (int, optional): Seconds to wait for the application to be up. Default is 60 seconds.
 
-        :return: Vespa application instance.
+        Returns:
+            Vespa: Vespa application instance.
+
+        Raises:
+            RuntimeError: If the application is not yet deployed or there are issues retrieving the connection.
         """
+
         if endpoint_type not in ["mtls", "token"]:
             raise ValueError("Endpoint type must be 'mtls' or 'token'.")
         if environment == "dev":
@@ -736,7 +813,7 @@ class VespaCloud(VespaDeployment):
                 f"Only region: {region} available in dev environment.", file=self.output
             )
         elif environment == "prod":
-            valid_regions = self.get_prod_regions(instance=instance)
+            valid_regions = self.get_prod_regions(instance=instance or self.instance)
             if region is not None:
                 if region not in valid_regions:
                     raise ValueError(
@@ -748,7 +825,9 @@ class VespaCloud(VespaDeployment):
             raise ValueError("Environment must be 'dev' or 'prod'.")
         if endpoint_type == "mtls":
             mtls_endpoint = self.get_mtls_endpoint(
-                instance=instance, region=region, environment=environment
+                instance=instance or self.instance,
+                region=region,
+                environment=environment,
             )
             app: Vespa = Vespa(
                 url=mtls_endpoint,
@@ -759,7 +838,9 @@ class VespaCloud(VespaDeployment):
         elif endpoint_type == "token":
             try:  # May have client_token_id set but the deployed app was not configured to use it
                 token_endpoint = self.get_token_endpoint(
-                    instance=instance, region=region, environment=environment
+                    instance=instance or self.instance,
+                    region=region,
+                    environment=environment,
                 )
             except Exception as _:
                 raise ValueError(
@@ -782,8 +863,8 @@ class VespaCloud(VespaDeployment):
         Check the status of a production build.
         Useful for example in CI/CD pipelines to check when a build has converged.
 
-        Example usage::
-
+        Example usage:
+            ```python
             vespa_cloud = VespaCloud(...)
             build_no = vespa_cloud.deploy_to_prod()
             status = vespa_cloud.check_production_build_status(build_no)
@@ -804,10 +885,20 @@ class VespaCloud(VespaDeployment):
             #     "deployed": False,
             #     "status": "done"
             # }
+            ```
 
-        :param build_no: The build number to check.
-        :return: dict with the aggregated status of all deployment jobs for the given build number.
+        Args:
+            build_no (int): The build number to check.
+
+        Returns:
+            dict: A dictionary with the aggregated status of all deployment jobs for the given build number. The dictionary contains:
+                - "deployed" (bool): Whether the build has successfully converged.
+                - "status" (str): The current status of the build ("done", "deploying").
+
+        Raises:
+            RuntimeError: If there are issues with retrieving the status of the build.
         """
+
         if build_no is None:
             if self.build_no is None:
                 raise ValueError("No build number provided, and no build number set.")
@@ -830,20 +921,25 @@ class VespaCloud(VespaDeployment):
         Wait for a production deployment to finish.
         Useful for example in CI/CD pipelines to wait for a deployment to finish.
 
-        Example usage::
-
+        Example usage:
+            ```python
             vespa_cloud = VespaCloud(...)
             build_no = vespa_cloud.deploy_to_prod()
             success = vespa_cloud.wait_for_prod_deployment(build_no, max_wait=3600, poll_interval=5)
             print(success)
-            True
+            # Output: True
+            ```
 
-        :param build_no: The build number to check.
-        :param max_wait: Maximum time to wait for the deployment in seconds. Default is 3600 (1 hour).
-        :param poll_interval: Polling interval in seconds. Default is 5 seconds.
+        Args:
+            build_no (int): The build number to check.
+            max_wait (int, optional): Maximum time to wait for the deployment in seconds. Default is 3600 (1 hour).
+            poll_interval (int, optional): Polling interval in seconds. Default is 5 seconds.
 
-        :return: True if the deployment is done and converged. False if the deployment has failed.
-        :raises TimeoutError: If the deployment did not finish within max_wait seconds.
+        Returns:
+            bool: True if the deployment is done and converged, False if the deployment has failed.
+
+        Raises:
+            TimeoutError: If the deployment did not finish within `max_wait` seconds.
         """
         start_time = time.time()
         while time.time() - start_time < max_wait:
@@ -854,18 +950,39 @@ class VespaCloud(VespaDeployment):
         raise TimeoutError(f"Deployment did not finish within {max_wait} seconds. ")
 
     def deploy_from_disk(
-        self, instance: str, application_root: Path, max_wait: int = 300
+        self,
+        instance: str,
+        application_root: Path,
+        max_wait: int = 300,
+        version: Optional[str] = None,
     ) -> Vespa:
         """
-        Deploy to dev from a directory tree.
-        Used when making changes to application package files not supported by pyvespa.
-        NB: Requires certificate and key to be generated with 'vespa auth cert'.
+        Deploy to the development environment from a directory tree.
+        This method is used when making changes to application package files that are not supported by pyvespa.
+        Note: Requires a certificate and key to be generated using 'vespa auth cert'.
 
-        :param instance: Name of the instance where the application is to be run
-        :param application_root: Application package directory root
-        :param max_wait: Seconds to wait for the deployment.
-        :return: a Vespa connection instance.  Returns a connection to the mtls endpoint. To connect to the token endpoint, use :func:`VespaCloud.get_application(endpoint_type="token")`.
+        Example usage:
+            ```python
+            vespa_cloud = VespaCloud(...)
+            vespa_cloud.deploy_to_dev_from_directory(
+                instance="my-instance",
+                application_root="/path/to/application",
+                max_wait=3600,
+                version="8.435.13"
+            )
+            ```
+
+
+        Args:
+            instance (str): The name of the instance where the application will be run.
+            application_root (str): The root directory of the application package.
+            max_wait (int, optional): The maximum number of seconds to wait for the deployment. Default is 3600 (1 hour).
+            version (str, optional): The Vespa version to use for the deployment. Default is None, which means the latest version. It must be a valid Vespa version (e.g., "8.435.13").
+
+        Returns:
+            Vespa: A Vespa connection instance. This connects to the mtls endpoint. To connect to the token endpoint, use `VespaCloud.get_application(endpoint_type="token")`.
         """
+
         data = BytesIO(self.read_app_package_from_disk(application_root))
 
         # Deploy the zipped application package
@@ -873,25 +990,37 @@ class VespaCloud(VespaDeployment):
         region = self.get_dev_region()
         job = "dev-" + region
         run = self._start_deployment(
-            instance, job, disk_folder, application_zip_bytes=data
+            instance=instance or self.instance,
+            job=job,
+            disk_folder=disk_folder,
+            application_zip_bytes=data,
+            version=version,
         )
         self._follow_deployment(instance, job, run)
-        run = self._start_deployment(instance, job, disk_folder, None)
-        self._follow_deployment(instance, job, run)
         app: Vespa = self.get_application(
-            instance=instance, environment="dev", endpoint_type="mtls"
+            instance=instance or self.instance, environment="dev", endpoint_type="mtls"
         )
         return app
 
     def delete(self, instance: Optional[str] = "default") -> None:
         """
-        Delete the specified instance from the dev environment in the Vespa Cloud.
-        (To delete a production instance, you need to submit a new deployment with `deployment-removal` added to 'validation-overrides.xml', see
-        https://cloud.vespa.ai/en/deleting-applications)
+        Delete the specified instance from the development environment in the Vespa Cloud.
+        To delete a production instance, you must submit a new deployment with `deployment-removal` added to the 'validation-overrides.xml'.
+        See <https://cloud.vespa.ai/en/deleting-applications> for more details.
 
-        :param instance: Name of the instance to delete.
-        :return:
+        Example usage:
+            ```python
+            vespa_cloud = VespaCloud(...)
+            vespa_cloud.delete_instance(instance="my-instance")
+            ```
+
+        Args:
+            instance (str): The name of the instance to delete.
+
+        Returns:
+            None
         """
+
         print(
             self._request(
                 "DELETE",
@@ -1029,9 +1158,7 @@ class VespaCloud(VespaDeployment):
         print(output.stdout.decode("utf-8"))
 
     def _set_application(self):
-        vespa_cli_command = (
-            f"vespa config set application {self.tenant}.{self.application}"
-        )
+        vespa_cli_command = f"vespa config set application {self.tenant}.{self.application}.{self.instance}"
         print("Running: " + vespa_cli_command)
         output = subprocess.run(
             shlex.split(vespa_cli_command),
@@ -1065,8 +1192,8 @@ class VespaCloud(VespaDeployment):
         else:
             # If cert/key not found in application root: look in ~/.vespa/tenant.app.default/
             home_vespa_dir = (
-                VESPA_HOME / f"{self.tenant}.{self.application}.default"
-            )  # TODO Support other instance names
+                VESPA_HOME / f"{self.tenant}.{self.application}.{self.instance}"
+            )
             cert, key = _check_dir(home_vespa_dir)
             if cert and key:
                 self.data_cert_path = cert
@@ -1149,19 +1276,21 @@ class VespaCloud(VespaDeployment):
         else:
             data = None
             content = None
-        with httpx.Client(
-            base_url=self.base_url,
-            headers=self.base_headers,
-            timeout=None,  # Need to set timeout to None to avoid httpx timeout on e.g. deployment requests
-            http1=True,
-            limits=self.httpx_limits,
-        ) as client:
+        with (
+            httpx.Client(
+                base_url=self.base_url,
+                headers=self.base_headers,
+                timeout=None,  # Need to set timeout to None to avoid httpx timeout on e.g. deployment requests
+                http1=True,
+                limits=self.httpx_limits,
+            ) as client
+        ):
             response = client.request(
                 method, path, data=data, content=content, headers=headers
             )
             if response.status_code != 200:
                 raise HTTPError(
-                    f"HTTP {response.status_code} error: {response.reason_phrase} for {path}"
+                    f"HTTP {response.status_code} reason: {response.reason_phrase} error_text: {response.text} for {path}"
                 )
         return response
 
@@ -1208,28 +1337,21 @@ class VespaCloud(VespaDeployment):
 
         return auth["providers"]["auth0"]["systems"]["public"]["access_token"]
 
-    def _request_with_access_token(
+    def _handle_response(
         self,
-        method: str,
-        path: str,
-        body: BytesIO = BytesIO(),
-        headers={},
-        return_raw_response=False,
+        response: httpx.Response,
+        return_raw_response: bool = False,
+        path: str = "",
     ) -> Union[dict, httpx.Response]:
-        if not self.control_plane_access_token:
-            raise ValueError("Access token not set.")
-        body.seek(0)
-        headers = {
-            "Authorization": "Bearer " + self.control_plane_access_token,
-            **headers,
-        }
-        response = self.get_connection_response_with_retry(method, path, body, headers)
+        """Common response handling logic"""
         if return_raw_response:
             return response
+
         try:
             parsed = json.load(response)
         except json.JSONDecodeError:
             parsed = response.read()
+
         if response.status_code != 200:
             print(parsed)
             raise HTTPError(
@@ -1237,8 +1359,41 @@ class VespaCloud(VespaDeployment):
             )
         return parsed
 
+    def _get_auth_headers(self, additional_headers: dict = {}) -> dict:
+        """Create authorization headers"""
+        if not self.control_plane_access_token:
+            raise ValueError("Access token not set.")
+
+        return {
+            "Authorization": f"Bearer {self.control_plane_access_token}",
+            **additional_headers,
+        }
+
+    def _request_with_access_token(
+        self,
+        method: str,
+        path: str,
+        body: Union[BytesIO, MultipartEncoder] = BytesIO(),
+        headers: dict = {},
+        return_raw_response: bool = False,
+    ) -> Union[dict, httpx.Response]:
+        """Make authenticated request with access token"""
+        if hasattr(body, "seek"):
+            body.seek(0)
+
+        auth_headers = self._get_auth_headers(headers)
+        response = self.get_connection_response_with_retry(
+            method, path, body, auth_headers
+        )
+
+        return self._handle_response(response, return_raw_response, path)
+
     def _request(
-        self, method: str, path: str, body: BytesIO = BytesIO(), headers={}
+        self,
+        method: str,
+        path: str,
+        body: Union[BytesIO, MultipartEncoder] = BytesIO(),
+        headers: dict = {},
     ) -> Union[dict, httpx.Response]:
         if self.control_plane_auth_method == "access_token":
             return self._request_with_access_token(method, path, body, headers)
@@ -1253,44 +1408,54 @@ class VespaCloud(VespaDeployment):
         self,
         method: str,
         path: str,
-        body: BytesIO = BytesIO(),
-        headers={},
-        return_raw_response=False,
+        body: Union[BytesIO, MultipartEncoder] = BytesIO(),
+        headers: dict = {},
+        return_raw_response: bool = False,
     ) -> Union[dict, httpx.Response]:
         digest = hashes.Hash(hashes.SHA256(), default_backend())
-        body.seek(0)
-        digest.update(body.read())
+
+        # Handle different body types
+        if isinstance(body, MultipartEncoder):
+            # Use the encoded data for hash computation
+            digest = hashes.Hash(hashes.SHA256(), default_backend())
+            digest.update(body.to_string())  # This moves the buffer position to the end
+            body._buffer.seek(0)  # Needs to be reset. Otherwise, no data will be sent
+            # Update the headers to include the Content-Type
+            headers.update({"Content-Type": body.content_type})
+            # Read the content of multipart_data into a bytes object
+            multipart_data_bytes: bytes = body.to_string()
+            headers.update({"Content-Length": str(len(multipart_data_bytes))})
+            # Convert multipart_data_bytes to type BytesIO
+            body_data: BytesIO = BytesIO(multipart_data_bytes)
+        else:
+            if hasattr(body, "seek"):
+                body.seek(0)
+            digest.update(body.read())
+            body_data = body
+        # Create signature
         content_hash = standard_b64encode(digest.finalize()).decode("UTF-8")
-        timestamp = (
-            datetime.utcnow().isoformat() + "Z"
-        )  # Java's Instant.parse requires the neutral time zone appended
+        timestamp = datetime.utcnow().isoformat() + "Z"
         url = self.base_url + path
 
         canonical_message = method + "\n" + url + "\n" + timestamp + "\n" + content_hash
         signature = self.api_key.sign(
             canonical_message.encode("UTF-8"), ec.ECDSA(hashes.SHA256())
         )
+        signature_b64 = standard_b64encode(signature).decode("UTF-8")
 
         headers = {
             "X-Timestamp": timestamp,
             "X-Content-Hash": content_hash,
-            "X-Key-Id": self.tenant + ":" + self.application + ":" + "default",
+            "X-Key-Id": f"{self.tenant}:{self.application}:default",
             "X-Key": self.api_public_key_bytes,
-            "X-Authorization": standard_b64encode(signature),
+            "X-Authorization": signature_b64,
             **headers,
         }
 
-        body.seek(0)
-        response = self.get_connection_response_with_retry(method, path, body, headers)
-        if return_raw_response:
-            return response
-        parsed = json.load(response)
-        if response.status_code != 200:
-            print(parsed)
-            raise HTTPError(
-                f"HTTP {response.status_code} error: {response.reason_phrase} for {url}"
-            )
-        return parsed
+        response = self.get_connection_response_with_retry(
+            method, path, body_data, headers
+        )
+        return self._handle_response(response, return_raw_response, path)
 
     def get_all_endpoints(
         self,
@@ -1298,6 +1463,18 @@ class VespaCloud(VespaDeployment):
         region: Optional[str] = None,
         environment: Optional[str] = "dev",
     ) -> List[Dict[str, str]]:
+        """
+        Get all endpoints for the application instance.
+
+        Args:
+            instance (str): Application instance name.
+            region (str): Region name, e.g. 'aws-us-east-1c'.
+            environment (str): Environment (dev/prod).
+
+        Returns:
+            list: List of endpoints.
+        """
+
         if region is None:
             if environment == "dev":
                 region = self.get_dev_region()
@@ -1321,6 +1498,19 @@ class VespaCloud(VespaDeployment):
         region: Optional[str] = None,
         environment: Optional[str] = "dev",
     ) -> str:
+        """
+        Get the authentication method for the given endpoint URL.
+
+        Args:
+            url (str): The endpoint URL.
+            instance (str): Application instance name.
+            region (str): Region name, e.g. 'aws-us-east-1c'.
+            environment (str): Environment (dev/prod).
+
+        Returns:
+            str: The authentication method ('mtls' or 'token').
+        """
+
         endpoints = self.get_all_endpoints(instance, region, environment)
         for endpoint in endpoints:
             if endpoint["url"] == url:
@@ -1336,13 +1526,33 @@ class VespaCloud(VespaDeployment):
         environment: Optional[str] = "dev",
         cluster: Optional[str] = None,
     ) -> str:
-        # TODO: Support multiple endpoints.
+        """
+        Get the endpoint URL for the application.
+
+        Tip: See the 'endpoint'-tab in Vespa Cloud Console for available endpoints.
+
+        Args:
+            auth_method (str): Authentication method. Options are 'mtls' or 'token'.
+            instance (str): Application instance name.
+            region (str): Region name, e.g. 'aws-us-east-1c'.
+            environment (str): Environment (dev/prod).
+            cluster (str): Specific cluster to get the endpoint for. If None, uses the instance's default cluster.
+
+        Returns:
+            str: The endpoint URL.
+        """
+        cluster = cluster or self.cluster
         auth_endpoints = []
+        available_clusters = set()
         endpoints = self.get_all_endpoints(instance, region, environment)
+
         for endpoint in endpoints:
             endpoint_cluster = endpoint.get("cluster", None)
+            available_clusters.add(endpoint_cluster)
+
             if cluster is not None and cluster != endpoint_cluster:
                 continue
+
             authMethod = endpoint.get("authMethod", None)
             if authMethod == auth_method:
                 print(
@@ -1350,35 +1560,79 @@ class VespaCloud(VespaDeployment):
                     file=self.output,
                 )
                 print(f"URL: {endpoint['url']}", file=self.output)
-                auth_endpoints.append(endpoint["url"])
-        if len(auth_endpoints) == 1:
-            return auth_endpoints[0]
-        elif len(auth_endpoints) > 1:
+                auth_endpoints.append((endpoint["url"], endpoint_cluster))
+
+        if len(auth_endpoints) == 0:
+            error_msg = f"No {auth_method} endpoints found for instance {instance}, region {region}, and environment {environment}"
+            if cluster:
+                error_msg += f"\nRequested cluster '{cluster}' not found. Available clusters: {sorted(available_clusters)}"
+            raise RuntimeError(error_msg)
+
+        if len(auth_endpoints) > 1:
+            if cluster:
+                matching = [
+                    url for url, ep_cluster in auth_endpoints if ep_cluster == cluster
+                ]
+                if matching:
+                    return matching[0]
             print(
-                f"Multiple {auth_method} endpoints found. Returning the first one.",
+                f"Multiple {auth_method} endpoints found. Available clusters: {sorted(c for _, c in auth_endpoints)}",
                 file=self.output,
             )
-            return auth_endpoints[0]
-        elif len(auth_endpoints) == 0:
-            raise RuntimeError(
-                f"No {auth_method} endpoints found for instance {instance}, region {region}, and environment {environment}."
-            )
+            print("Returning the first endpoint.", file=self.output)
+
+        return auth_endpoints[0][0]
 
     def get_mtls_endpoint(
         self,
         instance: Optional[str] = "default",
         region: Optional[str] = None,
         environment: Optional[str] = "dev",
+        cluster: Optional[str] = None,
     ) -> str:
-        return self.get_endpoint("mtls", instance, region, environment)
+        """
+        Get the endpoint URL of a mTLS endpoint for the application.
+        Will return the first mTLS endpoint found if multiple exist.
+        Use `VespaCloud.get_all_endpoints` to get all endpoints.
+
+        Tip: See the 'endpoint'-tab in Vespa Cloud Console for available endpoints.
+
+        Args:
+            instance (str): Application instance name.
+            region (str): Region name.
+            environment (str): Environment (dev/prod).
+            cluster (str): Specific cluster to get the endpoint for. If None, uses the instance's default cluster.
+
+        Returns:
+            str: The endpoint URL.
+        """
+
+        return self.get_endpoint("mtls", instance, region, environment, cluster)
 
     def get_token_endpoint(
         self,
         instance: Optional[str] = "default",
         region: Optional[str] = None,
         environment: Optional[str] = "dev",
+        cluster: Optional[str] = None,
     ) -> str:
-        return self.get_endpoint("token", instance, region, environment)
+        """
+        Get the endpoint URL of a token endpoint for the application.
+        Will return the first token endpoint found if multiple exist.
+        Use `VespaCloud.get_all_endpoints` to get all endpoints.
+
+        Tip: See the 'endpoint'-tab in Vespa Cloud Console for available endpoints.
+
+        Args:
+            instance (str): Application instance name.
+            region (str): Region name.
+            environment (str): Environment (dev/prod).
+            cluster (str): Specific cluster to get the endpoint for. If None, uses the instance's default cluster.
+
+        Returns:
+            str: The endpoint URL.
+        """
+        return self.get_endpoint("token", instance, region, environment, cluster)
 
     def _application_root_has_tests(self, application_root: str) -> bool:
         """Check if the application contains tests folder (recursively)"""
@@ -1535,6 +1789,7 @@ class VespaCloud(VespaDeployment):
         job: str,
         disk_folder: str,
         application_zip_bytes: Optional[BytesIO] = None,
+        version: Optional[str] = None,
     ) -> int:
         deploy_path = (
             "/application/v4/tenant/{}/application/{}/instance/{}/deploy/{}".format(
@@ -1548,11 +1803,30 @@ class VespaCloud(VespaDeployment):
         if not application_zip_bytes:
             application_zip_bytes = self._to_application_zip(disk_folder=disk_folder)
 
+        if version is not None:
+            # Create multipart form data
+            form_data = {
+                "applicationZip": (
+                    "application.zip",
+                    application_zip_bytes,
+                    "application/zip",
+                ),
+                "deployOptions": (
+                    "",
+                    json.dumps({"vespaVersion": version}),
+                    "application/json",
+                ),
+            }
+            multipart = MultipartEncoder(fields=form_data)
+            headers = {"Content-Type": multipart.content_type}
+            payload = multipart
+        else:
+            # Use existing direct zip upload
+            headers = {"Content-Type": "application/zip"}
+            payload = application_zip_bytes
+
         response = self._request(
-            "POST",
-            deploy_path,
-            application_zip_bytes,
-            {"Content-Type": "application/zip"},
+            method="POST", path=deploy_path, body=payload, headers=headers
         )
         message = response.get("message", "No message provided")
         print(message, file=self.output)
@@ -1613,9 +1887,12 @@ class VespaCloud(VespaDeployment):
 
         return buffer
 
-    def _follow_deployment(self, instance: str, job: str, run: int) -> None:
+    def _follow_deployment(
+        self, instance: str, job: str, run: int, max_wait: int = 1800
+    ) -> None:
         last = -1
-        while True:
+        start = time.time()
+        while time.time() - start < max_wait:
             try:
                 status, last = self._get_deployment_status(instance, job, run, last)
             except RuntimeError:
@@ -1627,6 +1904,7 @@ class VespaCloud(VespaDeployment):
                 return
             else:
                 raise RuntimeError("Unexpected status: {}".format(status))
+        raise TimeoutError(f"Deployment did not finish within {max_wait} seconds.")
 
     def _get_deployment_status(
         self, instance: str, job: str, run: int, last: int

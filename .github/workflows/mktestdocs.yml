@@ -1,0 +1,40 @@
+name: MKDocs test
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+jobs:
+  mk-docs-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install pandoc
+        run: |
+          sudo apt-get install -y pandoc
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+          cache: "pip"
+          cache-dependency-path: |
+            pyproject.toml
+
+      - name: Install dependencies
+        run: |
+          pip install -e .[docs]
+      - name: Run tests
+        run: |
+          pytest tests/mktestdocs -s -v
+      # Disable linkcheck for now
+      # - name: Convert notebooks to markdown
+      #   run: |
+      #     python3 -m nbconvert --to markdown docs/sphinx/source/*.ipynb
+      #     python3 -m nbconvert --to markdown docs/sphinx/source/examples/*.ipynb
+      # - name: Linkcheck
+      #   run: |
+      #     mkdocs-linkcheck docs/sphinx/source/

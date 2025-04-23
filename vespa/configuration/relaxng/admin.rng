@@ -1,0 +1,309 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<grammar xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <!-- Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->
+  <define name="Admin">
+    <choice>
+      <ref name="AdminV2"/>
+      <ref name="AdminV3"/>
+      <ref name="AdminV4"/>
+    </choice>
+  </define>
+  <define name="AdminV2">
+    <element name="admin">
+      <interleave>
+        <attribute name="version">
+          <value>2.0</value>
+        </attribute>
+        <optional>
+          <element name="adminserver">
+            <ref name="service.attlist"/>
+          </element>
+        </optional>
+        <zeroOrMore>
+          <ref name="GenericConfig"/>
+        </zeroOrMore>
+        <optional>
+          <ref name="LogServer"/>
+        </optional>
+        <optional>
+          <ref name="ConfigServers"/>
+        </optional>
+        <optional>
+          <ref name="AdminSlobroks"/>
+        </optional>
+        <optional>
+          <ref name="AdminMonitoring"/>
+        </optional>
+        <optional>
+          <ref name="Metrics"/>
+        </optional>
+        <optional>
+          <ref name="ClusterControllers"/>
+        </optional>
+        <optional>
+          <ref name="LoggingSpecs"/>
+        </optional>
+        <optional>
+          <ref name="LogForwarding"/>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="AdminV3">
+    <element name="admin">
+      <interleave>
+        <attribute name="version">
+          <value>3.0</value>
+        </attribute>
+        <zeroOrMore>
+          <ref name="GenericConfig"/>
+        </zeroOrMore>
+        <ref name="Nodes"/>
+      </interleave>
+    </element>
+  </define>
+  <define name="AdminV4">
+    <element name="admin">
+      <interleave>
+        <attribute name="version">
+          <value>4.0</value>
+        </attribute>
+        <optional>
+          <ref name="AdminV4Slobroks"/>
+        </optional>
+        <optional>
+          <ref name="AdminV4LogServers"/>
+        </optional>
+        <zeroOrMore>
+          <ref name="GenericConfig"/>
+        </zeroOrMore>
+        <optional>
+          <ref name="AdminMonitoring"/>
+        </optional>
+        <optional>
+          <ref name="Metrics"/>
+        </optional>
+        <optional>
+          <ref name="LoggingSpecs"/>
+        </optional>
+        <optional>
+          <ref name="LogForwarding"/>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="AdminV4Slobroks">
+    <element name="slobroks">
+      <ref name="OptionalDedicatedNodes"/>
+    </element>
+  </define>
+  <define name="AdminV4LogServers">
+    <element name="logservers">
+      <ref name="OptionalDedicatedNodes"/>
+    </element>
+  </define>
+  <define name="AdminSlobroks">
+    <element name="slobroks">
+      <oneOrMore>
+        <element name="slobrok">
+          <interleave>
+            <ref name="service.attlist"/>
+            <optional>
+              <attribute name="index">
+                <data type="nonNegativeInteger"/>
+              </attribute>
+            </optional>
+          </interleave>
+        </element>
+      </oneOrMore>
+    </element>
+  </define>
+  <define name="AdminMonitoring">
+    <element name="monitoring">
+      <optional>
+        <attribute name="interval">
+          <data type="int"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="systemname">
+          <data type="string"/>
+        </attribute>
+      </optional>
+    </element>
+  </define>
+  <define name="ConfigServer">
+    <element name="configserver">
+      <ref name="service.attlist"/>
+    </element>
+  </define>
+  <define name="ConfigServers">
+    <element name="configservers">
+      <oneOrMore>
+        <ref name="ConfigServer"/>
+      </oneOrMore>
+    </element>
+  </define>
+  <define name="LogServer">
+    <element name="logserver">
+      <ref name="service.attlist"/>
+    </element>
+  </define>
+  <define name="Metrics">
+    <element name="metrics">
+      <oneOrMore>
+        <element name="consumer">
+          <interleave>
+            <attribute name="id">
+              <data type="Name"/>
+            </attribute>
+            <zeroOrMore>
+              <element name="metric-set">
+                <attribute name="id">
+                  <data type="Name"/>
+                </attribute>
+              </element>
+            </zeroOrMore>
+            <zeroOrMore>
+              <element name="metric">
+                <interleave>
+                  <attribute name="id">
+                    <data type="Name"/>
+                  </attribute>
+                  <optional>
+                    <attribute name="display-name">
+                      <data type="Name"/>
+                    </attribute>
+                  </optional>
+                </interleave>
+              </element>
+            </zeroOrMore>
+            <optional>
+              <ref name="Cloudwatch"/>
+            </optional>
+          </interleave>
+        </element>
+      </oneOrMore>
+    </element>
+  </define>
+  <define name="Cloudwatch">
+    <element name="cloudwatch">
+      <interleave>
+        <attribute name="region">
+          <data type="Name"/>
+        </attribute>
+        <attribute name="namespace">
+          <data type="string">
+            <param name="pattern">[\w_\-/#:\.]+</param>
+          </data>
+        </attribute>
+        <optional>
+          <choice>
+            <element name="credentials">
+              <interleave>
+                <attribute name="access-key-name">
+                  <data type="Name"/>
+                </attribute>
+                <attribute name="secret-key-name">
+                  <data type="Name"/>
+                </attribute>
+              </interleave>
+            </element>
+            <element name="shared-credentials">
+              <interleave>
+                <attribute name="file">
+                  <data type="string" datatypeLibrary=""/>
+                </attribute>
+                <optional>
+                  <attribute name="profile">
+                    <data type="Name"/>
+                  </attribute>
+                </optional>
+              </interleave>
+            </element>
+          </choice>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+  <define name="ClusterControllers">
+    <element name="cluster-controllers">
+      <interleave>
+        <optional>
+          <attribute name="standalone-zookeeper">
+            <data type="string"/>
+          </attribute>
+        </optional>
+        <oneOrMore>
+          <element name="cluster-controller">
+            <ref name="service.attlist"/>
+          </element>
+        </oneOrMore>
+      </interleave>
+    </element>
+  </define>
+  <define name="LogForwarding">
+    <element name="logforwarding">
+      <interleave>
+        <optional>
+          <attribute name="include-admin">
+            <data type="boolean"/>
+          </attribute>
+        </optional>
+        <element name="splunk">
+          <interleave>
+            <optional>
+              <attribute name="splunk-home">
+                <data type="string"/>
+              </attribute>
+            </optional>
+            <attribute name="deployment-server">
+              <data type="string"/>
+            </attribute>
+            <attribute name="client-name">
+              <data type="string"/>
+            </attribute>
+            <optional>
+              <attribute name="phone-home-interval">
+                <data type="positiveInteger"/>
+              </attribute>
+            </optional>
+            <optional>
+              <attribute name="role">
+                <data type="string"/>
+              </attribute>
+            </optional>
+          </interleave>
+        </element>
+      </interleave>
+    </element>
+  </define>
+  <define name="LoggingSpecs">
+    <element name="logging">
+      <zeroOrMore>
+        <choice>
+          <element name="class">
+            <interleave>
+              <attribute name="name">
+                <data type="Name"/>
+              </attribute>
+              <attribute name="levels">
+                <data type="string"/>
+              </attribute>
+            </interleave>
+          </element>
+          <element name="package">
+            <interleave>
+              <attribute name="name">
+                <data type="Name"/>
+              </attribute>
+              <attribute name="levels">
+                <data type="string"/>
+              </attribute>
+            </interleave>
+          </element>
+        </choice>
+      </zeroOrMore>
+    </element>
+  </define>
+</grammar>

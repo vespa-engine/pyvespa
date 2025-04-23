@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<grammar xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <!--
+    Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
+    RELAX NG compact syntax pattern
+    for Vespa MessageBus explicit routing config
+  -->
+  <define name="Routing">
+    <element name="routing">
+      <interleave>
+        <attribute name="version">
+          <value>1.0</value>
+        </attribute>
+        <zeroOrMore>
+          <element name="routingtable">
+            <interleave>
+              <attribute name="protocol">
+                <value type="string" datatypeLibrary="">document</value>
+              </attribute>
+              <optional>
+                <attribute name="verify">
+                  <data type="boolean"/>
+                </attribute>
+              </optional>
+              <zeroOrMore>
+                <element name="hop">
+                  <interleave>
+                    <attribute name="name"/>
+                    <attribute name="selector"/>
+                    <optional>
+                      <attribute name="ignore-result">
+                        <data type="boolean"/>
+                      </attribute>
+                    </optional>
+                    <zeroOrMore>
+                      <element name="recipient">
+                        <attribute name="session"/>
+                      </element>
+                    </zeroOrMore>
+                  </interleave>
+                </element>
+              </zeroOrMore>
+              <zeroOrMore>
+                <element name="route">
+                  <interleave>
+                    <attribute name="name"/>
+                    <attribute name="hops"/>
+                  </interleave>
+                </element>
+              </zeroOrMore>
+            </interleave>
+          </element>
+        </zeroOrMore>
+        <zeroOrMore>
+          <element name="services">
+            <interleave>
+              <attribute name="protocol">
+                <value type="string" datatypeLibrary="">document</value>
+              </attribute>
+              <zeroOrMore>
+                <element name="service">
+                  <attribute name="name"/>
+                </element>
+              </zeroOrMore>
+            </interleave>
+          </element>
+        </zeroOrMore>
+      </interleave>
+    </element>
+  </define>
+</grammar>

@@ -1,0 +1,164 @@
+# Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
+service.attlist &= attribute hostalias { xsd:NCName }
+service.attlist &= attribute baseport { xsd:unsignedShort }?
+service.attlist &= attribute jvm-options { text }? # Remove in Vespa 9
+service.attlist &= attribute jvm-gc-options { text }? # Remove in Vespa 9
+# preload is for internal use only
+service.attlist &= attribute preload { text }?
+
+anyElement = element * {
+   (attribute * { text }
+    | text
+    | anyElement)*
+}
+
+# Valid qualified java class name. See http://docs.oracle.com/javase/specs/jls/se8/html/jls-3.html#jls-3.8
+JavaId = xsd:string { pattern = "([a-zA-Z_$][a-zA-Z\d_$]*\.)*[a-zA-Z_$][a-zA-Z\d_$]*" }
+
+Nodes = element nodes {
+    attribute count { xsd:positiveInteger | xsd:string } &
+    attribute flavor { xsd:string }? &
+    attribute docker-image { xsd:string }? &
+    Resources?
+}
+
+Resources = element resources {
+    attribute vcpu { xsd:double { minExclusive = "0.0" } | xsd:string }? &
+    attribute memory { xsd:string }? &
+    attribute disk { xsd:string }? &
+    attribute disk-speed { xsd:string }? &
+    attribute storage-type { xsd:string }? &
+    attribute architecture { xsd:string }? &
+    GpuResources?
+}
+
+GpuResources = element gpu {
+  attribute count { xsd:positiveInteger } &
+  attribute memory { xsd:string }
+}
+
+OptionalDedicatedNodes = element nodes {
+    attribute count { xsd:positiveInteger | xsd:string } &
+    attribute flavor { xsd:string }? &
+    attribute required { xsd:boolean }? &
+    attribute docker-image { xsd:string }? &
+    attribute dedicated { xsd:boolean }? &
+    attribute exclusive { xsd:boolean }? &
+    Resources?
+}
+
+GenericConfig = element config {
+    attribute name { text },
+    attribute version { text }?,
+    anyElement*
+}
+
+ModelReference =
+    attribute model-id { xsd:string }? &
+    attribute path { xsd:string }? &
+    attribute url { xsd:string }?
+
+ComponentSpec =
+    ( attribute id { xsd:Name | JavaId } | attribute idref { xsd:Name } | attribute ident { xsd:Name } )
+
+ComponentId =
+    ComponentSpec
+
+BundleSpec =
+    attribute class { xsd:Name | JavaId }? &
+    attribute bundle { xsd:Name }?
+
+Component = element component {
+   (ComponentDefinition | TypedComponentDefinition)
+}
+
+ComponentDefinition =
+   ComponentId &
+   BundleSpec &
+   GenericConfig* &
+   Component*
+
+TypedComponentDefinition =
+   attribute id { xsd:Name } &
+   (HuggingFaceEmbedder | HuggingFaceTokenizer | BertBaseEmbedder | ColBertEmbedder | SpladeEmbedder ) &
+   GenericConfig* &
+   Component*
+
+HuggingFaceEmbedder =
+   attribute type { "hugging-face-embedder" } &
+   element transformer-model { ModelReference } &
+   element tokenizer-model { ModelReference }? &
+   element max-tokens { xsd:positiveInteger }? &
+   element transformer-input-ids { xsd:string }? &
+   element transformer-attention-mask { xsd:string }? &
+   element transformer-token-type-ids { xsd:string }? &
+   element transformer-output { xsd:string }? &
+   element normalize { xsd:boolean }? &
+   PrependResources? &
+   OnnxModelExecutionParams &
+   EmbedderPoolingStrategy
+
+PrependResources = element prepend {
+  element query { xsd:string }? &
+  element document { xsd:string }?
+}
+
+SpladeEmbedder =
+   attribute type { "splade-embedder" } &
+   element transformer-model { ModelReference } &
+   element tokenizer-model { ModelReference }? &
+   element max-tokens { xsd:positiveInteger }? &
+   element transformer-input-ids { xsd:string }? &
+   element transformer-attention-mask { xsd:string }? &
+   element transformer-token-type-ids { xsd:string }? &
+   element transformer-output { xsd:string }? &
+   element term-score-threshold { xsd:double }? &
+   OnnxModelExecutionParams
+
+HuggingFaceTokenizer =
+    attribute type { "hugging-face-tokenizer" } &
+    element model { attribute language { xsd:string }? & ModelReference }+
+
+BertBaseEmbedder =
+    attribute type { "bert-embedder" } &
+    element transformer-model { ModelReference } &
+    element tokenizer-vocab { ModelReference } &
+    element max-tokens { xsd:nonNegativeInteger }? &
+    element transformer-input-ids { xsd:string }? &
+    element transformer-attention-mask { xsd:string }? &
+    element transformer-token-type-ids { xsd:string }? &
+    element transformer-output { xsd:string }? &
+    StartOfSequence &
+    EndOfSequence &
+    OnnxModelExecutionParams &
+    EmbedderPoolingStrategy
+
+
+ColBertEmbedder =
+   attribute type { "colbert-embedder" } &
+   element transformer-model { ModelReference } &
+   element tokenizer-model { ModelReference }? &
+   element max-tokens { xsd:positiveInteger }? &
+   element max-query-tokens { xsd:positiveInteger }? &
+   element max-document-tokens { xsd:positiveInteger }? &
+   element transformer-mask-token { xsd:integer }? &
+   element transformer-input-ids { xsd:string }? &
+   element transformer-attention-mask { xsd:string }? &
+   element transformer-pad-token { xsd:integer }? &
+   element query-token-id { xsd:integer }? &
+   element document-token-id { xsd:integer }? &
+   element transformer-output { xsd:string }? &
+   OnnxModelExecutionParams &
+   StartOfSequence &
+   EndOfSequence
+
+OnnxModelExecutionParams =
+    element onnx-execution-mode { "parallel" | "sequential" }? &
+    element onnx-interop-threads { xsd:integer }? &
+    element onnx-intraop-threads { xsd:integer }? &
+    element onnx-gpu-device { xsd:integer }?
+
+EmbedderPoolingStrategy = element pooling-strategy { "cls" | "mean" }?
+
+StartOfSequence = element transformer-start-sequence-token { xsd:integer }?
+EndOfSequence = element transformer-end-sequence-token { xsd:integer }?

@@ -21,7 +21,6 @@ from vespa.package import (
     ContainerCluster,
     Nodes,
     DeploymentConfiguration,
-    EmptyDeploymentConfiguration,
     Validation,
     ValidationID,
 )
@@ -76,7 +75,7 @@ class TestVectorSearch(unittest.TestCase):
         self.app_package = create_vector_ada_application_package()
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
-            application="pyvespa-int-vsearch",
+            application="pyvespa-vsearch-dev",
             key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
         )
@@ -93,7 +92,7 @@ class TestVectorSearch(unittest.TestCase):
 
         from datasets import load_dataset
 
-        sample_size = 1000
+        sample_size = 100
         # streaming=True pages the data from S3. This is needed to avoid memory issues when loading the dataset.
         dataset = load_dataset(
             "KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True
@@ -109,6 +108,10 @@ class TestVectorSearch(unittest.TestCase):
         docs = list(
             pyvespa_feed_format
         )  # we have enough memory to page everything into memory with list()
+        # seems like we sometimes can get more than sample_size docs
+        if len(docs) > sample_size:
+            docs = docs[:sample_size]
+        self.assertEqual(len(docs), sample_size)
         ok = 0
         callbacks = 0
         start_time = time.time()
@@ -127,9 +130,6 @@ class TestVectorSearch(unittest.TestCase):
             schema="vector",
             namespace="benchmark",
             callback=callback,
-            max_workers=48,
-            max_connections=48,
-            max_queue_size=4000,
         )
         self.assertEqual(ok, sample_size)
         duration = time.time() - start
@@ -164,9 +164,7 @@ class TestVectorSearch(unittest.TestCase):
         ok = 0
         callbacks = 0
         start_time = time.time()
-        dataset = load_dataset(
-            "KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True
-        ).take(100)
+
         feed_with_wrong_field = dataset.map(
             lambda x: {
                 "id": x["_id"],
@@ -174,21 +172,20 @@ class TestVectorSearch(unittest.TestCase):
             }
         )
         faulty_docs = list(feed_with_wrong_field)
+        if len(faulty_docs) > sample_size:
+            faulty_docs = faulty_docs[:sample_size]
+        self.assertEqual(len(faulty_docs), sample_size)
         self.app.feed_iterable(
             iter=faulty_docs,
             schema="vector",
             namespace="benchmark",
             callback=callback,
-            max_workers=48,
-            max_connections=48,
         )
         self.assertEqual(ok, 0)
         self.assertEqual(callbacks, 100)
 
         ok = 0
-        dataset = load_dataset(
-            "KShivendu/dbpedia-entities-openai-1M", split="train", streaming=True
-        ).take(sample_size)
+
         # Run update - assign all docs with a meta field
 
         updates = dataset.map(lambda x: {"id": x["_id"], "fields": {"meta": "stuff"}})
@@ -238,8 +235,8 @@ class TestVectorSearch(unittest.TestCase):
         self.vespa_cloud.delete()
 
 
-class TestProdDeploymentFromDisk(TestVectorSearch):
-    def setUp(self) -> None:
+class TestProdDeploymentFromDisk(unittest.TestCase):
+    def test_setup(self) -> None:
         self.app_package = create_vector_ada_application_package()
         prod_region = "aws-us-east-1c"
         self.app_package.clusters = [
@@ -302,32 +299,33 @@ class TestProdDeploymentFromDisk(TestVectorSearch):
     def test_vector_indexing_and_query(self):
         super().test_vector_indexing_and_query()
 
-    @unittest.skip("Do not run when not waiting for deployment.")
-    def tearDown(self) -> None:
-        self.app.delete_all_docs(
-            content_cluster_name="vector_content",
-            schema="vector",
-            namespace="benchmark",
-        )
-        time.sleep(5)
-        with self.app.syncio() as sync_session:
-            response: VespaResponse = sync_session.query(
-                {"yql": "select id from sources * where true", "hits": 10}
-            )
-            self.assertEqual(response.get_status_code(), 200)
-            self.assertEqual(len(response.hits), 0)
-            print(response.get_json())
+    # DO NOT skip tearDown-method, as test will not exit.
+    # @unittest.skip("Do not run when not waiting for deployment.")
+    # def tearDown(self) -> None:
+    #     self.app.delete_all_docs(
+    #         content_cluster_name="vector_content",
+    #         schema="vector",
+    #         namespace="benchmark",
+    #     )
+    #     time.sleep(5)
+    #     with self.app.syncio() as sync_session:
+    #         response: VespaResponse = sync_session.query(
+    #             {"yql": "select id from sources * where true", "hits": 10}
+    #         )
+    #         self.assertEqual(response.get_status_code(), 200)
+    #         self.assertEqual(len(response.hits), 0)
+    #         print(response.get_json())
 
-        # Deployment is deleted by deploying with an empty deployment.xml file.
-        self.app_package.deployment_config = EmptyDeploymentConfiguration()
+    #     # Deployment is deleted by deploying with an empty deployment.xml file.
+    #     self.app_package.deployment_config = EmptyDeploymentConfiguration()
 
-        # Vespa won't push the deleted deployment.xml file unless we add a validation override
-        tomorrow = datetime.now() + timedelta(days=1)
-        formatted_date = tomorrow.strftime("%Y-%m-%d")
-        self.app_package.validations = [
-            Validation(ValidationID("deployment-removal"), formatted_date)
-        ]
-        self.app_package.to_files(self.application_root)
-        # This will delete the deployment
-        self.vespa_cloud._start_prod_deployment(self.application_root)
-        shutil.rmtree(self.application_root, ignore_errors=True)
+    #     # Vespa won't push the deleted deployment.xml file unless we add a validation override
+    #     tomorrow = datetime.now() + timedelta(days=1)
+    #     formatted_date = tomorrow.strftime("%Y-%m-%d")
+    #     self.app_package.validations = [
+    #         Validation(ValidationID("deployment-removal"), formatted_date)
+    #     ]
+    #     self.app_package.to_files(self.application_root)
+    #     # This will delete the deployment
+    #     self.vespa_cloud._start_prod_deployment(self.application_root)
+    #     shutil.rmtree(self.application_root, ignore_errors=True)

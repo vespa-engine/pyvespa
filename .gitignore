@@ -147,7 +147,13 @@ pyvespa_index.json
 paragraph_index.json
 markdown_after/
 markdown_before/
+markdown_notebooks/
 
 # All .pem and .crt files
 *.pem
 *.crt
+
+# Exclude markdown files in vespa/resources - directory
+vespa/resources/*.md
+
+.aider*

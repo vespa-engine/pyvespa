@@ -17,7 +17,7 @@ jobs:
 
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: 3.1
+          ruby-version: 3.3
           bundler-cache: true
 
       - name: Setup Python
@@ -27,13 +27,12 @@ jobs:
 
       - name: Install Sphinx
         run: |
-          sudo apt-get install -y pandoc
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .[docs,feed]
 
       - name: Build site
         run: |
-          sphinx-build -E -D nbsphinx_allow_errors=True -b html docs/sphinx/source docs/sphinx/build
+          mkdocs build --site-dir docs/sphinx/build
 
           # Add front matter and strip liquid macros from html files
           find docs/sphinx/build -name \*.html | \
@@ -50,23 +49,20 @@ jobs:
           # See https://docs.vespa.ai/en/vespa-cli.html.
           # The environment variables below have credentials for endpoint access -
           # use the key/cert files in .vespa and paste their content into GitHub Secrets.
-          # VESPA_CLI_API_KEY must be set and empty as below.
           export VESPA_CLI_DATA_PLANE_CERT
           export VESPA_CLI_DATA_PLANE_KEY
-          export VESPA_CLI_API_KEY=
           ./feed_to_vespa.py _config.yml
+
+      - name: Convert all notebooks to md
+        run: |
+          jupyter nbconvert --to markdown docs/sphinx/source/examples/*.ipynb --output-dir='./markdown_notebooks/'
+          jupyter nbconvert --to markdown docs/sphinx/source/*.ipynb --output-dir='./markdown_nooteboks/'
 
       - name: Feed paragraphs site
         run: |
-          export VESPA_CLI_DATA_PLANE_CERT
-          export VESPA_CLI_DATA_PLANE_KEY
-          export VESPA_CLI_API_KEY=
-          ./feed-split.py pyvespa_index.json https://pyvespa.readthedocs.io/en/latest questions.jsonl
+          ./feed-split.py pyvespa_index.json https://vespa-engine.github.io/pyvespa/ questions.jsonl
           ./feed_to_vespa.py _paragraphs_config.yml
 
       - name: Feed suggestions
         run: |
-          export VESPA_CLI_DATA_PLANE_CERT
-          export VESPA_CLI_DATA_PLANE_KEY
-          export VESPA_CLI_API_KEY=
           ./feed_to_vespa.py _suggestions_config.yml
