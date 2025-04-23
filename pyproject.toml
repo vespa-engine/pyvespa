@@ -107,6 +107,7 @@ dev = [
     "datasets>=2.19.1",
     "pyvespa[unittest]",
     "pyvespa[build]",
+    "ruff",
 ]
 
 [tool.setuptools]
