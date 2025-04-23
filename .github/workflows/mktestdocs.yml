@@ -37,3 +37,4 @@ jobs:
       - name: Linkcheck
         run: |
           mkdocs-linkcheck markdown_notebooks --exclude "^(\.{0,2}/|_static/|{url})"
+          mkdocs-linkcheck docs/sphinx/source --exclude "^(?:\.{0,2}/|_static/|{url}|(https?://)?(localhost|127\.0\.0\.1)(:\d+)?)"
