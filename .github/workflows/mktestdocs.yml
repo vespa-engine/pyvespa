@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -e .[docs]
+      - name: Build docs
+        run: |
+          mkdocs build --site-dir docs/sphinx/build
       - name: Run tests
         run: |
           pytest tests/mktestdocs -s -v
