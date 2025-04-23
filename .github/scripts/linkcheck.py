@@ -901,6 +901,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--fail-on-error",
         action="store_true",
+        default=True,
         help="Exit with a non-zero status if any errors are found",
     )
     parser.add_argument(
