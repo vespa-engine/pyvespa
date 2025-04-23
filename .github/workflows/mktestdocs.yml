@@ -27,14 +27,17 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -e .[docs]
+      - name: Build docs
+        run: |
+          mkdocs build --site-dir docs/sphinx/build
       - name: Run tests
         run: |
           pytest tests/mktestdocs -s -v
-      # Disable linkcheck for now
-      # - name: Convert notebooks to markdown
-      #   run: |
-      #     python3 -m nbconvert --to markdown docs/sphinx/source/*.ipynb
-      #     python3 -m nbconvert --to markdown docs/sphinx/source/examples/*.ipynb
-      # - name: Linkcheck
-      #   run: |
-      #     mkdocs-linkcheck docs/sphinx/source/
+      - name: Convert notebooks to markdown
+        run: |
+            python3 -m nbconvert --to markdown docs/sphinx/source/*.ipynb --output-dir='./markdown_notebooks/' --ClearOutputPreprocessor.enabled=True
+            python3 -m nbconvert --to markdown docs/sphinx/source/examples/*.ipynb --output-dir='./markdown_notebooks/' --ClearOutputPreprocessor.enabled=True
+      - name: Linkcheck
+        run: |
+          mkdocs-linkcheck markdown_notebooks --exclude "^(\.{0,2}/|_static/|{url})"
+          mkdocs-linkcheck docs/sphinx/source --exclude "^(?:\.{0,2}/|_static/|{url}|(https?://)?(localhost|127\.0\.0\.1)(:\d+)?)"
