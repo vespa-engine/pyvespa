@@ -919,6 +919,11 @@ def parse_arguments() -> argparse.Namespace:
         help="Regular expressions for URLs to ignore",
     )
     parser.add_argument(
+        "--ignore-url-file",
+        type=str,
+        help="Path to a file containing URL patterns to ignore (one per line, like .gitignore)",
+    )
+    parser.add_argument(
         "--headers",
         nargs="+",
         default=[],
@@ -937,6 +942,31 @@ async def main(args):
         if ":" in header:
             key, value = header.split(":", 1)
             headers[key.strip()] = value.strip()
+
+    # Load ignore patterns from file if provided
+    ignore_urls = list(
+        args.ignore_urls
+    )  # Make a copy to avoid modifying the original args
+    if args.ignore_url_file:
+        try:
+            with open(args.ignore_url_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    pattern = line.strip()
+                    # Ignore empty lines and comments (like .gitignore)
+                    if pattern and not pattern.startswith("#"):
+                        ignore_urls.append(pattern)
+        except FileNotFoundError:
+            console = Console()
+            console.print(
+                f"[error]Ignore URL file not found: {args.ignore_url_file}[/error]"
+            )
+            sys.exit(1)
+        except Exception as e:
+            console = Console()
+            console.print(
+                f"[error]Error reading ignore URL file {args.ignore_url_file}: {e}[/error]"
+            )
+            sys.exit(1)
 
     # Create configuration
     config = LinkCheckerConfig(
@@ -958,7 +988,7 @@ async def main(args):
         fail_on_error=args.fail_on_error,
         follow_redirects=args.follow_redirects,
         max_redirects=args.max_redirects,
-        ignore_urls=args.ignore_urls,
+        ignore_urls=ignore_urls,  # Use the combined list
         headers=headers,
     )
 
