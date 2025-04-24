@@ -30,10 +30,10 @@ jobs:
           uv sync --extra dev --extra docs
       - name: Run tests
         run: |
-          pytest tests/mktestdocs -s -v
+          uv run pytest tests/mktestdocs -s -v
       - name: Build docs
         run: |
-          mkdocs build --site-dir docs/sphinx/build
+          uv run mkdocs build --site-dir docs/sphinx/build
       - name: Run linkcheck
         run: |
           uv run .github/scripts/linkcheck.py --ignore-url-file .github/scripts/ignore_urls.txt docs/sphinx/source/
