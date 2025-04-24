@@ -1,4 +1,4 @@
-name: MKDocs test
+name: MKDocs test and linkcheck
 
 on:
   workflow_dispatch:
