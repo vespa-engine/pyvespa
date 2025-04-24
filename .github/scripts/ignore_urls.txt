@@ -2,7 +2,7 @@ https://huggingface.co/settings/tokens
 https://api.search.vespa.ai
 https://api.cord19.vespa.ai
 https://[a-zA-Z0-9.-]+\.vespa-app\.cloud
-http://localhost
+http://localhost*
 https://abcd.vespa-app.cloud
 {endpoint}
  https://vespa.auth0.com/*
