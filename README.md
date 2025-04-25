@@ -8,12 +8,11 @@
   <img alt="#Vespa" width="200" src="https://assets.vespa.ai/logos/Vespa-logo-dark-RGB.svg" style="margin-bottom: 25px;">
 </picture>
 
-[![Documentation Status](https://readthedocs.org/projects/pyvespa/badge/?version=latest)](https://vespa-engine.github.io/pyvespa/?badge=latest)
+[![Docs pages-build-deployment](https://github.com/vespa-engine/pyvespa/actions/workflows/pages/pages-build-deployment/badge.svg)](https://github.com/vespa-engine/pyvespa/actions/workflows/pages/pages-build-deployment)
 
 ![GitHub Release](https://img.shields.io/github/v/release/vespa-engine/pyvespa)
 ![PyPI - Version](https://img.shields.io/pypi/v/pyvespa)
 ![PyPI - Downloads](https://img.shields.io/pypi/dm/pyvespa)
-
 
 [pyvespa site / documentation](https://vespa-engine.github.io/pyvespa/index.html)
 
@@ -37,7 +36,7 @@ Code licensed under the Apache 2.0 license. See [LICENSE](LICENSE) for terms.
 To install editable version of the library with dev dependencies, run the following command from the root directory of the repository:
 
 ```python
-pip install -e ".[dev]"
+uv sync --extra dev
 ```
 
 Note that this will enforce linting and formatting with [Ruff](https://github.com/astral-sh/ruff), which also will be triggered by a [pre-commit](https://pre-commit.com/)-hook.
