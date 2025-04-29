@@ -626,7 +626,7 @@ class Vespa(object):
                 {"id": "1", "fields": {"field1": "value1"}},
                 {"id": "2", "fields": {"field1": "value2"}},
             ]
-            async def callback(response, id):
+            def callback(response, id):
                 print(f"Response for id {id}: {response.status_code}")
             app.feed_async_iterable(data, schema="schema_name", callback=callback)
             ```
