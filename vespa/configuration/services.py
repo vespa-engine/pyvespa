@@ -168,6 +168,7 @@ services_tags = [
     "transformer-output",
     "transformer-pad-token",
     "transformer-start-sequence-token",
+    "transition-time",
     "tuning",
     "type",
     "unpack",
