@@ -1578,6 +1578,47 @@ class TestUpdateApplication(TestApplicationCommon):
             )
         )
 
+    def test_async_upsert(self):
+        """Test that create=True works for async update_data"""
+        schema_name = self.schema_name
+        data_id = "new_doc_create_true"
+        fields_to_update = {"title": "Created via update"}
+
+        async def _run():
+            async with self.app.asyncio() as async_app:
+                # Ensure doc does not exist
+                get_response = await async_app.get_data(
+                    schema=schema_name, data_id=data_id
+                )
+                self.assertEqual(get_response.status_code, 404)
+
+                # Update with create=True
+                update_response = await async_app.update_data(
+                    schema=schema_name,
+                    data_id=data_id,
+                    fields=fields_to_update,
+                    create=True,
+                )
+                self.assertEqual(update_response.status_code, 200)
+
+                # Verify doc exists now
+                get_response_after_update = await async_app.get_data(
+                    schema=schema_name, data_id=data_id
+                )
+                self.assertEqual(get_response_after_update.status_code, 200)
+                self.assertEqual(
+                    get_response_after_update.json["fields"]["title"],
+                    fields_to_update["title"],
+                )
+
+                # Clean up
+                delete_response = await async_app.delete_data(
+                    schema=schema_name, data_id=data_id
+                )
+                self.assertEqual(delete_response.status_code, 200)
+
+        asyncio.run(_run())
+
     def tearDown(self) -> None:
         self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
         self.vespa_docker.container.remove()
