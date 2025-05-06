@@ -2006,9 +2006,11 @@ class VespaAsync(object):
         path = self.app.get_document_v1_path(
             id=data_id, schema=schema, namespace=namespace, group=groupname
         )
-        end_point = "{}{}?create={}".format(
-            self.app.end_point, path, str(create).lower()
+        end_point = "{}{}".format(
+            self.app.end_point, path
         )
+        if create:
+            kwargs["create"] = str(create).lower()
         if auto_assign:
             vespa_format = {"fields": {k: {"assign": v} for k, v in fields.items()}}
         else:
