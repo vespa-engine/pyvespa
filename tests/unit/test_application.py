@@ -838,14 +838,12 @@ class MockVespa:
         vespa_cloud_secret_token=None,
         cert=None,
         key=None,
-        additional_headers=None,
     ):
         self.base_headers = base_headers or {}
         self.auth_method = auth_method
         self.vespa_cloud_secret_token = vespa_cloud_secret_token
         self.cert = cert
         self.key = key
-        self.additional_headers = additional_headers or {}
 
 
 # Test class
