@@ -105,6 +105,7 @@ class Vespa(object):
             vespa_cloud_secret_token (str): Vespa Cloud data plane secret token.
             output_file (str): Output file to write output messages.
             application_package (str): Application package definition used to deploy the application.
+            additional_headers (dict): Additional headers to be sent to the Vespa application.
 
         Example usage:
             ```python
@@ -116,6 +117,8 @@ class Vespa(object):
             Vespa(url="https://token-endpoint..z.vespa-app.cloud", vespa_cloud_secret_token="your_token")  # doctest: +SKIP
 
             Vespa(url="https://mtls-endpoint..z.vespa-app.cloud", cert="/path/to/cert.pem", key="/path/to/key.pem")  # doctest: +SKIP
+
+            Vespa(url="https://mtls-endpoint..z.vespa-app.cloud", cert="/path/to/cert.pem", key="/path/to/key.pem", additional_headers={"X-Custom-Header": "test"})  # doctest: +SKIP
             ```
         """
         self.output_file = output_file
