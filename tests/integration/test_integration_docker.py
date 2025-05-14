@@ -34,7 +34,7 @@ from vespa.package import (
 )
 from vespa.configuration.services import *
 from vespa.deployment import VespaDocker
-from vespa.application import VespaSync
+from vespa.application import Vespa, VespaSync
 from vespa.exceptions import VespaError
 from pathlib import Path
 
@@ -1021,6 +1021,23 @@ class TestMsmarcoApplication(TestApplicationCommon):
 
     def test_async_client_accept_encoding(self):
         asyncio.run(self.async_client_accept_encoding_gzip(app=self.app))
+
+    def test_custom_header_is_sent(self):
+        """
+        Tests that custom headers provided during Vespa client initialization are sent.
+        """
+        custom_headers = {"X-Custom-Header": "myheadervalue"}
+        # Create a new Vespa instance with custom headers, using the URL from the existing app
+        app_with_header = Vespa(
+            url=self.app.end_point, additional_headers=custom_headers
+        )
+        # Make a simple request
+        response = app_with_header.get_application_status()
+        # Check that the request was successful
+        self.assertEqual(response.status_code, 200)
+        # Verify the custom header was sent
+        self.assertIn("X-Custom-Header", response.request.headers)
+        self.assertEqual(response.request.headers["X-Custom-Header"], "myheadervalue")
 
     def test_handle_longlived_connection(self):
         asyncio.run(self.handle_longlived_connection(app=self.app))
