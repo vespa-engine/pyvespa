@@ -91,8 +91,8 @@ class Vespa(object):
         vespa_cloud_secret_token: Optional[str] = None,
         output_file: IO = sys.stdout,
         application_package: Optional[ApplicationPackage] = None,
+        additional_headers: Optional[Dict[str, str]] = None,
     ) -> None:
-        
         """
         Establish a connection with an existing Vespa application.
 
@@ -105,6 +105,7 @@ class Vespa(object):
             vespa_cloud_secret_token (str): Vespa Cloud data plane secret token.
             output_file (str): Output file to write output messages.
             application_package (str): Application package definition used to deploy the application.
+            additional_headers (dict): Additional headers to be sent to the Vespa application.
 
         Example usage:
             ```python
@@ -116,6 +117,8 @@ class Vespa(object):
             Vespa(url="https://token-endpoint..z.vespa-app.cloud", vespa_cloud_secret_token="your_token")  # doctest: +SKIP
 
             Vespa(url="https://mtls-endpoint..z.vespa-app.cloud", cert="/path/to/cert.pem", key="/path/to/key.pem")  # doctest: +SKIP
+
+            Vespa(url="https://mtls-endpoint..z.vespa-app.cloud", cert="/path/to/cert.pem", key="/path/to/key.pem", additional_headers={"X-Custom-Header": "test"})  # doctest: +SKIP
             ```
         """
         self.output_file = output_file
@@ -128,6 +131,8 @@ class Vespa(object):
         self._application_package = application_package
         self.pyvespa_version = vespa.__version__
         self.base_headers = {"User-Agent": f"pyvespa/{self.pyvespa_version}"}
+        if additional_headers is not None:
+            self.base_headers.update(additional_headers)
         if port is None:
             self.end_point = self.url
         else:
@@ -205,7 +210,7 @@ class Vespa(object):
         Args:
             connections (int): Number of allowed concurrent connections.
             total_timeout (float): Total timeout in seconds.
-            compress (Union[str, bool], optional): Whether to compress the request body. Defaults to "auto", 
+            compress (Union[str, bool], optional): Whether to compress the request body. Defaults to "auto",
                 which will compress if the body is larger than 1024 bytes.
 
         Returns:
@@ -647,7 +652,6 @@ class Vespa(object):
             None
         """
 
-
         if operation_type not in ["feed", "update", "delete"]:
             raise ValueError(
                 "Invalid operation type. Valid are `feed`, `update` or `delete`."
@@ -862,7 +866,7 @@ class Vespa(object):
             data_id (str): Unique id associated with this data point.
             namespace (str, optional): The namespace that we are deleting data from. If no namespace is provided, the schema is used.
             groupname (str, optional): The groupname that we are deleting data from.
-            **kwargs (dict, optional): Additional arguments to be passed to the HTTP DELETE request. 
+            **kwargs (dict, optional): Additional arguments to be passed to the HTTP DELETE request.
                 See [Vespa API documentation](https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters) for more details.
 
         Returns:
@@ -895,7 +899,7 @@ class Vespa(object):
             schema (str): The schema that we are deleting data from.
             namespace (str, optional): The namespace that we are deleting data from. If no namespace is provided, the schema is used.
             slices (int, optional): Number of slices to use for parallel delete requests. Defaults to 1.
-            **kwargs (dict, optional): Additional arguments to be passed to the HTTP DELETE request. 
+            **kwargs (dict, optional): Additional arguments to be passed to the HTTP DELETE request.
                 See [Vespa API documentation](https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters) for more details.
 
         Returns:
@@ -943,7 +947,7 @@ class Vespa(object):
             selection (str, optional): Selection expression to filter documents.
             wanted_document_count (int, optional): Best effort number of documents to retrieve for each request. May contain less if there are not enough documents left.
             slice_id (int, optional): Slice id to use for the visit. If None, all slices will be used.
-            **kwargs (dict, optional): Additional HTTP request parameters. 
+            **kwargs (dict, optional): Additional HTTP request parameters.
                 See [Vespa API documentation](https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters).
 
         Yields:
@@ -988,7 +992,6 @@ class Vespa(object):
         Returns:
             Response: The response of the HTTP GET request.
         """
-
 
         with VespaSync(self, pool_connections=1, pool_maxsize=1) as sync_app:
             return sync_app.get_data(
@@ -1041,7 +1044,6 @@ class Vespa(object):
         Returns:
             Response: The response of the HTTP PUT request.
         """
-
 
         with VespaSync(
             self, pool_connections=1, pool_maxsize=1, compress=compress
@@ -1405,7 +1407,6 @@ class VespaSync(object):
             HTTPError: If one occurred.
         """
 
-
         if groupname:
             kwargs["streaming.groupname"] = groupname
         response = self.http_session.post(
@@ -1441,7 +1442,6 @@ class VespaSync(object):
         Raises:
             HTTPError: If one occurred.
         """
-
 
         path = self.app.get_document_v1_path(
             id=data_id, schema=schema, namespace=namespace, group=groupname
@@ -2006,9 +2006,7 @@ class VespaAsync(object):
         path = self.app.get_document_v1_path(
             id=data_id, schema=schema, namespace=namespace, group=groupname
         )
-        end_point = "{}{}".format(
-            self.app.end_point, path
-        )
+        end_point = "{}{}".format(self.app.end_point, path)
         if create:
             kwargs["create"] = str(create).lower()
         if auto_assign:

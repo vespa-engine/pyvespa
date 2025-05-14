@@ -338,6 +338,16 @@ class TestVespa(unittest.TestCase):
         schema_name = app._infer_schema_name()
         self.assertEqual("x", schema_name)
 
+    def test_init_additional_headers(self):
+        app = Vespa(
+            url="http://localhost",
+            additional_headers={"X-Custom-Header": "test"},
+        )
+        assert app.base_headers == {
+            "User-Agent": f"pyvespa/{app.pyvespa_version}",
+            "X-Custom-Header": "test",
+        }
+
 
 class TestRaiseForStatus(unittest.TestCase):
     def test_successful_response(self):
