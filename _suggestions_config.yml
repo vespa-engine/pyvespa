@@ -17,11 +17,11 @@ search:
         - suggestions_index.json 
     # vespacloud-docsearch.cloud-enclave
     # prod.aws-us-east-1c
-    - url: https://c967e4f5.b68a8c0d.z.vespa-app.cloud/
+    - url: https://cd560c23.b68a8c0d.z.vespa-app.cloud/
       indexes:
         - suggestions_index.json
     # vespacloud-docsearch.cloud-enclave
     # prod.gcp-us-central1-f
-    - url: https://d13733c3.b68a8c0d.z.vespa-app.cloud/
+    - url: https://ab1f72fd.b68a8c0d.z.vespa-app.cloud/
       indexes:
         - suggestions_index.json
