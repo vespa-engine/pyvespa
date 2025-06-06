@@ -715,7 +715,8 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
             vespa_query_fn=my_vespa_query_fn,
             app=app,
             name="test-run",
-            write_csv=True
+            write_csv=True,
+            write_verbose=True
         )
 
         results = evaluator()
@@ -735,6 +736,7 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
         name: str = "",
         id_field: str = "",
         write_csv: bool = False,
+        write_verbose: bool = False,
         csv_dir: Optional[str] = None,
     ):
         super().__init__(
@@ -747,6 +749,55 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
             write_csv=write_csv,
             csv_dir=csv_dir,
         )
+        self.write_verbose = write_verbose
+        if self.write_verbose:
+            self.verbose_csv_file = f"Vespa-match-evaluation_{name}_verbose.csv"
+
+    def _write_verbose_csv(self, verbose_data: List[Dict]):
+        """Write verbose query-level results to CSV file."""
+        if not verbose_data:
+            return
+
+        csv_path = self.verbose_csv_file
+        if self.csv_dir is not None:
+            csv_path = os.path.join(self.csv_dir, csv_path)
+
+        write_header = not os.path.exists(csv_path)
+
+        with open(csv_path, mode="a", encoding="utf-8") as f_out:
+            writer = csv.writer(f_out)
+            if write_header:
+                header = [
+                    "name",
+                    "query_id",
+                    "query_text",
+                    "yql",
+                    "total_matched",
+                    "relevant_docs_count",
+                    "matched_relevant_count",
+                    "recall",
+                    "ids_matched",
+                    "ids_not_matched",
+                ]
+                writer.writerow(header)
+
+            for row_data in verbose_data:
+                writer.writerow(
+                    [
+                        self.name,
+                        row_data["query_id"],
+                        row_data["query_text"],
+                        row_data["yql"],
+                        row_data["total_matched"],
+                        row_data["relevant_docs_count"],
+                        row_data["matched_relevant_count"],
+                        row_data["recall"],
+                        "; ".join(row_data["ids_matched"]),
+                        "; ".join(row_data["ids_not_matched"]),
+                    ]
+                )
+
+        logger.info(f"Wrote verbose match evaluation results to {csv_path}")
 
     def run(self) -> Dict[str, float]:
         """
@@ -755,16 +806,19 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
         This method:
         1. Sends a query with limit 0 to get the number of matched documents.
         2. Sends a recall query with the relevant documents.
-        3. Computes recall metrics.
+        3. Computes recall metrics and match statistics.
         4. Logs results and optionally writes them to CSV.
 
         Returns:
-            dict: A dictionary containing recall metrics and search time statistics.
+            dict: A dictionary containing recall metrics, match statistics, and search time statistics.
 
         Example:
             ```python
             {
-                "recall@100": 0.85,
+                "match_recall": 0.85,
+                "total_relevant_docs": 150,
+                "total_matched_relevant": 128,
+                "avg_matched_per_query": 45.2,
                 "searchtime_avg": 0.015,
                 ...
             }
@@ -772,8 +826,8 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
         """
         logger.info(f"Starting VespaMatchEvaluator on {self.name}")
         logger.info(f"Number of queries: {len(self.queries_ids)}")
+
         # Step 1: Initial query to get number of matched documents (limit 0)
-        # Get bodies from vespa_query_fn, but delete the 'hits' key
         initial_query_bodies = []
         for qid, query_text in zip(self.queries_ids, self.queries):
             if getattr(self, "_vespa_query_fn_takes_query_id", False):
@@ -794,6 +848,7 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
             # Remove 'hits' key for the initial query
             query_body.pop("hits", None)
             initial_query_bodies.append(query_body)
+
         # Add ' limit 0' to each yql-element in the query bodies
         limit_query_bodies = []
         for body in initial_query_bodies:
@@ -801,31 +856,18 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
             new_body = body.copy()
             new_body["yql"] = body["yql"].replace(";", " limit 0;")
             limit_query_bodies.append(new_body)
-        print(f"Initial query bodies: {limit_query_bodies[0]}")
-        limit_responses = self.app.query_many(limit_query_bodies)
-        for resp in limit_responses:
-            if resp.status_code != 200:
-                raise ValueError(
-                    f"Vespa query failed with status code {resp.status_code}, response: {resp.get_json()}"
-                )
 
+        limit_responses = self._execute_queries(limit_query_bodies)
+        print(f"Initial responses: {limit_responses[0].get_json()}")
         # Extract the number of matched documents from the initial responses
         matched_docs_counts = [
-            resp.get_json().get("totalHits", 0) for resp in limit_responses
+            resp.get_json().get("root", {}).get("fields", {}).get("totalCount", 0)
+            for resp in limit_responses
         ]
-        logger.info(f"Matched documents counts for queries: {matched_docs_counts}")
+        logger.info(f"Total matched documents per query: {matched_docs_counts}")
 
         # Step 2: Recall query with relevant documents
         recall_query_bodies = []
-        # if raw_relevant_ids:
-        #     if len(raw_relevant_ids) == 1:
-        #         recall_string = f"+{raw_relevant_ids[0]}"
-        #     else:
-        #         ids_formatted_for_recall = " ".join(
-        #             [f"id:{id_val}" for id_val in raw_relevant_ids]
-        #         )
-        #         recall_string = f"+({ids_formatted_for_recall})"
-        #     query_body["recall"] = recall_string
         for qid, query_text in zip(self.queries_ids, self.queries):
             relevant_docs = self.relevant_docs[qid]
             if getattr(self, "_vespa_query_fn_takes_query_id", False):
@@ -861,33 +903,61 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
             query_body["ranking"] = "unranked"
 
             recall_query_bodies.append(query_body)
-        print(f"Recall query bodies: {recall_query_bodies[0]}")
+
         # Execute recall queries
-        recall_responses = self.app.query_many(recall_query_bodies)
-        for resp in recall_responses:
-            if resp.status_code != 200:
-                raise ValueError(
-                    f"Vespa query failed with status code {resp.status_code}, response: {resp.get_json()}"
-                )
-        print(f"Recall responses: {recall_responses[0].json}")
-        # Compute recall metrics
-        recall_metrics = {}
-        for qid, resp in zip(self.queries_ids, recall_responses):
+        recall_responses = self._execute_queries(recall_query_bodies)
+
+        # Compute comprehensive match metrics
+        total_relevant_docs = 0
+        total_matched_relevant = 0
+        all_recalls = []
+        verbose_data = []
+
+        for idx, (qid, resp) in enumerate(zip(self.queries_ids, recall_responses)):
             relevant_docs = self.relevant_docs[qid]
+            query_text = self.queries[idx]
+
             if isinstance(relevant_docs, set):
                 # Binary relevance
                 num_relevant = len(relevant_docs)
-                # Compare retrieved ids with relevant ids
-                retrieved_ids = {hit["fields"]["id"] for hit in resp.hits}
-                print(f"Retrieved IDs for query {qid}: {retrieved_ids}")
-                recall = (
-                    len(retrieved_ids & relevant_docs) / num_relevant
-                    if num_relevant > 0
-                    else 0.0
+                total_relevant_docs += num_relevant
+
+                # Extract retrieved document IDs
+                retrieved_ids = set()
+                for hit in resp.hits:
+                    doc_id = self._extract_doc_id_from_hit(hit)
+                    retrieved_ids.add(doc_id)
+
+                # Calculate matches
+                matched_relevant_ids = retrieved_ids & relevant_docs
+                not_matched_ids = relevant_docs - retrieved_ids
+                matched_relevant_count = len(matched_relevant_ids)
+                total_matched_relevant += matched_relevant_count
+
+                # Calculate recall for this query
+                query_recall = (
+                    matched_relevant_count / num_relevant if num_relevant > 0 else 0.0
                 )
-                recall_metrics[f"recall@{len(resp.hits)}"] = recall
+                all_recalls.append(query_recall)
+
+                # Store verbose data if requested
+                if self.write_verbose:
+                    verbose_data.append(
+                        {
+                            "query_id": qid,
+                            "query_text": query_text,
+                            "yql": recall_query_bodies[idx]["yql"],
+                            "total_matched": matched_docs_counts[idx],
+                            "relevant_docs_count": num_relevant,
+                            "matched_relevant_count": matched_relevant_count,
+                            "recall": query_recall,
+                            "ids_matched": sorted(list(matched_relevant_ids)),
+                            "ids_not_matched": sorted(list(not_matched_ids)),
+                        }
+                    )
+
             elif isinstance(relevant_docs, dict):
-                # Graded relevance - compute recall for each relevant doc
+                # Graded relevance - not supported for match evaluation
                 raise ValueError(
                     "Graded relevance is not supported in VespaMatchEvaluator. "
                     "Please use VespaEvaluator for graded relevance evaluation."
@@ -897,19 +967,43 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
                     f"Unsupported type of relevant docs for query {qid}: {type(relevant_docs)}"
                 )
 
-        # Calculate search time statistics
+        # Calculate comprehensive metrics
+        metrics = {
+            "match_recall": total_matched_relevant / total_relevant_docs
+            if total_relevant_docs > 0
+            else 0.0,
+            "avg_recall_per_query": mean(all_recalls),
+            "total_relevant_docs": total_relevant_docs,
+            "total_matched_relevant": total_matched_relevant,
+            "avg_matched_per_query": mean(matched_docs_counts),
+            "total_queries": len(self.queries_ids),
+        }
+
+        # Add search time statistics
         searchtime_stats = self._calculate_searchtime_stats()
+        metrics.update(searchtime_stats)
 
-        # Combine recall metrics and search time stats
-        metrics = {**recall_metrics, **searchtime_stats}
+        # Set primary metric
+        self.primary_metric = "match_recall"
 
-        if not self.primary_metric:
-            # Default primary metric to recall@100 if available
-            self.primary_metric = "recall@100" if "recall@100" in metrics else None
+        # Log comprehensive results
+        logger.info(f"Match Evaluation Results for {self.name}:")
+        logger.info(f"  Overall Match Recall: {metrics['match_recall']:.4f}")
+        logger.info(
+            f"  Average Recall per Query: {metrics['avg_recall_per_query']:.4f}"
+        )
+        logger.info(f"  Total Relevant Documents: {metrics['total_relevant_docs']}")
+        logger.info(f"  Total Matched Relevant: {metrics['total_matched_relevant']}")
+        logger.info(
+            f"  Average Matched per Query: {metrics['avg_matched_per_query']:.2f}"
+        )
 
-        self._log_metrics(metrics)
+        self._log_metrics(searchtime_stats)
 
         if self.write_csv:
             self._write_csv(metrics, searchtime_stats)
+
+        if self.write_verbose:
+            self._write_verbose_csv(verbose_data)
 
         return metrics
