@@ -1,7 +1,7 @@
 import unittest
-from vespa.evaluation import VespaEvaluator
+from vespa.evaluation import VespaEvaluator, VespaMatchEvaluator
 from dataclasses import dataclass
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional  # Added Optional
 
 
 @dataclass
@@ -9,20 +9,68 @@ class MockVespaResponse:
     """Mock Vespa query response"""
 
     hits: List[Dict[str, Any]]
+    _total_count: Optional[int] = None  # Added for totalCount
+    _timing: Optional[Dict[str, float]] = (
+        None  # Added for timing e.g. {"searchtime": 0.1}
+    )
+    _status_code: int = 200  # Added for status code control
 
-    def add_namespace_to_hit_ids(self, hits) -> str:
+    def add_namespace_to_hit_ids(
+        self, hits_list
+    ) -> List[Dict[str, Any]]:  # Renamed hits to hits_list
         new_hits = []
-        for hit in hits:
-            hit["id"] = f"id:mynamespace:mydoctype::{hit['id']}"
-            new_hits.append(hit)
+        for hit_item in hits_list:  # Renamed hit to hit_item
+            # Ensure id is a string before trying to check substring
+            # And ensure 'id' key exists
+            hit_id = hit_item.get("id")
+            if isinstance(hit_id, str) and "id:mynamespace:mydoctype::" not in hit_id:
+                hit_item["id"] = f"id:mynamespace:mydoctype::{hit_id}"
+            elif (
+                not isinstance(hit_id, str)
+                and "fields" in hit_item
+                and isinstance(hit_item["fields"].get("id"), str)
+            ):
+                # Fallback for id in fields, if top-level id is not a string or missing
+                field_id = hit_item["fields"]["id"]
+                if "id:mynamespace:mydoctype::" not in field_id:
+                    hit_item["id"] = f"id:mynamespace:mydoctype::{field_id}"
+                else:
+                    hit_item["id"] = field_id  # Use it directly if already namespaced
+            elif (
+                not hit_id
+                and "fields" in hit_item
+                and isinstance(hit_item["fields"].get("id"), str)
+            ):
+                # if hit_item["id"] was None or empty string
+                field_id = hit_item["fields"]["id"]
+                hit_item["id"] = f"id:mynamespace:mydoctype::{field_id}"
+
+            new_hits.append(hit_item)
         return new_hits
 
     def get_json(self):
-        return {"root": {"children": self.add_namespace_to_hit_ids(self.hits)}}
+        json_data = {"root": {}}
+        # children should only be present if there are hits
+        if self.hits:
+            # Ensure hits are processed for id namespacing before being added to json
+            processed_hits = self.add_namespace_to_hit_ids(self.hits)
+            json_data["root"]["children"] = processed_hits
+        else:
+            json_data["root"]["children"] = []
+
+        if self._total_count is not None:
+            if "fields" not in json_data["root"]:  # Ensure fields key exists
+                json_data["root"]["fields"] = {}
+            json_data["root"]["fields"]["totalCount"] = self._total_count
+
+        if self._timing:
+            json_data["timing"] = self._timing
+
+        return json_data
 
     @property
     def status_code(self):
-        return 200
+        return self._status_code
 
 
 class QueryBodyCapturingApp:
@@ -716,6 +764,267 @@ class TestVespaEvaluator(unittest.TestCase):
         for qb in capturing_app.captured_query_bodies:
             self.assertEqual(qb["timeout"], "10s")  # User's value preserved
             self.assertEqual(qb["presentation.timing"], True)  # Default added
+
+
+# Add the new Test Class for VespaMatchEvaluator here
+
+
+class MockAppForMatchEvaluator:
+    """Mock Vespa app for VespaMatchEvaluator tests."""
+
+    def __init__(
+        self,
+        limit_responses: List[MockVespaResponse],
+        recall_responses: List[MockVespaResponse],
+    ):
+        self.limit_responses = limit_responses
+        self.recall_responses = recall_responses
+        self.call_count = 0
+        self.captured_query_bodies_limit: List[Dict] = []
+        self.captured_query_bodies_recall: List[Dict] = []
+
+    def query_many(self, query_bodies: List[Dict]):
+        if self.call_count == 0:  # First call is for limit queries
+            self.call_count += 1
+            self.captured_query_bodies_limit = query_bodies
+            return self.limit_responses[: len(query_bodies)]
+        elif self.call_count == 1:  # Second call is for recall queries
+            self.call_count += 1
+            self.captured_query_bodies_recall = query_bodies
+            return self.recall_responses[: len(query_bodies)]
+        raise AssertionError(f"query_many called too many times: {self.call_count}")
+
+
+class TestVespaMatchEvaluator(unittest.TestCase):
+    def setUp(self):
+        self.queries = {
+            "q1": "query text one",
+            "q2": "query text two",
+            "q3": "query text three",  # Will be filtered if not in relevant_docs
+        }
+        self.relevant_docs_set = {
+            "q1": {"doc1", "doc2"},
+            "q2": {"doc4"},
+        }
+
+        def mock_vespa_query_fn(
+            query_text: str, top_k: int, query_id: Optional[str] = None
+        ) -> dict:
+            yql = f'select * from sources * where userInput("{query_text}");'
+            return {"yql": yql, "hits": top_k}
+
+        self.vespa_query_fn = mock_vespa_query_fn
+
+        # Default mock app for 2 queries (q1, q2)
+        self.mock_app = MockAppForMatchEvaluator(
+            limit_responses=[
+                MockVespaResponse(
+                    hits=[], _total_count=10, _timing={"searchtime": 0.01}
+                ),  # q1
+                MockVespaResponse(
+                    hits=[], _total_count=5, _timing={"searchtime": 0.02}
+                ),  # q2
+            ],
+            recall_responses=[
+                MockVespaResponse(
+                    hits=[{"id": "doc1"}, {"id": "doc_other"}],
+                    _timing={"searchtime": 0.03},
+                ),  # q1 (1 of 2 relevant)
+                MockVespaResponse(
+                    hits=[{"id": "doc4"}], _timing={"searchtime": 0.04}
+                ),  # q2 (1 of 1 relevant)
+            ],
+        )
+
+    def test_basic_initialization(self):
+        evaluator = VespaMatchEvaluator(
+            queries=self.queries,
+            relevant_docs=self.relevant_docs_set,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+        )
+        self.assertIsInstance(evaluator, VespaMatchEvaluator)
+        self.assertEqual(evaluator.name, "")
+        self.assertEqual(evaluator.id_field, "")
+        self.assertEqual(evaluator.write_csv, False)
+        self.assertEqual(evaluator.write_verbose, False)
+        self.assertEqual(set(evaluator.queries_ids), {"q1", "q2"})  # q3 filtered
+
+    def test_run_basic_scenario(self):
+        evaluator = VespaMatchEvaluator(
+            queries=self.queries,
+            relevant_docs=self.relevant_docs_set,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+            name="basic_match_run",
+        )
+        results = evaluator.run()
+
+        # Metrics
+        # q1: 1 matched / 2 relevant. q2: 1 matched / 1 relevant.
+        # total_relevant_docs = 2 + 1 = 3
+        # total_matched_relevant = 1 + 1 = 2
+        # match_recall = 2 / 3
+        # avg_recall_per_query = (0.5 + 1.0) / 2 = 0.75
+        # avg_matched_per_query (totalCount from limit) = (10 + 5) / 2 = 7.5
+        self.assertAlmostEqual(results["match_recall"], 2 / 3)
+        self.assertAlmostEqual(results["avg_recall_per_query"], 0.75)
+        self.assertEqual(results["total_relevant_docs"], 3)
+        self.assertEqual(results["total_matched_relevant"], 2)
+        self.assertAlmostEqual(results["avg_matched_per_query"], 7.5)
+        self.assertEqual(results["total_queries"], 2)
+        self.assertEqual(evaluator.primary_metric, "match_recall")
+        self.assertAlmostEqual(
+            results["searchtime_avg"], (0.01 + 0.02 + 0.03 + 0.04) / 4
+        )
+
+        # Check captured query bodies
+        self.assertEqual(len(self.mock_app.captured_query_bodies_limit), 2)
+        q1_limit_body = self.mock_app.captured_query_bodies_limit[0]
+        self.assertIn("limit 0", q1_limit_body["yql"])
+        self.assertNotIn("hits", q1_limit_body)  # 'hits' key popped for limit query
+
+        self.assertEqual(len(self.mock_app.captured_query_bodies_recall), 2)
+        q1_recall_body = self.mock_app.captured_query_bodies_recall[0]
+        self.assertIn("recall", q1_recall_body)
+        self.assertTrue(
+            "id:doc1" in q1_recall_body["recall"]
+            and "id:doc2" in q1_recall_body["recall"]
+        )
+        self.assertEqual(q1_recall_body["hits"], len(self.relevant_docs_set["q1"]))
+        self.assertEqual(q1_recall_body["ranking"], "unranked")  # Default
+
+    def test_run_all_relevant_docs_matched(self):
+        app = MockAppForMatchEvaluator(
+            limit_responses=[MockVespaResponse(hits=[], _total_count=3)],
+            recall_responses=[MockVespaResponse(hits=[{"id": "doc1"}, {"id": "doc2"}])],
+        )
+        evaluator = VespaMatchEvaluator(
+            queries={"q1": "q"},
+            relevant_docs={"q1": {"doc1", "doc2"}},
+            vespa_query_fn=self.vespa_query_fn,
+            app=app,
+        )
+        results = evaluator.run()
+        self.assertAlmostEqual(results["match_recall"], 1.0)
+        self.assertAlmostEqual(results["avg_recall_per_query"], 1.0)
+        self.assertEqual(results["total_matched_relevant"], 2)
+
+    def test_run_no_relevant_docs_matched(self):
+        app = MockAppForMatchEvaluator(
+            limit_responses=[MockVespaResponse(hits=[], _total_count=3)],
+            recall_responses=[MockVespaResponse(hits=[{"id": "other_doc"}])],
+        )
+        evaluator = VespaMatchEvaluator(
+            queries={"q1": "q"},
+            relevant_docs={"q1": {"doc1", "doc2"}},
+            vespa_query_fn=self.vespa_query_fn,
+            app=app,
+        )
+        results = evaluator.run()
+        self.assertAlmostEqual(results["match_recall"], 0.0)
+        self.assertAlmostEqual(results["avg_recall_per_query"], 0.0)
+        self.assertEqual(results["total_matched_relevant"], 0)
+
+    def test_error_on_graded_relevance(self):
+        graded_relevant_docs = {"q1": {"doc1": 1.0}}  # Graded relevance
+        evaluator = VespaMatchEvaluator(
+            queries=self.queries,
+            relevant_docs=graded_relevant_docs,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,  # App setup doesn't matter as error is before query
+        )
+        with self.assertRaisesRegex(
+            ValueError, "Graded relevance is not supported in VespaMatchEvaluator"
+        ):
+            evaluator.run()
+
+    def test_id_field_usage(self):
+        # Hits should contain the id_field in 'fields'
+        app = MockAppForMatchEvaluator(
+            limit_responses=[MockVespaResponse(hits=[], _total_count=1)],
+            recall_responses=[
+                MockVespaResponse(
+                    hits=[{"fields": {"custom_doc_id": "doc123"}, "relevance": 1.0}]
+                )
+            ],
+        )
+        evaluator = VespaMatchEvaluator(
+            queries={"q1": "q"},
+            relevant_docs={"q1": {"doc123"}},
+            vespa_query_fn=self.vespa_query_fn,
+            app=app,
+            id_field="custom_doc_id",
+        )
+        results = evaluator.run()
+        self.assertAlmostEqual(
+            results["match_recall"], 1.0
+        )  # doc123 should be extracted and matched
+
+    def test_vespa_query_failure(self):
+        app = MockAppForMatchEvaluator(
+            limit_responses=[
+                MockVespaResponse(hits=[], _status_code=500, _total_count=0)
+            ],  # Error on limit query
+            recall_responses=[],
+        )
+        evaluator = VespaMatchEvaluator(
+            queries={"q1": "q"},
+            relevant_docs={"q1": {"d1"}},
+            vespa_query_fn=self.vespa_query_fn,
+            app=app,
+        )
+        with self.assertRaisesRegex(
+            ValueError, "Vespa query failed with status code 500"
+        ):
+            evaluator.run()
+
+        app_recall_fail = MockAppForMatchEvaluator(
+            limit_responses=[MockVespaResponse(hits=[], _total_count=1)],
+            recall_responses=[
+                MockVespaResponse(hits=[], _status_code=503)
+            ],  # Error on recall query
+        )
+        evaluator_recall_fail = VespaMatchEvaluator(
+            queries={"q1": "q"},
+            relevant_docs={"q1": {"d1"}},
+            vespa_query_fn=self.vespa_query_fn,
+            app=app_recall_fail,
+        )
+        with self.assertRaisesRegex(
+            ValueError, "Vespa query failed with status code 503"
+        ):
+            evaluator_recall_fail.run()
+
+    def test_custom_rank_profile_in_query_fn(self):
+        def query_fn_custom_ranking(
+            query_text: str, top_k: int, query_id: Optional[str] = None
+        ) -> dict:
+            return {
+                "yql": f"select * from sources * where userInput('{query_text}');",
+                "hits": top_k,
+                "ranking": "my_custom_profile",  # Explicitly set
+            }
+
+        app = MockAppForMatchEvaluator(
+            limit_responses=[MockVespaResponse(hits=[], _total_count=1)],
+            recall_responses=[MockVespaResponse(hits=[{"id": "doc1"}])],
+        )
+        evaluator = VespaMatchEvaluator(
+            queries={"q1": "q"},
+            relevant_docs={"q1": {"doc1"}},
+            vespa_query_fn=query_fn_custom_ranking,
+            app=app,
+        )
+        evaluator.run()
+        # Recall query should use the ranking from the function
+        self.assertEqual(
+            app.captured_query_bodies_recall[0]["ranking"], "my_custom_profile"
+        )
+        # Limit query body also contains it, though it might not be used by Vespa for limit 0
+        self.assertEqual(
+            app.captured_query_bodies_limit[0]["ranking"], "my_custom_profile"
+        )
 
 
 if __name__ == "__main__":
