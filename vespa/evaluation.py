@@ -379,6 +379,28 @@ class VespaEvaluator(VespaEvaluatorBase):
         print("Primary metric:", evaluator.primary_metric)
         print("All results:", results)
         ```
+
+    Args:
+        queries (Dict[str, str]): A dictionary where keys are query IDs and values are query strings.
+        relevant_docs (Union[Dict[str, Union[Set[str], Dict[str, float]]], Dict[str, str]]):
+            A dictionary mapping query IDs to their relevant document IDs.
+            Can be a set of doc IDs for binary relevance, a dict of doc_id to relevance score (float between 0 and 1)
+            for graded relevance, or a single doc_id string.
+        vespa_query_fn (Callable[[str, int, Optional[str]], dict]): A function that takes a query string,
+            the number of hits to retrieve (top_k), and an optional query_id, and returns a Vespa query body dictionary.
+        app (Vespa): An instance of the Vespa application.
+        name (str, optional): A name for this evaluation run. Defaults to "".
+        id_field (str, optional): The field name in the Vespa hit that contains the document ID.
+            If empty, it tries to infer the ID from the 'id' field or 'fields.id'. Defaults to "".
+        accuracy_at_k (List[int], optional): List of k values for which to compute Accuracy@k.
+            Defaults to [1, 3, 5, 10].
+        precision_recall_at_k (List[int], optional): List of k values for which to compute Precision@k and Recall@k.
+            Defaults to [1, 3, 5, 10].
+        mrr_at_k (List[int], optional): List of k values for which to compute MRR@k. Defaults to [10].
+        ndcg_at_k (List[int], optional): List of k values for which to compute NDCG@k. Defaults to [10].
+        map_at_k (List[int], optional): List of k values for which to compute MAP@k. Defaults to [100].
+        write_csv (bool, optional): Whether to write the evaluation results to a CSV file. Defaults to False.
+        csv_dir (Optional[str], optional): Directory to save the CSV file. Defaults to None (current directory).
     """
 
     def __init__(
@@ -673,6 +695,10 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
     - Logs/returns these metrics.
     - Optionally writes out to CSV.
 
+    Note: It is recommended to use a rank profile without any first-phase (and second-phase) ranking if you care about speed of evaluation run.
+    If you do so, you need to make sure that the rank profile you use has the same inputs. For example, if you want to evaluate a YQL query including nearestNeighbor-operator, your rank-profile needs to define the corresponding input tensor.
+    You must also either provide the query tensor or define it as input (e.g 'input.query(embedding)=embed(@query)') in your Vespa query function.
+
     Example usage:
         ```python
         from vespa.application import Vespa
@@ -715,14 +741,32 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
             vespa_query_fn=my_vespa_query_fn,
             app=app,
             name="test-run",
+            id_field="id",
             write_csv=True,
-            write_verbose=True
+            write_verbose=True,
         )
 
         results = evaluator()
         print("Primary metric:", evaluator.primary_metric)
         print("All results:", results)
         ```
+
+    Args:
+        queries (Dict[str, str]): A dictionary where keys are query IDs and values are query strings.
+        relevant_docs (Union[Dict[str, Union[Set[str], Dict[str, float]]], Dict[str, str]]):
+            A dictionary mapping query IDs to their relevant document IDs.
+            Can be a set of doc IDs for binary relevance, or a single doc_id string.
+            Graded relevance (dict of doc_id to relevance score) is not supported for match evaluation.
+        vespa_query_fn (Callable[[str, int, Optional[str]], dict]): A function that takes a query string,
+            the number of hits to retrieve (top_k), and an optional query_id, and returns a Vespa query body dictionary.
+        app (Vespa): An instance of the Vespa application.
+        name (str, optional): A name for this evaluation run. Defaults to "".
+        id_field (str, optional): The field name in the Vespa hit that contains the document ID.
+            If empty, it tries to infer the ID from the 'id' field or 'fields.id'. Defaults to "".
+        write_csv (bool, optional): Whether to write the summary evaluation results to a CSV file. Defaults to False.
+        write_verbose (bool, optional): Whether to write detailed query-level results to a separate CSV file.
+            Defaults to False.
+        csv_dir (Optional[str], optional): Directory to save the CSV files. Defaults to None (current directory).
     """
 
     def __init__(
@@ -735,6 +779,7 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
         app: Vespa,
         name: str = "",
         id_field: str = "",
+        rank_profile: str = "unranked",
         write_csv: bool = False,
         write_verbose: bool = False,
         csv_dir: Optional[str] = None,
@@ -772,12 +817,14 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
                     "query_id",
                     "query_text",
                     "yql",
-                    "total_matched",
+                    "num_matched",  # Changed from total_matched
                     "relevant_docs_count",
                     "matched_relevant_count",
                     "recall",
                     "ids_matched",
                     "ids_not_matched",
+                    "searchtime_limit_query",  # Added
+                    "searchtime_recall_query",  # Added
                 ]
                 writer.writerow(header)
 
@@ -788,12 +835,16 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
                         row_data["query_id"],
                         row_data["query_text"],
                         row_data["yql"],
-                        row_data["total_matched"],
+                        row_data[
+                            "total_matched"
+                        ],  # This corresponds to num_matched (totalCount)
                         row_data["relevant_docs_count"],
                         row_data["matched_relevant_count"],
                         row_data["recall"],
                         "; ".join(row_data["ids_matched"]),
                         "; ".join(row_data["ids_not_matched"]),
+                        row_data.get("searchtime_limit_query", float("nan")),  # Added
+                        row_data.get("searchtime_recall_query", float("nan")),  # Added
                     ]
                 )
 
@@ -826,6 +877,10 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
         """
         logger.info(f"Starting VespaMatchEvaluator on {self.name}")
         logger.info(f"Number of queries: {len(self.queries_ids)}")
+
+        # Clear searchtimes from any previous runs if the instance is reused,
+        # though typically a new instance is created for each evaluation.
+        self.searchtimes: List[float] = []
 
         # Step 1: Initial query to get number of matched documents (limit 0)
         initial_query_bodies = []
@@ -866,6 +921,12 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
         ]
         logger.info(f"Total matched documents per query: {matched_docs_counts}")
 
+        # Store search times for limit 0 queries
+        searchtimes_limit_queries = list(
+            self.searchtimes
+        )  # shallow copy after first _execute_queries
+        self.searchtimes: List[float] = []  # Reset for recall queries
+
         # Step 2: Recall query with relevant documents
         recall_query_bodies = []
         for qid, query_text in zip(self.queries_ids, self.queries):
@@ -899,13 +960,20 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
                     f"Unsupported type of relevant docs for query {qid}: {type(relevant_docs)}"
                 )
             query_body["recall"] = f"+({recall_string})"
-            # Set to unranked
-            query_body["ranking"] = "unranked"
+            # Set to rank_profile
+            if "ranking" not in query_body:
+                query_body["ranking"] = "unranked"  # Set to unranked if not specified
 
             recall_query_bodies.append(query_body)
 
         # Execute recall queries
         recall_responses = self._execute_queries(recall_query_bodies)
+        searchtimes_recall_queries = list(
+            self.searchtimes
+        )  # shallow copy after second _execute_queries
+
+        # Combine all search times for overall statistics
+        self.searchtimes = searchtimes_limit_queries + searchtimes_recall_queries
 
         # Compute comprehensive match metrics
         total_relevant_docs = 0
@@ -953,6 +1021,12 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
                             "recall": query_recall,
                             "ids_matched": sorted(list(matched_relevant_ids)),
                             "ids_not_matched": sorted(list(not_matched_ids)),
+                            "searchtime_limit_query": searchtimes_limit_queries[idx]
+                            if idx < len(searchtimes_limit_queries)
+                            else float("nan"),
+                            "searchtime_recall_query": searchtimes_recall_queries[idx]
+                            if idx < len(searchtimes_recall_queries)
+                            else float("nan"),
                         }
                     )
 
