@@ -4,6 +4,7 @@ import csv
 import logging
 from typing import Dict, Set, Callable, List, Optional, Union
 import math
+from datetime import datetime  # Add this import
 from vespa.application import Vespa
 from vespa.io import VespaQueryResponse
 
@@ -93,7 +94,12 @@ class VespaEvaluatorBase:
         self.csv_dir = csv_dir
 
         self.primary_metric: Optional[str] = None
-        self.csv_file: str = f"Vespa-evaluation_{name}_results.csv"
+
+        # Generate datetime string for filenames
+        now = datetime.now()
+        self.dt_string = now.strftime("%Y%m%d_%H%M%S")
+
+        self.csv_file: str = f"Vespa-evaluation_{name}_{self.dt_string}_results.csv"
 
     @property
     def default_body(self):
@@ -799,7 +805,10 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
         )
         self.write_verbose = write_verbose
         if self.write_verbose:
-            self.verbose_csv_file = f"Vespa-match-evaluation_{name}_verbose.csv"
+            # Use the dt_string from the base class
+            self.verbose_csv_file = (
+                f"Vespa-match-evaluation_{name}_{self.dt_string}_verbose.csv"
+            )
 
     def _write_verbose_csv(self, verbose_data: List[Dict]):
         """Write verbose query-level results to CSV file."""
@@ -916,7 +925,7 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
             limit_query_bodies.append(new_body)
 
         limit_responses = self._execute_queries(limit_query_bodies)
-        print(f"Initial responses: {limit_responses[0].get_json()}")
+        logger.debug(f"Initial responses: {limit_responses[0].get_json()}")
         # Extract the number of matched documents from the initial responses
         matched_docs_counts = [
             resp.get_json().get("root", {}).get("fields", {}).get("totalCount", 0)
