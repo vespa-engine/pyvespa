@@ -323,6 +323,9 @@ class VespaEvaluator(VespaEvaluatorBase):
     - Logs/returns these metrics.
     - Optionally writes out to CSV.
 
+    Note: The 'id_field' needs to be marked as an attribute in your Vespa schema, so filtering can be done on it.
+
+
     Example usage:
         ```python
         from vespa.application import Vespa
@@ -698,7 +701,7 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
     Note: It is recommended to use a rank profile without any first-phase (and second-phase) ranking if you care about speed of evaluation run.
     If you do so, you need to make sure that the rank profile you use has the same inputs. For example, if you want to evaluate a YQL query including nearestNeighbor-operator, your rank-profile needs to define the corresponding input tensor.
     You must also either provide the query tensor or define it as input (e.g 'input.query(embedding)=embed(@query)') in your Vespa query function.
-
+    Also note that the 'id_field' needs to be marked as an attribute in your Vespa schema, so filtering can be done on it.
     Example usage:
         ```python
         from vespa.application import Vespa
