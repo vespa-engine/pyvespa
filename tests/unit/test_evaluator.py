@@ -1,7 +1,7 @@
 import unittest
 from vespa.evaluation import VespaEvaluator, VespaMatchEvaluator
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional  # Added Optional
+from typing import List, Dict, Any, Optional
 
 
 @dataclass
