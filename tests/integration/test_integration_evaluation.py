@@ -109,7 +109,7 @@ def create_app_package() -> ApplicationPackage:
                     RankProfile(
                         name="hybrid-match",
                         inputs=[("query(q)", "tensor<float>(x[384])")],
-                        first_phase="",
+                        first_phase="",  # Temporary workaround, as pyvespa does not allow empty first_phase
                     ),
                 ],
             )
@@ -165,7 +165,7 @@ def hybrid_match_query_fn(query_text: str, top_k: int = 10) -> Dict[str, Any]:
                     query_vector="q",
                     annotations={"targetHits": 100},
                 )
-                | qb.userQuery(query_text)
+                | qb.userQuery()
             )
         ),
         "query": query_text,
