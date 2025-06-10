@@ -4,11 +4,12 @@ import csv
 import logging
 from typing import Dict, Set, Callable, List, Optional, Union
 import math
-from datetime import datetime  # Add this import
+from datetime import datetime
 from vespa.application import Vespa
 from vespa.io import VespaQueryResponse
 
 logger = logging.getLogger(__name__)
+
 # Set default logging level to INFO and use StreamHandler
 if not logger.hasHandlers():
     handler = logging.StreamHandler()
