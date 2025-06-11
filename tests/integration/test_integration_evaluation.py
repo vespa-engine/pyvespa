@@ -266,8 +266,8 @@ class TestEvaluatorsIntegration(unittest.TestCase):
 
         # Evaluate
         results = evaluator.run()
-        assert results["match_recall"] == 1.0
-        assert results["avg_recall_per_query"] == 1.0
+        self.assertEqual(results["match_recall"], 1.0)
+        self.assertEqual(results["avg_recall_per_query"], 1.0)
         print("Got results: ", results)
 
         # Assert file is written
