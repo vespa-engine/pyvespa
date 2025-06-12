@@ -766,9 +766,6 @@ class TestVespaEvaluator(unittest.TestCase):
             self.assertEqual(qb["presentation.timing"], True)  # Default added
 
 
-# Add the new Test Class for VespaMatchEvaluator here
-
-
 class MockAppForMatchEvaluator:
     """Mock Vespa app for VespaMatchEvaluator tests."""
 
