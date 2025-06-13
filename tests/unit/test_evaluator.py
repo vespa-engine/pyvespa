@@ -1,7 +1,7 @@
 import unittest
-from vespa.evaluation import VespaEvaluator
+from vespa.evaluation import VespaEvaluator, VespaMatchEvaluator
 from dataclasses import dataclass
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 
 @dataclass
@@ -9,20 +9,68 @@ class MockVespaResponse:
     """Mock Vespa query response"""
 
     hits: List[Dict[str, Any]]
+    _total_count: Optional[int] = None  # Added for totalCount
+    _timing: Optional[Dict[str, float]] = (
+        None  # Added for timing e.g. {"searchtime": 0.1}
+    )
+    _status_code: int = 200  # Added for status code control
 
-    def add_namespace_to_hit_ids(self, hits) -> str:
+    def add_namespace_to_hit_ids(
+        self, hits_list
+    ) -> List[Dict[str, Any]]:  # Renamed hits to hits_list
         new_hits = []
-        for hit in hits:
-            hit["id"] = f"id:mynamespace:mydoctype::{hit['id']}"
-            new_hits.append(hit)
+        for hit_item in hits_list:  # Renamed hit to hit_item
+            # Ensure id is a string before trying to check substring
+            # And ensure 'id' key exists
+            hit_id = hit_item.get("id")
+            if isinstance(hit_id, str) and "id:mynamespace:mydoctype::" not in hit_id:
+                hit_item["id"] = f"id:mynamespace:mydoctype::{hit_id}"
+            elif (
+                not isinstance(hit_id, str)
+                and "fields" in hit_item
+                and isinstance(hit_item["fields"].get("id"), str)
+            ):
+                # Fallback for id in fields, if top-level id is not a string or missing
+                field_id = hit_item["fields"]["id"]
+                if "id:mynamespace:mydoctype::" not in field_id:
+                    hit_item["id"] = f"id:mynamespace:mydoctype::{field_id}"
+                else:
+                    hit_item["id"] = field_id  # Use it directly if already namespaced
+            elif (
+                not hit_id
+                and "fields" in hit_item
+                and isinstance(hit_item["fields"].get("id"), str)
+            ):
+                # if hit_item["id"] was None or empty string
+                field_id = hit_item["fields"]["id"]
+                hit_item["id"] = f"id:mynamespace:mydoctype::{field_id}"
+
+            new_hits.append(hit_item)
         return new_hits
 
     def get_json(self):
-        return {"root": {"children": self.add_namespace_to_hit_ids(self.hits)}}
+        json_data = {"root": {}}
+        # children should only be present if there are hits
+        if self.hits:
+            # Ensure hits are processed for id namespacing before being added to json
+            processed_hits = self.add_namespace_to_hit_ids(self.hits)
+            json_data["root"]["children"] = processed_hits
+        else:
+            json_data["root"]["children"] = []
+
+        if self._total_count is not None:
+            if "fields" not in json_data["root"]:  # Ensure fields key exists
+                json_data["root"]["fields"] = {}
+            json_data["root"]["fields"]["totalCount"] = self._total_count
+
+        if self._timing:
+            json_data["timing"] = self._timing
+
+        return json_data
 
     @property
     def status_code(self):
-        return 200
+        return self._status_code
 
 
 class QueryBodyCapturingApp:
@@ -716,6 +764,609 @@ class TestVespaEvaluator(unittest.TestCase):
         for qb in capturing_app.captured_query_bodies:
             self.assertEqual(qb["timeout"], "10s")  # User's value preserved
             self.assertEqual(qb["presentation.timing"], True)  # Default added
+
+
+class MockAppForMatchEvaluator:
+    """Mock Vespa app for VespaMatchEvaluator tests."""
+
+    def __init__(
+        self,
+        limit_responses: List[MockVespaResponse],
+        recall_responses: List[MockVespaResponse],
+    ):
+        self.limit_responses = limit_responses
+        self.recall_responses = recall_responses
+        self.call_count = 0
+        self.captured_query_bodies_limit: List[Dict] = []
+        self.captured_query_bodies_recall: List[Dict] = []
+
+    def query_many(self, query_bodies: List[Dict]):
+        if self.call_count == 0:  # First call is for limit queries
+            self.call_count += 1
+            self.captured_query_bodies_limit = query_bodies
+            return self.limit_responses[: len(query_bodies)]
+        elif self.call_count == 1:  # Second call is for recall queries
+            self.call_count += 1
+            self.captured_query_bodies_recall = query_bodies
+            return self.recall_responses[: len(query_bodies)]
+        raise AssertionError(f"query_many called too many times: {self.call_count}")
+
+
+class TestVespaMatchEvaluator(unittest.TestCase):
+    def setUp(self):
+        self.queries = {
+            "q1": "query text one",
+            "q2": "query text two",
+            "q3": "query text three",  # Will be filtered if not in relevant_docs
+        }
+        self.relevant_docs_set = {
+            "q1": {"doc1", "doc2"},
+            "q2": {"doc4"},
+        }
+
+        def mock_vespa_query_fn(
+            query_text: str, top_k: int, query_id: Optional[str] = None
+        ) -> dict:
+            yql = f'select * from sources * where userInput("{query_text}");'
+            return {"yql": yql, "hits": top_k}
+
+        self.vespa_query_fn = mock_vespa_query_fn
+
+        # Default mock app for 2 queries (q1, q2)
+        self.mock_app = MockAppForMatchEvaluator(
+            limit_responses=[
+                MockVespaResponse(
+                    hits=[], _total_count=10, _timing={"searchtime": 0.01}
+                ),  # q1
+                MockVespaResponse(
+                    hits=[], _total_count=5, _timing={"searchtime": 0.02}
+                ),  # q2
+            ],
+            recall_responses=[
+                MockVespaResponse(
+                    hits=[{"id": "doc1"}, {"id": "doc_other"}],
+                    _timing={"searchtime": 0.03},
+                ),  # q1 (1 of 2 relevant)
+                MockVespaResponse(
+                    hits=[{"id": "doc4"}], _timing={"searchtime": 0.04}
+                ),  # q2 (1 of 1 relevant)
+            ],
+        )
+
+    def test_basic_initialization(self):
+        evaluator = VespaMatchEvaluator(
+            queries=self.queries,
+            relevant_docs=self.relevant_docs_set,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+        )
+        self.assertIsInstance(evaluator, VespaMatchEvaluator)
+        self.assertEqual(evaluator.name, "")
+        self.assertEqual(evaluator.id_field, "")
+        self.assertEqual(evaluator.write_csv, False)
+        self.assertEqual(evaluator.write_verbose, False)
+        self.assertEqual(set(evaluator.queries_ids), {"q1", "q2"})  # q3 filtered
+
+    def test_run_basic_scenario(self):
+        evaluator = VespaMatchEvaluator(
+            queries=self.queries,
+            relevant_docs=self.relevant_docs_set,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+            name="basic_match_run",
+        )
+        results = evaluator.run()
+
+        # Metrics
+        # q1: 1 matched / 2 relevant. q2: 1 matched / 1 relevant.
+        # total_relevant_docs = 2 + 1 = 3
+        # total_matched_relevant = 1 + 1 = 2
+        # match_recall = 2 / 3
+        # avg_recall_per_query = (0.5 + 1.0) / 2 = 0.75
+        # avg_matched_per_query (totalCount from limit) = (10 + 5) / 2 = 7.5
+        self.assertAlmostEqual(results["match_recall"], 2 / 3)
+        self.assertAlmostEqual(results["avg_recall_per_query"], 0.75)
+        self.assertEqual(results["total_relevant_docs"], 3)
+        self.assertEqual(results["total_matched_relevant"], 2)
+        self.assertAlmostEqual(results["avg_matched_per_query"], 7.5)
+        self.assertEqual(results["total_queries"], 2)
+        self.assertEqual(evaluator.primary_metric, "match_recall")
+        self.assertAlmostEqual(
+            results["searchtime_avg"], (0.01 + 0.02 + 0.03 + 0.04) / 4
+        )
+
+        # Check captured query bodies
+        self.assertEqual(len(self.mock_app.captured_query_bodies_limit), 2)
+        q1_limit_body = self.mock_app.captured_query_bodies_limit[0]
+        self.assertIn("limit 0", q1_limit_body["yql"])
+        self.assertNotIn("hits", q1_limit_body)  # 'hits' key popped for limit query
+
+        self.assertEqual(len(self.mock_app.captured_query_bodies_recall), 2)
+        q1_recall_body = self.mock_app.captured_query_bodies_recall[0]
+        self.assertIn("recall", q1_recall_body)
+        self.assertTrue(
+            "id:doc1" in q1_recall_body["recall"]
+            and "id:doc2" in q1_recall_body["recall"]
+        )
+        self.assertEqual(q1_recall_body["hits"], len(self.relevant_docs_set["q1"]))
+        self.assertEqual(q1_recall_body["ranking"], "unranked")  # Default
+
+    def test_run_all_relevant_docs_matched(self):
+        app = MockAppForMatchEvaluator(
+            limit_responses=[MockVespaResponse(hits=[], _total_count=3)],
+            recall_responses=[MockVespaResponse(hits=[{"id": "doc1"}, {"id": "doc2"}])],
+        )
+        evaluator = VespaMatchEvaluator(
+            queries={"q1": "q"},
+            relevant_docs={"q1": {"doc1", "doc2"}},
+            vespa_query_fn=self.vespa_query_fn,
+            app=app,
+        )
+        results = evaluator.run()
+        self.assertAlmostEqual(results["match_recall"], 1.0)
+        self.assertAlmostEqual(results["avg_recall_per_query"], 1.0)
+        self.assertEqual(results["total_matched_relevant"], 2)
+
+    def test_run_no_relevant_docs_matched(self):
+        app = MockAppForMatchEvaluator(
+            limit_responses=[MockVespaResponse(hits=[], _total_count=3)],
+            recall_responses=[MockVespaResponse(hits=[{"id": "other_doc"}])],
+        )
+        evaluator = VespaMatchEvaluator(
+            queries={"q1": "q"},
+            relevant_docs={"q1": {"doc1", "doc2"}},
+            vespa_query_fn=self.vespa_query_fn,
+            app=app,
+        )
+        results = evaluator.run()
+        self.assertAlmostEqual(results["match_recall"], 0.0)
+        self.assertAlmostEqual(results["avg_recall_per_query"], 0.0)
+        self.assertEqual(results["total_matched_relevant"], 0)
+
+    def test_error_on_graded_relevance(self):
+        graded_relevant_docs = {"q1": {"doc1": 1.0}}  # Graded relevance
+        evaluator = VespaMatchEvaluator(
+            queries=self.queries,
+            relevant_docs=graded_relevant_docs,
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,  # App setup doesn't matter as error is before query
+        )
+        with self.assertRaisesRegex(
+            ValueError, "Graded relevance is not supported in VespaMatchEvaluator"
+        ):
+            evaluator.run()
+
+    def test_id_field_usage(self):
+        # Hits should contain the id_field in 'fields'
+        app = MockAppForMatchEvaluator(
+            limit_responses=[MockVespaResponse(hits=[], _total_count=1)],
+            recall_responses=[
+                MockVespaResponse(
+                    hits=[{"fields": {"custom_doc_id": "doc123"}, "relevance": 1.0}]
+                )
+            ],
+        )
+        evaluator = VespaMatchEvaluator(
+            queries={"q1": "q"},
+            relevant_docs={"q1": {"doc123"}},
+            vespa_query_fn=self.vespa_query_fn,
+            app=app,
+            id_field="custom_doc_id",
+        )
+        results = evaluator.run()
+        self.assertAlmostEqual(
+            results["match_recall"], 1.0
+        )  # doc123 should be extracted and matched
+
+    def test_vespa_query_failure(self):
+        app = MockAppForMatchEvaluator(
+            limit_responses=[
+                MockVespaResponse(hits=[], _status_code=500, _total_count=0)
+            ],  # Error on limit query
+            recall_responses=[],
+        )
+        evaluator = VespaMatchEvaluator(
+            queries={"q1": "q"},
+            relevant_docs={"q1": {"d1"}},
+            vespa_query_fn=self.vespa_query_fn,
+            app=app,
+        )
+        with self.assertRaisesRegex(
+            ValueError, "Vespa query failed with status code 500"
+        ):
+            evaluator.run()
+
+        app_recall_fail = MockAppForMatchEvaluator(
+            limit_responses=[MockVespaResponse(hits=[], _total_count=1)],
+            recall_responses=[
+                MockVespaResponse(hits=[], _status_code=503)
+            ],  # Error on recall query
+        )
+        evaluator_recall_fail = VespaMatchEvaluator(
+            queries={"q1": "q"},
+            relevant_docs={"q1": {"d1"}},
+            vespa_query_fn=self.vespa_query_fn,
+            app=app_recall_fail,
+        )
+        with self.assertRaisesRegex(
+            ValueError, "Vespa query failed with status code 503"
+        ):
+            evaluator_recall_fail.run()
+
+    def test_custom_rank_profile_in_query_fn(self):
+        def query_fn_custom_ranking(
+            query_text: str, top_k: int, query_id: Optional[str] = None
+        ) -> dict:
+            return {
+                "yql": f"select * from sources * where userInput('{query_text}');",
+                "hits": top_k,
+                "ranking": "my_custom_profile",  # Explicitly set
+            }
+
+        app = MockAppForMatchEvaluator(
+            limit_responses=[MockVespaResponse(hits=[], _total_count=1)],
+            recall_responses=[MockVespaResponse(hits=[{"id": "doc1"}])],
+        )
+        evaluator = VespaMatchEvaluator(
+            queries={"q1": "q"},
+            relevant_docs={"q1": {"doc1"}},
+            vespa_query_fn=query_fn_custom_ranking,
+            app=app,
+        )
+        evaluator.run()
+        # Recall query should use the ranking from the function
+        self.assertEqual(
+            app.captured_query_bodies_recall[0]["ranking"], "my_custom_profile"
+        )
+        # Limit query body also contains it, though it might not be used by Vespa for limit 0
+        self.assertEqual(
+            app.captured_query_bodies_limit[0]["ranking"], "my_custom_profile"
+        )
+
+
+class TestUtilityFunctions(unittest.TestCase):
+    """Test the module-level utility functions extracted from VespaEvaluatorBase."""
+
+    def test_validate_queries_valid_inputs(self):
+        """Test validate_queries with valid inputs."""
+        from vespa.evaluation import validate_queries
+
+        # String keys
+        queries1 = {"q1": "query text 1", "q2": "query text 2"}
+        result1 = validate_queries(queries1)
+        self.assertEqual(result1, {"q1": "query text 1", "q2": "query text 2"})
+
+        # Integer keys (should be converted to strings)
+        queries2 = {1: "query text 1", 2: "query text 2"}
+        result2 = validate_queries(queries2)
+        self.assertEqual(result2, {"1": "query text 1", "2": "query text 2"})
+
+        # Mixed keys
+        queries3 = {"q1": "query text 1", 2: "query text 2"}
+        result3 = validate_queries(queries3)
+        self.assertEqual(result3, {"q1": "query text 1", "2": "query text 2"})
+
+    def test_validate_queries_invalid_inputs(self):
+        """Test validate_queries with invalid inputs."""
+        from vespa.evaluation import validate_queries
+
+        # Not a dict
+        with self.assertRaisesRegex(ValueError, "queries must be a dict"):
+            validate_queries("not a dict")
+
+        # Invalid query ID type
+        with self.assertRaisesRegex(ValueError, "Query ID must be a string or an int"):
+            validate_queries({None: "query text"})
+
+        # Invalid query text type
+        with self.assertRaisesRegex(ValueError, "Query text must be a string"):
+            validate_queries({"q1": 123})
+
+    def test_validate_qrels_valid_inputs(self):
+        """Test validate_qrels with valid inputs."""
+        from vespa.evaluation import validate_qrels
+
+        # Set of relevant docs
+        qrels1 = {"q1": {"doc1", "doc2"}, "q2": {"doc3"}}
+        result1 = validate_qrels(qrels1)
+        self.assertEqual(result1, {"q1": {"doc1", "doc2"}, "q2": {"doc3"}})
+
+        # Single relevant doc (string)
+        qrels2 = {"q1": "doc1", "q2": "doc2"}
+        result2 = validate_qrels(qrels2)
+        self.assertEqual(result2, {"q1": {"doc1"}, "q2": {"doc2"}})
+
+        # Graded relevance (dict)
+        qrels3 = {"q1": {"doc1": 1.0, "doc2": 0.5}, "q2": {"doc3": 0.8}}
+        result3 = validate_qrels(qrels3)
+        self.assertEqual(
+            result3, {"q1": {"doc1": 1.0, "doc2": 0.5}, "q2": {"doc3": 0.8}}
+        )
+
+        # Integer query IDs (should be converted to strings)
+        qrels4 = {1: {"doc1"}, 2: {"doc2"}}
+        result4 = validate_qrels(qrels4)
+        self.assertEqual(result4, {"1": {"doc1"}, "2": {"doc2"}})
+
+    def test_validate_qrels_invalid_inputs(self):
+        """Test validate_qrels with invalid inputs."""
+        from vespa.evaluation import validate_qrels
+
+        # Not a dict
+        with self.assertRaisesRegex(ValueError, "qrels must be a dict"):
+            validate_qrels("not a dict")
+
+        # Invalid query ID type
+        with self.assertRaisesRegex(
+            ValueError, "Query ID in qrels must be a string or an int"
+        ):
+            validate_qrels({None: {"doc1"}})
+
+        # Invalid relevant docs type
+        with self.assertRaisesRegex(ValueError, "must be a set, string, or dict"):
+            validate_qrels({"q1": 123})
+
+        # Invalid relevance score type
+        with self.assertRaisesRegex(
+            ValueError, "must be a dict of string doc_id => numeric relevance"
+        ):
+            validate_qrels({"q1": {"doc1": "not_numeric"}})
+
+        # Relevance score out of range
+        with self.assertRaisesRegex(ValueError, "must be between 0 and 1"):
+            validate_qrels({"q1": {"doc1": 1.5}})
+
+        with self.assertRaisesRegex(ValueError, "must be between 0 and 1"):
+            validate_qrels({"q1": {"doc1": -0.1}})
+
+    def test_validate_vespa_query_fn_valid_functions(self):
+        """Test validate_vespa_query_fn with valid functions."""
+        from vespa.evaluation import validate_vespa_query_fn
+
+        # Function with 2 parameters
+        def fn1(query: str, k: int) -> dict:
+            return {"yql": query, "hits": k}
+
+        result1 = validate_vespa_query_fn(fn1)
+        self.assertFalse(result1)  # Should return False (no query_id param)
+
+        # Function with 3 parameters
+        def fn2(query: str, k: int, query_id: Optional[str]) -> dict:
+            return {"yql": query, "hits": k}
+
+        result2 = validate_vespa_query_fn(fn2)
+        self.assertTrue(result2)  # Should return True (has query_id param)
+
+        # Function without type hints
+        def fn3(query, k):
+            return {"yql": query, "hits": k}
+
+        result3 = validate_vespa_query_fn(fn3)
+        self.assertFalse(result3)
+
+    def test_validate_vespa_query_fn_invalid_functions(self):
+        """Test validate_vespa_query_fn with invalid functions."""
+        from vespa.evaluation import validate_vespa_query_fn
+
+        # Not callable
+        with self.assertRaisesRegex(ValueError, "must be callable"):
+            validate_vespa_query_fn("not a function")
+
+        # Wrong number of parameters
+        def fn1(query: str) -> dict:
+            return {"yql": query}
+
+        with self.assertRaisesRegex(TypeError, "must take 2 or 3 parameters"):
+            validate_vespa_query_fn(fn1)
+
+        # Wrong parameter types
+        def fn2(query: int, k: str) -> dict:
+            return {"yql": str(query), "hits": int(k)}
+
+        with self.assertRaisesRegex(TypeError, "must be of type"):
+            validate_vespa_query_fn(fn2)
+
+    def test_filter_queries(self):
+        """Test filter_queries function."""
+        from vespa.evaluation import filter_queries
+
+        queries = {"q1": "query 1", "q2": "query 2", "q3": "query 3", "q4": "query 4"}
+
+        # Normal case
+        relevant_docs = {"q1": {"doc1"}, "q2": {"doc2"}, "q3": {"doc3"}}
+        result = filter_queries(queries, relevant_docs)
+        self.assertEqual(set(result), {"q1", "q2", "q3"})
+
+        # Some queries have no relevant docs
+        relevant_docs2 = {"q1": {"doc1"}, "q3": {"doc3"}}
+        result2 = filter_queries(queries, relevant_docs2)
+        self.assertEqual(set(result2), {"q1", "q3"})
+
+        # Some queries have empty relevant docs
+        relevant_docs3 = {"q1": {"doc1"}, "q2": set(), "q3": {"doc3"}}
+        result3 = filter_queries(queries, relevant_docs3)
+        self.assertEqual(set(result3), {"q1", "q3"})
+
+    def test_extract_doc_id_from_hit(self):
+        """Test extract_doc_id_from_hit function."""
+        from vespa.evaluation import extract_doc_id_from_hit
+
+        # No id_field specified, use default logic
+        hit1 = {"id": "id:namespace:doctype::doc123", "relevance": 0.9}
+        result1 = extract_doc_id_from_hit(hit1, "")
+        self.assertEqual(result1, "doc123")
+
+        # No namespace in id, fallback to fields.id
+        hit2 = {"id": "simple_id", "fields": {"id": "doc456"}, "relevance": 0.8}
+        result2 = extract_doc_id_from_hit(hit2, "")
+        self.assertEqual(result2, "doc456")
+
+        # Custom id_field
+        hit3 = {"fields": {"custom_id": "doc789"}, "relevance": 0.7}
+        result3 = extract_doc_id_from_hit(hit3, "custom_id")
+        self.assertEqual(result3, "doc789")
+
+        # Error case: no extractable doc_id
+        hit4 = {"relevance": 0.6}
+        with self.assertRaisesRegex(ValueError, "Could not extract doc_id from hit"):
+            extract_doc_id_from_hit(hit4, "")
+
+    def test_calculate_searchtime_stats(self):
+        """Test calculate_searchtime_stats function."""
+        from vespa.evaluation import calculate_searchtime_stats
+
+        # Normal case
+        searchtimes = [0.1, 0.2, 0.15, 0.3, 0.25]
+        result = calculate_searchtime_stats(searchtimes)
+
+        self.assertAlmostEqual(result["searchtime_avg"], 0.2)
+        self.assertAlmostEqual(result["searchtime_q50"], 0.2)  # median
+        self.assertIn("searchtime_q90", result)
+        self.assertIn("searchtime_q95", result)
+
+        # Empty list
+        result_empty = calculate_searchtime_stats([])
+        self.assertEqual(result_empty, {})
+
+    def test_execute_queries_success(self):
+        """Test execute_queries function with successful responses."""
+        from vespa.evaluation import execute_queries
+
+        # Mock responses
+        mock_responses = [
+            MockVespaResponse(hits=[], _timing={"searchtime": 0.1}),
+            MockVespaResponse(hits=[], _timing={"searchtime": 0.2}),
+        ]
+
+        # Mock app
+        class MockApp:
+            def query_many(self, query_bodies):
+                return mock_responses
+
+        app = MockApp()
+        query_bodies = [{"yql": "query1"}, {"yql": "query2"}]
+
+        responses, searchtimes = execute_queries(app, query_bodies)
+
+        self.assertEqual(len(responses), 2)
+        self.assertEqual(searchtimes, [0.1, 0.2])
+
+    def test_execute_queries_failure(self):
+        """Test execute_queries function with failed responses."""
+        from vespa.evaluation import execute_queries
+
+        # Mock failed response
+        mock_response = MockVespaResponse(hits=[], _status_code=500)
+
+        class MockApp:
+            def query_many(self, query_bodies):
+                return [mock_response]
+
+        app = MockApp()
+        query_bodies = [{"yql": "query1"}]
+
+        with self.assertRaisesRegex(
+            ValueError, "Vespa query failed with status code 500"
+        ):
+            execute_queries(app, query_bodies)
+
+    def test_write_csv(self):
+        """Test write_csv function."""
+        from vespa.evaluation import write_csv
+        import tempfile
+        import os
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            metrics = {"accuracy@1": 0.75, "precision@5": 0.6}
+            searchtime_stats = {"searchtime_avg": 0.1}
+            csv_file = "test_results.csv"
+            name = "test_run"
+
+            # Write CSV
+            write_csv(metrics, searchtime_stats, csv_file, temp_dir, name)
+
+            # Check file was created
+            csv_path = os.path.join(temp_dir, csv_file)
+            self.assertTrue(os.path.exists(csv_path))
+
+            # Check content
+            with open(csv_path, "r") as f:
+                content = f.read()
+                self.assertIn("name", content)
+                self.assertIn("accuracy@1", content)
+                self.assertIn("test_run", content)
+                self.assertIn("0.75", content)
+
+    def test_log_metrics(self):
+        """Test log_metrics function."""
+        from vespa.evaluation import log_metrics
+        import logging
+        from io import StringIO
+
+        # Capture log output
+        log_stream = StringIO()
+        handler = logging.StreamHandler(log_stream)
+        logger = logging.getLogger("vespa.evaluation")
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+
+        try:
+            metrics = {
+                "accuracy@1": 0.75,
+                "precision@5": 0.6,
+                "ndcg@10": 0.8,
+                "searchtime_avg": 0.123,
+            }
+
+            log_metrics("test_run", metrics)
+
+            log_output = log_stream.getvalue()
+
+            # Check that percentage metrics are formatted correctly
+            self.assertIn("75.00%", log_output)  # accuracy
+            self.assertIn("60.00%", log_output)  # precision
+
+            # Check that non-percentage metrics are formatted correctly
+            self.assertIn("0.8000", log_output)  # ndcg
+            self.assertIn("0.1230", log_output)  # searchtime
+
+        finally:
+            logger.removeHandler(handler)
+
+    def test_mean_function(self):
+        """Test the mean utility function."""
+        from vespa.evaluation import mean
+
+        # Normal case
+        self.assertAlmostEqual(mean([1, 2, 3, 4, 5]), 3.0)
+
+        # Single value
+        self.assertAlmostEqual(mean([5]), 5.0)
+
+        # Empty list
+        self.assertAlmostEqual(mean([]), 0.0)
+
+        # Floating point values
+        self.assertAlmostEqual(mean([0.1, 0.2, 0.3]), 0.2)
+
+    def test_percentile_function(self):
+        """Test the percentile utility function."""
+        from vespa.evaluation import percentile
+
+        values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+        # Test various percentiles
+        self.assertAlmostEqual(percentile(values, 0), 1.0)
+        self.assertAlmostEqual(percentile(values, 50), 5.5)
+        self.assertAlmostEqual(percentile(values, 100), 10.0)
+
+        # Test edge cases
+        self.assertAlmostEqual(percentile([], 50), 0.0)
+        self.assertAlmostEqual(percentile([5], 50), 5.0)
+
+        # Test out of range percentiles
+        self.assertAlmostEqual(percentile(values, -10), percentile(values, 0))
+        self.assertAlmostEqual(percentile(values, 110), percentile(values, 100))
 
 
 if __name__ == "__main__":
