@@ -17,8 +17,11 @@ from vespa.package import (
     Parameter,
 )
 from vespa.deployment import VespaDocker
-from vespa.evaluation import VespaEvaluator
+from vespa.evaluation import VespaEvaluator, VespaMatchEvaluator
 from vespa.io import VespaResponse
+import vespa.querybuilder as qb
+import pandas as pd
+from pathlib import Path
 
 # Reference metrics from your Sentence Transformers (semantic) runs:
 # Code used to produce these metrics:
@@ -72,7 +75,9 @@ def create_app_package() -> ApplicationPackage:
                 name="doc",
                 document=Document(
                     fields=[
-                        Field(name="id", type="string", indexing=["summary"]),
+                        Field(
+                            name="id", type="string", indexing=["attribute", "summary"]
+                        ),
                         Field(
                             name="text",
                             type="string",
@@ -100,6 +105,11 @@ def create_app_package() -> ApplicationPackage:
                         name="semantic",
                         inputs=[("query(q)", "tensor<float>(x[384])")],
                         first_phase="closeness(field, embedding)",
+                    ),
+                    RankProfile(
+                        name="hybrid-match",
+                        inputs=[("query(q)", "tensor<float>(x[384])")],
+                        first_phase="",  # Temporary workaround, as pyvespa does not allow empty first_phase
                     ),
                 ],
             )
@@ -141,7 +151,30 @@ def semantic_query_fn(query_text: str, top_k: int = 10) -> Dict[str, Any]:
     }
 
 
-class TestSemanticIntegration(unittest.TestCase):
+def hybrid_match_query_fn(query_text: str, top_k: int = 10) -> Dict[str, Any]:
+    """
+    Convert plain text into a JSON body for Vespa query with 'hybrid-match' rank profile.
+    """
+    return {
+        "yql": str(
+            qb.select("*")
+            .from_("sources *")
+            .where(
+                qb.nearestNeighbor(
+                    field="embedding",
+                    query_vector="q",
+                    annotations={"targetHits": 100},
+                )
+                | qb.userQuery()
+            )
+        ),
+        "query": query_text,
+        "ranking": "hybrid-match",
+        "input.query(q)": f"embed({query_text})",
+    }
+
+
+class TestEvaluatorsIntegration(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         # 1) Build and deploy the application package
@@ -213,6 +246,37 @@ class TestSemanticIntegration(unittest.TestCase):
             with self.subTest(metric=metric):
                 # Tolerance of 0.01
                 self.assertAlmostEqual(vespa_val, st_value, delta=0.0001)
+
+    def test_hybrid_match_metrics(self):
+        """
+        Use VespaMatchEvaluator on the 'hybrid-match' ranking profile with the
+        queries & relevant docs from the NanoMSMARCO subset,
+        then compare the results to the reference values from ST.
+        """
+
+        evaluator = VespaMatchEvaluator(
+            queries=self.ids_to_query,
+            relevant_docs=self.relevant_docs,
+            vespa_query_fn=hybrid_match_query_fn,
+            app=self.app,
+            name="hybrid-match",
+            write_csv=True,
+            write_verbose=True,
+        )
+
+        # Evaluate
+        results = evaluator.run()
+        self.assertEqual(results["match_recall"], 1.0)
+        self.assertEqual(results["avg_recall_per_query"], 1.0)
+        print("Got results: ", results)
+
+        # Assert file is written
+        self.assertTrue(Path(evaluator.csv_file).exists())
+        self.assertTrue(Path(evaluator.verbose_csv_file).exists())
+        # Read the csv and print head
+        df = pd.read_csv(evaluator.verbose_csv_file)
+        # assert that recall column is 1.0
+        self.assertTrue((df["recall"] == 1.0).all())
 
 
 if __name__ == "__main__":

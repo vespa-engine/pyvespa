@@ -2,12 +2,24 @@ from __future__ import annotations
 import os
 import csv
 import logging
-from typing import Dict, Set, Callable, List, Optional, Union
+from typing import Dict, Set, Callable, List, Optional, Union, Tuple
 import math
+from datetime import datetime
 from vespa.application import Vespa
 from vespa.io import VespaQueryResponse
+from abc import ABC, abstractmethod
 
 logger = logging.getLogger(__name__)
+
+# Set default logging level to INFO and use StreamHandler
+if not logger.hasHandlers():
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.INFO)
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
 
 def mean(values: List[float]) -> float:
@@ -43,7 +55,288 @@ def percentile(values: List[float], p: float) -> float:
     )
 
 
-class VespaEvaluator:
+def validate_queries(queries: Dict[Union[str, int], str]) -> Dict[str, str]:
+    """
+    Validate and normalize queries.
+    Converts query IDs to strings if they are ints.
+    """
+    if not isinstance(queries, dict):
+        raise ValueError("queries must be a dict of query_id => query_text")
+    normalized_queries = {}
+    for qid, query_text in queries.items():
+        if not isinstance(qid, (str, int)):
+            raise ValueError("Query ID must be a string or an int.", qid)
+        if not isinstance(query_text, str):
+            raise ValueError("Query text must be a string.", query_text)
+        normalized_queries[str(qid)] = query_text
+    return normalized_queries
+
+
+def validate_qrels(
+    qrels: Union[
+        Dict[Union[str, int], Union[Set[str], Dict[str, float]]],
+        Dict[Union[str, int], str],
+    ],
+) -> Dict[str, Union[Set[str], Dict[str, float]]]:
+    """
+    Validate and normalize qrels.
+    Converts query IDs to strings if they are ints.
+    """
+    if not isinstance(qrels, dict):
+        raise ValueError(
+            "qrels must be a dict of query_id => set/dict of relevant doc_ids or a single doc_id string"
+        )
+    new_qrels: Dict[str, Union[Set[str], Dict[str, float]]] = {}
+    for qid, relevant_docs in qrels.items():
+        if not isinstance(qid, (str, int)):
+            raise ValueError(
+                "Query ID in qrels must be a string or an int.", qid, relevant_docs
+            )
+        normalized_qid = str(qid)
+        if isinstance(relevant_docs, str):
+            new_qrels[normalized_qid] = {relevant_docs}
+        elif isinstance(relevant_docs, set):
+            new_qrels[normalized_qid] = relevant_docs
+        elif isinstance(relevant_docs, dict):
+            for doc_id, relevance in relevant_docs.items():
+                if not isinstance(doc_id, str) or not isinstance(
+                    relevance, (int, float)
+                ):
+                    raise ValueError(
+                        f"Relevance scores for query {normalized_qid} must be a dict of string doc_id => numeric relevance."
+                    )
+                if not 0 <= relevance <= 1:
+                    raise ValueError(
+                        f"Relevance scores for query {normalized_qid} must be between 0 and 1."
+                    )
+            new_qrels[normalized_qid] = relevant_docs
+        else:
+            raise ValueError(
+                f"Relevant docs for query {normalized_qid} must be a set, string, or dict."
+            )
+    return new_qrels
+
+
+def validate_vespa_query_fn(fn: Callable) -> bool:
+    """
+    Validates the vespa_query_fn function.
+
+    The function must be callable and accept either 2 or 3 parameters:
+        - (query_text: str, top_k: int)
+        - or (query_text: str, top_k: int, query_id: Optional[str])
+
+    It must return a dictionary when called with test inputs.
+
+    Returns True if the function takes a query_id parameter, False otherwise.
+    """
+    if not callable(fn):
+        raise ValueError("vespa_query_fn must be callable")
+
+    import inspect
+
+    sig = inspect.signature(fn)
+    params = list(sig.parameters.values())
+
+    if len(params) not in (2, 3):
+        raise TypeError("vespa_query_fn must take 2 or 3 parameters")
+
+    # Validate first parameter: query_text
+    if (
+        params[0].annotation is not inspect.Parameter.empty
+        and params[0].annotation is not str
+    ):
+        raise TypeError("Parameter 'query_text' must be of type str")
+
+    # Validate second parameter: top_k
+    if (
+        params[1].annotation is not inspect.Parameter.empty
+        and params[1].annotation is not int
+    ):
+        raise TypeError("Parameter 'top_k' must be of type int")
+
+    # If there's a third parameter, validate query_id
+    if len(params) == 3:
+        third = params[2]
+        if third.annotation is not inspect.Parameter.empty and third.annotation not in (
+            str,
+            Optional[str],
+        ):
+            raise TypeError("Parameter 'query_id' must be of type str or Optional[str]")
+        return True
+    else:
+        return False
+
+
+def filter_queries(
+    queries: Dict[str, str], relevant_docs: Dict[str, Set[str]]
+) -> List[str]:
+    """Filter out queries that have no relevant docs"""
+    filtered = []
+    for qid in queries:
+        if qid in relevant_docs and len(relevant_docs[qid]) > 0:
+            filtered.append(qid)
+    return filtered
+
+
+def extract_doc_id_from_hit(hit: dict, id_field: str) -> str:
+    """Extract document ID from a Vespa hit."""
+    if id_field == "":
+        full_id = hit.get("id", "")
+        if "::" not in full_id:
+            # vespa internal id - eg. index:content/0/35c332d6bc52ae1f8378f7b3
+            # Trying 'id' field as a fallback
+            doc_id = str(hit.get("fields", {}).get("id", ""))
+        else:
+            doc_id = full_id.split("::")[-1]
+    else:
+        # doc_id extraction logic
+        doc_id = str(hit.get("fields", {}).get(id_field, ""))
+
+    if not doc_id:
+        raise ValueError(f"Could not extract doc_id from hit: {hit}")
+
+    return doc_id
+
+
+def calculate_searchtime_stats(searchtimes: List[float]) -> Dict[str, float]:
+    """Calculate search time statistics."""
+    if not searchtimes:
+        return {}
+    return {
+        "searchtime_avg": mean(searchtimes),
+        "searchtime_q50": percentile(searchtimes, 50),
+        "searchtime_q90": percentile(searchtimes, 90),
+        "searchtime_q95": percentile(searchtimes, 95),
+    }
+
+
+def execute_queries(
+    app: Vespa, query_bodies: List[dict]
+) -> Tuple[List[VespaQueryResponse], List[float]]:
+    """
+    Execute queries and collect timing information.
+    Returns the responses and a list of search times.
+    """
+    responses: List[VespaQueryResponse] = app.query_many(query_bodies)
+    extracted_searchtimes: List[float] = []
+
+    for resp in responses:
+        if resp.status_code != 200:
+            raise ValueError(
+                f"Vespa query failed with status code {resp.status_code}, response: {resp.get_json()}"
+            )
+        # Extract search timing information
+        timing = resp.get_json().get("timing", {}).get("searchtime", 0)
+        extracted_searchtimes.append(timing)
+
+    return responses, extracted_searchtimes
+
+
+def write_csv(
+    metrics: Dict[str, float],
+    searchtime_stats: Dict[str, float],
+    csv_file: str,
+    csv_dir: Optional[str],
+    name: str,
+) -> None:
+    """Write metrics to CSV file."""
+    csv_path = csv_file
+    if csv_dir is not None:
+        csv_path = os.path.join(csv_dir, csv_path)
+
+    combined_metrics = {**metrics, **searchtime_stats}
+    write_header = not os.path.exists(csv_path)
+
+    with open(csv_path, mode="a", encoding="utf-8") as f_out:
+        writer = csv.writer(f_out)
+        if write_header:
+            header = sorted(combined_metrics.keys())
+            header.insert(0, "name")  # extra column for "run name"
+            writer.writerow(header)
+        row_keys = sorted(combined_metrics.keys())
+        row = [name] + [combined_metrics[k] for k in row_keys]
+        writer.writerow(row)
+
+    logger.info(f"Wrote IR evaluation metrics and search times to {csv_path}")
+
+
+def log_metrics(name: str, metrics: Dict[str, float]) -> None:
+    """Log metrics with appropriate formatting."""
+    logger.info(f"Vespa IR evaluation on {name}")
+    for metric_name, value in metrics.items():
+        if (
+            metric_name.startswith("accuracy")
+            or metric_name.startswith("precision")
+            or metric_name.startswith("recall")
+        ):
+            logger.info(f"{metric_name}: {value * 100:.2f}%")
+        else:
+            logger.info(f"{metric_name}: {value:.4f}")
+
+
+class VespaEvaluatorBase(ABC):
+    """
+    Abstract base class for Vespa evaluators providing initialization and interface.
+    """
+
+    def __init__(
+        self,
+        queries: Dict[str, str],
+        relevant_docs: Union[
+            Dict[str, Union[Set[str], Dict[str, float]]], Dict[str, str]
+        ],
+        vespa_query_fn: Callable[[str, int, Optional[str]], dict],
+        app: Vespa,
+        name: str = "",
+        id_field: str = "",
+        write_csv: bool = False,
+        csv_dir: Optional[str] = None,
+    ):
+        self.id_field = id_field
+        validated_queries = validate_queries(queries)
+        self._vespa_query_fn_takes_query_id = validate_vespa_query_fn(vespa_query_fn)
+        validated_relevant_docs = validate_qrels(relevant_docs)
+
+        # Filter out any queries that have no relevant docs
+        self.queries_ids = filter_queries(validated_queries, validated_relevant_docs)
+
+        self.queries = [validated_queries[qid] for qid in self.queries_ids]
+        self.relevant_docs = validated_relevant_docs
+
+        self.searchtimes: List[float] = []
+        self.vespa_query_fn: Callable = vespa_query_fn
+        self.app = app
+
+        self.name = name
+        self.write_csv = write_csv
+        self.csv_dir = csv_dir
+
+        self.primary_metric: Optional[str] = None
+
+        # Generate datetime string for filenames
+        now = datetime.now()
+        self.dt_string = now.strftime("%Y%m%d_%H%M%S")
+
+        self.csv_file: str = f"Vespa-evaluation_{name}_{self.dt_string}_results.csv"
+
+    @property
+    def default_body(self):
+        return {
+            "timeout": "5s",
+            "presentation.timing": True,
+        }
+
+    @abstractmethod
+    def run(self) -> Dict[str, float]:
+        """Abstract method to be implemented by subclasses."""
+        raise NotImplementedError("Subclasses must implement the run method")
+
+    def __call__(self) -> Dict[str, float]:
+        """Make the evaluator callable."""
+        return self.run()
+
+
+class VespaEvaluator(VespaEvaluatorBase):
     """
     Evaluate retrieval performance on a Vespa application.
 
@@ -56,6 +349,9 @@ class VespaEvaluator:
     - Logs vespa search times for each query.
     - Logs/returns these metrics.
     - Optionally writes out to CSV.
+
+    Note: The 'id_field' needs to be marked as an attribute in your Vespa schema, so filtering can be done on it.
+
 
     Example usage:
         ```python
@@ -113,6 +409,28 @@ class VespaEvaluator:
         print("Primary metric:", evaluator.primary_metric)
         print("All results:", results)
         ```
+
+    Args:
+        queries (Dict[str, str]): A dictionary where keys are query IDs and values are query strings.
+        relevant_docs (Union[Dict[str, Union[Set[str], Dict[str, float]]], Dict[str, str]]):
+            A dictionary mapping query IDs to their relevant document IDs.
+            Can be a set of doc IDs for binary relevance, a dict of doc_id to relevance score (float between 0 and 1)
+            for graded relevance, or a single doc_id string.
+        vespa_query_fn (Callable[[str, int, Optional[str]], dict]): A function that takes a query string,
+            the number of hits to retrieve (top_k), and an optional query_id, and returns a Vespa query body dictionary.
+        app (Vespa): An instance of the Vespa application.
+        name (str, optional): A name for this evaluation run. Defaults to "".
+        id_field (str, optional): The field name in the Vespa hit that contains the document ID.
+            If empty, it tries to infer the ID from the 'id' field or 'fields.id'. Defaults to "".
+        accuracy_at_k (List[int], optional): List of k values for which to compute Accuracy@k.
+            Defaults to [1, 3, 5, 10].
+        precision_recall_at_k (List[int], optional): List of k values for which to compute Precision@k and Recall@k.
+            Defaults to [1, 3, 5, 10].
+        mrr_at_k (List[int], optional): List of k values for which to compute MRR@k. Defaults to [10].
+        ndcg_at_k (List[int], optional): List of k values for which to compute NDCG@k. Defaults to [10].
+        map_at_k (List[int], optional): List of k values for which to compute MAP@k. Defaults to [100].
+        write_csv (bool, optional): Whether to write the evaluation results to a CSV file. Defaults to False.
+        csv_dir (Optional[str], optional): Directory to save the CSV file. Defaults to None (current directory).
     """
 
     def __init__(
@@ -133,51 +451,22 @@ class VespaEvaluator:
         write_csv: bool = False,
         csv_dir: Optional[str] = None,
     ):
-        """
-        Args:
-            queries (dict): A dictionary of query_id => query text.
-            relevant_docs (dict): A dictionary of query_id => set of relevant doc_ids or query_id => dict of doc_id => relevance. See example usage.
-            vespa_query_fn (callable): A callable with the signature `my_func(query: str, top_k: int) -> dict`. Given a query string and top_k, returns a Vespa query body (dict).
-            app (Vespa): A `vespa.application.Vespa` instance.
-            name (str): A name or tag for this evaluation run.
-            id_field (str, optional): The field name in Vespa that contains the document ID. If unset, will try to use the Vespa internal document ID, but this may fail in some cases (see https://docs.vespa.ai/en/documents.html#docid-in-results).
-            accuracy_at_k (list of int): List of k-values for Accuracy@k.
-            precision_recall_at_k (list of int): List of k-values for Precision@k and Recall@k.
-            mrr_at_k (list of int): List of k-values for MRR@k.
-            ndcg_at_k (list of int): List of k-values for NDCG@k.
-            map_at_k (list of int): List of k-values for MAP@k.
-            write_csv (bool): If True, writes results to CSV.
-            csv_dir (str, optional): Path to write the CSV file (default is the current working directory).
-        """
-
-        self.id_field = id_field
-        self._validate_queries(queries)
-        self._validate_vespa_query_fn(vespa_query_fn)
-        relevant_docs = self._validate_qrels(relevant_docs)
-
-        # Filter out any queries that have no relevant docs
-        self.queries_ids = self.filter_queries(queries, relevant_docs)
-
-        self.queries = [queries[qid] for qid in self.queries_ids]
-        self.relevant_docs = relevant_docs
+        super().__init__(
+            queries=queries,
+            relevant_docs=relevant_docs,
+            vespa_query_fn=vespa_query_fn,
+            app=app,
+            name=name,
+            id_field=id_field,
+            write_csv=write_csv,
+            csv_dir=csv_dir,
+        )
 
         self.accuracy_at_k = accuracy_at_k
         self.precision_recall_at_k = precision_recall_at_k
         self.mrr_at_k = mrr_at_k
         self.ndcg_at_k = ndcg_at_k
         self.map_at_k = map_at_k
-        self.searchtimes: List[float] = []
-
-        self.vespa_query_fn: Callable = vespa_query_fn
-        self.app = app
-
-        self.name = name
-        self.write_csv = write_csv
-        self.csv_dir = csv_dir
-
-        self.primary_metric: Optional[str] = None
-
-        self.csv_file: str = f"Vespa-evaluation_{name}_results.csv"
 
         # We'll collect metrics in a single pass, so define them up front.
         self.csv_headers = [
@@ -189,137 +478,8 @@ class VespaEvaluator:
             "map@{}",
         ]
 
-    @property
-    def default_body(self):
-        return {
-            "timeout": "5s",
-            "presentation.timing": True,
-        }
-
-    def filter_queries(
-        self, queries: Dict[str, str], relevant_docs: Dict[str, Set[str]]
-    ):
-        """Filter out queries that have no relevant docs"""
-        filtered = []
-        for qid in queries:
-            if qid in relevant_docs and len(relevant_docs[qid]) > 0:
-                filtered.append(qid)
-        return filtered
-
-    def _validate_queries(self, queries: Dict[Union[str, int], str]) -> Dict[str, str]:
-        """
-        Validate and normalize queries.
-        Converts query IDs to strings if they are ints.
-        """
-        if not isinstance(queries, dict):
-            raise ValueError("queries must be a dict of query_id => query_text")
-        normalized_queries = {}
-        for qid, query_text in queries.items():
-            if not isinstance(qid, (str, int)):
-                raise ValueError("Query ID must be a string or an int.", qid)
-            if not isinstance(query_text, str):
-                raise ValueError("Query text must be a string.", query_text)
-            normalized_queries[str(qid)] = query_text
-        return normalized_queries
-
-    def _validate_qrels(
-        self,
-        qrels: Union[
-            Dict[Union[str, int], Union[Set[str], Dict[str, float]]],
-            Dict[Union[str, int], str],
-        ],
-    ) -> Dict[str, Union[Set[str], Dict[str, float]]]:
-        """
-        Validate and normalize qrels.
-        Converts query IDs to strings if they are ints.
-        """
-        if not isinstance(qrels, dict):
-            raise ValueError(
-                "qrels must be a dict of query_id => set/dict of relevant doc_ids or a single doc_id string"
-            )
-        new_qrels: Dict[str, Union[Set[str], Dict[str, float]]] = {}
-        for qid, relevant_docs in qrels.items():
-            if not isinstance(qid, (str, int)):
-                raise ValueError(
-                    "Query ID in qrels must be a string or an int.", qid, relevant_docs
-                )
-            normalized_qid = str(qid)
-            if isinstance(relevant_docs, str):
-                new_qrels[normalized_qid] = {relevant_docs}
-            elif isinstance(relevant_docs, set):
-                new_qrels[normalized_qid] = relevant_docs
-            elif isinstance(relevant_docs, dict):
-                for doc_id, relevance in relevant_docs.items():
-                    if not isinstance(doc_id, str) or not isinstance(
-                        relevance, (int, float)
-                    ):
-                        raise ValueError(
-                            f"Relevance scores for query {normalized_qid} must be a dict of string doc_id => numeric relevance."
-                        )
-                    if not 0 <= relevance <= 1:
-                        raise ValueError(
-                            f"Relevance scores for query {normalized_qid} must be between 0 and 1."
-                        )
-                new_qrels[normalized_qid] = relevant_docs
-            else:
-                raise ValueError(
-                    f"Relevant docs for query {normalized_qid} must be a set, string, or dict."
-                )
-        return new_qrels
-
-    def _validate_vespa_query_fn(self, fn: Callable) -> None:
-        """
-        Validates the vespa_query_fn function.
-
-        The function must be callable and accept either 2 or 3 parameters:
-            - (query_text: str, top_k: int) 
-            - or (query_text: str, top_k: int, query_id: Optional[str])
-
-        It must return a dictionary when called with test inputs.
-        """
-        if not callable(fn):
-            raise ValueError("vespa_query_fn must be callable")
-
-        import inspect
-
-        sig = inspect.signature(fn)
-        params = list(sig.parameters.values())
-
-        if len(params) not in (2, 3):
-            raise TypeError("vespa_query_fn must take 2 or 3 parameters")
-
-        # Validate first parameter: query_text
-        if (
-            params[0].annotation is not inspect.Parameter.empty
-            and params[0].annotation is not str
-        ):
-            raise TypeError("Parameter 'query_text' must be of type str")
-
-        # Validate second parameter: top_k
-        if (
-            params[1].annotation is not inspect.Parameter.empty
-            and params[1].annotation is not int
-        ):
-            raise TypeError("Parameter 'top_k' must be of type int")
-
-        # If there's a third parameter, validate query_id
-        if len(params) == 3:
-            third = params[2]
-            if (
-                third.annotation is not inspect.Parameter.empty
-                and third.annotation not in (str, Optional[str])
-            ):
-                raise TypeError(
-                    "Parameter 'query_id' must be of type str or Optional[str]"
-                )
-            self._vespa_query_fn_takes_query_id = True
-        else:
-            self._vespa_query_fn_takes_query_id = False
-
     def _find_max_k(self):
-        """
-        Find the maximum k value across all metrics.
-        """
+        """Find the maximum k value across all metrics."""
         return max(
             max(self.accuracy_at_k) if self.accuracy_at_k else 0,
             max(self.precision_recall_at_k) if self.precision_recall_at_k else 0,
@@ -364,7 +524,7 @@ class VespaEvaluator:
         query_bodies = []
 
         for qid, query_text in zip(self.queries_ids, self.queries):
-            if getattr(self, "_vespa_query_fn_takes_query_id", False):
+            if self._vespa_query_fn_takes_query_id:
                 query_body: dict = self.vespa_query_fn(query_text, max_k, qid)
             else:
                 query_body: dict = self.vespa_query_fn(query_text, max_k)
@@ -379,37 +539,15 @@ class VespaEvaluator:
             query_bodies.append(query_body)
             logger.debug(f"Querying Vespa with: {query_body}")
 
-        # Execute queries in parallel using query_many from the Vespa class
-        responses: List[VespaQueryResponse] = self.app.query_many(query_bodies)
-        for resp in responses:
-            if resp.status_code != 200:
-                raise ValueError(
-                    f"Vespa query failed with status code {resp.status_code}, response: {resp.get_json()}"
-                )
+        responses, new_searchtimes = execute_queries(self.app, query_bodies)
+        self.searchtimes.extend(new_searchtimes)
+
         queries_result_list = []
         for resp in responses:
-            # Extract search timing information
-            timing = resp.get_json().get("timing", {}).get("searchtime", 0)
-            self.searchtimes.append(timing)
-
             hits = resp.hits or []
             top_hit_list = []
             for hit in hits[:max_k]:
-                # May be a Vespa internal id.
-                if self.id_field == "":
-                    full_id = hit.get("id", "")
-                    if (
-                        "::" not in full_id
-                    ):  # vespa internal id - eg. index:content/0/35c332d6bc52ae1f8378f7b3
-                        # Trying 'id' field as a fallback
-                        doc_id = str(hit.get("fields", {}).get("id", ""))
-                    else:
-                        doc_id = full_id.split("::")[-1]
-                else:
-                    # doc_id extraction logic
-                    doc_id = str(hit.get("fields", {}).get(self.id_field, ""))
-                if not doc_id:
-                    raise ValueError(f"Could not extract doc_id from hit: {hit}")
+                doc_id = extract_doc_id_from_hit(hit, self.id_field)
                 score = float(hit.get("relevance", float("nan")))
                 if math.isnan(score):
                     raise ValueError(f"Could not extract relevance from hit: {hit}")
@@ -417,7 +555,7 @@ class VespaEvaluator:
 
             queries_result_list.append(top_hit_list)
         metrics = self._compute_metrics(queries_result_list)
-        searchtime_stats = self._calculate_searchtime_stats()
+        searchtime_stats = calculate_searchtime_stats(self.searchtimes)
         metrics.update(searchtime_stats)
 
         if not self.primary_metric:
@@ -428,22 +566,12 @@ class VespaEvaluator:
                 # fallback to some default
                 self.primary_metric = "accuracy@1" if self.accuracy_at_k else "map@100"
 
-        self._log_metrics(metrics)
+        log_metrics(self.name, metrics)
 
         if self.write_csv:
-            self._write_csv(metrics, searchtime_stats)
+            write_csv(metrics, searchtime_stats, self.csv_file, self.csv_dir, self.name)
 
         return metrics
-
-    def _calculate_searchtime_stats(self) -> Dict[str, float]:
-        if not self.searchtimes:
-            return {}
-        return {
-            "searchtime_avg": mean(self.searchtimes),
-            "searchtime_q50": percentile(self.searchtimes, 50),
-            "searchtime_q90": percentile(self.searchtimes, 90),
-            "searchtime_q95": percentile(self.searchtimes, 95),
-        }
 
     def _compute_metrics(self, queries_result_list):
         num_queries = len(queries_result_list)
@@ -583,34 +711,402 @@ class VespaEvaluator:
             dcg += rel / (math.log2(i + 1) if i > 1 else 1.0)
         return dcg
 
-    def _log_metrics(self, metrics: Dict[str, float]):
-        logger.info(f"Vespa IR evaluation on {self.name}")
-        for metric_name, value in metrics.items():
-            if (
-                metric_name.startswith("accuracy")
-                or metric_name.startswith("precision")
-                or metric_name.startswith("recall")
-            ):
-                logger.info(f"{metric_name}: {value * 100:.2f}%")
-            else:
-                logger.info(f"{metric_name}: {value:.4f}")
 
-    def _write_csv(self, metrics: Dict[str, float], searchtime_stats: Dict[str, float]):
-        csv_path = self.csv_file
+class VespaMatchEvaluator(VespaEvaluatorBase):
+    """
+    Evaluate recall in the match-phase over a set of queries for a Vespa application.
+
+    This class:
+
+    - Iterates over queries and issues them against your Vespa application.
+    - Sends one query with limit 0 to get the number of matched documents.
+    - Sends one query with recall-parameter set according to the provided relevant documents.
+    - Compares the retrieved documents with a set of relevant document ids.
+    - Logs vespa search times for each query.
+    - Logs/returns these metrics.
+    - Optionally writes out to CSV.
+
+    Note: It is recommended to use a rank profile without any first-phase (and second-phase) ranking if you care about speed of evaluation run.
+    If you do so, you need to make sure that the rank profile you use has the same inputs. For example, if you want to evaluate a YQL query including nearestNeighbor-operator, your rank-profile needs to define the corresponding input tensor.
+    You must also either provide the query tensor or define it as input (e.g 'input.query(embedding)=embed(@query)') in your Vespa query function.
+    Also note that the 'id_field' needs to be marked as an attribute in your Vespa schema, so filtering can be done on it.
+    Example usage:
+        ```python
+        from vespa.application import Vespa
+        from vespa.evaluation import VespaEvaluator
+
+        queries = {
+            "q1": "What is the best GPU for gaming?",
+            "q2": "How to bake sourdough bread?",
+            # ...
+        }
+        relevant_docs = {
+            "q1": {"d12", "d99"},
+            "q2": {"d101"},
+            # ...
+        }
+        # relevant_docs can also be a dict of query_id => single relevant doc_id
+        # relevant_docs = {
+        #     "q1": "d12",
+        #     "q2": "d101",
+        #     # ...
+        # }
+        # Or, relevant_docs can be a dict of query_id => map of doc_id => relevance
+        # relevant_docs = {
+        #     "q1": {"d12": 1, "d99": 0.1},
+        #     "q2": {"d101": 0.01},
+        #     # ...
+
+        def my_vespa_query_fn(query_text: str, top_k: int) -> dict:
+            return {
+                "yql": 'select * from sources * where userInput("' + query_text + '");',
+                "hits": top_k,
+                "ranking": "your_ranking_profile",
+            }
+
+        app = Vespa(url="http://localhost", port=8080)
+
+        evaluator = VespaMatchEvaluator(
+            queries=queries,
+            relevant_docs=relevant_docs,
+            vespa_query_fn=my_vespa_query_fn,
+            app=app,
+            name="test-run",
+            id_field="id",
+            write_csv=True,
+            write_verbose=True,
+        )
+
+        results = evaluator()
+        print("Primary metric:", evaluator.primary_metric)
+        print("All results:", results)
+        ```
+
+    Args:
+        queries (Dict[str, str]): A dictionary where keys are query IDs and values are query strings.
+        relevant_docs (Union[Dict[str, Union[Set[str], Dict[str, float]]], Dict[str, str]]):
+            A dictionary mapping query IDs to their relevant document IDs.
+            Can be a set of doc IDs for binary relevance, or a single doc_id string.
+            Graded relevance (dict of doc_id to relevance score) is not supported for match evaluation.
+        vespa_query_fn (Callable[[str, int, Optional[str]], dict]): A function that takes a query string,
+            the number of hits to retrieve (top_k), and an optional query_id, and returns a Vespa query body dictionary.
+        app (Vespa): An instance of the Vespa application.
+        name (str, optional): A name for this evaluation run. Defaults to "".
+        id_field (str, optional): The field name in the Vespa hit that contains the document ID.
+            If empty, it tries to infer the ID from the 'id' field or 'fields.id'. Defaults to "".
+        write_csv (bool, optional): Whether to write the summary evaluation results to a CSV file. Defaults to False.
+        write_verbose (bool, optional): Whether to write detailed query-level results to a separate CSV file.
+            Defaults to False.
+        csv_dir (Optional[str], optional): Directory to save the CSV files. Defaults to None (current directory).
+    """
+
+    def __init__(
+        self,
+        queries: Dict[str, str],
+        relevant_docs: Union[
+            Dict[str, Union[Set[str], Dict[str, float]]], Dict[str, str]
+        ],
+        vespa_query_fn: Callable[[str, int, Optional[str]], dict],
+        app: Vespa,
+        name: str = "",
+        id_field: str = "",
+        rank_profile: str = "unranked",
+        write_csv: bool = False,
+        write_verbose: bool = False,
+        csv_dir: Optional[str] = None,
+    ):
+        super().__init__(
+            queries=queries,
+            relevant_docs=relevant_docs,
+            vespa_query_fn=vespa_query_fn,
+            app=app,
+            name=name,
+            id_field=id_field,
+            write_csv=write_csv,
+            csv_dir=csv_dir,
+        )
+        self.write_verbose = write_verbose
+        if self.write_verbose:
+            # Use the dt_string from the base class
+            self.verbose_csv_file = (
+                f"Vespa-match-evaluation_{name}_{self.dt_string}_verbose.csv"
+            )
+
+    def _write_verbose_csv(self, verbose_data: List[Dict]):
+        """Write verbose query-level results to CSV file."""
+        if not verbose_data:
+            return
+
+        csv_path = self.verbose_csv_file
         if self.csv_dir is not None:
             csv_path = os.path.join(self.csv_dir, csv_path)
 
-        combined_metrics = {**metrics, **searchtime_stats}
         write_header = not os.path.exists(csv_path)
 
         with open(csv_path, mode="a", encoding="utf-8") as f_out:
             writer = csv.writer(f_out)
             if write_header:
-                header = sorted(combined_metrics.keys())
-                header.insert(0, "name")  # extra column for "run name"
+                header = [
+                    "name",
+                    "query_id",
+                    "query_text",
+                    "yql",
+                    "num_matched",  # Changed from total_matched
+                    "relevant_docs_count",
+                    "matched_relevant_count",
+                    "recall",
+                    "ids_matched",
+                    "ids_not_matched",
+                    "searchtime_limit_query",  # Added
+                    "searchtime_recall_query",  # Added
+                ]
                 writer.writerow(header)
-            row_keys = sorted(combined_metrics.keys())
-            row = [self.name] + [combined_metrics[k] for k in row_keys]
-            writer.writerow(row)
 
-        logger.info(f"Wrote IR evaluation metrics and search times to {csv_path}")
+            for row_data in verbose_data:
+                writer.writerow(
+                    [
+                        self.name,
+                        row_data["query_id"],
+                        row_data["query_text"],
+                        row_data["yql"],
+                        row_data[
+                            "total_matched"
+                        ],  # This corresponds to num_matched (totalCount)
+                        row_data["relevant_docs_count"],
+                        row_data["matched_relevant_count"],
+                        row_data["recall"],
+                        "; ".join(row_data["ids_matched"]),
+                        "; ".join(row_data["ids_not_matched"]),
+                        row_data.get("searchtime_limit_query", float("nan")),  # Added
+                        row_data.get("searchtime_recall_query", float("nan")),  # Added
+                    ]
+                )
+
+        logger.info(f"Wrote verbose match evaluation results to {csv_path}")
+
+    def run(self) -> Dict[str, float]:
+        """
+        Executes the match-phase recall evaluation.
+
+        This method:
+        1. Sends a query with limit 0 to get the number of matched documents.
+        2. Sends a recall query with the relevant documents.
+        3. Computes recall metrics and match statistics.
+        4. Logs results and optionally writes them to CSV.
+
+        Returns:
+            dict: A dictionary containing recall metrics, match statistics, and search time statistics.
+
+        Example:
+            ```python
+            {
+                "match_recall": 0.85,
+                "total_relevant_docs": 150,
+                "total_matched_relevant": 128,
+                "avg_matched_per_query": 45.2,
+                "searchtime_avg": 0.015,
+                ...
+            }
+            ```
+        """
+        logger.info(f"Starting VespaMatchEvaluator on {self.name}")
+        logger.info(f"Number of queries: {len(self.queries_ids)}")
+
+        # Clear searchtimes from any previous runs if the instance is reused,
+        # though typically a new instance is created for each evaluation.
+        self.searchtimes: List[float] = []
+
+        # Step 1: Initial query to get number of matched documents (limit 0)
+        initial_query_bodies = []
+        for qid, query_text in zip(self.queries_ids, self.queries):
+            if self._vespa_query_fn_takes_query_id:
+                query_body: dict = self.vespa_query_fn(query_text, 0, qid)
+            else:
+                query_body: dict = self.vespa_query_fn(query_text, 0)
+
+            if not isinstance(query_body, dict):
+                raise ValueError(
+                    f"vespa_query_fn must return a dict, got: {type(query_body)}"
+                )
+
+            # Add default body parameters only if not already specified
+            for key, value in self.default_body.items():
+                if key not in query_body:
+                    query_body[key] = value
+
+            # Remove 'hits' key for the initial query
+            query_body.pop("hits", None)
+            initial_query_bodies.append(query_body)
+
+        # Add ' limit 0' to each yql-element in the query bodies
+        limit_query_bodies = []
+        for body in initial_query_bodies:
+            # Create a copy of the body and modify the yql
+            new_body = body.copy()
+            new_body["yql"] = body["yql"].replace(";", " limit 0;")
+            limit_query_bodies.append(new_body)
+
+        limit_responses, searchtimes_limit_queries = execute_queries(
+            self.app, limit_query_bodies
+        )
+        self.searchtimes.extend(searchtimes_limit_queries)
+
+        logger.debug(f"Initial responses: {limit_responses[0].get_json()}")
+        # Extract the number of matched documents from the initial responses
+        matched_docs_counts = [
+            resp.get_json().get("root", {}).get("fields", {}).get("totalCount", 0)
+            for resp in limit_responses
+        ]
+        logger.info(f"Total matched documents per query: {matched_docs_counts}")
+
+        # Step 2: Recall query with relevant documents
+        recall_query_bodies = []
+        for qid, query_text in zip(self.queries_ids, self.queries):
+            relevant_docs = self.relevant_docs[qid]
+            if self._vespa_query_fn_takes_query_id:
+                query_body: dict = self.vespa_query_fn(
+                    query_text, len(relevant_docs), qid
+                )
+            else:
+                query_body: dict = self.vespa_query_fn(query_text, len(relevant_docs))
+
+            if not isinstance(query_body, dict):
+                raise ValueError(
+                    f"vespa_query_fn must return a dict, got: {type(query_body)}"
+                )
+
+            # Add default body parameters only if not already specified
+            for key, value in self.default_body.items():
+                if key not in query_body:
+                    query_body[key] = value
+
+            # Add recall parameter based on relevant docs
+            if isinstance(relevant_docs, set):
+                recall_string = " ".join([f"id:{doc_id}" for doc_id in relevant_docs])
+            elif isinstance(relevant_docs, dict):
+                recall_string = " ".join(
+                    [f"id:{doc_id}" for doc_id in relevant_docs.keys()]
+                )
+            else:
+                raise ValueError(
+                    f"Unsupported type of relevant docs for query {qid}: {type(relevant_docs)}"
+                )
+            query_body["recall"] = f"+({recall_string})"
+            # Set to rank_profile
+            if "ranking" not in query_body:
+                query_body["ranking"] = "unranked"  # Set to unranked if not specified
+
+            recall_query_bodies.append(query_body)
+
+        # Execute recall queries
+        recall_responses, searchtimes_recall_queries = execute_queries(
+            self.app, recall_query_bodies
+        )
+        self.searchtimes.extend(searchtimes_recall_queries)
+
+        # Compute comprehensive match metrics
+        total_relevant_docs = 0
+        total_matched_relevant = 0
+        all_recalls = []
+        verbose_data = []
+
+        for idx, (qid, resp) in enumerate(zip(self.queries_ids, recall_responses)):
+            relevant_docs = self.relevant_docs[qid]
+            query_text = self.queries[idx]
+
+            if isinstance(relevant_docs, set):
+                # Binary relevance
+                num_relevant = len(relevant_docs)
+                total_relevant_docs += num_relevant
+
+                # Extract retrieved document IDs
+                retrieved_ids = set()
+                for hit in resp.hits:
+                    doc_id = extract_doc_id_from_hit(hit, self.id_field)
+                    retrieved_ids.add(doc_id)
+
+                # Calculate matches
+                matched_relevant_ids = retrieved_ids & relevant_docs
+                not_matched_ids = relevant_docs - retrieved_ids
+                matched_relevant_count = len(matched_relevant_ids)
+                total_matched_relevant += matched_relevant_count
+
+                # Calculate recall for this query
+                query_recall = (
+                    matched_relevant_count / num_relevant if num_relevant > 0 else 0.0
+                )
+                all_recalls.append(query_recall)
+
+                # Store verbose data if requested
+                if self.write_verbose:
+                    verbose_data.append(
+                        {
+                            "query_id": qid,
+                            "query_text": query_text,
+                            "yql": recall_query_bodies[idx]["yql"],
+                            "total_matched": matched_docs_counts[idx],
+                            "relevant_docs_count": num_relevant,
+                            "matched_relevant_count": matched_relevant_count,
+                            "recall": query_recall,
+                            "ids_matched": sorted(list(matched_relevant_ids)),
+                            "ids_not_matched": sorted(list(not_matched_ids)),
+                            "searchtime_limit_query": searchtimes_limit_queries[idx]
+                            if idx < len(searchtimes_limit_queries)
+                            else float("nan"),
+                            "searchtime_recall_query": searchtimes_recall_queries[idx]
+                            if idx < len(searchtimes_recall_queries)
+                            else float("nan"),
+                        }
+                    )
+
+            elif isinstance(relevant_docs, dict):
+                # Graded relevance - not supported for match evaluation
+                raise ValueError(
+                    "Graded relevance is not supported in VespaMatchEvaluator. "
+                    "Please use VespaEvaluator for graded relevance evaluation."
+                )
+            else:
+                raise ValueError(
+                    f"Unsupported type of relevant docs for query {qid}: {type(relevant_docs)}"
+                )
+
+        # Calculate comprehensive metrics
+        metrics = {
+            "match_recall": total_matched_relevant / total_relevant_docs
+            if total_relevant_docs > 0
+            else 0.0,
+            "avg_recall_per_query": mean(all_recalls),
+            "total_relevant_docs": total_relevant_docs,
+            "total_matched_relevant": total_matched_relevant,
+            "avg_matched_per_query": mean(matched_docs_counts),
+            "total_queries": len(self.queries_ids),
+        }
+
+        # Add search time statistics
+        searchtime_stats = calculate_searchtime_stats(self.searchtimes)
+        metrics.update(searchtime_stats)
+
+        # Set primary metric
+        self.primary_metric = "match_recall"
+
+        # Log comprehensive results
+        logger.info(f"Match Evaluation Results for {self.name}:")
+        logger.info(f"  Overall Match Recall: {metrics['match_recall']:.4f}")
+        logger.info(
+            f"  Average Recall per Query: {metrics['avg_recall_per_query']:.4f}"
+        )
+        logger.info(f"  Total Relevant Documents: {metrics['total_relevant_docs']}")
+        logger.info(f"  Total Matched Relevant: {metrics['total_matched_relevant']}")
+        logger.info(
+            f"  Average Matched per Query: {metrics['avg_matched_per_query']:.2f}"
+        )
+
+        log_metrics(self.name, searchtime_stats)
+
+        if self.write_csv:
+            write_csv(metrics, searchtime_stats, self.csv_file, self.csv_dir, self.name)
+
+        if self.write_verbose:
+            self._write_verbose_csv(verbose_data)
+
+        return metrics
