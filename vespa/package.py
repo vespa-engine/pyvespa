@@ -359,7 +359,7 @@ class Field(object):
 
         For more detailed information about fields, check the [Vespa documentation](https://docs.vespa.ai/en/reference/schema-reference.html#field).
 
-        Once we have an `ApplicationPackage` instance containing a `Schema` and a `Document`, 
+        Once we have an `ApplicationPackage` instance containing a `Schema` and a `Document`,
         we usually want to add fields so that we can store our data in a structured manner.
         We can accomplish that by creating `Field` instances and adding those to the `ApplicationPackage` instance via `Schema` and `Document` methods.
 
@@ -981,9 +981,9 @@ class FirstPhaseRanking:
 
         Args:
             expression (str): Specify the ranking expression to be used for the first phase of ranking.
-                Check also the [Vespa documentation](https://docs.vespa.ai/en/reference/ranking-expressions.html) 
+                Check also the [Vespa documentation](https://docs.vespa.ai/en/reference/ranking-expressions.html)
                 for ranking expressions.
-            keep_rank_count (int, optional): How many documents to keep the first phase top rank values for. 
+            keep_rank_count (int, optional): How many documents to keep the first phase top rank values for.
                 Default value is 10000.
             rank_score_drop_limit (float, optional): Drop all hits with a first phase rank score less than or equal
                 to this floating point number.
@@ -1032,8 +1032,8 @@ class SecondPhaseRanking(object):
         r"""
         Create a Vespa second phase ranking configuration.
 
-        This is the optional reranking performed on the best hits from the first phase. 
-        Check the [Vespa documentation](https://docs.vespa.ai/en/reference/schema-reference.html#secondphase-rank) 
+        This is the optional reranking performed on the best hits from the first phase.
+        Check the [Vespa documentation](https://docs.vespa.ai/en/reference/schema-reference.html#secondphase-rank)
         for more detailed information about second phase ranking configuration.
 
         Args:
@@ -1089,8 +1089,8 @@ class GlobalPhaseRanking(object):
         r"""
         Create a Vespa global phase ranking configuration.
 
-        This is the optional reranking performed on the best hits from the content nodes phase(s). 
-        Check the [Vespa documentation](https://docs.vespa.ai/en/reference/schema-reference.html#globalphase-rank) 
+        This is the optional reranking performed on the best hits from the content nodes phase(s).
+        Check the [Vespa documentation](https://docs.vespa.ai/en/reference/schema-reference.html#globalphase-rank)
         for more detailed information about global phase ranking configuration.
 
         Args:
@@ -1317,108 +1317,108 @@ class RankProfile(object):
         **kwargs: Unpack[RankProfileFields],
     ) -> None:
         r"""
-            Create a Vespa rank profile.
+        Create a Vespa rank profile.
 
-            Rank profiles are used to specify an alternative ranking of the same data for different purposes, and to experiment with new rank settings.
-            Check the [Vespa documentation](https://docs.vespa.ai/en/reference/schema-reference.html#rank-profile)
-            for more detailed information about rank profiles.
+        Rank profiles are used to specify an alternative ranking of the same data for different purposes, and to experiment with new rank settings.
+        Check the [Vespa documentation](https://docs.vespa.ai/en/reference/schema-reference.html#rank-profile)
+        for more detailed information about rank profiles.
 
-            Args:
-                name (str): Rank profile name.
-                first_phase (str): The config specifying the first phase of ranking.
-                    [More info](https://docs.vespa.ai/en/reference/schema-reference.html#firstphase-rank) about first phase ranking.
-                inherits (str, optional): The inherits attribute is optional. If defined, it contains the name of another rank profile
-                    in the same schema. Values not defined in this rank profile will then be inherited.
-                constants (dict, optional): Dict of constants available in ranking expressions, resolved and optimized at configuration time.
-                    [More info](https://docs.vespa.ai/en/reference/schema-reference.html#constants) about constants.
-                functions (list, optional): List of `Function` objects representing rank functions to be included in the rank profile.
-                summary_features (list, optional): List of rank features to be included with each hit.
-                    [More info](https://docs.vespa.ai/en/reference/schema-reference.html#summary-features) about summary features.
-                match_features (list, optional): List of rank features to be included with each hit.
-                    [More info](https://docs.vespa.ai/en/reference/schema-reference.html#match-features) about match features.
-                second_phase (SecondPhaseRanking, optional): Config specifying the second phase of ranking. See `SecondPhaseRanking`.
-                global_phase (GlobalPhaseRanking, optional): Config specifying the global phase of ranking. See `GlobalPhaseRanking`.
-                match_phase (MatchPhaseRanking, optional): Config specifying the match phase of ranking. See `MatchPhaseRanking`.
-                num_threads_per_search (int, optional): Overrides the global `persearch` value for this rank profile to a lower value.
-                weight (list, optional): A list of tuples containing the field and their weight.
-                rank_type (list, optional): A list of tuples containing a field and the rank-type-name.
-                    [More info](https://docs.vespa.ai/en/reference/schema-reference.html#rank-type) about rank-type.
-                rank_properties (list, optional): A list of tuples containing a field and its configuration.
-                    [More info](https://docs.vespa.ai/en/reference/schema-reference.html#rank-properties) about rank-properties.
-                mutate (Mutate, optional): A `Mutate` object containing attributes to mutate on, mutation operation, and value.
-                    [More info](https://docs.vespa.ai/en/reference/schema-reference.html#mutate) about mutate operation.
+        Args:
+            name (str): Rank profile name.
+            first_phase (str): The config specifying the first phase of ranking.
+                [More info](https://docs.vespa.ai/en/reference/schema-reference.html#firstphase-rank) about first phase ranking.
+            inherits (str, optional): The inherits attribute is optional. If defined, it contains the name of another rank profile
+                in the same schema. Values not defined in this rank profile will then be inherited.
+            constants (dict, optional): Dict of constants available in ranking expressions, resolved and optimized at configuration time.
+                [More info](https://docs.vespa.ai/en/reference/schema-reference.html#constants) about constants.
+            functions (list, optional): List of `Function` objects representing rank functions to be included in the rank profile.
+            summary_features (list, optional): List of rank features to be included with each hit.
+                [More info](https://docs.vespa.ai/en/reference/schema-reference.html#summary-features) about summary features.
+            match_features (list, optional): List of rank features to be included with each hit.
+                [More info](https://docs.vespa.ai/en/reference/schema-reference.html#match-features) about match features.
+            second_phase (SecondPhaseRanking, optional): Config specifying the second phase of ranking. See `SecondPhaseRanking`.
+            global_phase (GlobalPhaseRanking, optional): Config specifying the global phase of ranking. See `GlobalPhaseRanking`.
+            match_phase (MatchPhaseRanking, optional): Config specifying the match phase of ranking. See `MatchPhaseRanking`.
+            num_threads_per_search (int, optional): Overrides the global `persearch` value for this rank profile to a lower value.
+            weight (list, optional): A list of tuples containing the field and their weight.
+            rank_type (list, optional): A list of tuples containing a field and the rank-type-name.
+                [More info](https://docs.vespa.ai/en/reference/schema-reference.html#rank-type) about rank-type.
+            rank_properties (list, optional): A list of tuples containing a field and its configuration.
+                [More info](https://docs.vespa.ai/en/reference/schema-reference.html#rank-properties) about rank-properties.
+            mutate (Mutate, optional): A `Mutate` object containing attributes to mutate on, mutation operation, and value.
+                [More info](https://docs.vespa.ai/en/reference/schema-reference.html#mutate) about mutate operation.
 
-            Example:
-                ```python
-                RankProfile(name = "default", first_phase = "nativeRank(title, body)")
-                RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, None, None, None)
+        Example:
+            ```python
+            RankProfile(name = "default", first_phase = "nativeRank(title, body)")
+            RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, None, None, None)
 
-                RankProfile(name = "new", first_phase = "BM25(title)", inherits = "default")
-                RankProfile('new', 'BM25(title)', 'default', None, None, None, None, None, None, None, None, None, None, None, None)
+            RankProfile(name = "new", first_phase = "BM25(title)", inherits = "default")
+            RankProfile('new', 'BM25(title)', 'default', None, None, None, None, None, None, None, None, None, None, None, None)
 
-                RankProfile(
-                    name = "new",
-                    first_phase = "BM25(title)",
-                    inherits = "default",
-                    constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
-                    summary_features=["BM25(title)"]
-                )
-                RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None, ['BM25(title)'], None, None, None, None, None, None, None, None, None)
+            RankProfile(
+                name = "new",
+                first_phase = "BM25(title)",
+                inherits = "default",
+                constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
+                summary_features=["BM25(title)"]
+            )
+            RankProfile('new', 'BM25(title)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, None, ['BM25(title)'], None, None, None, None, None, None, None, None, None)
 
-                RankProfile(
-                    name="bert",
-                    first_phase="bm25(title) + bm25(body)",
-                    second_phase=SecondPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10),
-                    inherits="default",
-                    constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
-                    functions=[
-                        Function(
-                            name="question_length",
-                            expression="sum(map(query(query_token_ids), f(a)(a > 0)))"
-                        ),
-                        Function(
-                            name="doc_length",
-                            expression="sum(map(attribute(doc_token_ids), f(a)(a > 0)))"
-                        )
-                    ],
-                    summary_features=["question_length", "doc_length"]
-                )
-                RankProfile('bert', 'bm25(title) + bm25(body)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, [Function('question_length', 'sum(map(query(query_token_ids), f(a)(a > 0)))', None), Function('doc_length', 'sum(map(attribute(doc_token_ids), f(a)(a > 0)))', None)], ['question_length', 'doc_length'], None, SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10, None), None, None, None, None, None, None, None)
+            RankProfile(
+                name="bert",
+                first_phase="bm25(title) + bm25(body)",
+                second_phase=SecondPhaseRanking(expression="1.25 * bm25(title) + 3.75 * bm25(body)", rerank_count=10),
+                inherits="default",
+                constants={"TOKEN_NONE": 0, "TOKEN_CLS": 101, "TOKEN_SEP": 102},
+                functions=[
+                    Function(
+                        name="question_length",
+                        expression="sum(map(query(query_token_ids), f(a)(a > 0)))"
+                    ),
+                    Function(
+                        name="doc_length",
+                        expression="sum(map(attribute(doc_token_ids), f(a)(a > 0)))"
+                    )
+                ],
+                summary_features=["question_length", "doc_length"]
+            )
+            RankProfile('bert', 'bm25(title) + bm25(body)', 'default', {'TOKEN_NONE': 0, 'TOKEN_CLS': 101, 'TOKEN_SEP': 102}, [Function('question_length', 'sum(map(query(query_token_ids), f(a)(a > 0)))', None), Function('doc_length', 'sum(map(attribute(doc_token_ids), f(a)(a > 0)))', None)], ['question_length', 'doc_length'], None, SecondPhaseRanking('1.25 * bm25(title) + 3.75 * bm25(body)', 10, None), None, None, None, None, None, None, None)
 
-                RankProfile(
-                    name = "default",
-                    first_phase = "nativeRank(title, body)",
-                    weight = [("title", 200), ("body", 100)]
-                )
-                RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, [('title', 200), ('body', 100)], None, None, None)
+            RankProfile(
+                name = "default",
+                first_phase = "nativeRank(title, body)",
+                weight = [("title", 200), ("body", 100)]
+            )
+            RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, [('title', 200), ('body', 100)], None, None, None)
 
-                RankProfile(
-                    name = "default",
-                    first_phase = "nativeRank(title, body)",
-                    rank_type = [("body", "about")]
-                )
-                RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, [('body', 'about')], None, None)
+            RankProfile(
+                name = "default",
+                first_phase = "nativeRank(title, body)",
+                rank_type = [("body", "about")]
+            )
+            RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, [('body', 'about')], None, None)
 
-                RankProfile(
-                    name = "default",
-                    first_phase = "nativeRank(title, body)",
-                    rank_properties = [("fieldMatch(title).maxAlternativeSegmentations", "10")]
-                )
-                RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, None, [('fieldMatch(title).maxAlternativeSegmentations', '10')], None)
+            RankProfile(
+                name = "default",
+                first_phase = "nativeRank(title, body)",
+                rank_properties = [("fieldMatch(title).maxAlternativeSegmentations", "10")]
+            )
+            RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, None, None, None, [('fieldMatch(title).maxAlternativeSegmentations', '10')], None)
 
-                RankProfile(
-                   name = "default",
-                   first_phase = FirstPhaseRanking(expression="nativeRank(title, body)", keep_rank_count=50)
-                )
-                RankProfile('default', FirstPhaseRanking('nativeRank(title, body)', 50, None), None, None, None, None, None, None, None, None, None, None, None, None, None)
+            RankProfile(
+               name = "default",
+               first_phase = FirstPhaseRanking(expression="nativeRank(title, body)", keep_rank_count=50)
+            )
+            RankProfile('default', FirstPhaseRanking('nativeRank(title, body)', 50, None), None, None, None, None, None, None, None, None, None, None, None, None, None)
 
-                RankProfile(
-                    name = "default",
-                    first_phase = "nativeRank(title, body)",
-                    num_threads_per_search = 2
-                )
-                RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, 2, None, None, None, None)
-                ```
+            RankProfile(
+                name = "default",
+                first_phase = "nativeRank(title, body)",
+                num_threads_per_search = 2
+            )
+            RankProfile('default', 'nativeRank(title, body)', None, None, None, None, None, None, None, None, 2, None, None, None, None)
+            ```
         """
         self.name = name
         self.first_phase = first_phase
@@ -1569,7 +1569,7 @@ class Schema(object):
     ) -> None:
         """
         Create a Vespa Schema.
-        
+
         Check the [Vespa documentation](https://docs.vespa.ai/en/schemas.html) for more detailed information about schemas.
 
         Args:
@@ -1802,56 +1802,56 @@ class QueryTypeField(object):
 class QueryProfileType(object):
     def __init__(self, fields: Optional[List[QueryTypeField]] = None) -> None:
         """
-            Create a Vespa Query Profile Type.
+        Create a Vespa Query Profile Type.
 
-            Check the [Vespa documentation](https://docs.vespa.ai/en/query-profiles.html#query-profile-types)
-            for more detailed information about query profile types.
+        Check the [Vespa documentation](https://docs.vespa.ai/en/query-profiles.html#query-profile-types)
+        for more detailed information about query profile types.
 
-            An `ApplicationPackage` instance comes with a default `QueryProfile` named `default`
-            that is associated with a `QueryProfileType` named `root`,
-            meaning that you usually do not need to create those yourself, only add fields to them when required.
+        An `ApplicationPackage` instance comes with a default `QueryProfile` named `default`
+        that is associated with a `QueryProfileType` named `root`,
+        meaning that you usually do not need to create those yourself, only add fields to them when required.
 
-            Args:
-                fields (list[QueryTypeField]): A list of `QueryTypeField`.
+        Args:
+            fields (list[QueryTypeField]): A list of `QueryTypeField`.
 
-            Example:
-                ```python
-                QueryProfileType(
-                    fields=[
-                        QueryTypeField(
-                            name="ranking.features.query(tensor_bert)",
-                            type="tensor<float>(x[768])"
-                        )
-                    ]
-                )
-                # Output: QueryProfileType([QueryTypeField('ranking.features.query(tensor_bert)', 'tensor<float>(x[768])')])
-                ```
-            """
+        Example:
+            ```python
+            QueryProfileType(
+                fields=[
+                    QueryTypeField(
+                        name="ranking.features.query(tensor_bert)",
+                        type="tensor<float>(x[768])"
+                    )
+                ]
+            )
+            # Output: QueryProfileType([QueryTypeField('ranking.features.query(tensor_bert)', 'tensor<float>(x[768])')])
+            ```
+        """
         self.name = "root"
         self.fields = [] if not fields else fields
 
     def add_fields(self, *fields: QueryTypeField) -> None:
         """
-            Add `QueryTypeField` objects to the Query Profile Type.
+        Add `QueryTypeField` objects to the Query Profile Type.
 
-            Args:
-                fields (QueryTypeField): Fields to be added.
+        Args:
+            fields (QueryTypeField): Fields to be added.
 
-            Example:
-                ```python
-                query_profile_type = QueryProfileType()
-                query_profile_type.add_fields(
-                    QueryTypeField(
-                        name="age",
-                        type="integer"
-                    ),
-                    QueryTypeField(
-                        name="profession",
-                        type="string"
-                    )
+        Example:
+            ```python
+            query_profile_type = QueryProfileType()
+            query_profile_type.add_fields(
+                QueryTypeField(
+                    name="age",
+                    type="integer"
+                ),
+                QueryTypeField(
+                    name="profession",
+                    type="string"
                 )
-                ```
-            """
+            )
+            ```
+        """
         self.fields.extend(fields)
 
     def __eq__(self, other: object) -> bool:
@@ -1903,25 +1903,25 @@ class QueryField(object):
 class QueryProfile(object):
     def __init__(self, fields: Optional[List[QueryField]] = None) -> None:
         """
-            Create a Vespa Query Profile.
+        Create a Vespa Query Profile.
 
-            Check the [Vespa documentation](https://docs.vespa.ai/en/query-profiles.html)
-            for more detailed information about query profiles.
+        Check the [Vespa documentation](https://docs.vespa.ai/en/query-profiles.html)
+        for more detailed information about query profiles.
 
-            A `QueryProfile` is a named collection of query request parameters given in the configuration.
-            The query request can specify a query profile whose parameters will be used as parameters of that request.
-            The query profiles may optionally be type-checked.
-            Type checking is turned on by referencing a `QueryProfileType` from the query profile.
+        A `QueryProfile` is a named collection of query request parameters given in the configuration.
+        The query request can specify a query profile whose parameters will be used as parameters of that request.
+        The query profiles may optionally be type-checked.
+        Type checking is turned on by referencing a `QueryProfileType` from the query profile.
 
-            Args:
-                fields (list[QueryField]): A list of `QueryField`.
+        Args:
+            fields (list[QueryField]): A list of `QueryField`.
 
-            Example:
-                ```python
-                QueryProfile(fields=[QueryField(name="maxHits", value=1000)])
-                # Output: QueryProfile([QueryField('maxHits', 1000)])
-                ```
-            """
+        Example:
+            ```python
+            QueryProfile(fields=[QueryField(name="maxHits", value=1000)])
+            # Output: QueryProfile([QueryField('maxHits', 1000)])
+            ```
+        """
         self.name = "default"
         self.type = "root"
         self.fields = [] if not fields else fields
@@ -2073,24 +2073,24 @@ class AuthClient(object):
         parameters: Optional[List[Parameter]] = None,
     ) -> None:
         """
-            Create a Vespa AuthClient.
+        Create a Vespa AuthClient.
 
-            Check the [Vespa documentation](https://docs.vespa.ai/en/reference/services-container.html).
+        Check the [Vespa documentation](https://docs.vespa.ai/en/reference/services-container.html).
 
-            Args:
-                id (str): The auth client ID.
-                permissions (list[str]): List of permissions.
-                parameters (list[Parameter]): List of `Parameter` objects defining the configuration of the auth client.
+        Args:
+            id (str): The auth client ID.
+            permissions (list[str]): List of permissions.
+            parameters (list[Parameter]): List of `Parameter` objects defining the configuration of the auth client.
 
-            Example:
-                ```python
-                AuthClient(
-                    id="token",
-                    permissions=["read", "write"],
-                    parameters=[Parameter("token", {"id": "my-token-id"})],
-                )
-                # Output: AuthClient(id="token", permissions="['read', 'write']")
-                ```
+        Example:
+            ```python
+            AuthClient(
+                id="token",
+                permissions=["read", "write"],
+                parameters=[Parameter("token", {"id": "my-token-id"})],
+            )
+            # Output: AuthClient(id="token", permissions="['read', 'write']")
+            ```
         """
         self.id = id
         self.permissions = permissions
@@ -2192,6 +2192,7 @@ class Component(object):
                 # Output: Component(id="hf-embedder", type="hugging-face-embedder")
                 ```
             """
+
         self.id = id
         self.cls = cls
         self.bundle = bundle
@@ -2273,7 +2274,7 @@ class Nodes(object):
                     count="2",
                     parameters=[
                         Parameter(
-                            "resources", 
+                            "resources",
                             {"vcpu": "4.0", "memory": "16Gb", "disk": "125Gb"},
                             children=[Parameter("gpu", {"count": "1", "memory": "16Gb"})]
                         ),
@@ -2350,41 +2351,41 @@ class ContainerCluster(Cluster):
         auth_clients: Optional[List[AuthClient]] = None,
     ) -> None:
         """
-            Defines the configuration of a container cluster.
+        Defines the configuration of a container cluster.
 
-            Args:
-                components (list[Component]): List of `Component` that contains configurations for application components, e.g. embedders.
-                auth_clients (list[AuthClient]): List of `AuthClient` that contains configurations for authentication clients (e.g., mTLS/token).
-                nodes (Nodes): `Nodes` that specifies the resources of the cluster.
+        Args:
+            components (list[Component]): List of `Component` that contains configurations for application components, e.g. embedders.
+            auth_clients (list[AuthClient]): List of `AuthClient` that contains configurations for authentication clients (e.g., mTLS/token).
+            nodes (Nodes): `Nodes` that specifies the resources of the cluster.
 
-            If `ContainerCluster` is used, any `Component`s must be added to the `ContainerCluster`,
-            rather than to the `ApplicationPackage`, in order to be included in the generated schema.
+        If `ContainerCluster` is used, any `Component`s must be added to the `ContainerCluster`,
+        rather than to the `ApplicationPackage`, in order to be included in the generated schema.
 
-            Example:
-                ```python
-                ContainerCluster(
-                    id="example_container",
-                    components=[
-                        Component(
-                            id="e5",
-                            type="hugging-face-embedder",
-                            parameters=[
-                                Parameter(
-                                    "transformer-model", 
-                                    {"url": "https://github.com/vespa-engine/sample-apps/raw/master/examples/model-exporting/model/e5-small-v2-int8.onnx"}
-                                ),
-                                Parameter(
-                                    "tokenizer-model", 
-                                    {"url": "https://raw.githubusercontent.com/vespa-engine/sample-apps/master/examples/model-exporting/model/tokenizer.json"}
-                                )
-                            ]
-                        )
-                    ],
-                    auth_clients=[AuthClient(id="mtls", permissions=["read", "write"])],
-                    nodes=Nodes(count="2", parameters=[Parameter("resources", {"vcpu": "4.0", "memory": "16Gb", "disk": "125Gb"})])
-                )
-                # Output: ContainerCluster(id="example_container", version="1.0", nodes="Nodes(count='2')", components="[Component(id='e5', type='hugging-face-embedder')]", auth_clients="[AuthClient(id='mtls', permissions=['read', 'write'])]")
-                ```
+        Example:
+            ```python
+            ContainerCluster(
+                id="example_container",
+                components=[
+                    Component(
+                        id="e5",
+                        type="hugging-face-embedder",
+                        parameters=[
+                            Parameter(
+                                "transformer-model",
+                                {"url": "https://github.com/vespa-engine/sample-apps/raw/master/examples/model-exporting/model/e5-small-v2-int8.onnx"}
+                            ),
+                            Parameter(
+                                "tokenizer-model",
+                                {"url": "https://raw.githubusercontent.com/vespa-engine/sample-apps/master/examples/model-exporting/model/tokenizer.json"}
+                            )
+                        ]
+                    )
+                ],
+                auth_clients=[AuthClient(id="mtls", permissions=["read", "write"])],
+                nodes=Nodes(count="2", parameters=[Parameter("resources", {"vcpu": "4.0", "memory": "16Gb", "disk": "125Gb"})])
+            )
+            # Output: ContainerCluster(id="example_container", version="1.0", nodes="Nodes(count='2')", components="[Component(id='e5', type='hugging-face-embedder')]", auth_clients="[AuthClient(id='mtls', permissions=['read', 'write'])]")
+            ```
         """
         super().__init__(id, version, nodes)
         self.components = components
@@ -2665,59 +2666,59 @@ class ServicesConfiguration(object):
         services_config: Optional[VT] = None,
     ) -> None:
         """
-            Create a ServicesConfiguration, adopting the VespaTag (VT) approach, rather than Jinja templates.
-            Intended to be used in ApplicationPackage, to generate services.xml, based on either:
-            - A passed `services_config` (VT) object, or
-            - A set of configurations, schemas, components, auth_clients, and clusters (equivalent to the old approach).
+        Create a ServicesConfiguration, adopting the VespaTag (VT) approach, rather than Jinja templates.
+        Intended to be used in ApplicationPackage, to generate services.xml, based on either:
+        - A passed `services_config` (VT) object, or
+        - A set of configurations, schemas, components, auth_clients, and clusters (equivalent to the old approach).
 
-            The latter will be done in code by calling `build_services_vt()` to generate the VT object.
+        The latter will be done in code by calling `build_services_vt()` to generate the VT object.
 
-            Args:
-                application_name (str): Application name.
-                schemas (Optional[List[Schema]]): List of `Schema`s of the application.
-                configurations (Optional[List[ApplicationConfiguration]]): List of `ApplicationConfiguration` that contains configurations for the application.
-                stateless_model_evaluation (Optional[bool]): Enable stateless model evaluation. Default is False.
-                components (Optional[List[Component]]): List of `Component` that contains configurations for application components.
-                auth_clients (Optional[List[AuthClient]]): List of `AuthClient` that contains configurations for authentication clients.
-                clusters (Optional[List[Cluster]]): List of `Cluster` that contains configurations for content or container clusters.
-                services_config (Optional[VT]): `VT` object that contains the services configuration.
+        Args:
+            application_name (str): Application name.
+            schemas (Optional[List[Schema]]): List of `Schema`s of the application.
+            configurations (Optional[List[ApplicationConfiguration]]): List of `ApplicationConfiguration` that contains configurations for the application.
+            stateless_model_evaluation (Optional[bool]): Enable stateless model evaluation. Default is False.
+            components (Optional[List[Component]]): List of `Component` that contains configurations for application components.
+            auth_clients (Optional[List[AuthClient]]): List of `AuthClient` that contains configurations for authentication clients.
+            clusters (Optional[List[Cluster]]): List of `Cluster` that contains configurations for content or container clusters.
+            services_config (Optional[VT]): `VT` object that contains the services configuration.
 
-            Example:
-                ```python
-                config = ServicesConfiguration(
-                    application_name="myapp",
-                    schemas=[Schema(name="myschema", document=Document())],
-                    configurations=[ApplicationConfiguration(name="container.handler.observability.application-userdata", value={"version": "my-version"})],
-                    components=[Component(id="hf-embedder", type="huggingface-embedder")],
-                    stateless_model_evaluation=True,
-                )
-                print(str(config))
-                # Output: <?xml version="1.0" encoding="UTF-8" ?>
-                # <services version="1.0">...</services>
+        Example:
+            ```python
+            config = ServicesConfiguration(
+                application_name="myapp",
+                schemas=[Schema(name="myschema", document=Document())],
+                configurations=[ApplicationConfiguration(name="container.handler.observability.application-userdata", value={"version": "my-version"})],
+                components=[Component(id="hf-embedder", type="huggingface-embedder")],
+                stateless_model_evaluation=True,
+            )
+            print(str(config))
+            # Output: <?xml version="1.0" encoding="UTF-8" ?>
+            # <services version="1.0">...</services>
 
-                services_config = ServicesConfiguration(
-                    application_name="myapp",
-                    services_config=services(
-                        container(id="myapp_default", version="1.0")(
-                            component(
-                                model(url="https://huggingface.co/mixedbread-ai/mxbai-rerank-xsmall-v1/raw/main/tokenizer.json"),
-                                id="tokenizer", type="hugging-face-tokenizer"
-                            ),
-                            document_api(),
-                            search(),
+            services_config = ServicesConfiguration(
+                application_name="myapp",
+                services_config=services(
+                    container(id="myapp_default", version="1.0")(
+                        component(
+                            model(url="https://huggingface.co/mixedbread-ai/mxbai-rerank-xsmall-v1/raw/main/tokenizer.json"),
+                            id="tokenizer", type="hugging-face-tokenizer"
                         ),
-                        content(id="myapp", version="1.0")(
-                            min_redundancy("1"),
-                            documents(document(type="doc", mode="index")),
-                            engine(proton(tuning(searchnode(requestthreads(persearch("4"))))))
-                        ),
-                        version="1.0", minimum_required_vespa_version="8.311.28",
+                        document_api(),
+                        search(),
                     ),
-                )
-                print(str(services_config))
-                # Output: <?xml version="1.0" encoding="UTF-8" ?>
-                # <services version="1.0" minimum-required-vespa-version="8.311.28">...</services>
-                ```
+                    content(id="myapp", version="1.0")(
+                        min_redundancy("1"),
+                        documents(document(type="doc", mode="index")),
+                        engine(proton(tuning(searchnode(requestthreads(persearch("4"))))))
+                    ),
+                    version="1.0", minimum_required_vespa_version="8.311.28",
+                ),
+            )
+            print(str(services_config))
+            # Output: <?xml version="1.0" encoding="UTF-8" ?>
+            # <services version="1.0" minimum-required-vespa-version="8.311.28">...</services>
+            ```
 
         """
         self.application_name = application_name
@@ -2832,27 +2833,27 @@ class ApplicationPackage(object):
             name (str): Application name. Cannot contain '-' or '_'.
             schema (list, optional): List of Schema objects for the application. If None, a default Schema
                 with the same name as the application will be created. Defaults to None.
-            query_profile (QueryProfile, optional): QueryProfile of the application. If None, a default 
+            query_profile (QueryProfile, optional): QueryProfile of the application. If None, a default
                 QueryProfile with QueryProfileType 'root' will be created. Defaults to None.
             query_profile_type (QueryProfileType, optional): QueryProfileType of the application. If None,
                 a default QueryProfileType 'root' will be created. Defaults to None.
             stateless_model_evaluation (bool, optional): Enable stateless model evaluation. Defaults to False.
-            create_schema_by_default (bool, optional): Include a default Schema if none is provided in the schema 
+            create_schema_by_default (bool, optional): Include a default Schema if none is provided in the schema
                 argument. Defaults to True.
-            create_query_profile_by_default (bool, optional): Include a default QueryProfile and QueryProfileType 
+            create_query_profile_by_default (bool, optional): Include a default QueryProfile and QueryProfileType
                 if not explicitly defined by the user. Defaults to True.
             configurations (list, optional): List of ApplicationConfiguration for the application. Defaults to None.
             validations (list, optional): Optional list of Validation objects to be overridden. Defaults to None.
             components (list, optional): List of Component objects for application components. Defaults to None.
             clusters (list, optional): List of Cluster objects for content or container clusters. If clusters is provided,
                 any Component must be part of a cluster. Defaults to None.
-            auth_clients (list, optional): List of AuthClient objects for client authorization. If clusters is passed, 
+            auth_clients (list, optional): List of AuthClient objects for client authorization. If clusters is passed,
                 pass the auth clients to the ContainerCluster instead. Defaults to None.
             deployment_config (DeploymentConfiguration, optional): Configuration for production deployments. Defaults to None.
 
         Example:
             To create a default application package:
-            
+
             ```python
             ApplicationPackage(name="testapp")
             ApplicationPackage('testapp', [Schema('testapp', Document(None, None, None), None, None, [], False, None, [], None)],
@@ -3198,3 +3199,41 @@ class ApplicationPackage(object):
             repr(self.query_profile),
             repr(self.query_profile_type),
         )
+
+
+sample_package = ApplicationPackage(
+    name="sample",
+    schema=[
+        Schema(
+            name="doc",
+            document=Document(
+                fields=[
+                    Field(name="id", type="string", indexing=["summary"]),
+                    Field(
+                        name="title",
+                        type="string",
+                        indexing=["index", "summary"],
+                        index="enable-bm25",
+                    ),
+                    Field(
+                        name="body",
+                        type="string",
+                        indexing=["index", "summary"],
+                        index="enable-bm25",
+                        bolding=True,
+                    ),
+                ]
+            ),
+            fieldsets=[FieldSet(name="default", fields=["title", "body"])],
+            rank_profiles=[
+                RankProfile(
+                    name="bm25",
+                    functions=[
+                        Function(name="bm25sum", expression="bm25(title) + bm25(body)")
+                    ],
+                    first_phase="bm25sum",
+                ),
+            ],
+        )
+    ],
+)
