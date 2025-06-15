@@ -1112,7 +1112,7 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
         return metrics
 
 
-class VespaTrainingDataCollector(ABC):
+class VespaCollectorBase(ABC):
     """
     Abstract base class for Vespa training data collectors providing initialization and interface.
     """
@@ -1131,11 +1131,13 @@ class VespaTrainingDataCollector(ABC):
         collect_matchfeatures: bool = True,
         collect_rankfeatures: bool = False,
         collect_summaryfeatures: bool = False,
+        write_csv: bool = True,
     ):
         self.id_field = id_field
         self.collect_matchfeatures = collect_matchfeatures
         self.collect_rankfeatures = collect_rankfeatures
         self.collect_summaryfeatures = collect_summaryfeatures
+        self.write_csv = write_csv
         validated_queries = validate_queries(queries)
         self._vespa_query_fn_takes_query_id = validate_vespa_query_fn(vespa_query_fn)
         validated_relevant_docs = validate_qrels(relevant_docs)
@@ -1173,7 +1175,7 @@ class VespaTrainingDataCollector(ABC):
         }
 
     @abstractmethod
-    def collect(self) -> None:
+    def collect(self) -> Union[None, Dict[str, Union[List[Dict], List[str]]]]:
         """Abstract method to be implemented by subclasses."""
         raise NotImplementedError("Subclasses must implement the collect method")
 
@@ -1182,7 +1184,7 @@ class VespaTrainingDataCollector(ABC):
         self.collect()
 
 
-class VespaFeatureCollector(VespaTrainingDataCollector):
+class VespaFeatureCollector(VespaCollectorBase):
     """
     Collects training data for retrieval tasks from a Vespa application.
 
@@ -1250,14 +1252,22 @@ class VespaFeatureCollector(VespaTrainingDataCollector):
         collect_summaryfeatures (bool, optional): Whether to collect summary features from document summaries. Defaults to False.
     """
 
-    def collect(self) -> None:
+    def collect(self) -> Dict[str, Union[List[Dict], List[str]]]:
         """
         Collects training data by executing queries and saving results to CSV.
 
         This method:
         1. Executes all configured queries against the Vespa application.
         2. Collects the top-k document IDs and their relevance labels.
-        3. Writes the data to a CSV file for training purposes.
+        3. Optionally writes the data to a CSV file for training purposes.
+        4. Returns the collected data as dictionaries and lists.
+
+        Returns:
+            Dict containing:
+            - 'features': List of dictionaries with features for each query-document pair
+            - 'labels': List of dictionaries with relevance labels
+            - 'qids': List of query IDs
+            - 'docids': List of document IDs
         """
         max_k = 100  # Fixed top-k value for data collection
 
@@ -1301,16 +1311,25 @@ class VespaFeatureCollector(VespaTrainingDataCollector):
         responses, new_searchtimes = execute_queries(self.app, query_bodies)
         self.searchtimes.extend(new_searchtimes)
 
-        # First pass: collect all data and determine feature column names
-        all_data = []
+        # Collect all data and determine feature column names
+        all_rows = []
         all_feature_names = set()
 
         for i, (qid, resp) in enumerate(zip(self.queries_ids, responses)):
             hits = resp.hits or []
             query_text = self.queries[i]
+
             for hit in hits[:max_k]:
                 doc_id = extract_doc_id_from_hit(hit, self.id_field)
-                relevance = 1.0 if doc_id in self.relevant_docs[qid] else 0.0
+                relevance_score = hit.get("relevance", 0.0)
+
+                # Determine relevance label based on whether docs are binary or graded
+                if isinstance(self.relevant_docs[qid], dict):
+                    # Graded relevance - use the score directly, or 0.0 if not found
+                    relevance_label = self.relevant_docs[qid].get(doc_id, 0.0)
+                else:
+                    # Binary relevance - check if doc is in the set
+                    relevance_label = 1.0 if doc_id in self.relevant_docs[qid] else 0.0
 
                 # Extract features based on configuration
                 features = extract_features_from_hit(
@@ -1321,44 +1340,85 @@ class VespaFeatureCollector(VespaTrainingDataCollector):
                 )
                 all_feature_names.update(features.keys())
 
-                # Store the row data
+                # Create complete row with basic info and features
                 row_data = {
                     "query_id": qid,
                     "query_text": query_text,
                     "doc_id": doc_id,
-                    "relevance": relevance,
-                    "features": features,
+                    "relevance_score": relevance_score,
+                    "relevance_label": relevance_label,
                 }
-                all_data.append(row_data)
+                # Add all features to the row
+                row_data.update(features)
+                all_rows.append(row_data)
 
         # Prepare sorted feature column names
         feature_columns = sorted(list(all_feature_names))
 
-        # Write CSV with proper headers
-        with open(self.csv_file, mode="w", newline="", encoding="utf-8") as f_out:
-            writer = csv.writer(f_out)
+        # Optionally write CSV file
+        if self.write_csv:
+            # All columns: basic info + features
+            all_columns = [
+                "query_id",
+                "query_text",
+                "doc_id",
+                "relevance_label",
+                "relevance_score",
+            ] + feature_columns
 
-            # Write header
-            header = ["query_id", "query_text", "doc_id", "relevance"] + feature_columns
-            writer.writerow(header)
+            with open(self.csv_file, "w", newline="") as f:
+                if all_rows:
+                    writer = csv.DictWriter(f, fieldnames=all_columns)
+                    writer.writeheader()
+                    for row in all_rows:
+                        # Fill missing feature values with empty string
+                        complete_row = row.copy()
+                        for feature_name in feature_columns:
+                            if feature_name not in complete_row:
+                                complete_row[feature_name] = ""
+                        writer.writerow(complete_row)
 
-            # Write data rows
-            for row_data in all_data:
-                row = [
-                    row_data["query_id"],
-                    row_data["query_text"],
-                    row_data["doc_id"],
-                    row_data["relevance"],
-                ]
-                # Add feature values in the correct order
-                # Use empty string for missing features (CSV best practice - can be interpreted as NaN)
-                for feature_name in feature_columns:
-                    row.append(row_data["features"].get(feature_name, ""))
-                writer.writerow(row)
+            logger.info(
+                f"Collected retrieval training data with {len(feature_columns)} features and wrote to {self.csv_file}"
+            )
+        else:
+            logger.info(
+                f"Collected retrieval training data with {len(feature_columns)} features"
+            )
 
-        logger.info(
-            f"Collected retrieval training data with {len(feature_columns)} features and wrote to {self.csv_file}"
-        )
+        # Prepare return data
+        # Features: just the feature columns
+        features_data = []
+        labels_data = []
+        qids = []
+        docids = []
+
+        for row in all_rows:
+            # Features row: only feature columns
+            feature_row = {}
+            for feature_name in feature_columns:
+                feature_row[feature_name] = row.get(feature_name, 0.0)
+            features_data.append(feature_row)
+
+            # Labels row: basic info
+            labels_data.append(
+                {
+                    "qid": row["query_id"],
+                    "docid": row["doc_id"],
+                    "relevance_label": row["relevance_label"],
+                    "relevance_score": row["relevance_score"],
+                }
+            )
+
+            qids.append(row["query_id"])
+            docids.append(row["doc_id"])
+
+        return {
+            "features": features_data,
+            "labels": labels_data,
+            "qids": qids,
+            "docids": docids,
+        }
 
 
 def extract_features_from_hit(

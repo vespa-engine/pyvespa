@@ -2,7 +2,7 @@ import unittest
 from vespa.evaluation import (
     VespaEvaluator,
     VespaMatchEvaluator,
-    VespaTrainingDataCollector,
+    VespaCollectorBase,
     VespaFeatureCollector,
 )
 from dataclasses import dataclass
@@ -1378,7 +1378,7 @@ class TestUtilityFunctions(unittest.TestCase):
 
 
 class MockAppForDataCollector:
-    """Mock Vespa app for VespaTrainingDataCollector tests."""
+    """Mock Vespa app for VespaCollectorBase tests."""
 
     def __init__(self, responses: List[MockVespaResponse]):
         self.responses = responses
@@ -1403,8 +1403,8 @@ class MockAppForDataCollector:
         return mock_responses
 
 
-class TestVespaTrainingDataCollector(unittest.TestCase):
-    """Test the abstract VespaTrainingDataCollector base class."""
+class TestVespaCollectorBase(unittest.TestCase):
+    """Test the abstract VespaCollectorBase base class."""
 
     def setUp(self):
         self.queries = {
@@ -1429,9 +1429,9 @@ class TestVespaTrainingDataCollector(unittest.TestCase):
         self.mock_app = MockAppForDataCollector([])
 
     def test_abstract_class_cannot_be_instantiated(self):
-        """Test that VespaTrainingDataCollector cannot be instantiated directly."""
+        """Test that VespaCollectorBase cannot be instantiated directly."""
         with self.assertRaises(TypeError):
-            VespaTrainingDataCollector(
+            VespaCollectorBase(
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -1441,7 +1441,7 @@ class TestVespaTrainingDataCollector(unittest.TestCase):
     def test_concrete_implementation_required(self):
         """Test that concrete implementations must implement collect method."""
 
-        class IncompleteCollector(VespaTrainingDataCollector):
+        class IncompleteCollector(VespaCollectorBase):
             pass  # Missing collect method
 
         with self.assertRaises(TypeError):
@@ -1570,7 +1570,16 @@ class TestVespaFeatureCollector(unittest.TestCase):
                 rows = list(reader)
 
             # Check header
-            self.assertEqual(header, ["query_id", "query_text", "doc_id", "relevance"])
+            self.assertEqual(
+                header,
+                [
+                    "query_id",
+                    "query_text",
+                    "doc_id",
+                    "relevance_label",
+                    "relevance_score",
+                ],
+            )
 
             # Check that we have data for all queries
             query_ids_in_csv = set(row[0] for row in rows)
@@ -1578,13 +1587,16 @@ class TestVespaFeatureCollector(unittest.TestCase):
 
             # Check relevance labels are correct
             for row in rows:
-                query_id, query_text, doc_id, relevance = row
-                relevance_float = float(relevance)
+                query_id, query_text, doc_id, relevance_label, relevance_score = row
+                relevance_label_float = float(relevance_label)
 
                 if doc_id in self.relevant_docs[query_id]:
-                    self.assertEqual(relevance_float, 1.0)
+                    self.assertEqual(relevance_label_float, 1.0)
                 else:
-                    self.assertEqual(relevance_float, 0.0)
+                    self.assertEqual(relevance_label_float, 0.0)
+
+                # relevance_score should be the Vespa relevance score from the hit
+                self.assertIsInstance(float(relevance_score), float)
 
     def test_collect_with_single_relevant_doc(self):
         """Test collection with single relevant doc per query"""
@@ -2002,7 +2014,13 @@ class TestVespaFeatureCollector(unittest.TestCase):
                 rows = list(reader)
 
             # Check that feature columns are present
-            expected_base_columns = ["query_id", "query_text", "doc_id", "relevance"]
+            expected_base_columns = [
+                "query_id",
+                "query_text",
+                "doc_id",
+                "relevance_label",
+                "relevance_score",
+            ]
             expected_match_features = [
                 "match_bm25(body)",
                 "match_bm25(title)",
@@ -2119,7 +2137,13 @@ class TestVespaFeatureCollector(unittest.TestCase):
                 header = next(reader)
 
             # Should only have the basic columns
-            expected_columns = ["query_id", "query_text", "doc_id", "relevance"]
+            expected_columns = [
+                "query_id",
+                "query_text",
+                "doc_id",
+                "relevance_label",
+                "relevance_score",
+            ]
             self.assertEqual(header, expected_columns)
 
     def test_collect_with_missing_features_in_hits(self):
