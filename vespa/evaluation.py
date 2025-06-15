@@ -1110,3 +1110,286 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
             self._write_verbose_csv(verbose_data)
 
         return metrics
+
+
+class VespaTrainingDataCollector(ABC):
+    """
+    Abstract base class for Vespa training data collectors providing initialization and interface.
+    """
+
+    def __init__(
+        self,
+        queries: Dict[str, str],
+        relevant_docs: Union[
+            Dict[str, Union[Set[str], Dict[str, float]]], Dict[str, str]
+        ],
+        vespa_query_fn: Callable[[str, int, Optional[str]], dict],
+        app: Vespa,
+        name: str = "",
+        id_field: str = "",
+        csv_dir: Optional[str] = None,
+        collect_matchfeatures: bool = True,
+        collect_rankfeatures: bool = False,
+        collect_summaryfeatures: bool = False,
+    ):
+        self.id_field = id_field
+        self.collect_matchfeatures = collect_matchfeatures
+        self.collect_rankfeatures = collect_rankfeatures
+        self.collect_summaryfeatures = collect_summaryfeatures
+        validated_queries = validate_queries(queries)
+        self._vespa_query_fn_takes_query_id = validate_vespa_query_fn(vespa_query_fn)
+        validated_relevant_docs = validate_qrels(relevant_docs)
+
+        # Filter out any queries that have no relevant docs
+        self.queries_ids = filter_queries(validated_queries, validated_relevant_docs)
+
+        self.queries = [validated_queries[qid] for qid in self.queries_ids]
+        self.relevant_docs = validated_relevant_docs
+
+        self.searchtimes: List[float] = []
+        self.vespa_query_fn: Callable = vespa_query_fn
+        self.app = app
+
+        self.name = name
+        self.csv_dir = csv_dir
+
+        # Generate datetime string for filenames
+        now = datetime.now()
+        self.dt_string = now.strftime("%Y%m%d_%H%M%S")
+
+        csv_filename = f"Vespa-training-data_{name}_{self.dt_string}.csv"
+        if csv_dir:
+            import os
+
+            self.csv_file: str = os.path.join(csv_dir, csv_filename)
+        else:
+            self.csv_file: str = csv_filename
+
+    @property
+    def default_body(self):
+        return {
+            "timeout": "5s",
+            "presentation.timing": True,
+        }
+
+    @abstractmethod
+    def collect(self) -> None:
+        """Abstract method to be implemented by subclasses."""
+        raise NotImplementedError("Subclasses must implement the collect method")
+
+    def __call__(self) -> None:
+        """Make the collector callable."""
+        self.collect()
+
+
+class VespaFeatureCollector(VespaTrainingDataCollector):
+    """
+    Collects training data for retrieval tasks from a Vespa application.
+
+    This class:
+
+    - Iterates over queries and issues them against your Vespa application.
+    - Retrieves top-k documents per query.
+    - Compiles a CSV file with query-document pairs and their relevance labels.
+
+    Example usage:
+        ```python
+        from vespa.application import Vespa
+        from vespa.evaluation import VespaFeatureCollector
+
+        queries = {
+            "q1": "What is the best GPU for gaming?",
+            "q2": "How to bake sourdough bread?",
+            # ...
+        }
+        relevant_docs = {
+            "q1": {"d12", "d99"},
+            "q2": {"d101"},
+            # ...
+        }
+
+        def my_vespa_query_fn(query_text: str, top_k: int) -> dict:
+            return {
+                "yql": 'select * from sources * where userInput("' + query_text + '");',
+                "hits": top_k,
+                "ranking": "your_ranking_profile",
+            }
+
+        app = Vespa(url="http://localhost", port=8080)
+
+        collector = VespaFeatureCollector(
+            queries=queries,
+            relevant_docs=relevant_docs,
+            vespa_query_fn=my_vespa_query_fn,
+            app=app,
+            name="retrieval-data-collection",
+            csv_dir="/path/to/save/csv",
+            collect_matchfeatures=True,  # Collect match features from rank profile
+            collect_rankfeatures=False,  # Skip traditional rank features
+            collect_summaryfeatures=False,  # Skip summary features
+        )
+
+        collector()
+        ```
+
+    Args:
+        queries (Dict[str, str]): A dictionary where keys are query IDs and values are query strings.
+        relevant_docs (Union[Dict[str, Union[Set[str], Dict[str, float]]], Dict[str, str]]):
+            A dictionary mapping query IDs to their relevant document IDs.
+            Can be a set of doc IDs for binary relevance, a dict of doc_id to relevance score (float between 0 and 1)
+            for graded relevance, or a single doc_id string.
+        vespa_query_fn (Callable[[str, int, Optional[str]], dict]): A function that takes a query string,
+            the number of hits to retrieve (top_k), and an optional query_id, and returns a Vespa query body dictionary.
+        app (Vespa): An instance of the Vespa application.
+        name (str, optional): A name for this data collection run. Defaults to "".
+        id_field (str, optional): The field name in the Vespa hit that contains the document ID.
+            If empty, it tries to infer the ID from the 'id' field or 'fields.id'. Defaults to "".
+        csv_dir (Optional[str], optional): Directory to save the CSV file. Defaults to None (current directory).
+        collect_matchfeatures (bool, optional): Whether to collect match features defined in rank profile's match-features section. Defaults to True.
+        collect_rankfeatures (bool, optional): Whether to collect rank features using ranking.listFeatures=true. Defaults to False.
+        collect_summaryfeatures (bool, optional): Whether to collect summary features from document summaries. Defaults to False.
+    """
+
+    def collect(self) -> None:
+        """
+        Collects training data by executing queries and saving results to CSV.
+
+        This method:
+        1. Executes all configured queries against the Vespa application.
+        2. Collects the top-k document IDs and their relevance labels.
+        3. Writes the data to a CSV file for training purposes.
+        """
+        max_k = 100  # Fixed top-k value for data collection
+
+        logger.info(f"Starting VespaFeatureCollector on {self.name}")
+        logger.info(f"Number of queries: {len(self.queries_ids)}; top_k = {max_k}")
+
+        # Build query bodies using the provided vespa_query_fn
+        query_bodies = []
+
+        for qid, query_text in zip(self.queries_ids, self.queries):
+            if self._vespa_query_fn_takes_query_id:
+                query_body: dict = self.vespa_query_fn(query_text, max_k, qid)
+            else:
+                query_body: dict = self.vespa_query_fn(query_text, max_k)
+            if not isinstance(query_body, dict):
+                raise ValueError(
+                    f"vespa_query_fn must return a dict, got: {type(query_body)}"
+                )
+            # Add default body parameters only if not already specified
+            for key, value in self.default_body.items():
+                if key not in query_body:
+                    query_body[key] = value
+
+            # Add feature collection parameters based on configuration
+            if self.collect_rankfeatures:
+                if "ranking" not in query_body:
+                    query_body["ranking"] = {}
+                if isinstance(query_body["ranking"], str):
+                    # Convert string ranking profile to dict
+                    query_body["ranking"] = {"profile": query_body["ranking"]}
+                elif not isinstance(query_body["ranking"], dict):
+                    query_body["ranking"] = {}
+                query_body["ranking"]["listFeatures"] = "true"
+
+            # Note: match-features and summary-features are controlled via the rank profile configuration
+            # and YQL select clause respectively, so they don't need query body modifications
+
+            query_bodies.append(query_body)
+            logger.debug(f"Querying Vespa with: {query_body}")
+
+        responses, new_searchtimes = execute_queries(self.app, query_bodies)
+        self.searchtimes.extend(new_searchtimes)
+
+        # First pass: collect all data and determine feature column names
+        all_data = []
+        all_feature_names = set()
+
+        for i, (qid, resp) in enumerate(zip(self.queries_ids, responses)):
+            hits = resp.hits or []
+            query_text = self.queries[i]
+            for hit in hits[:max_k]:
+                doc_id = extract_doc_id_from_hit(hit, self.id_field)
+                relevance = 1.0 if doc_id in self.relevant_docs[qid] else 0.0
+
+                # Extract features based on configuration
+                features = extract_features_from_hit(
+                    hit,
+                    self.collect_matchfeatures,
+                    self.collect_rankfeatures,
+                    self.collect_summaryfeatures,
+                )
+                all_feature_names.update(features.keys())
+
+                # Store the row data
+                row_data = {
+                    "query_id": qid,
+                    "query_text": query_text,
+                    "doc_id": doc_id,
+                    "relevance": relevance,
+                    "features": features,
+                }
+                all_data.append(row_data)
+
+        # Prepare sorted feature column names
+        feature_columns = sorted(list(all_feature_names))
+
+        # Write CSV with proper headers
+        with open(self.csv_file, mode="w", newline="", encoding="utf-8") as f_out:
+            writer = csv.writer(f_out)
+
+            # Write header
+            header = ["query_id", "query_text", "doc_id", "relevance"] + feature_columns
+            writer.writerow(header)
+
+            # Write data rows
+            for row_data in all_data:
+                row = [
+                    row_data["query_id"],
+                    row_data["query_text"],
+                    row_data["doc_id"],
+                    row_data["relevance"],
+                ]
+                # Add feature values in the correct order
+                for feature_name in feature_columns:
+                    row.append(row_data["features"].get(feature_name, 0.0))
+                writer.writerow(row)
+
+        logger.info(
+            f"Collected retrieval training data with {len(feature_columns)} features and wrote to {self.csv_file}"
+        )
+
+
+def extract_features_from_hit(
+    hit: dict,
+    collect_matchfeatures: bool,
+    collect_rankfeatures: bool,
+    collect_summaryfeatures: bool,
+) -> Dict[str, float]:
+    """
+    Extract features from a Vespa hit based on the collection configuration.
+
+    Args:
+        hit: The Vespa hit dictionary
+        collect_matchfeatures: Whether to collect match features
+        collect_rankfeatures: Whether to collect rank features
+        collect_summaryfeatures: Whether to collect summary features
+
+    Returns:
+        Dict mapping feature names to values
+    """
+    features = {}
+
+    if collect_matchfeatures and "matchfeatures" in hit:
+        for feature_name, feature_value in hit["matchfeatures"].items():
+            features[f"match_{feature_name}"] = float(feature_value)
+
+    if collect_rankfeatures and "rankfeatures" in hit:
+        for feature_name, feature_value in hit["rankfeatures"].items():
+            features[f"rank_{feature_name}"] = float(feature_value)
+
+    if collect_summaryfeatures and "summaryfeatures" in hit:
+        for feature_name, feature_value in hit["summaryfeatures"].items():
+            features[f"summary_{feature_name}"] = float(feature_value)
+
+    return features
