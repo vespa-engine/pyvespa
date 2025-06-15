@@ -1351,8 +1351,9 @@ class VespaFeatureCollector(VespaTrainingDataCollector):
                     row_data["relevance"],
                 ]
                 # Add feature values in the correct order
+                # Use empty string for missing features (CSV best practice - can be interpreted as NaN)
                 for feature_name in feature_columns:
-                    row.append(row_data["features"].get(feature_name, 0.0))
+                    row.append(row_data["features"].get(feature_name, ""))
                 writer.writerow(row)
 
         logger.info(

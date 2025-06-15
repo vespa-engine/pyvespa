@@ -1587,7 +1587,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
                     self.assertEqual(relevance_float, 0.0)
 
     def test_collect_with_single_relevant_doc(self):
-        """Test collection with single relevant doc per query."""
+        """Test collection with single relevant doc per query"""
         relevant_docs_single = {
             "q1": "doc1",
             "q2": "doc4",
@@ -1794,6 +1794,489 @@ class TestVespaFeatureCollector(unittest.TestCase):
                     query_body["presentation.timing"], True
                 )  # Default added
 
+    def test_feature_collection_parameters_initialization(self):
+        """Test initialization with feature collection parameters."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Test default parameters
+            collector_default = VespaFeatureCollector(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                name="test_default",
+                csv_dir=temp_dir,
+            )
 
-if __name__ == "__main__":
-    unittest.main()
+            self.assertTrue(collector_default.collect_matchfeatures)
+
+            self.assertFalse(collector_default.collect_rankfeatures)
+            self.assertFalse(collector_default.collect_summaryfeatures)
+
+            # Test custom parameters
+            collector_custom = VespaFeatureCollector(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                name="test_custom",
+                csv_dir=temp_dir,
+                collect_matchfeatures=False,
+                collect_rankfeatures=True,
+                collect_summaryfeatures=True,
+            )
+
+            self.assertFalse(collector_custom.collect_matchfeatures)
+            self.assertTrue(collector_custom.collect_rankfeatures)
+            self.assertTrue(collector_custom.collect_summaryfeatures)
+
+    def test_collect_with_rankfeatures_enabled(self):
+        """Test that rankfeatures parameter adds listFeatures to query body."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                name="test_rankfeatures",
+                csv_dir=temp_dir,
+                collect_rankfeatures=True,
+            )
+
+            collector.collect()
+
+            # Check that ranking.listFeatures was added to query bodies
+            captured_bodies = self.mock_app.captured_query_bodies
+            for body in captured_bodies:
+                self.assertIn("ranking", body)
+                self.assertEqual(body["ranking"]["listFeatures"], "true")
+
+    def test_collect_with_string_ranking_profile(self):
+        """Test handling of string ranking profile when rankfeatures is enabled."""
+
+        def query_fn_with_string_ranking(query_text: str, top_k: int) -> dict:
+            return {
+                "yql": f'select * from sources * where text contains "{query_text}";',
+                "hits": top_k,
+                "ranking": "my_profile",
+            }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=query_fn_with_string_ranking,
+                app=self.mock_app,
+                name="test_string_ranking",
+                csv_dir=temp_dir,
+                collect_rankfeatures=True,
+            )
+
+            collector.collect()
+
+            # Check that string ranking profile was converted to dict with listFeatures
+            captured_bodies = self.mock_app.captured_query_bodies
+            for body in captured_bodies:
+                self.assertIn("ranking", body)
+                self.assertIsInstance(body["ranking"], dict)
+                self.assertEqual(body["ranking"]["profile"], "my_profile")
+                self.assertEqual(body["ranking"]["listFeatures"], "true")
+
+    def test_collect_with_features_in_hits(self):
+        """Test collection with various feature types in mock responses."""
+        # Mock responses with different feature types
+        mock_responses_with_features = [
+            # Response for q1 with match features and rank features
+            MockVespaResponse(
+                [
+                    {
+                        "id": "doc1",
+                        "relevance": 0.9,
+                        "matchfeatures": {
+                            "bm25(title)": 1.5,
+                            "bm25(body)": 2.3,
+                            "fieldMatch(title)": 0.8,
+                        },
+                        "rankfeatures": {
+                            "nativeRank(title)": 0.7,
+                            "nativeRank(body)": 0.6,
+                            "attributeMatch(id).totalWeight": 0.0,
+                        },
+                        "summaryfeatures": {
+                            "summary_score": 0.95,
+                            "custom_feature": 1.2,
+                        },
+                    },
+                    {
+                        "id": "doc10",
+                        "relevance": 0.8,
+                        "matchfeatures": {
+                            "bm25(title)": 1.2,
+                            "bm25(body)": 1.8,
+                            "fieldMatch(title)": 0.6,
+                        },
+                        "rankfeatures": {
+                            "nativeRank(title)": 0.5,
+                            "nativeRank(body)": 0.4,
+                            "attributeMatch(id).totalWeight": 0.1,
+                        },
+                        "summaryfeatures": {
+                            "summary_score": 0.85,
+                            "custom_feature": 0.9,
+                        },
+                    },
+                ]
+            ),
+            # Response for q2
+            MockVespaResponse(
+                [
+                    {
+                        "id": "doc4",
+                        "relevance": 0.85,
+                        "matchfeatures": {
+                            "bm25(title)": 2.1,
+                            "bm25(body)": 2.8,
+                            "fieldMatch(title)": 0.9,
+                        },
+                        "rankfeatures": {
+                            "nativeRank(title)": 0.8,
+                            "nativeRank(body)": 0.7,
+                            "attributeMatch(id).totalWeight": 0.0,
+                        },
+                        "summaryfeatures": {
+                            "summary_score": 0.92,
+                            "custom_feature": 1.1,
+                        },
+                    }
+                ]
+            ),
+            # Response for q3
+            MockVespaResponse(
+                [
+                    {
+                        "id": "doc6",
+                        "relevance": 0.9,
+                        "matchfeatures": {
+                            "bm25(title)": 1.8,
+                            "bm25(body)": 2.5,
+                            "fieldMatch(title)": 0.7,
+                        },
+                        "rankfeatures": {
+                            "nativeRank(title)": 0.6,
+                            "nativeRank(body)": 0.8,
+                            "attributeMatch(id).totalWeight": 0.2,
+                        },
+                        "summaryfeatures": {
+                            "summary_score": 0.88,
+                            "custom_feature": 1.0,
+                        },
+                    }
+                ]
+            ),
+        ]
+
+        mock_app_with_features = MockAppForDataCollector(mock_responses_with_features)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Test collecting all feature types
+            collector = VespaFeatureCollector(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=mock_app_with_features,
+                name="test_all_features",
+                csv_dir=temp_dir,
+                collect_matchfeatures=True,
+                collect_rankfeatures=True,
+                collect_summaryfeatures=True,
+            )
+
+            collector.collect()
+
+            # Read and verify CSV content includes features
+            csv_files = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
+            csv_path = os.path.join(temp_dir, csv_files[0])
+
+            with open(csv_path, "r", newline="", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                rows = list(reader)
+
+            # Check that feature columns are present
+            expected_base_columns = ["query_id", "query_text", "doc_id", "relevance"]
+            expected_match_features = [
+                "match_bm25(body)",
+                "match_bm25(title)",
+                "match_fieldMatch(title)",
+            ]
+            expected_rank_features = [
+                "rank_attributeMatch(id).totalWeight",
+                "rank_nativeRank(body)",
+                "rank_nativeRank(title)",
+            ]
+            expected_summary_features = [
+                "summary_custom_feature",
+                "summary_summary_score",
+            ]
+
+            # Verify all expected columns are in header
+            for col in expected_base_columns:
+                self.assertIn(col, header)
+            for col in expected_match_features:
+                self.assertIn(col, header)
+            for col in expected_rank_features:
+                self.assertIn(col, header)
+            for col in expected_summary_features:
+                self.assertIn(col, header)
+
+            # Verify feature data is present and correctly formatted
+            for row in rows:
+                if row[2] == "doc1":  # Check specific document
+                    row_dict = dict(zip(header, row))
+                    self.assertEqual(float(row_dict["match_bm25(title)"]), 1.5)
+                    self.assertEqual(float(row_dict["rank_nativeRank(title)"]), 0.7)
+                    self.assertEqual(float(row_dict["summary_summary_score"]), 0.95)
+
+    def test_collect_with_only_matchfeatures(self):
+        """Test collection with only match features enabled."""
+        mock_responses_match_only = [
+            MockVespaResponse(
+                [
+                    {
+                        "id": "doc1",
+                        "relevance": 0.9,
+                        "matchfeatures": {
+                            "bm25(title)": 1.5,
+                            "bm25(body)": 2.3,
+                        },
+                        "rankfeatures": {
+                            "nativeRank(title)": 0.7,  # Should be ignored
+                        },
+                    }
+                ]
+            ),
+        ]
+
+        mock_app_match_only = MockAppForDataCollector(mock_responses_match_only)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                queries={"q1": "test query"},
+                relevant_docs={"q1": {"doc1"}},
+                vespa_query_fn=self.vespa_query_fn,
+                app=mock_app_match_only,
+                name="test_match_only",
+                csv_dir=temp_dir,
+                collect_matchfeatures=True,
+                collect_rankfeatures=False,
+                collect_summaryfeatures=False,
+            )
+
+            collector.collect()
+
+            # Read CSV and verify only match features are included
+            csv_files = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
+            csv_path = os.path.join(temp_dir, csv_files[0])
+
+            with open(csv_path, "r", newline="", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                _rows = list(reader)
+
+            # Should have match features but not rank or summary features
+            match_feature_columns = [col for col in header if col.startswith("match_")]
+            rank_feature_columns = [col for col in header if col.startswith("rank_")]
+            summary_feature_columns = [
+                col for col in header if col.startswith("summary_")
+            ]
+
+            self.assertGreater(len(match_feature_columns), 0)
+            self.assertEqual(len(rank_feature_columns), 0)
+            self.assertEqual(len(summary_feature_columns), 0)
+
+    def test_collect_with_no_features(self):
+        """Test collection with all feature types disabled."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                name="test_no_features",
+                csv_dir=temp_dir,
+                collect_matchfeatures=False,
+                collect_rankfeatures=False,
+                collect_summaryfeatures=False,
+            )
+
+            collector.collect()
+
+            # Read CSV and verify only basic columns are present
+            csv_files = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
+            csv_path = os.path.join(temp_dir, csv_files[0])
+
+            with open(csv_path, "r", newline="", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                header = next(reader)
+
+            # Should only have the basic columns
+            expected_columns = ["query_id", "query_text", "doc_id", "relevance"]
+            self.assertEqual(header, expected_columns)
+
+    def test_collect_with_missing_features_in_hits(self):
+        """Test collection when some hits are missing feature data."""
+        mock_responses_partial_features = [
+            MockVespaResponse(
+                [
+                    {
+                        "id": "doc1",
+                        "relevance": 0.9,
+                        "matchfeatures": {
+                            "bm25(title)": 1.5,
+                        },
+                        # Missing rankfeatures and summaryfeatures
+                    },
+                    {
+                        "id": "doc2",
+                        "relevance": 0.8,
+                        # Missing all feature types
+                    },
+                ]
+            ),
+        ]
+
+        mock_app_partial = MockAppForDataCollector(mock_responses_partial_features)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                queries={"q1": "test query"},
+                relevant_docs={"q1": {"doc1", "doc2"}},
+                vespa_query_fn=self.vespa_query_fn,
+                app=mock_app_partial,
+                name="test_partial_features",
+                csv_dir=temp_dir,
+                collect_matchfeatures=True,
+                collect_rankfeatures=True,
+                collect_summaryfeatures=True,
+            )
+
+            collector.collect()
+
+            # Read CSV and verify missing features are handled as 0.0
+            csv_files = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
+            csv_path = os.path.join(temp_dir, csv_files[0])
+
+            with open(csv_path, "r", newline="", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                rows = list(reader)
+
+            # Find the row for doc2 (which has no features)
+            doc2_row = None
+            for row in rows:
+                if row[2] == "doc2":
+                    doc2_row = dict(zip(header, row))
+                    break
+
+            self.assertIsNotNone(doc2_row)
+
+            # Check that missing features default to empty strings (CSV best practice)
+            feature_columns = [
+                col for col in header if col.startswith(("match_", "rank_", "summary_"))
+            ]
+            for col in feature_columns:
+                if col in doc2_row:
+                    self.assertEqual(doc2_row[col], "")
+
+    def test_csv_missing_values_best_practice(self):
+        """Test that missing feature values follow CSV best practices."""
+        # Create a response where some hits have features and others don't
+        mock_responses_mixed = [
+            MockVespaResponse(
+                [
+                    {
+                        "id": "doc_with_features",
+                        "relevance": 0.9,
+                        "matchfeatures": {
+                            "bm25(title)": 1.5,
+                        },
+                    },
+                    {
+                        "id": "doc_without_features",
+                        "relevance": 0.8,
+                        # No feature sections
+                    },
+                ]
+            ),
+        ]
+
+        mock_app_mixed = MockAppForDataCollector(mock_responses_mixed)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                queries={"q1": "test query"},
+                relevant_docs={"q1": {"doc_with_features"}},
+                vespa_query_fn=self.vespa_query_fn,
+                app=mock_app_mixed,
+                name="test_csv_best_practice",
+                csv_dir=temp_dir,
+                collect_matchfeatures=True,
+            )
+
+            collector.collect()
+
+            # Read CSV and verify missing values are empty strings
+            csv_files = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
+            csv_path = os.path.join(temp_dir, csv_files[0])
+
+            with open(csv_path, "r", newline="", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                rows = list(reader)
+
+            # Find rows for both documents
+            doc_with_features_row = None
+            doc_without_features_row = None
+
+            for row in rows:
+                if row[2] == "doc_with_features":
+                    doc_with_features_row = dict(zip(header, row))
+                elif row[2] == "doc_without_features":
+                    doc_without_features_row = dict(zip(header, row))
+
+            self.assertIsNotNone(doc_with_features_row)
+            self.assertIsNotNone(doc_without_features_row)
+
+            # Check that document with features has actual values
+            match_bm25_title_col = "match_bm25(title)"
+            self.assertIn(match_bm25_title_col, header)
+            self.assertEqual(doc_with_features_row[match_bm25_title_col], "1.5")
+
+            # Check that document without features has empty string (not "0.0")
+            self.assertEqual(doc_without_features_row[match_bm25_title_col], "")
+
+            # Verify this can be properly handled by pandas (empty strings become NaN)
+            try:
+                import pandas as pd
+
+                df = pd.read_csv(csv_path)
+
+                # Empty strings should become NaN in pandas
+                self.assertTrue(
+                    pd.isna(
+                        df[df["doc_id"] == "doc_without_features"][
+                            match_bm25_title_col
+                        ].iloc[0]
+                    )
+                )
+
+                # Actual values should be preserved
+                self.assertEqual(
+                    df[df["doc_id"] == "doc_with_features"][match_bm25_title_col].iloc[
+                        0
+                    ],
+                    1.5,
+                )
+
+            except ImportError:
+                # Skip pandas test if not available, but the empty string test above is sufficient
+                pass
