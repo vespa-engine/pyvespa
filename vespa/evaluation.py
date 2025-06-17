@@ -1340,10 +1340,9 @@ class VespaFeatureCollector(VespaCollectorBase):
                 )
                 all_feature_names.update(features.keys())
 
-                # Create complete row with basic info and features
+                # Create complete row with basic info and features (excluding query_text)
                 row_data = {
                     "query_id": qid,
-                    "query_text": query_text,
                     "doc_id": doc_id,
                     "relevance_score": relevance_score,
                     "relevance_label": relevance_label,
@@ -1357,10 +1356,9 @@ class VespaFeatureCollector(VespaCollectorBase):
 
         # Optionally write CSV file
         if self.write_csv:
-            # All columns: basic info + features
+            # All columns: basic info + features (excluding query_text)
             all_columns = [
                 "query_id",
-                "query_text",
                 "doc_id",
                 "relevance_label",
                 "relevance_score",
@@ -1368,7 +1366,9 @@ class VespaFeatureCollector(VespaCollectorBase):
 
             with open(self.csv_file, "w", newline="") as f:
                 if all_rows:
-                    writer = csv.DictWriter(f, fieldnames=all_columns)
+                    writer = csv.DictWriter(
+                        f, fieldnames=all_columns, quoting=csv.QUOTE_ALL
+                    )
                     writer.writeheader()
                     for row in all_rows:
                         # Fill missing feature values with empty string
@@ -1397,7 +1397,7 @@ class VespaFeatureCollector(VespaCollectorBase):
             # Features row: only feature columns
             feature_row = {}
             for feature_name in feature_columns:
-                feature_row[feature_name] = row.get(feature_name, 0.0)
+                feature_row[feature_name] = row.get(feature_name, math.nan)
             features_data.append(feature_row)
 
             # Labels row: basic info
@@ -1441,16 +1441,52 @@ def extract_features_from_hit(
     """
     features = {}
 
-    if collect_matchfeatures and "matchfeatures" in hit:
-        for feature_name, feature_value in hit["matchfeatures"].items():
-            features[f"match_{feature_name}"] = float(feature_value)
+    if collect_matchfeatures:
+        # Try multiple locations for match features
+        matchfeatures = None
+        if "matchfeatures" in hit:
+            matchfeatures = hit["matchfeatures"]
+        elif "fields" in hit and "matchfeatures" in hit["fields"]:
+            matchfeatures = hit["fields"]["matchfeatures"]
 
-    if collect_rankfeatures and "rankfeatures" in hit:
-        for feature_name, feature_value in hit["rankfeatures"].items():
-            features[f"rank_{feature_name}"] = float(feature_value)
+        if matchfeatures:
+            for feature_name, feature_value in matchfeatures.items():
+                try:
+                    features[f"match_{feature_name}"] = float(feature_value)
+                except (ValueError, TypeError):
+                    # Skip non-numeric features
+                    continue
 
-    if collect_summaryfeatures and "summaryfeatures" in hit:
-        for feature_name, feature_value in hit["summaryfeatures"].items():
-            features[f"summary_{feature_name}"] = float(feature_value)
+    if collect_rankfeatures:
+        # Try multiple locations for rank features
+        rankfeatures = None
+        if "rankfeatures" in hit:
+            rankfeatures = hit["rankfeatures"]
+        elif "fields" in hit and "rankfeatures" in hit["fields"]:
+            rankfeatures = hit["fields"]["rankfeatures"]
+
+        if rankfeatures:
+            for feature_name, feature_value in rankfeatures.items():
+                try:
+                    features[f"rank_{feature_name}"] = float(feature_value)
+                except (ValueError, TypeError):
+                    # Skip non-numeric features
+                    continue
+
+    if collect_summaryfeatures:
+        # Try multiple locations for summary features
+        summaryfeatures = None
+        if "summaryfeatures" in hit:
+            summaryfeatures = hit["summaryfeatures"]
+        elif "fields" in hit and "summaryfeatures" in hit["fields"]:
+            summaryfeatures = hit["fields"]["summaryfeatures"]
+
+        if summaryfeatures:
+            for feature_name, feature_value in summaryfeatures.items():
+                try:
+                    features[f"summary_{feature_name}"] = float(feature_value)
+                except (ValueError, TypeError):
+                    # Skip non-numeric features
+                    continue
 
     return features

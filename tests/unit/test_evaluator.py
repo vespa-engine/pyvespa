@@ -1574,7 +1574,6 @@ class TestVespaFeatureCollector(unittest.TestCase):
                 header,
                 [
                     "query_id",
-                    "query_text",
                     "doc_id",
                     "relevance_label",
                     "relevance_score",
@@ -1587,7 +1586,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
 
             # Check relevance labels are correct
             for row in rows:
-                query_id, query_text, doc_id, relevance_label, relevance_score = row
+                query_id, doc_id, relevance_label, relevance_score = row
                 relevance_label_float = float(relevance_label)
 
                 if doc_id in self.relevant_docs[query_id]:
@@ -2016,7 +2015,6 @@ class TestVespaFeatureCollector(unittest.TestCase):
             # Check that feature columns are present
             expected_base_columns = [
                 "query_id",
-                "query_text",
                 "doc_id",
                 "relevance_label",
                 "relevance_score",
@@ -2139,7 +2137,6 @@ class TestVespaFeatureCollector(unittest.TestCase):
             # Should only have the basic columns
             expected_columns = [
                 "query_id",
-                "query_text",
                 "doc_id",
                 "relevance_label",
                 "relevance_score",
@@ -2197,7 +2194,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
             # Find the row for doc2 (which has no features)
             doc2_row = None
             for row in rows:
-                if row[2] == "doc2":
+                if row[1] == "doc2":  # doc_id is now at index 1 instead of 2
                     doc2_row = dict(zip(header, row))
                     break
 
@@ -2262,9 +2259,13 @@ class TestVespaFeatureCollector(unittest.TestCase):
             doc_without_features_row = None
 
             for row in rows:
-                if row[2] == "doc_with_features":
+                if (
+                    row[1] == "doc_with_features"
+                ):  # doc_id is now at index 1 instead of 2
                     doc_with_features_row = dict(zip(header, row))
-                elif row[2] == "doc_without_features":
+                elif (
+                    row[1] == "doc_without_features"
+                ):  # doc_id is now at index 1 instead of 2
                     doc_without_features_row = dict(zip(header, row))
 
             self.assertIsNotNone(doc_with_features_row)
