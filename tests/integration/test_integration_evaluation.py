@@ -17,11 +17,11 @@ from vespa.package import (
     Parameter,
 )
 from vespa.deployment import VespaDocker
-from vespa.evaluation import VespaEvaluator, VespaMatchEvaluator
+from vespa.evaluation import VespaEvaluator, VespaMatchEvaluator, VespaFeatureCollector
 from vespa.io import VespaResponse
 import vespa.querybuilder as qb
-import pandas as pd
 from pathlib import Path
+import os
 
 # Reference metrics from your Sentence Transformers (semantic) runs:
 # Code used to produce these metrics:
@@ -67,6 +67,7 @@ SENTENCE_TRANSFORMERS_REF = {
 def create_app_package() -> ApplicationPackage:
     """
     Single 'doc' schema with an 'embedding' field that uses hugging-face-embedder (E5).
+    Enhanced with additional rank profiles containing match features for training data collection.
     """
     return ApplicationPackage(
         name="localevaluation",
@@ -99,7 +100,6 @@ def create_app_package() -> ApplicationPackage:
                         ),
                     ]
                 ),
-                # Only one rank profile: "semantic"
                 rank_profiles=[
                     RankProfile(
                         name="semantic",
@@ -110,6 +110,19 @@ def create_app_package() -> ApplicationPackage:
                         name="hybrid-match",
                         inputs=[("query(q)", "tensor<float>(x[384])")],
                         first_phase="",  # Temporary workaround, as pyvespa does not allow empty first_phase
+                    ),
+                    RankProfile(
+                        name="feature-collection",
+                        inputs=[("query(q)", "tensor<float>(x[384])")],
+                        first_phase="closeness(field, embedding)+bm25(text)",
+                        match_features=[
+                            "closeness(field, embedding)",
+                            "bm25(text)",
+                        ],
+                        summary_features=[
+                            "closeness(field, embedding)",
+                            "bm25(text)",
+                        ],
                     ),
                 ],
             )
@@ -165,12 +178,41 @@ def hybrid_match_query_fn(query_text: str, top_k: int = 10) -> Dict[str, Any]:
                     query_vector="q",
                     annotations={"targetHits": 100},
                 )
-                | qb.userQuery()
+                | qb.userQuery(query_text)
             )
         ),
         "query": query_text,
         "ranking": "hybrid-match",
         "input.query(q)": f"embed({query_text})",
+    }
+
+
+def feature_collection_query_fn(
+    query_text: str, top_k: int = 10, query_id: str = None
+) -> Dict[str, Any]:
+    """
+    Convert plain text into a JSON body for Vespa query with 'feature-collection' rank profile.
+    Includes both semantic similarity and BM25 matching with match features.
+    """
+    return {
+        "yql": str(
+            qb.select("*")
+            .from_("sources *")
+            .where(
+                qb.nearestNeighbor(
+                    field="embedding",
+                    query_vector="q",
+                    annotations={"targetHits": 1000},
+                )
+                | qb.userQuery(query_text)
+            )
+        ),
+        "query": query_text,
+        "ranking": "feature-collection",
+        "input.query(q)": f"embed({query_text})",
+        "hits": top_k,
+        "timeout": "5s",
+        "presentation.timing": True,
     }
 
 
@@ -273,11 +315,146 @@ class TestEvaluatorsIntegration(unittest.TestCase):
         # Assert file is written
         self.assertTrue(Path(evaluator.csv_file).exists())
         self.assertTrue(Path(evaluator.verbose_csv_file).exists())
-        # Read the csv and print head
-        df = pd.read_csv(evaluator.verbose_csv_file)
-        # assert that recall column is 1.0
-        self.assertTrue((df["recall"] == 1.0).all())
+        # Read the csv and check recall column
+        import csv
 
+        with open(evaluator.verbose_csv_file, "r") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+            # assert that recall column is 1.0 for all rows
+            for row in rows:
+                self.assertEqual(float(row["recall"]), 1.0)
 
-if __name__ == "__main__":
-    unittest.main()
+    def test_vespa_feature_collector_integration(self):
+        """
+        Test VespaFeatureCollector with different rank profiles to ensure
+        it correctly collects match features and summary features.
+        """
+        # Test with feature-collection rank profile
+        feature_collector = VespaFeatureCollector(
+            queries=self.ids_to_query,
+            relevant_docs=self.relevant_docs,
+            vespa_query_fn=feature_collection_query_fn,
+            app=self.app,
+            name="feature-collection-test",
+            collect_matchfeatures=True,
+            collect_summaryfeatures=True,
+            collect_rankfeatures=False,
+        )
+
+        # Collect features
+        results = feature_collector.collect()
+
+        # Verify structure
+        self.assertIsInstance(results, dict)
+        self.assertIn("features", results)
+        self.assertIn("labels", results)
+        self.assertIn("qids", results)
+        self.assertIn("docids", results)
+
+        features = results["features"]
+        labels = results["labels"]
+        print("Features and labels collected:")
+        print(f"{features}")
+        print(f"{labels}")
+        # Check that we have data
+        self.assertGreater(len(features), 0)
+        self.assertGreater(
+            len(labels), 0
+        )  # Check expected feature columns exist (now with prefixes)
+        expected_match_features = [
+            "match_closeness(field,embedding)",
+            "match_bm25(text)",
+        ]
+        expected_summary_features = [
+            "summary_closeness(field,embedding)",
+            "summary_bm25(text)",
+        ]
+
+        # Verify match features are present
+        feature_columns = set(features[0].keys())
+        for feature in expected_match_features:
+            self.assertIn(feature, feature_columns, f"Match feature {feature} missing")
+
+        # Verify summary features are present
+        for feature in expected_summary_features:
+            self.assertIn(
+                feature, feature_columns, f"Summary feature {feature} missing"
+            )
+
+        # Verify labels structure
+        label_columns = set(labels[0].keys())
+        expected_label_columns = {
+            "qid",
+            "docid",
+            "relevance_label",
+            "relevance_score",
+        }
+        for col in expected_label_columns:
+            self.assertIn(col, label_columns, f"Label column {col} missing")
+
+    def test_vespa_feature_collector_csv_output(self):
+        """
+        Test that VespaFeatureCollector correctly writes CSV files when enabled.
+        """
+        # Create a temporary directory for CSV output
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            feature_collector = VespaFeatureCollector(
+                queries=self.ids_to_query,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=feature_collection_query_fn,
+                app=self.app,
+                name="csv-test",
+                collect_matchfeatures=True,
+                collect_summaryfeatures=False,
+                collect_rankfeatures=False,
+                write_csv=True,
+                csv_dir=temp_dir,
+            )
+
+            results = feature_collector.collect()
+
+            # Check that CSV file was created (single file with all data)
+            csv_file = feature_collector.csv_file
+
+            self.assertTrue(
+                os.path.exists(csv_file),
+                f"Training data CSV not created at {csv_file}",
+            )
+
+            # Verify CSV content by reading and comparing basic structure
+            import csv
+
+            # Read the single CSV file
+            with open(csv_file, "r") as f:
+                csv_reader = csv.DictReader(f)
+                rows_from_csv = list(csv_reader)
+
+            # Basic checks: we should have some rows
+            self.assertGreater(len(rows_from_csv), 0)
+
+            # Verify that the CSV has the same number of total samples as the return data
+            total_samples = len(results["features"])
+            self.assertEqual(len(rows_from_csv), total_samples)
+
+            # Check that expected columns are present
+            if rows_from_csv:
+                csv_columns = set(rows_from_csv[0].keys())
+                expected_base_columns = {
+                    "query_id",
+                    "doc_id",
+                    "relevance_label",
+                    "relevance_score",
+                }
+                for col in expected_base_columns:
+                    self.assertIn(
+                        col, csv_columns, f"Expected column {col} missing from CSV"
+                    )
+
+            print("CSV output test completed:")
+            print(f"  - Training data CSV: {csv_file} ({len(rows_from_csv)} rows)")
+            print(
+                f"  - Columns: {sorted(list(csv_columns)) if rows_from_csv else 'No data'}"
+            )
