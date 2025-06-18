@@ -1482,7 +1482,8 @@ class VespaFeatureCollector(VespaCollectorBase):
             get_relevant_flags = [(True, num_relevant), (False, num_random)]
             for get_relevant, max_k in get_relevant_flags:
                 recall_param = self.get_recall_param(relevant_docs, get_relevant)
-                query_body_with_recall = query_body | recall_param
+                # Update hits parameter to match the max_k for this query
+                query_body_with_recall = query_body | recall_param | {"hits": max_k}
                 # Add the modified query body to the list
                 query_bodies.append(query_body_with_recall)
                 # Track metadata for this query body
