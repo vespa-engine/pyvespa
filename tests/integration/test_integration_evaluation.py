@@ -29,6 +29,7 @@ from vespa.io import VespaResponse
 import vespa.querybuilder as qb
 from pathlib import Path
 import os
+import pandas as pd
 
 # Reference metrics from your Sentence Transformers (semantic) runs:
 # Code used to produce these metrics:
@@ -703,3 +704,142 @@ class TestEvaluatorsIntegration(unittest.TestCase):
             self.assertTrue(os.path.exists(feature_collector.csv_file))
 
             print(f"Max limit test - Random hits per query: {query_random_counts}")
+
+    def test_vespa_feature_collector_list_features(self):
+        """
+        Test VespaFeatureCollector with collect_rankfeatures.
+        This tests that the collector can retrieve rank features correctly.
+        """
+
+        # Use a smaller subset for faster testing
+        limited_queries = dict(list(self.ids_to_query.items())[:3])
+        limited_relevant_docs = {
+            qid: doc_id
+            for qid, doc_id in self.relevant_docs.items()
+            if qid in limited_queries
+        }
+
+        feature_collector = VespaFeatureCollector(
+            queries=limited_queries,
+            relevant_docs=limited_relevant_docs,
+            vespa_query_fn=feature_collection_query_fn,
+            app=self.app,
+            name="rankfeatures-test",
+            id_field="id",
+            collect_matchfeatures=False,
+            collect_summaryfeatures=False,
+            collect_rankfeatures=True,
+            write_csv=True,
+            random_hits_strategy="ratio",
+            random_hits_value=1,
+        )
+
+        results = feature_collector.collect()
+        print("Rank features results:", results)
+        # Verify that random hits were collected but limited
+        self.assertIn("results", results)
+        features = results["results"]
+        self.assertGreater(len(features), 0)
+        # Load as dataframe from csv
+        results_df = pd.read_csv(feature_collector.csv_file)
+
+        # expected columns: query_id,doc_id,relevance_label,relevance_score,rank_attributeMatch(id),rank_attributeMatch(id).averageWeight,rank_attributeMatch(id).completeness,rank_attributeMatch(id).fieldCompleteness,rank_attributeMatch(id).importance,rank_attributeMatch(id).matches,rank_attributeMatch(id).maxWeight,rank_attributeMatch(id).normalizedWeight,rank_attributeMatch(id).normalizedWeightedWeight,rank_attributeMatch(id).queryCompleteness,rank_attributeMatch(id).significance,rank_attributeMatch(id).totalWeight,rank_attributeMatch(id).weight,rank_bm25(text),rank_elementCompleteness(text).completeness,rank_elementCompleteness(text).elementWeight,rank_elementCompleteness(text).fieldCompleteness,rank_elementCompleteness(text).queryCompleteness,rank_fieldMatch(text),rank_fieldMatch(text).absoluteOccurrence,rank_fieldMatch(text).absoluteProximity,rank_fieldMatch(text).completeness,rank_fieldMatch(text).degradedMatches,rank_fieldMatch(text).earliness,rank_fieldMatch(text).fieldCompleteness,rank_fieldMatch(text).gapLength,rank_fieldMatch(text).gaps,rank_fieldMatch(text).head,rank_fieldMatch(text).importance,rank_fieldMatch(text).longestSequence,rank_fieldMatch(text).longestSequenceRatio,rank_fieldMatch(text).matches,rank_fieldMatch(text).occurrence,rank_fieldMatch(text).orderness,rank_fieldMatch(text).outOfOrder,rank_fieldMatch(text).proximity,rank_fieldMatch(text).queryCompleteness,rank_fieldMatch(text).relatedness,rank_fieldMatch(text).segmentDistance,rank_fieldMatch(text).segmentProximity,rank_fieldMatch(text).segments,rank_fieldMatch(text).significance,rank_fieldMatch(text).significantOccurrence,rank_fieldMatch(text).tail,rank_fieldMatch(text).unweightedProximity,rank_fieldMatch(text).weight,rank_fieldMatch(text).weightedAbsoluteOccurrence,rank_fieldMatch(text).weightedOccurrence,"rank_fieldTermMatch(text,0).firstPosition","rank_fieldTermMatch(text,0).occurrences","rank_fieldTermMatch(text,0).weight","rank_fieldTermMatch(text,1).firstPosition","rank_fieldTermMatch(text,1).occurrences","rank_fieldTermMatch(text,1).weight","rank_fieldTermMatch(text,2).firstPosition","rank_fieldTermMatch(text,2).occurrences","rank_fieldTermMatch(text,2).weight","rank_fieldTermMatch(text,3).firstPosition","rank_fieldTermMatch(text,3).occurrences","rank_fieldTermMatch(text,3).weight","rank_fieldTermMatch(text,4).firstPosition","rank_fieldTermMatch(text,4).occurrences","rank_fieldTermMatch(text,4).weight",rank_firstPhase,rank_matches(embedding),rank_matches(id),rank_matches(text),rank_nativeAttributeMatch,rank_nativeFieldMatch,rank_nativeProximity,rank_nativeRank,rank_queryTermCount,rank_term(0).connectedness,rank_term(0).significance,rank_term(0).weight,rank_term(1).connectedness,rank_term(1).significance,rank_term(1).weight,rank_term(2).connectedness,rank_term(2).significance,rank_term(2).weight,rank_term(3).connectedness,rank_term(3).significance,rank_term(3).weight,rank_term(4).connectedness,rank_term(4).significance,rank_term(4).weight,rank_textSimilarity(text).fieldCoverage,rank_textSimilarity(text).order,rank_textSimilarity(text).proximity,rank_textSimilarity(text).queryCoverage,rank_textSimilarity(text).score
+        expected_columns = [
+            "query_id",
+            "doc_id",
+            "relevance_label",
+            "relevance_score",
+            "rank_attributeMatch(id)",
+            "rank_attributeMatch(id).averageWeight",
+            "rank_attributeMatch(id).completeness",
+            "rank_attributeMatch(id).fieldCompleteness",
+            "rank_attributeMatch(id).importance",
+            "rank_attributeMatch(id).matches",
+            "rank_attributeMatch(id).maxWeight",
+            "rank_attributeMatch(id).normalizedWeight",
+            "rank_attributeMatch(id).normalizedWeightedWeight",
+            "rank_attributeMatch(id).queryCompleteness",
+            "rank_attributeMatch(id).significance",
+            "rank_attributeMatch(id).totalWeight",
+            "rank_attributeMatch(id).weight",
+            "rank_bm25(text)",
+            "rank_elementCompleteness(text).completeness",
+            "rank_elementCompleteness(text).elementWeight",
+            "rank_elementCompleteness(text).fieldCompleteness",
+            "rank_elementCompleteness(text).queryCompleteness",
+            "rank_fieldMatch(text)",
+            "rank_fieldMatch(text).absoluteOccurrence",
+            "rank_fieldMatch(text).absoluteProximity",
+            "rank_fieldMatch(text).completeness",
+            "rank_fieldMatch(text).degradedMatches",
+            "rank_fieldMatch(text).earliness",
+            "rank_fieldMatch(text).fieldCompleteness",
+            "rank_fieldMatch(text).gapLength",
+            "rank_fieldMatch(text).gaps",
+            "rank_fieldMatch(text).head",
+            "rank_fieldMatch(text).importance",
+            "rank_fieldMatch(text).longestSequence",
+            "rank_fieldMatch(text).longestSequenceRatio",
+            "rank_fieldMatch(text).matches",
+            "rank_fieldMatch(text).occurrence",
+            "rank_fieldMatch(text).orderness",
+            "rank_fieldMatch(text).outOfOrder",
+            "rank_fieldMatch(text).proximity",
+            "rank_fieldMatch(text).queryCompleteness",
+            "rank_fieldMatch(text).relatedness",
+            "rank_fieldMatch(text).segmentDistance",
+            "rank_fieldMatch(text).segmentProximity",
+            "rank_fieldMatch(text).segments",
+            "rank_fieldMatch(text).significance",
+            "rank_fieldMatch(text).significantOccurrence",
+            "rank_fieldMatch(text).tail",
+            "rank_fieldMatch(text).unweightedProximity",
+            "rank_fieldMatch(text).weight",
+            "rank_fieldMatch(text).weightedAbsoluteOccurrence",
+            "rank_fieldMatch(text).weightedOccurrence",
+            "rank_fieldTermMatch(text,0).firstPosition",
+            "rank_fieldTermMatch(text,0).occurrences",
+            "rank_fieldTermMatch(text,0).weight",
+            "rank_fieldTermMatch(text,1).firstPosition",
+            "rank_fieldTermMatch(text,1).occurrences",
+            "rank_fieldTermMatch(text,1).weight",
+            "rank_fieldTermMatch(text,2).firstPosition",
+            "rank_fieldTermMatch(text,2).occurrences",
+            "rank_fieldTermMatch(text,2).weight",
+            "rank_fieldTermMatch(text,3).firstPosition",
+            "rank_fieldTermMatch(text,3).occurrences",
+            "rank_fieldTermMatch(text,3).weight",
+            "rank_fieldTermMatch(text,4).firstPosition",
+            "rank_fieldTermMatch(text,4).occurrences",
+            "rank_fieldTermMatch(text,4).weight",
+            "rank_firstPhase",
+            "rank_matches(embedding)",
+            "rank_matches(id)",
+            "rank_matches(text)",
+            "rank_nativeAttributeMatch",
+            "rank_nativeFieldMatch",
+            "rank_nativeProximity",
+            "rank_nativeRank",
+            "rank_queryTermCount",
+            "rank_term(0).connectedness",
+            "rank_term(0).significance",
+            "rank_term(0).weight",
+            "rank_term(1).connectedness",
+            "rank_term(1).significance",
+            "rank_term(1).weight",
+            "rank_term(2).connectedness",
+            "rank_term(2).significance",
+            "rank_term(2).weight",
+            "rank_term(3).connectedness",
+            "rank_term(3).significance",
+            "rank_term(3).weight",
+            "rank_term(4).connectedness",
+            "rank_term(4).significance",
+            "rank_term(4).weight",
+            "rank_textSimilarity(text).fieldCoverage",
+            "rank_textSimilarity(text).order",
+            "rank_textSimilarity(text).proximity",
+            "rank_textSimilarity(text).queryCoverage",
+            "rank_textSimilarity(text).score",
+        ]
+        self.assertListEqual(results_df.columns.tolist(), expected_columns)
