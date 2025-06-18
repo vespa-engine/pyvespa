@@ -1470,29 +1470,46 @@ class TestVespaFeatureCollector(unittest.TestCase):
         }
 
         # Mock responses with some relevant and non-relevant documents
+        # VespaFeatureCollector makes 2 queries per query (positive and negative recall)
         self.mock_responses = [
-            # Response for q1
+            # Response for q1 with positive recall (get relevant docs)
             MockVespaResponse(
                 [
                     {"id": "doc1", "relevance": 0.9},  # Relevant
-                    {"id": "doc10", "relevance": 0.8},  # Not relevant
                     {"id": "doc2", "relevance": 0.7},  # Relevant
+                ]
+            ),
+            # Response for q1 with negative recall (get non-relevant docs)
+            MockVespaResponse(
+                [
+                    {"id": "doc10", "relevance": 0.8},  # Not relevant
                     {"id": "doc11", "relevance": 0.6},  # Not relevant
                 ]
             ),
-            # Response for q2
+            # Response for q2 with positive recall (get relevant docs)
+            MockVespaResponse(
+                [
+                    {"id": "doc4", "relevance": 0.85},  # Relevant
+                ]
+            ),
+            # Response for q2 with negative recall (get non-relevant docs)
             MockVespaResponse(
                 [
                     {"id": "doc12", "relevance": 0.95},  # Not relevant
-                    {"id": "doc4", "relevance": 0.85},  # Relevant
                     {"id": "doc13", "relevance": 0.75},  # Not relevant
                 ]
             ),
-            # Response for q3
+            # Response for q3 with positive recall (get relevant docs)
             MockVespaResponse(
                 [
                     {"id": "doc6", "relevance": 0.9},  # Relevant
+                ]
+            ),
+            # Response for q3 with negative recall (get non-relevant docs)
+            MockVespaResponse(
+                [
                     {"id": "doc16", "relevance": 0.8},  # Not relevant
+                    {"id": "doc17", "relevance": 0.7},  # Not relevant
                 ]
             ),
         ]
@@ -1693,8 +1710,14 @@ class TestVespaFeatureCollector(unittest.TestCase):
         }
 
         mock_responses_partial = [
+            # Response for q1 with positive recall
             MockVespaResponse([{"id": "doc1", "relevance": 0.9}]),
+            # Response for q1 with negative recall
+            MockVespaResponse([{"id": "doc10", "relevance": 0.8}]),
+            # Response for q2 with positive recall
             MockVespaResponse([{"id": "doc4", "relevance": 0.85}]),
+            # Response for q2 with negative recall
+            MockVespaResponse([{"id": "doc12", "relevance": 0.75}]),
         ]
 
         mock_app = MockAppForDataCollector(mock_responses_partial)
@@ -1712,8 +1735,8 @@ class TestVespaFeatureCollector(unittest.TestCase):
             self.assertEqual(len(collector.queries_ids), 2)
             self.assertNotIn("q4", collector.queries_ids)
 
-            collector.collect()
-
+            results = collector.collect()
+            print(results)
             # Verify only q1 and q2 data in CSV
             csv_files = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
             csv_path = os.path.join(temp_dir, csv_files[0])
@@ -1724,6 +1747,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
                 rows = list(reader)
 
             query_ids_in_csv = set(row[0] for row in rows)
+            print(query_ids_in_csv)
             self.assertEqual(query_ids_in_csv, {"q1", "q2"})
             self.assertNotIn("q4", query_ids_in_csv)
 
@@ -1902,37 +1926,43 @@ class TestVespaFeatureCollector(unittest.TestCase):
                     {
                         "id": "doc1",
                         "relevance": 0.9,
-                        "matchfeatures": {
-                            "bm25(title)": 1.5,
-                            "bm25(body)": 2.3,
-                            "fieldMatch(title)": 0.8,
-                        },
-                        "rankfeatures": {
-                            "nativeRank(title)": 0.7,
-                            "nativeRank(body)": 0.6,
-                            "attributeMatch(id).totalWeight": 0.0,
-                        },
-                        "summaryfeatures": {
-                            "summary_score": 0.95,
-                            "custom_feature": 1.2,
+                        "fields": {
+                            "id": "doc1",
+                            "matchfeatures": {
+                                "bm25(title)": 1.5,
+                                "bm25(body)": 2.3,
+                                "fieldMatch(title)": 0.8,
+                            },
+                            "rankfeatures": {
+                                "nativeRank(title)": 0.7,
+                                "nativeRank(body)": 0.6,
+                                "attributeMatch(id).totalWeight": 0.0,
+                            },
+                            "summaryfeatures": {
+                                "summary_score": 0.95,
+                                "custom_feature": 1.2,
+                            },
                         },
                     },
                     {
                         "id": "doc10",
                         "relevance": 0.8,
-                        "matchfeatures": {
-                            "bm25(title)": 1.2,
-                            "bm25(body)": 1.8,
-                            "fieldMatch(title)": 0.6,
-                        },
-                        "rankfeatures": {
-                            "nativeRank(title)": 0.5,
-                            "nativeRank(body)": 0.4,
-                            "attributeMatch(id).totalWeight": 0.1,
-                        },
-                        "summaryfeatures": {
-                            "summary_score": 0.85,
-                            "custom_feature": 0.9,
+                        "fields": {
+                            "id": "doc10",
+                            "matchfeatures": {
+                                "bm25(title)": 1.2,
+                                "bm25(body)": 1.8,
+                                "fieldMatch(title)": 0.6,
+                            },
+                            "rankfeatures": {
+                                "nativeRank(title)": 0.5,
+                                "nativeRank(body)": 0.4,
+                                "attributeMatch(id).totalWeight": 0.1,
+                            },
+                            "summaryfeatures": {
+                                "summary_score": 0.85,
+                                "custom_feature": 0.9,
+                            },
                         },
                     },
                 ]
@@ -1943,19 +1973,22 @@ class TestVespaFeatureCollector(unittest.TestCase):
                     {
                         "id": "doc4",
                         "relevance": 0.85,
-                        "matchfeatures": {
-                            "bm25(title)": 2.1,
-                            "bm25(body)": 2.8,
-                            "fieldMatch(title)": 0.9,
-                        },
-                        "rankfeatures": {
-                            "nativeRank(title)": 0.8,
-                            "nativeRank(body)": 0.7,
-                            "attributeMatch(id).totalWeight": 0.0,
-                        },
-                        "summaryfeatures": {
-                            "summary_score": 0.92,
-                            "custom_feature": 1.1,
+                        "fields": {
+                            "id": "doc4",
+                            "matchfeatures": {
+                                "bm25(title)": 2.1,
+                                "bm25(body)": 2.8,
+                                "fieldMatch(title)": 0.9,
+                            },
+                            "rankfeatures": {
+                                "nativeRank(title)": 0.8,
+                                "nativeRank(body)": 0.7,
+                                "attributeMatch(id).totalWeight": 0.0,
+                            },
+                            "summaryfeatures": {
+                                "summary_score": 0.92,
+                                "custom_feature": 1.1,
+                            },
                         },
                     }
                 ]
@@ -1966,19 +1999,22 @@ class TestVespaFeatureCollector(unittest.TestCase):
                     {
                         "id": "doc6",
                         "relevance": 0.9,
-                        "matchfeatures": {
-                            "bm25(title)": 1.8,
-                            "bm25(body)": 2.5,
-                            "fieldMatch(title)": 0.7,
-                        },
-                        "rankfeatures": {
-                            "nativeRank(title)": 0.6,
-                            "nativeRank(body)": 0.8,
-                            "attributeMatch(id).totalWeight": 0.2,
-                        },
-                        "summaryfeatures": {
-                            "summary_score": 0.88,
-                            "custom_feature": 1.0,
+                        "fields": {
+                            "id": "doc6",
+                            "matchfeatures": {
+                                "bm25(title)": 1.8,
+                                "bm25(body)": 2.5,
+                                "fieldMatch(title)": 0.7,
+                            },
+                            "rankfeatures": {
+                                "nativeRank(title)": 0.6,
+                                "nativeRank(body)": 0.8,
+                                "attributeMatch(id).totalWeight": 0.2,
+                            },
+                            "summaryfeatures": {
+                                "summary_score": 0.88,
+                                "custom_feature": 1.0,
+                            },
                         },
                     }
                 ]
@@ -2060,12 +2096,15 @@ class TestVespaFeatureCollector(unittest.TestCase):
                     {
                         "id": "doc1",
                         "relevance": 0.9,
-                        "matchfeatures": {
-                            "bm25(title)": 1.5,
-                            "bm25(body)": 2.3,
-                        },
-                        "rankfeatures": {
-                            "nativeRank(title)": 0.7,  # Should be ignored
+                        "fields": {
+                            "id": "doc1",
+                            "matchfeatures": {
+                                "bm25(title)": 1.5,
+                                "bm25(body)": 2.3,
+                            },
+                            "rankfeatures": {
+                                "nativeRank(title)": 0.7,  # Should be ignored
+                            },
                         },
                     }
                 ]
@@ -2081,6 +2120,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
                 vespa_query_fn=self.vespa_query_fn,
                 app=mock_app_match_only,
                 name="test_match_only",
+                id_field="id",
                 csv_dir=temp_dir,
                 collect_matchfeatures=True,
                 collect_rankfeatures=False,
@@ -2217,14 +2257,20 @@ class TestVespaFeatureCollector(unittest.TestCase):
                     {
                         "id": "doc_with_features",
                         "relevance": 0.9,
-                        "matchfeatures": {
-                            "bm25(title)": 1.5,
+                        "fields": {
+                            "id": "doc_with_features",
+                            "matchfeatures": {
+                                "bm25(title)": 1.5,
+                            },
                         },
                     },
                     {
                         "id": "doc_without_features",
                         "relevance": 0.8,
-                        # No feature sections
+                        "fields": {
+                            "id": "doc_without_features",
+                            "matchfeatures": {},
+                        },
                     },
                 ]
             ),
@@ -2235,8 +2281,9 @@ class TestVespaFeatureCollector(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
                 queries={"q1": "test query"},
-                relevant_docs={"q1": {"doc_with_features"}},
+                relevant_docs={"q1": {"doc_with_features", "doc_without_features"}},
                 vespa_query_fn=self.vespa_query_fn,
+                id_field="id",
                 app=mock_app_mixed,
                 name="test_csv_best_practice",
                 csv_dir=temp_dir,
@@ -2259,6 +2306,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
             doc_without_features_row = None
 
             for row in rows:
+                print(row)
                 if (
                     row[1] == "doc_with_features"
                 ):  # doc_id is now at index 1 instead of 2
@@ -2267,7 +2315,8 @@ class TestVespaFeatureCollector(unittest.TestCase):
                     row[1] == "doc_without_features"
                 ):  # doc_id is now at index 1 instead of 2
                     doc_without_features_row = dict(zip(header, row))
-
+            print(doc_with_features_row)
+            print(doc_without_features_row)
             self.assertIsNotNone(doc_with_features_row)
             self.assertIsNotNone(doc_without_features_row)
 

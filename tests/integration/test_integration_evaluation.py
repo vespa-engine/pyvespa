@@ -15,6 +15,9 @@ from vespa.package import (
     RankProfile,
     Component,
     Parameter,
+    Function,
+    FieldSet,
+    SecondPhaseRanking,
 )
 from vespa.deployment import VespaDocker
 from vespa.evaluation import VespaEvaluator, VespaMatchEvaluator, VespaFeatureCollector
@@ -100,6 +103,7 @@ def create_app_package() -> ApplicationPackage:
                         ),
                     ]
                 ),
+                fieldsets=[FieldSet(name="default", fields=["text"])],
                 rank_profiles=[
                     RankProfile(
                         name="semantic",
@@ -114,14 +118,18 @@ def create_app_package() -> ApplicationPackage:
                     RankProfile(
                         name="feature-collection",
                         inputs=[("query(q)", "tensor<float>(x[384])")],
-                        first_phase="closeness(field, embedding)+bm25(text)",
-                        match_features=[
-                            "closeness(field, embedding)",
-                            "bm25(text)",
+                        functions=[
+                            Function(
+                                name="cos_sim", expression="closeness(field, embedding)"
+                            ),
+                            Function(name="bm25text", expression="bm25(text)"),
                         ],
+                        first_phase="cos_sim + bm25text",
+                        second_phase=SecondPhaseRanking(expression="random"),
+                        match_features=["cos_sim", "bm25text"],
                         summary_features=[
-                            "closeness(field, embedding)",
-                            "bm25(text)",
+                            "cos_sim",
+                            "bm25text",
                         ],
                     ),
                 ],
@@ -202,7 +210,7 @@ def feature_collection_query_fn(
                 qb.nearestNeighbor(
                     field="embedding",
                     query_vector="q",
-                    annotations={"targetHits": 1000},
+                    annotations={"targetHits": 100},
                 )
                 | qb.userQuery(query_text)
             )
@@ -224,7 +232,6 @@ class TestEvaluatorsIntegration(unittest.TestCase):
         cls.vespa_docker = VespaDocker(port=8089)
 
         cls.app = cls.vespa_docker.deploy(application_package=cls.package)
-
         # 2) Load a portion of the NanoMSMARCO corpus
         dataset_id = "zeta-alpha-ai/NanoMSMARCO"
         corpus = load_dataset(dataset_id, "corpus", split="train", streaming=True)
@@ -257,11 +264,11 @@ class TestEvaluatorsIntegration(unittest.TestCase):
         rel_doc_ids = cls.qrels["corpus-id"]
         cls.relevant_docs = dict(zip(rel_q_ids, rel_doc_ids))
 
-    @classmethod
-    def tearDownClass(cls):
-        # Clean up container
-        cls.vespa_docker.container.stop(timeout=10)
-        cls.vespa_docker.container.remove()
+    # @classmethod
+    # def tearDownClass(cls):
+    #     # Clean up container
+    #     cls.vespa_docker.container.stop(timeout=10)
+    #     cls.vespa_docker.container.remove()
 
     def test_semantic_metrics_close_to_sentence_transformers(self):
         """
@@ -337,6 +344,7 @@ class TestEvaluatorsIntegration(unittest.TestCase):
             vespa_query_fn=feature_collection_query_fn,
             app=self.app,
             name="feature-collection-test",
+            id_field="id",
             collect_matchfeatures=True,
             collect_summaryfeatures=True,
             collect_rankfeatures=False,
@@ -347,51 +355,43 @@ class TestEvaluatorsIntegration(unittest.TestCase):
 
         # Verify structure
         self.assertIsInstance(results, dict)
-        self.assertIn("features", results)
-        self.assertIn("labels", results)
-        self.assertIn("qids", results)
-        self.assertIn("docids", results)
+        # Expected dict:
+        # {"results": [{'query_id': '721409', 'doc_id': '7301814', 'relevance_label': 0.0, 'relevance_score': 0.6344519422768364, 'match_bm25(text)': 0.0, 'match_closeness(field,embedding)': 0.6344519422768364, 'summary_bm25(text)': 0.0, 'summary_closeness(field,embedding)': 0.6344519422768364, 'summary_vespa.summaryFeatures.cached': 0.0}, ...],
+        print(results)
+        rows = results["results"]
 
-        features = results["features"]
-        labels = results["labels"]
-        print("Features and labels collected:")
-        print(f"{features}")
-        print(f"{labels}")
         # Check that we have data
-        self.assertGreater(len(features), 0)
-        self.assertGreater(
-            len(labels), 0
-        )  # Check expected feature columns exist (now with prefixes)
+        self.assertGreater(len(rows), 0)
         expected_match_features = [
-            "match_closeness(field,embedding)",
-            "match_bm25(text)",
+            "match_cos_sim",
+            "match_bm25text",
         ]
         expected_summary_features = [
-            "summary_closeness(field,embedding)",
-            "summary_bm25(text)",
+            "summary_cos_sim",
+            "summary_bm25text",
         ]
-
-        # Verify match features are present
-        feature_columns = set(features[0].keys())
-        for feature in expected_match_features:
-            self.assertIn(feature, feature_columns, f"Match feature {feature} missing")
-
-        # Verify summary features are present
-        for feature in expected_summary_features:
-            self.assertIn(
-                feature, feature_columns, f"Summary feature {feature} missing"
-            )
-
-        # Verify labels structure
-        label_columns = set(labels[0].keys())
-        expected_label_columns = {
-            "qid",
-            "docid",
+        expected_base_features = [
+            "query_id",
+            "doc_id",
             "relevance_label",
             "relevance_score",
-        }
-        for col in expected_label_columns:
-            self.assertIn(col, label_columns, f"Label column {col} missing")
+        ]
+        for row in rows:
+            # Check match features
+            for feature in expected_match_features:
+                self.assertIn(
+                    feature, row, f"Match feature {feature} missing in row {row}"
+                )
+            # Check summary features
+            for feature in expected_summary_features:
+                self.assertIn(
+                    feature, row, f"Summary feature {feature} missing in row {row}"
+                )
+            # Check base features
+            for feature in expected_base_features:
+                self.assertIn(
+                    feature, row, f"Base feature {feature} missing in row {row}"
+                )
 
     def test_vespa_feature_collector_csv_output(self):
         """

@@ -1213,7 +1213,7 @@ class VespaFeatureCollector(VespaCollectorBase):
         def my_vespa_query_fn(query_text: str, top_k: int) -> dict:
             return {
                 "yql": 'select * from sources * where userInput("' + query_text + '");',
-                "hits": top_k,
+                "hits": 10,  # Do not make use of top_k here.
                 "ranking": "your_ranking_profile",
             }
 
@@ -1252,7 +1252,27 @@ class VespaFeatureCollector(VespaCollectorBase):
         collect_summaryfeatures (bool, optional): Whether to collect summary features from document summaries. Defaults to False.
     """
 
-    def collect(self) -> Dict[str, Union[List[Dict], List[str]]]:
+    def get_recall_param(self, relevant_doc_ids: set, get_relevant: bool) -> dict:
+        """
+        Adds the recall parameter to the Vespa query body based on relevant document IDs.
+
+        Args:
+            relevant_doc_ids (set): A set of relevant document IDs.
+            get_relevant (bool): Whether to retrieve relevant documents.
+
+        Returns:
+            dict: The updated Vespa query body with the recall parameter.
+        """
+        recall_string_base = " ".join(
+            [f"{self.id_field}:{doc_id}" for doc_id in relevant_doc_ids]
+        )
+        if get_relevant:
+            recall_string = f"+({recall_string_base})"
+        else:
+            recall_string = f"-({recall_string_base})"
+        return {"recall": recall_string}
+
+    def collect(self) -> Dict[str, List[Dict]]:
         """
         Collects training data by executing queries and saving results to CSV.
 
@@ -1260,24 +1280,27 @@ class VespaFeatureCollector(VespaCollectorBase):
         1. Executes all configured queries against the Vespa application.
         2. Collects the top-k document IDs and their relevance labels.
         3. Optionally writes the data to a CSV file for training purposes.
-        4. Returns the collected data as dictionaries and lists.
+        4. Returns the collected data as a single dictionary with results.
 
         Returns:
             Dict containing:
-            - 'features': List of dictionaries with features for each query-document pair
-            - 'labels': List of dictionaries with relevance labels
-            - 'qids': List of query IDs
-            - 'docids': List of document IDs
+            - 'results': List of dictionaries, each containing all data for a query-document pair
+              (query_id, doc_id, relevance_label, relevance_score, and all extracted features)
         """
-        max_k = 100  # Fixed top-k value for data collection
-
         logger.info(f"Starting VespaFeatureCollector on {self.name}")
-        logger.info(f"Number of queries: {len(self.queries_ids)}; top_k = {max_k}")
+        logger.info(f"Number of queries: {len(self.queries_ids)}")
 
         # Build query bodies using the provided vespa_query_fn
         query_bodies = []
+        query_metadata = []  # Track metadata for each query body
 
         for qid, query_text in zip(self.queries_ids, self.queries):
+            relevant_docs = self.relevant_docs.get(qid, set())
+            if len(relevant_docs) > 0:
+                max_k = len(relevant_docs)
+            else:
+                logger.info(f"No relevant documents for query {qid}, skipping.")
+                continue
             if self._vespa_query_fn_takes_query_id:
                 query_body: dict = self.vespa_query_fn(query_text, max_k, qid)
             else:
@@ -1304,32 +1327,57 @@ class VespaFeatureCollector(VespaCollectorBase):
 
             # Note: match-features and summary-features are controlled via the rank profile configuration
             # and YQL select clause respectively, so they don't need query body modifications
-
-            query_bodies.append(query_body)
-            logger.debug(f"Querying Vespa with: {query_body}")
+            # Add recall parameter for both True and False
+            get_relevant_flags = (True, False)
+            for get_relevant in get_relevant_flags:
+                recall_param = self.get_recall_param(relevant_docs, get_relevant)
+                query_body_with_recall = query_body | recall_param
+                # Add the modified query body to the list
+                query_bodies.append(query_body_with_recall)
+                # Track metadata for this query body
+                query_metadata.append(
+                    {
+                        "qid": qid,
+                        "query_text": query_text,
+                        "relevant_docs": relevant_docs,
+                        "max_k": max_k,
+                        "get_relevant": get_relevant,
+                    }
+                )
+                logger.info(f"Querying Vespa with: {query_body_with_recall}")
 
         responses, new_searchtimes = execute_queries(self.app, query_bodies)
+        # dump responses.json to json file for debugging
+        import json
+
+        with open("responses.json", "w") as f:
+            json.dump([resp.json for resp in responses], f, indent=2)
+
         self.searchtimes.extend(new_searchtimes)
 
         # Collect all data and determine feature column names
         all_rows = []
         all_feature_names = set()
 
-        for i, (qid, resp) in enumerate(zip(self.queries_ids, responses)):
+        for i, (metadata, resp) in enumerate(zip(query_metadata, responses)):
             hits = resp.hits or []
-            query_text = self.queries[i]
+            qid = metadata["qid"]
+            query_text = metadata["query_text"]
+            relevant_docs = metadata["relevant_docs"]
+            max_k = metadata["max_k"]
+            get_relevant = metadata["get_relevant"]
 
             for hit in hits[:max_k]:
                 doc_id = extract_doc_id_from_hit(hit, self.id_field)
                 relevance_score = hit.get("relevance", 0.0)
 
                 # Determine relevance label based on whether docs are binary or graded
-                if isinstance(self.relevant_docs[qid], dict):
+                if isinstance(relevant_docs, dict):
                     # Graded relevance - use the score directly, or 0.0 if not found
-                    relevance_label = self.relevant_docs[qid].get(doc_id, 0.0)
+                    relevance_label = relevant_docs.get(doc_id, 0.0)
                 else:
                     # Binary relevance - check if doc is in the set
-                    relevance_label = 1.0 if doc_id in self.relevant_docs[qid] else 0.0
+                    relevance_label = 1.0 if doc_id in relevant_docs else 0.0
 
                 # Extract features based on configuration
                 features = extract_features_from_hit(
@@ -1366,9 +1414,7 @@ class VespaFeatureCollector(VespaCollectorBase):
 
             with open(self.csv_file, "w", newline="") as f:
                 if all_rows:
-                    writer = csv.DictWriter(
-                        f, fieldnames=all_columns, quoting=csv.QUOTE_ALL
-                    )
+                    writer = csv.DictWriter(f, fieldnames=all_columns)
                     writer.writeheader()
                     for row in all_rows:
                         # Fill missing feature values with empty string
@@ -1386,39 +1432,25 @@ class VespaFeatureCollector(VespaCollectorBase):
                 f"Collected retrieval training data with {len(feature_columns)} features"
             )
 
-        # Prepare return data
-        # Features: just the feature columns
-        features_data = []
-        labels_data = []
-        qids = []
-        docids = []
+        # Prepare return data - single dictionary with all results like CSV output
+        results = []
 
         for row in all_rows:
-            # Features row: only feature columns
-            feature_row = {}
+            # Create complete row with all data (same as CSV format)
+            complete_row = {
+                "query_id": row["query_id"],
+                "doc_id": row["doc_id"],
+                "relevance_label": row["relevance_label"],
+                "relevance_score": row["relevance_score"],
+            }
+
+            # Add all features to the row, filling missing values with NaN
             for feature_name in feature_columns:
-                feature_row[feature_name] = row.get(feature_name, math.nan)
-            features_data.append(feature_row)
+                complete_row[feature_name] = row.get(feature_name, math.nan)
 
-            # Labels row: basic info
-            labels_data.append(
-                {
-                    "qid": row["query_id"],
-                    "docid": row["doc_id"],
-                    "relevance_label": row["relevance_label"],
-                    "relevance_score": row["relevance_score"],
-                }
-            )
+            results.append(complete_row)
 
-            qids.append(row["query_id"])
-            docids.append(row["doc_id"])
-
-        return {
-            "features": features_data,
-            "labels": labels_data,
-            "qids": qids,
-            "docids": docids,
-        }
+        return {"results": results}
 
 
 def extract_features_from_hit(
@@ -1443,50 +1475,42 @@ def extract_features_from_hit(
 
     if collect_matchfeatures:
         # Try multiple locations for match features
-        matchfeatures = None
-        if "matchfeatures" in hit:
-            matchfeatures = hit["matchfeatures"]
-        elif "fields" in hit and "matchfeatures" in hit["fields"]:
-            matchfeatures = hit["fields"]["matchfeatures"]
-
-        if matchfeatures:
-            for feature_name, feature_value in matchfeatures.items():
-                try:
-                    features[f"match_{feature_name}"] = float(feature_value)
-                except (ValueError, TypeError):
-                    # Skip non-numeric features
-                    continue
+        matchfeatures = hit.get("fields", {}).get("matchfeatures", {})
+        for feature_name, feature_value in matchfeatures.items():
+            try:
+                features[f"match_{feature_name}"] = float(feature_value)
+            except (ValueError, TypeError):
+                logger.error(
+                    f"Skipping non-numeric match feature '{feature_name}': {feature_value}"
+                )
+                continue
 
     if collect_rankfeatures:
         # Try multiple locations for rank features
-        rankfeatures = None
-        if "rankfeatures" in hit:
-            rankfeatures = hit["rankfeatures"]
-        elif "fields" in hit and "rankfeatures" in hit["fields"]:
-            rankfeatures = hit["fields"]["rankfeatures"]
+        rankfeatures = hit.get("fields", {}).get("rankfeatures", {})
 
-        if rankfeatures:
-            for feature_name, feature_value in rankfeatures.items():
-                try:
-                    features[f"rank_{feature_name}"] = float(feature_value)
-                except (ValueError, TypeError):
-                    # Skip non-numeric features
-                    continue
+        for feature_name, feature_value in rankfeatures.items():
+            try:
+                features[f"rank_{feature_name}"] = float(feature_value)
+            except (ValueError, TypeError):
+                # Skip non-numeric features
+                logger.error(
+                    f"Skipping non-numeric rank feature '{feature_name}': {feature_value}"
+                )
+                continue
 
     if collect_summaryfeatures:
         # Try multiple locations for summary features
-        summaryfeatures = None
-        if "summaryfeatures" in hit:
-            summaryfeatures = hit["summaryfeatures"]
-        elif "fields" in hit and "summaryfeatures" in hit["fields"]:
-            summaryfeatures = hit["fields"]["summaryfeatures"]
+        summaryfeatures = hit.get("fields", {}).get("summaryfeatures", {})
 
-        if summaryfeatures:
-            for feature_name, feature_value in summaryfeatures.items():
-                try:
-                    features[f"summary_{feature_name}"] = float(feature_value)
-                except (ValueError, TypeError):
-                    # Skip non-numeric features
-                    continue
+        for feature_name, feature_value in summaryfeatures.items():
+            try:
+                features[f"summary_{feature_name}"] = float(feature_value)
+            except (ValueError, TypeError):
+                # Skip non-numeric features
+                logger.error(
+                    f"Skipping non-numeric summary feature '{feature_name}': {feature_value}"
+                )
+                continue
 
     return features
