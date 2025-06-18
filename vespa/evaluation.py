@@ -1283,7 +1283,13 @@ class VespaFeatureCollector(VespaCollectorBase):
 
     - Iterates over queries and issues them against your Vespa application.
     - Retrieves top-k documents per query.
+    - Samples random hits based on the specified strategy.
     - Compiles a CSV file with query-document pairs and their relevance labels.
+
+    Important: If you want to sample random hits, you need to make sure that the rank profile you define in your `vespa_query_fn` has a ranking expression that
+    reflects this. See [docs](https://docs.vespa.ai/en/tutorials/text-search-ml.html#get-random-hits) for example.
+    In this case, be aware that the `relevance_score` value in the returned results (or CSV) will be of no value.
+    This will only have meaning if you use this to collect features for relevant documents only.
 
     Example usage:
         ```python
@@ -1305,7 +1311,7 @@ class VespaFeatureCollector(VespaCollectorBase):
             return {
                 "yql": 'select * from sources * where userInput("' + query_text + '");',
                 "hits": 10,  # Do not make use of top_k here.
-                "ranking": "your_ranking_profile",
+                "ranking": "your_ranking_profile", # This should have `random` as ranking expression
             }
 
         app = Vespa(url="http://localhost", port=8080)
