@@ -1138,8 +1138,8 @@ class VespaCollectorBase(ABC):
         ],
         vespa_query_fn: Callable[[str, int, Optional[str]], dict],
         app: Vespa,
+        id_field: str,
         name: str = "",
-        id_field: str = "",
         csv_dir: Optional[str] = None,
         random_hits_strategy: Union[
             RandomHitsSamplingStrategy, str
@@ -1159,8 +1159,8 @@ class VespaCollectorBase(ABC):
             relevant_docs: Dictionary mapping query IDs to relevant document IDs
             vespa_query_fn: Function to generate Vespa query bodies
             app: Vespa application instance
+            id_field: Field name containing document IDs in Vespa hits (must be defined as an attribute in the schema)
             name: Name for this collection run
-            id_field: Field name containing document IDs in Vespa hits
             csv_dir: Directory to save CSV files
             random_hits_strategy: Strategy for sampling random hits - either "ratio" or "fixed"
                 - RATIO: Sample random hits as a ratio of relevant docs
@@ -1175,6 +1175,13 @@ class VespaCollectorBase(ABC):
             collect_summaryfeatures: Whether to collect summary features
             write_csv: Whether to write results to CSV file
         """
+        if not id_field:
+            raise ValueError(
+                "id_field is required and cannot be empty. "
+                "Please specify the field name that contains document IDs in your Vespa hits. "
+                "This field must be defined as an attribute in your Vespa schema."
+            )
+
         self.id_field = id_field
 
         # Handle strategy parameter - support both enum and string
@@ -1321,12 +1328,12 @@ class VespaFeatureCollector(VespaCollectorBase):
             relevant_docs=relevant_docs,
             vespa_query_fn=my_vespa_query_fn,
             app=app,
+            id_field="id",  # Field in Vespa hit that contains the document ID (must be an attribute)
             name="retrieval-data-collection",
             csv_dir="/path/to/save/csv",
             random_hits_strategy="ratio",  # or RandomHitsSamplingStrategy.RATIO
             random_hits_value=1.0,  # Sample equal number of random hits to relevant docs
             max_random_hits_per_query=100,  # Optional: cap random hits per query
-            id_field="id",  # Field in Vespa hit that contains the document ID (must be an attribute)
             collect_matchfeatures=True,  # Collect match features from rank profile
             collect_rankfeatures=False,  # Skip traditional rank features
             collect_summaryfeatures=False,  # Skip summary features
@@ -1344,6 +1351,7 @@ class VespaFeatureCollector(VespaCollectorBase):
         relevant_docs=relevant_docs,
         vespa_query_fn=my_vespa_query_fn,
         app=app,
+        id_field="id",  # Required field name
         random_hits_strategy="fixed",
         random_hits_value=50,  # Always sample 50 random hits per query
     )
@@ -1354,6 +1362,7 @@ class VespaFeatureCollector(VespaCollectorBase):
         relevant_docs=relevant_docs,
         vespa_query_fn=my_vespa_query_fn,
         app=app,
+        id_field="id",  # Required field name
         random_hits_strategy="ratio",
         random_hits_value=2.0,  # Sample twice as many random hits as relevant docs
         max_random_hits_per_query=200,  # But never more than 200 per query
@@ -1369,9 +1378,8 @@ class VespaFeatureCollector(VespaCollectorBase):
         vespa_query_fn (Callable[[str, int, Optional[str]], dict]): A function that takes a query string,
             the number of hits to retrieve (top_k), and an optional query_id, and returns a Vespa query body dictionary.
         app (Vespa): An instance of the Vespa application.
+        id_field (str): The field name in the Vespa hit that contains the document ID. This field must be defined as an attribute in your Vespa schema.
         name (str, optional): A name for this data collection run. Defaults to "".
-        id_field (str, optional): The field name in the Vespa hit that contains the document ID. This field must be an attribute in your Vespa schema.
-            If empty, it tries to infer the ID from the 'id' field or 'fields.id'. Defaults to "".
         csv_dir (Optional[str], optional): Directory to save the CSV file. Defaults to None (current directory).
         random_hits_strategy (Union[RandomHitsSamplingStrategy, str], optional): Strategy for sampling random hits.
             Can be "ratio" (or RandomHitsSamplingStrategy.RATIO) to sample as a ratio of relevant docs,

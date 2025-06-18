@@ -1476,41 +1476,81 @@ class TestVespaFeatureCollector(unittest.TestCase):
             # Response for q1 with positive recall (get relevant docs)
             MockVespaResponse(
                 [
-                    {"id": "doc1", "relevance": 0.9},  # Relevant
-                    {"id": "doc2", "relevance": 0.7},  # Relevant
+                    {
+                        "id": "doc1",
+                        "relevance": 0.9,
+                        "fields": {"id": "doc1"},
+                    },  # Relevant
+                    {
+                        "id": "doc2",
+                        "relevance": 0.7,
+                        "fields": {"id": "doc2"},
+                    },  # Relevant
                 ]
             ),
             # Response for q1 with negative recall (get non-relevant docs)
             MockVespaResponse(
                 [
-                    {"id": "doc10", "relevance": 0.8},  # Not relevant
-                    {"id": "doc11", "relevance": 0.6},  # Not relevant
+                    {
+                        "id": "doc10",
+                        "relevance": 0.8,
+                        "fields": {"id": "doc10"},
+                    },  # Not relevant
+                    {
+                        "id": "doc11",
+                        "relevance": 0.6,
+                        "fields": {"id": "doc11"},
+                    },  # Not relevant
                 ]
             ),
             # Response for q2 with positive recall (get relevant docs)
             MockVespaResponse(
                 [
-                    {"id": "doc4", "relevance": 0.85},  # Relevant
+                    {
+                        "id": "doc4",
+                        "relevance": 0.85,
+                        "fields": {"id": "doc4"},
+                    },  # Relevant
                 ]
             ),
             # Response for q2 with negative recall (get non-relevant docs)
             MockVespaResponse(
                 [
-                    {"id": "doc12", "relevance": 0.95},  # Not relevant
-                    {"id": "doc13", "relevance": 0.75},  # Not relevant
+                    {
+                        "id": "doc12",
+                        "relevance": 0.95,
+                        "fields": {"id": "doc12"},
+                    },  # Not relevant
+                    {
+                        "id": "doc13",
+                        "relevance": 0.75,
+                        "fields": {"id": "doc13"},
+                    },  # Not relevant
                 ]
             ),
             # Response for q3 with positive recall (get relevant docs)
             MockVespaResponse(
                 [
-                    {"id": "doc6", "relevance": 0.9},  # Relevant
+                    {
+                        "id": "doc6",
+                        "relevance": 0.9,
+                        "fields": {"id": "doc6"},
+                    },  # Relevant
                 ]
             ),
             # Response for q3 with negative recall (get non-relevant docs)
             MockVespaResponse(
                 [
-                    {"id": "doc16", "relevance": 0.8},  # Not relevant
-                    {"id": "doc17", "relevance": 0.7},  # Not relevant
+                    {
+                        "id": "doc16",
+                        "relevance": 0.8,
+                        "fields": {"id": "doc16"},
+                    },  # Not relevant
+                    {
+                        "id": "doc17",
+                        "relevance": 0.7,
+                        "fields": {"id": "doc17"},
+                    },  # Not relevant
                 ]
             ),
         ]
@@ -1529,6 +1569,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         """Test basic initialization of VespaFeatureCollector."""
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -1546,6 +1587,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         """Test that collect() creates a CSV file with training data."""
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -1568,6 +1610,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         """Test that the CSV file has the correct structure and content."""
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -1625,6 +1668,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=relevant_docs_single,
                 vespa_query_fn=self.vespa_query_fn,
@@ -1664,11 +1708,11 @@ class TestVespaFeatureCollector(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="custom_id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
                 app=mock_app,
-                id_field="custom_id",
                 csv_dir=temp_dir,
             )
 
@@ -1682,6 +1726,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         """Test that collector can be called as a function."""
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -1712,19 +1757,34 @@ class TestVespaFeatureCollector(unittest.TestCase):
 
         mock_responses_partial = [
             # Response for q1 with positive recall
-            MockVespaResponse([{"id": "doc1", "relevance": 0.9}]),
+            MockVespaResponse(
+                [
+                    {
+                        "id": "doc1",
+                        "relevance": 0.9,
+                        "fields": {"id": "doc1"},
+                    }
+                ]
+            ),
             # Response for q1 with negative recall
-            MockVespaResponse([{"id": "doc10", "relevance": 0.8}]),
+            MockVespaResponse(
+                [{"id": "doc10", "relevance": 0.8, "fields": {"id": "doc10"}}]
+            ),
             # Response for q2 with positive recall
-            MockVespaResponse([{"id": "doc4", "relevance": 0.85}]),
+            MockVespaResponse(
+                [{"id": "doc4", "relevance": 0.85, "fields": {"id": "doc4"}}]
+            ),
             # Response for q2 with negative recall
-            MockVespaResponse([{"id": "doc12", "relevance": 0.75}]),
+            MockVespaResponse(
+                [{"id": "doc12", "relevance": 0.75, "fields": {"id": "doc12"}}]
+            ),
         ]
 
         mock_app = MockAppForDataCollector(mock_responses_partial)
 
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=queries_with_extra,
                 relevant_docs=relevant_docs_partial,
                 vespa_query_fn=self.vespa_query_fn,
@@ -1768,6 +1828,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=query_fn_with_id,
@@ -1784,6 +1845,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         """Test that default body parameters are added to query bodies."""
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -1813,6 +1875,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=query_fn_with_custom_timeout,
@@ -1835,6 +1898,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             # Test default parameters
             collector_default = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -1850,6 +1914,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
 
             # Test custom parameters
             collector_custom = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -1869,6 +1934,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         """Test that rankfeatures parameter adds listFeatures to query body."""
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -1898,6 +1964,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=query_fn_with_string_ranking,
@@ -2027,6 +2094,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             # Test collecting all feature types
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -2154,6 +2222,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         """Test collection with all feature types disabled."""
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -2192,15 +2261,23 @@ class TestVespaFeatureCollector(unittest.TestCase):
                     {
                         "id": "doc1",
                         "relevance": 0.9,
-                        "matchfeatures": {
-                            "bm25(title)": 1.5,
+                        "fields": {
+                            "id": "doc1",
+                            "matchfeatures": {
+                                "bm25(title)": 1.5,
+                            },
+                            # Missing rankfeatures and summaryfeatures
                         },
-                        # Missing rankfeatures and summaryfeatures
                     },
                     {
                         "id": "doc2",
                         "relevance": 0.8,
-                        # Missing all feature types
+                        "fields": {
+                            "id": "doc2",
+                            "matchfeatures": {},
+                            "rankfeatures": {},
+                            "summaryfeatures": {},
+                        },
                     },
                 ]
             ),
@@ -2214,6 +2291,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
                 relevant_docs={"q1": {"doc1", "doc2"}},
                 vespa_query_fn=self.vespa_query_fn,
                 app=mock_app_partial,
+                id_field="id",
                 name="test_partial_features",
                 csv_dir=temp_dir,
                 collect_matchfeatures=True,
@@ -2360,6 +2438,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         """Test initialization with RATIO strategy using enum."""
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -2378,6 +2457,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         """Test initialization with RATIO strategy using string."""
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -2396,6 +2476,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         """Test initialization with FIXED strategy using enum."""
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -2414,6 +2495,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         """Test initialization with FIXED strategy using string."""
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -2433,6 +2515,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             with self.assertRaisesRegex(ValueError, "Invalid random_hits_strategy"):
                 VespaFeatureCollector(
+                    id_field="id",
                     queries=self.queries,
                     relevant_docs=self.relevant_docs,
                     vespa_query_fn=self.vespa_query_fn,
@@ -2447,6 +2530,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             with self.assertRaisesRegex(ValueError, "must be a non-negative number"):
                 VespaFeatureCollector(
+                    id_field="id",
                     queries=self.queries,
                     relevant_docs=self.relevant_docs,
                     vespa_query_fn=self.vespa_query_fn,
@@ -2461,6 +2545,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             with self.assertRaisesRegex(ValueError, "must be a non-negative number"):
                 VespaFeatureCollector(
+                    id_field="id",
                     queries=self.queries,
                     relevant_docs=self.relevant_docs,
                     vespa_query_fn=self.vespa_query_fn,
@@ -2475,6 +2560,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             with self.assertRaisesRegex(ValueError, "must be a non-negative integer"):
                 VespaFeatureCollector(
+                    id_field="id",
                     queries=self.queries,
                     relevant_docs=self.relevant_docs,
                     vespa_query_fn=self.vespa_query_fn,
@@ -2489,6 +2575,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             with self.assertRaisesRegex(ValueError, "must be a non-negative integer"):
                 VespaFeatureCollector(
+                    id_field="id",
                     queries=self.queries,
                     relevant_docs=self.relevant_docs,
                     vespa_query_fn=self.vespa_query_fn,
@@ -2503,6 +2590,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             with self.assertRaisesRegex(ValueError, "must be non-negative"):
                 VespaFeatureCollector(
+                    id_field="id",
                     queries=self.queries,
                     relevant_docs=self.relevant_docs,
                     vespa_query_fn=self.vespa_query_fn,
@@ -2516,6 +2604,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             # Test 1: ratio 1.0 (equal number)
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -2531,6 +2620,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
 
             # Test 2: ratio 2.0 (twice as many)
             collector2 = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -2545,6 +2635,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
 
             # Test 3: ratio 0.5 (half as many)
             collector3 = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -2563,6 +2654,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         """Test calculate_random_hits_count with RATIO strategy and max limit."""
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -2586,6 +2678,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         """Test calculate_random_hits_count with FIXED strategy."""
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -2605,6 +2698,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         """Test that max_random_hits_per_query=None works correctly with RATIO strategy."""
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -2624,6 +2718,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             # Test uppercase
             collector1 = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -2638,6 +2733,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
 
             # Test mixed case
             collector2 = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
@@ -2654,6 +2750,7 @@ class TestVespaFeatureCollector(unittest.TestCase):
         """Test that default random hits strategy is RATIO with value 1.0."""
         with tempfile.TemporaryDirectory() as temp_dir:
             collector = VespaFeatureCollector(
+                id_field="id",
                 queries=self.queries,
                 relevant_docs=self.relevant_docs,
                 vespa_query_fn=self.vespa_query_fn,
