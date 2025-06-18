@@ -20,7 +20,11 @@ from vespa.package import (
     SecondPhaseRanking,
 )
 from vespa.deployment import VespaDocker
-from vespa.evaluation import VespaEvaluator, VespaMatchEvaluator, VespaFeatureCollector
+from vespa.evaluation import (
+    VespaEvaluator,
+    VespaMatchEvaluator,
+    VespaFeatureCollector,
+)
 from vespa.io import VespaResponse
 import vespa.querybuilder as qb
 from pathlib import Path
@@ -357,7 +361,7 @@ class TestEvaluatorsIntegration(unittest.TestCase):
         self.assertIsInstance(results, dict)
         # Expected dict:
         # {"results": [{'query_id': '721409', 'doc_id': '7301814', 'relevance_label': 0.0, 'relevance_score': 0.6344519422768364, 'match_bm25(text)': 0.0, 'match_closeness(field,embedding)': 0.6344519422768364, 'summary_bm25(text)': 0.0, 'summary_closeness(field,embedding)': 0.6344519422768364, 'summary_vespa.summaryFeatures.cached': 0.0}, ...],
-        print(results)
+        # print(results)
         rows = results["results"]
 
         # Check that we have data
@@ -407,6 +411,7 @@ class TestEvaluatorsIntegration(unittest.TestCase):
                 vespa_query_fn=feature_collection_query_fn,
                 app=self.app,
                 name="csv-test",
+                id_field="id",
                 collect_matchfeatures=True,
                 collect_summaryfeatures=False,
                 collect_rankfeatures=False,
@@ -436,7 +441,7 @@ class TestEvaluatorsIntegration(unittest.TestCase):
             self.assertGreater(len(rows_from_csv), 0)
 
             # Verify that the CSV has the same number of total samples as the return data
-            total_samples = len(results["features"])
+            total_samples = len(results["results"])
             self.assertEqual(len(rows_from_csv), total_samples)
 
             # Check that expected columns are present
@@ -458,3 +463,243 @@ class TestEvaluatorsIntegration(unittest.TestCase):
             print(
                 f"  - Columns: {sorted(list(csv_columns)) if rows_from_csv else 'No data'}"
             )
+
+    def test_vespa_feature_collector_ratio_random_hits_strategy(self):
+        """
+        Test VespaFeatureCollector with RATIO random hits sampling strategy.
+        This tests the integration with a real Vespa application.
+        """
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Use a smaller subset for faster testing
+            limited_queries = dict(list(self.ids_to_query.items())[:5])
+            limited_relevant_docs = {
+                qid: doc_id
+                for qid, doc_id in self.relevant_docs.items()
+                if qid in limited_queries
+            }
+
+            feature_collector = VespaFeatureCollector(
+                queries=limited_queries,
+                relevant_docs=limited_relevant_docs,
+                vespa_query_fn=feature_collection_query_fn,
+                app=self.app,
+                name="ratio-strategy-test",
+                id_field="id",
+                collect_matchfeatures=True,
+                collect_summaryfeatures=False,
+                collect_rankfeatures=False,
+                write_csv=True,
+                csv_dir=temp_dir,
+                random_hits_strategy="ratio",
+                random_hits_value=2.0,  # 2x ratio
+                max_random_hits_per_query=50,
+            )
+
+            results = feature_collector.collect()
+
+            # Verify that random hits were collected
+            self.assertIn("results", results)
+            features = results["results"]
+            self.assertGreater(len(features), 0)
+
+            # Count relevant vs random hits
+            relevant_count = sum(1 for f in features if f["relevance_label"] == 1.0)
+            random_count = sum(1 for f in features if f["relevance_label"] == 0.0)
+
+            # With ratio strategy, we should have approximately 2x random hits
+            if relevant_count > 0:
+                ratio = random_count / relevant_count
+                self.assertGreater(ratio, 1.5)  # Allow some tolerance
+                self.assertLess(ratio, 3.0)  # Upper bound with tolerance
+
+            # Verify CSV was created
+            self.assertTrue(os.path.exists(feature_collector.csv_file))
+
+            print(
+                f"Ratio strategy test - Relevant: {relevant_count}, Random: {random_count}, Ratio: {random_count/max(relevant_count, 1):.2f}"
+            )
+
+    def test_vespa_feature_collector_fixed_random_hits_strategy(self):
+        """
+        Test VespaFeatureCollector with FIXED random hits sampling strategy.
+        This tests the integration with a real Vespa application.
+        """
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Use a smaller subset for faster testing
+            limited_queries = dict(list(self.ids_to_query.items())[:3])
+            limited_relevant_docs = {
+                qid: doc_id
+                for qid, doc_id in self.relevant_docs.items()
+                if qid in limited_queries
+            }
+
+            fixed_random_hits = 5
+            feature_collector = VespaFeatureCollector(
+                queries=limited_queries,
+                relevant_docs=limited_relevant_docs,
+                vespa_query_fn=feature_collection_query_fn,
+                app=self.app,
+                name="fixed-strategy-test",
+                id_field="id",
+                collect_matchfeatures=True,
+                collect_summaryfeatures=False,
+                collect_rankfeatures=False,
+                write_csv=True,
+                csv_dir=temp_dir,
+                random_hits_strategy="fixed",
+                random_hits_value=fixed_random_hits,
+            )
+
+            results = feature_collector.collect()
+
+            # Verify that random hits were collected
+            self.assertIn("results", results)
+            features = results["results"]
+            self.assertGreater(len(features), 0)
+
+            # Count relevant vs random hits per query
+            query_counts = {}
+            for feature in features:
+                qid = feature["query_id"]
+                if qid not in query_counts:
+                    query_counts[qid] = {"relevant": 0, "random": 0}
+
+                if feature["relevance_label"] == 1.0:
+                    query_counts[qid]["relevant"] += 1
+                else:
+                    query_counts[qid]["random"] += 1
+
+            # With fixed strategy, each query should have exactly fixed_random_hits random hits
+            for qid, counts in query_counts.items():
+                self.assertEqual(
+                    counts["random"],
+                    fixed_random_hits,
+                    f"Query {qid} should have {fixed_random_hits} random hits, got {counts['random']}",
+                )
+
+            # Verify CSV was created
+            self.assertTrue(os.path.exists(feature_collector.csv_file))
+
+            print(f"Fixed strategy test - Query counts: {query_counts}")
+
+    def test_vespa_feature_collector_no_random_hits(self):
+        """
+        Test VespaFeatureCollector with random hits disabled (value=0).
+        This should only collect relevant hits.
+        """
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Use a smaller subset for faster testing
+            limited_queries = dict(list(self.ids_to_query.items())[:3])
+            limited_relevant_docs = {
+                qid: doc_id
+                for qid, doc_id in self.relevant_docs.items()
+                if qid in limited_queries
+            }
+
+            feature_collector = VespaFeatureCollector(
+                queries=limited_queries,
+                relevant_docs=limited_relevant_docs,
+                vespa_query_fn=feature_collection_query_fn,
+                app=self.app,
+                name="no-random-hits-test",
+                id_field="id",
+                collect_matchfeatures=True,
+                collect_summaryfeatures=False,
+                collect_rankfeatures=False,
+                write_csv=True,
+                csv_dir=temp_dir,
+                random_hits_strategy="fixed",
+                random_hits_value=0,  # No random hits
+            )
+
+            results = feature_collector.collect()
+
+            # Verify that only relevant hits were collected
+            self.assertIn("results", results)
+            features = results["results"]
+            self.assertGreater(len(features), 0)
+
+            # All hits should be relevant (relevance_label == 1.0)
+            for feature in features:
+                self.assertEqual(
+                    feature["relevance_label"],
+                    1.0,
+                    "All hits should be relevant when random hits are disabled",
+                )
+
+            # Verify CSV was created
+            self.assertTrue(os.path.exists(feature_collector.csv_file))
+
+            print(
+                f"No random hits test - Total features: {len(features)}, all should be relevant"
+            )
+
+    def test_vespa_feature_collector_max_random_hits_limit(self):
+        """
+        Test VespaFeatureCollector with max_random_hits_per_query limit.
+        This tests that the limit is respected even with high ratio values.
+        """
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Use a smaller subset for faster testing
+            limited_queries = dict(list(self.ids_to_query.items())[:3])
+            limited_relevant_docs = {
+                qid: doc_id
+                for qid, doc_id in self.relevant_docs.items()
+                if qid in limited_queries
+            }
+
+            max_random_hits = 3
+            feature_collector = VespaFeatureCollector(
+                queries=limited_queries,
+                relevant_docs=limited_relevant_docs,
+                vespa_query_fn=feature_collection_query_fn,
+                app=self.app,
+                name="max-limit-test",
+                id_field="id",
+                collect_matchfeatures=True,
+                collect_summaryfeatures=False,
+                collect_rankfeatures=False,
+                write_csv=True,
+                csv_dir=temp_dir,
+                random_hits_strategy="ratio",
+                random_hits_value=10.0,  # high ratio
+                max_random_hits_per_query=max_random_hits,  # But limited by this
+            )
+
+            results = feature_collector.collect()
+
+            # Verify that random hits were collected but limited
+            self.assertIn("results", results)
+            features = results["results"]
+            self.assertGreater(len(features), 0)
+
+            # Count random hits per query
+            query_random_counts = {}
+            for feature in features:
+                qid = feature["query_id"]
+                if qid not in query_random_counts:
+                    query_random_counts[qid] = 0
+
+                if feature["relevance_label"] == 0.0:
+                    query_random_counts[qid] += 1
+
+            # Each query should have at most max_random_hits random hits
+            for qid, random_count in query_random_counts.items():
+                self.assertLessEqual(
+                    random_count,
+                    max_random_hits,
+                    f"Query {qid} should have at most {max_random_hits} random hits, got {random_count}",
+                )
+
+            # Verify CSV was created
+            self.assertTrue(os.path.exists(feature_collector.csv_file))
+
+            print(f"Max limit test - Random hits per query: {query_random_counts}")

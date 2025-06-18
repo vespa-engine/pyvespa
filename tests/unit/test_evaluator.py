@@ -4,6 +4,7 @@ from vespa.evaluation import (
     VespaMatchEvaluator,
     VespaCollectorBase,
     VespaFeatureCollector,
+    RandomHitsSamplingStrategy,
 )
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
@@ -2354,3 +2355,315 @@ class TestVespaFeatureCollector(unittest.TestCase):
             except ImportError:
                 # Skip pandas test if not available, but the empty string test above is sufficient
                 pass
+
+    def test_random_hits_strategy_ratio_initialization(self):
+        """Test initialization with RATIO strategy using enum."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy=RandomHitsSamplingStrategy.RATIO,
+                random_hits_value=2.0,
+                csv_dir=temp_dir,
+            )
+
+            self.assertEqual(
+                collector.random_hits_strategy, RandomHitsSamplingStrategy.RATIO
+            )
+            self.assertEqual(collector.random_hits_ratio, 2.0)
+
+    def test_random_hits_strategy_ratio_string_initialization(self):
+        """Test initialization with RATIO strategy using string."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy="ratio",
+                random_hits_value=1.5,
+                csv_dir=temp_dir,
+            )
+
+            self.assertEqual(
+                collector.random_hits_strategy, RandomHitsSamplingStrategy.RATIO
+            )
+            self.assertEqual(collector.random_hits_ratio, 1.5)
+
+    def test_random_hits_strategy_fixed_initialization(self):
+        """Test initialization with FIXED strategy using enum."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy=RandomHitsSamplingStrategy.FIXED,
+                random_hits_value=50,
+                csv_dir=temp_dir,
+            )
+
+            self.assertEqual(
+                collector.random_hits_strategy, RandomHitsSamplingStrategy.FIXED
+            )
+            self.assertEqual(collector.random_hits_fixed, 50)
+
+    def test_random_hits_strategy_fixed_string_initialization(self):
+        """Test initialization with FIXED strategy using string."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy="fixed",
+                random_hits_value=25,
+                csv_dir=temp_dir,
+            )
+
+            self.assertEqual(
+                collector.random_hits_strategy, RandomHitsSamplingStrategy.FIXED
+            )
+            self.assertEqual(collector.random_hits_fixed, 25)
+
+    def test_invalid_random_hits_strategy_string(self):
+        """Test that invalid strategy string raises ValueError."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(ValueError, "Invalid random_hits_strategy"):
+                VespaFeatureCollector(
+                    queries=self.queries,
+                    relevant_docs=self.relevant_docs,
+                    vespa_query_fn=self.vespa_query_fn,
+                    app=self.mock_app,
+                    random_hits_strategy="invalid_strategy",
+                    random_hits_value=1.0,
+                    csv_dir=temp_dir,
+                )
+
+    def test_ratio_strategy_invalid_value_type(self):
+        """Test that RATIO strategy with invalid value type raises ValueError."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(ValueError, "must be a non-negative number"):
+                VespaFeatureCollector(
+                    queries=self.queries,
+                    relevant_docs=self.relevant_docs,
+                    vespa_query_fn=self.vespa_query_fn,
+                    app=self.mock_app,
+                    random_hits_strategy=RandomHitsSamplingStrategy.RATIO,
+                    random_hits_value="invalid",
+                    csv_dir=temp_dir,
+                )
+
+    def test_ratio_strategy_negative_value(self):
+        """Test that RATIO strategy with negative value raises ValueError."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(ValueError, "must be a non-negative number"):
+                VespaFeatureCollector(
+                    queries=self.queries,
+                    relevant_docs=self.relevant_docs,
+                    vespa_query_fn=self.vespa_query_fn,
+                    app=self.mock_app,
+                    random_hits_strategy=RandomHitsSamplingStrategy.RATIO,
+                    random_hits_value=-1.0,
+                    csv_dir=temp_dir,
+                )
+
+    def test_fixed_strategy_invalid_value_type(self):
+        """Test that FIXED strategy with invalid value type raises ValueError."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(ValueError, "must be a non-negative integer"):
+                VespaFeatureCollector(
+                    queries=self.queries,
+                    relevant_docs=self.relevant_docs,
+                    vespa_query_fn=self.vespa_query_fn,
+                    app=self.mock_app,
+                    random_hits_strategy=RandomHitsSamplingStrategy.FIXED,
+                    random_hits_value=1.5,  # float instead of int
+                    csv_dir=temp_dir,
+                )
+
+    def test_fixed_strategy_negative_value(self):
+        """Test that FIXED strategy with negative value raises ValueError."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(ValueError, "must be a non-negative integer"):
+                VespaFeatureCollector(
+                    queries=self.queries,
+                    relevant_docs=self.relevant_docs,
+                    vespa_query_fn=self.vespa_query_fn,
+                    app=self.mock_app,
+                    random_hits_strategy=RandomHitsSamplingStrategy.FIXED,
+                    random_hits_value=-5,
+                    csv_dir=temp_dir,
+                )
+
+    def test_max_random_hits_per_query_negative(self):
+        """Test that negative max_random_hits_per_query raises ValueError."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(ValueError, "must be non-negative"):
+                VespaFeatureCollector(
+                    queries=self.queries,
+                    relevant_docs=self.relevant_docs,
+                    vespa_query_fn=self.vespa_query_fn,
+                    app=self.mock_app,
+                    max_random_hits_per_query=-10,
+                    csv_dir=temp_dir,
+                )
+
+    def test_calculate_random_hits_count_ratio_strategy(self):
+        """Test calculate_random_hits_count with RATIO strategy."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Test 1: ratio 1.0 (equal number)
+            collector = VespaFeatureCollector(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy=RandomHitsSamplingStrategy.RATIO,
+                random_hits_value=1.0,
+                csv_dir=temp_dir,
+            )
+
+            self.assertEqual(collector.calculate_random_hits_count(5), 5)
+            self.assertEqual(collector.calculate_random_hits_count(2), 2)
+            self.assertEqual(collector.calculate_random_hits_count(0), 0)
+
+            # Test 2: ratio 2.0 (twice as many)
+            collector2 = VespaFeatureCollector(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy=RandomHitsSamplingStrategy.RATIO,
+                random_hits_value=2.0,
+                csv_dir=temp_dir,
+            )
+
+            self.assertEqual(collector2.calculate_random_hits_count(3), 6)
+            self.assertEqual(collector2.calculate_random_hits_count(1), 2)
+
+            # Test 3: ratio 0.5 (half as many)
+            collector3 = VespaFeatureCollector(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy=RandomHitsSamplingStrategy.RATIO,
+                random_hits_value=0.5,
+                csv_dir=temp_dir,
+            )
+
+            self.assertEqual(collector3.calculate_random_hits_count(4), 2)
+            self.assertEqual(
+                collector3.calculate_random_hits_count(3), 1
+            )  # int(3 * 0.5) = 1
+
+    def test_calculate_random_hits_count_ratio_with_max_limit(self):
+        """Test calculate_random_hits_count with RATIO strategy and max limit."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy=RandomHitsSamplingStrategy.RATIO,
+                random_hits_value=3.0,
+                max_random_hits_per_query=10,
+                csv_dir=temp_dir,
+            )
+
+            # Without limit: 5 * 3.0 = 15, but limited to 10
+            self.assertEqual(collector.calculate_random_hits_count(5), 10)
+
+            # Without limit: 2 * 3.0 = 6, under limit
+            self.assertEqual(collector.calculate_random_hits_count(2), 6)
+
+            # Without limit: 4 * 3.0 = 12, but limited to 10
+            self.assertEqual(collector.calculate_random_hits_count(4), 10)
+
+    def test_calculate_random_hits_count_fixed_strategy(self):
+        """Test calculate_random_hits_count with FIXED strategy."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy=RandomHitsSamplingStrategy.FIXED,
+                random_hits_value=20,
+                csv_dir=temp_dir,
+            )
+
+            # Fixed strategy should always return the same number regardless of relevant docs
+            self.assertEqual(collector.calculate_random_hits_count(1), 20)
+            self.assertEqual(collector.calculate_random_hits_count(5), 20)
+            self.assertEqual(collector.calculate_random_hits_count(100), 20)
+            self.assertEqual(collector.calculate_random_hits_count(0), 20)
+
+    def test_max_random_hits_per_query_none_with_ratio(self):
+        """Test that max_random_hits_per_query=None works correctly with RATIO strategy."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy=RandomHitsSamplingStrategy.RATIO,
+                random_hits_value=5.0,
+                max_random_hits_per_query=None,  # No limit
+                csv_dir=temp_dir,
+            )
+
+            # Should not apply any limit
+            self.assertEqual(collector.calculate_random_hits_count(10), 50)
+            self.assertEqual(collector.calculate_random_hits_count(100), 500)
+
+    def test_random_hits_strategy_case_insensitive(self):
+        """Test that strategy strings are case insensitive."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Test uppercase
+            collector1 = VespaFeatureCollector(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy="RATIO",
+                random_hits_value=1.0,
+                csv_dir=temp_dir,
+            )
+            self.assertEqual(
+                collector1.random_hits_strategy, RandomHitsSamplingStrategy.RATIO
+            )
+
+            # Test mixed case
+            collector2 = VespaFeatureCollector(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy="Fixed",
+                random_hits_value=10,
+                csv_dir=temp_dir,
+            )
+            self.assertEqual(
+                collector2.random_hits_strategy, RandomHitsSamplingStrategy.FIXED
+            )
+
+    def test_default_random_hits_strategy(self):
+        """Test that default random hits strategy is RATIO with value 1.0."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                csv_dir=temp_dir,
+                # Not specifying random_hits_strategy or random_hits_value
+            )
+
+            self.assertEqual(
+                collector.random_hits_strategy, RandomHitsSamplingStrategy.RATIO
+            )
+            self.assertEqual(collector.random_hits_ratio, 1.0)
+            self.assertIsNone(collector.max_random_hits_per_query)

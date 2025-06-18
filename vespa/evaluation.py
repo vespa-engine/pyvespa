@@ -5,6 +5,7 @@ import logging
 from typing import Dict, Set, Callable, List, Optional, Union, Tuple
 import math
 from datetime import datetime
+from enum import Enum
 from vespa.application import Vespa
 from vespa.io import VespaQueryResponse
 from abc import ABC, abstractmethod
@@ -20,6 +21,18 @@ if not logger.hasHandlers():
     )
     handler.setFormatter(formatter)
     logger.addHandler(handler)
+
+
+class RandomHitsSamplingStrategy(Enum):
+    """
+    Enum for different random hits sampling strategies.
+
+    - RATIO: Sample random hits as a ratio of relevant docs (e.g., 1.0 = equal number, 2.0 = twice as many)
+    - FIXED: Sample a fixed number of random hits per query
+    """
+
+    RATIO = "ratio"
+    FIXED = "fixed"
 
 
 def mean(values: List[float]) -> float:
@@ -1128,16 +1141,94 @@ class VespaCollectorBase(ABC):
         name: str = "",
         id_field: str = "",
         csv_dir: Optional[str] = None,
+        random_hits_strategy: Union[
+            RandomHitsSamplingStrategy, str
+        ] = RandomHitsSamplingStrategy.RATIO,
+        random_hits_value: Union[float, int] = 1.0,
+        max_random_hits_per_query: Optional[int] = None,
         collect_matchfeatures: bool = True,
         collect_rankfeatures: bool = False,
         collect_summaryfeatures: bool = False,
         write_csv: bool = True,
     ):
+        """
+        Initialize the VespaFeatureCollector.
+
+        Args:
+            queries: Dictionary mapping query IDs to query strings
+            relevant_docs: Dictionary mapping query IDs to relevant document IDs
+            vespa_query_fn: Function to generate Vespa query bodies
+            app: Vespa application instance
+            name: Name for this collection run
+            id_field: Field name containing document IDs in Vespa hits
+            csv_dir: Directory to save CSV files
+            random_hits_strategy: Strategy for sampling random hits - either "ratio" or "fixed"
+                - RATIO: Sample random hits as a ratio of relevant docs
+                - FIXED: Sample a fixed number of random hits per query
+            random_hits_value: Value for the sampling strategy
+                - For RATIO: Ratio value (e.g., 1.0 = equal, 2.0 = twice as many random hits)
+                - For FIXED: Fixed number of random hits per query
+            max_random_hits_per_query: Optional maximum limit on random hits per query
+                (only applies when using RATIO strategy to prevent excessive sampling)
+            collect_matchfeatures: Whether to collect match features
+            collect_rankfeatures: Whether to collect rank features
+            collect_summaryfeatures: Whether to collect summary features
+            write_csv: Whether to write results to CSV file
+        """
         self.id_field = id_field
+
+        # Handle strategy parameter - support both enum and string
+        if isinstance(random_hits_strategy, str):
+            try:
+                self.random_hits_strategy = RandomHitsSamplingStrategy(
+                    random_hits_strategy.lower()
+                )
+            except ValueError:
+                raise ValueError(
+                    f"Invalid random_hits_strategy '{random_hits_strategy}'. "
+                    f"Must be one of: {[s.value for s in RandomHitsSamplingStrategy]}"
+                )
+        else:
+            self.random_hits_strategy = random_hits_strategy
+
+        # Validate random_hits_value based on strategy
+        if self.random_hits_strategy == RandomHitsSamplingStrategy.RATIO:
+            if not isinstance(random_hits_value, (int, float)) or random_hits_value < 0:
+                raise ValueError(
+                    "For RATIO strategy, random_hits_value must be a non-negative number"
+                )
+            self.random_hits_ratio = float(random_hits_value)
+        elif self.random_hits_strategy == RandomHitsSamplingStrategy.FIXED:
+            if not isinstance(random_hits_value, int) or random_hits_value < 0:
+                raise ValueError(
+                    "For FIXED strategy, random_hits_value must be a non-negative integer"
+                )
+            self.random_hits_fixed = int(random_hits_value)
+
+        self.max_random_hits_per_query = max_random_hits_per_query
+        if (
+            self.max_random_hits_per_query is not None
+            and self.max_random_hits_per_query < 0
+        ):
+            raise ValueError("max_random_hits_per_query must be non-negative")
+
         self.collect_matchfeatures = collect_matchfeatures
         self.collect_rankfeatures = collect_rankfeatures
         self.collect_summaryfeatures = collect_summaryfeatures
         self.write_csv = write_csv
+
+        # Log the sampling strategy for user understanding
+        if self.random_hits_strategy == RandomHitsSamplingStrategy.RATIO:
+            strategy_desc = f"RATIO strategy with ratio={self.random_hits_ratio}"
+            if self.max_random_hits_per_query is not None:
+                strategy_desc += (
+                    f" (max {self.max_random_hits_per_query} random hits per query)"
+                )
+        else:
+            strategy_desc = (
+                f"FIXED strategy with {self.random_hits_fixed} random hits per query"
+            )
+        logger.info(f"Random hits sampling strategy: {strategy_desc}")
         validated_queries = validate_queries(queries)
         self._vespa_query_fn_takes_query_id = validate_vespa_query_fn(vespa_query_fn)
         validated_relevant_docs = validate_qrels(relevant_docs)
@@ -1226,6 +1317,10 @@ class VespaFeatureCollector(VespaCollectorBase):
             app=app,
             name="retrieval-data-collection",
             csv_dir="/path/to/save/csv",
+            random_hits_strategy="ratio",  # or RandomHitsSamplingStrategy.RATIO
+            random_hits_value=1.0,  # Sample equal number of random hits to relevant docs
+            max_random_hits_per_query=100,  # Optional: cap random hits per query
+            id_field="id",  # Field in Vespa hit that contains the document ID (must be an attribute)
             collect_matchfeatures=True,  # Collect match features from rank profile
             collect_rankfeatures=False,  # Skip traditional rank features
             collect_summaryfeatures=False,  # Skip summary features
@@ -1233,6 +1328,31 @@ class VespaFeatureCollector(VespaCollectorBase):
 
         collector()
         ```
+
+    **Alternative Usage Examples:**
+
+    ```python
+    # Example 1: Fixed number of random hits per query
+    collector = VespaFeatureCollector(
+        queries=queries,
+        relevant_docs=relevant_docs,
+        vespa_query_fn=my_vespa_query_fn,
+        app=app,
+        random_hits_strategy="fixed",
+        random_hits_value=50,  # Always sample 50 random hits per query
+    )
+
+    # Example 2: Ratio-based with a cap
+    collector = VespaFeatureCollector(
+        queries=queries,
+        relevant_docs=relevant_docs,
+        vespa_query_fn=my_vespa_query_fn,
+        app=app,
+        random_hits_strategy="ratio",
+        random_hits_value=2.0,  # Sample twice as many random hits as relevant docs
+        max_random_hits_per_query=200,  # But never more than 200 per query
+    )
+    ```
 
     Args:
         queries (Dict[str, str]): A dictionary where keys are query IDs and values are query strings.
@@ -1244,12 +1364,21 @@ class VespaFeatureCollector(VespaCollectorBase):
             the number of hits to retrieve (top_k), and an optional query_id, and returns a Vespa query body dictionary.
         app (Vespa): An instance of the Vespa application.
         name (str, optional): A name for this data collection run. Defaults to "".
-        id_field (str, optional): The field name in the Vespa hit that contains the document ID.
+        id_field (str, optional): The field name in the Vespa hit that contains the document ID. This field must be an attribute in your Vespa schema.
             If empty, it tries to infer the ID from the 'id' field or 'fields.id'. Defaults to "".
         csv_dir (Optional[str], optional): Directory to save the CSV file. Defaults to None (current directory).
+        random_hits_strategy (Union[RandomHitsSamplingStrategy, str], optional): Strategy for sampling random hits.
+            Can be "ratio" (or RandomHitsSamplingStrategy.RATIO) to sample as a ratio of relevant docs,
+            or "fixed" (or RandomHitsSamplingStrategy.FIXED) to sample a fixed number per query. Defaults to "ratio".
+        random_hits_value (Union[float, int], optional): Value for the sampling strategy.
+            For RATIO strategy: ratio value (e.g., 1.0 = equal number, 2.0 = twice as many random hits).
+            For FIXED strategy: fixed number of random hits per query. Defaults to 1.0.
+        max_random_hits_per_query (Optional[int], optional): Maximum limit on random hits per query.
+            Only applies to RATIO strategy to prevent excessive sampling. Defaults to None (no limit).
         collect_matchfeatures (bool, optional): Whether to collect match features defined in rank profile's match-features section. Defaults to True.
         collect_rankfeatures (bool, optional): Whether to collect rank features using ranking.listFeatures=true. Defaults to False.
         collect_summaryfeatures (bool, optional): Whether to collect summary features from document summaries. Defaults to False.
+        write_csv (bool, optional): Whether to write results to CSV file. Defaults to True.
     """
 
     def get_recall_param(self, relevant_doc_ids: set, get_relevant: bool) -> dict:
@@ -1271,6 +1400,24 @@ class VespaFeatureCollector(VespaCollectorBase):
         else:
             recall_string = f"-({recall_string_base})"
         return {"recall": recall_string}
+
+    def calculate_random_hits_count(self, num_relevant_docs: int) -> int:
+        """
+        Calculate the number of random hits to sample based on the configured strategy.
+
+        Args:
+            num_relevant_docs: Number of relevant documents for the query
+
+        Returns:
+            Number of random hits to sample
+        """
+        if self.random_hits_strategy == RandomHitsSamplingStrategy.RATIO:
+            calculated_count = int(num_relevant_docs * self.random_hits_ratio)
+            if self.max_random_hits_per_query is not None:
+                calculated_count = min(calculated_count, self.max_random_hits_per_query)
+            return calculated_count
+        else:  # FIXED strategy
+            return self.random_hits_fixed
 
     def collect(self) -> Dict[str, List[Dict]]:
         """
@@ -1297,14 +1444,18 @@ class VespaFeatureCollector(VespaCollectorBase):
         for qid, query_text in zip(self.queries_ids, self.queries):
             relevant_docs = self.relevant_docs.get(qid, set())
             if len(relevant_docs) > 0:
-                max_k = len(relevant_docs)
+                num_relevant = len(relevant_docs)
+                num_random = self.calculate_random_hits_count(num_relevant)
+                logger.info(
+                    f"Query {qid}: {num_relevant} relevant docs, {num_random} random hits to sample"
+                )
             else:
                 logger.info(f"No relevant documents for query {qid}, skipping.")
                 continue
             if self._vespa_query_fn_takes_query_id:
-                query_body: dict = self.vespa_query_fn(query_text, max_k, qid)
+                query_body: dict = self.vespa_query_fn(query_text, num_relevant, qid)
             else:
-                query_body: dict = self.vespa_query_fn(query_text, max_k)
+                query_body: dict = self.vespa_query_fn(query_text, num_relevant)
             if not isinstance(query_body, dict):
                 raise ValueError(
                     f"vespa_query_fn must return a dict, got: {type(query_body)}"
@@ -1328,8 +1479,8 @@ class VespaFeatureCollector(VespaCollectorBase):
             # Note: match-features and summary-features are controlled via the rank profile configuration
             # and YQL select clause respectively, so they don't need query body modifications
             # Add recall parameter for both True and False
-            get_relevant_flags = (True, False)
-            for get_relevant in get_relevant_flags:
+            get_relevant_flags = [(True, num_relevant), (False, num_random)]
+            for get_relevant, max_k in get_relevant_flags:
                 recall_param = self.get_recall_param(relevant_docs, get_relevant)
                 query_body_with_recall = query_body | recall_param
                 # Add the modified query body to the list
@@ -1348,10 +1499,10 @@ class VespaFeatureCollector(VespaCollectorBase):
 
         responses, new_searchtimes = execute_queries(self.app, query_bodies)
         # dump responses.json to json file for debugging
-        import json
+        # import json
 
-        with open("responses.json", "w") as f:
-            json.dump([resp.json for resp in responses], f, indent=2)
+        # with open("responses.json", "w") as f:
+        #    json.dump([resp.json for resp in responses], f, indent=2)
 
         self.searchtimes.extend(new_searchtimes)
 
