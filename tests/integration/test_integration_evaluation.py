@@ -269,11 +269,11 @@ class TestEvaluatorsIntegration(unittest.TestCase):
         rel_doc_ids = cls.qrels["corpus-id"]
         cls.relevant_docs = dict(zip(rel_q_ids, rel_doc_ids))
 
-    # @classmethod
-    # def tearDownClass(cls):
-    #     # Clean up container
-    #     cls.vespa_docker.container.stop(timeout=10)
-    #     cls.vespa_docker.container.remove()
+    @classmethod
+    def tearDownClass(cls):
+        # Clean up container
+        cls.vespa_docker.container.stop(timeout=10)
+        cls.vespa_docker.container.remove()
 
     def test_semantic_metrics_close_to_sentence_transformers(self):
         """
