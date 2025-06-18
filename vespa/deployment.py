@@ -1491,6 +1491,73 @@ class VespaCloud(VespaDeployment):
         )["endpoints"]
         return endpoints
 
+    def get_app_endpoints(
+        self,
+        region: Optional[str] = None,
+        environment: Optional[str] = "dev",
+    ) -> List[Dict[str, str]]:
+        """
+        Get all endpoints for the application instance in the specified region and environment.
+       
+        Args:
+            region (str): Region name, e.g. 'aws-us-east-1c'. If None, uses the default region for the environment.
+            environment (str): Environment (dev/prod). Default is 'dev'.
+        
+        Returns:
+            list: List of endpoints for the application instance.
+        """
+        if region is None:
+            if environment == "dev":
+                region = self.get_dev_region()
+            elif environment == "prod":
+                region = self.get_prod_region()
+            else:
+                raise ValueError("Invalid environment. Must be 'dev' or 'prod'")
+        
+        app_endpoints = self._request(
+            "GET",
+            "/application/v4/tenant/{}/application/{}/instance/{}/environment/{}/region/{}/content".format(
+                self.tenant, self.application, self.instance, environment, region
+                )
+            )
+        return app_endpoints
+
+    def get_schemas(
+        self,
+        region: Optional[str] = None,
+        environment: Optional[str] = "dev",
+    ) -> List[Dict[str, str]]:
+        """
+        Get all schemas for the application instance in the specified environment and region.
+       
+        Args:
+            region (str): Region name, e.g. 'aws-us-east-1c'. If None, uses the default region for the environment.
+            environment (str): Environment (dev/prod). Default is 'dev'.
+        
+        Returns:
+            list: List of schemas.
+        """
+        if region is None:
+            if environment == "dev":
+                region = self.get_dev_region()
+            elif environment == "prod":
+                region = self.get_prod_region()
+            else:
+                raise ValueError("Invalid environment. Must be 'dev' or 'prod'")
+        schemas = [self._request(
+            "GET",
+            schema_endpoint
+            ).decode("utf-8") for schema_endpoint in
+            self._request(
+            "GET",
+            "/application/v4/tenant/{}/application/{}/instance/{}/environment/{}/region/{}/content/schemas/".format(
+                self.tenant, self.application, self.instance, environment, region
+                )
+            )]
+
+        return schemas
+
+
     def get_endpoint_auth_method(
         self,
         url: str,
