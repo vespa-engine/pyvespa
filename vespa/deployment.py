@@ -19,6 +19,7 @@ import shlex
 import select
 from dateutil import parser
 import time
+from urllib.parse import urlparse
 
 import docker
 import requests
@@ -1491,15 +1492,17 @@ class VespaCloud(VespaDeployment):
         )["endpoints"]
         return endpoints
 
-    def get_app_endpoints(
+    def get_app_package_contents(
         self,
+        instance: Optional[str] = "default",
         region: Optional[str] = None,
         environment: Optional[str] = "dev",
     ) -> List[Dict[str, str]]:
         """
-        Get all endpoints for the application instance in the specified region and environment.
+        Get all endpoints for the application package content in the specified region and environment.
        
         Args:
+            instance (str): Application instance name.
             region (str): Region name, e.g. 'aws-us-east-1c'. If None, uses the default region for the environment.
             environment (str): Environment (dev/prod). Default is 'dev'.
         
@@ -1516,14 +1519,15 @@ class VespaCloud(VespaDeployment):
         
         app_endpoints = self._request(
             "GET",
-            "/application/v4/tenant/{}/application/{}/instance/{}/environment/{}/region/{}/content".format(
-                self.tenant, self.application, self.instance, environment, region
+            "/application/v4/tenant/{}/application/{}/instance/{}/environment/{}/region/{}/content/".format(
+                self.tenant, self.application, instance, environment, region
                 )
             )
         return app_endpoints
 
     def get_schemas(
         self,
+        instance: Optional[str] = "default",
         region: Optional[str] = None,
         environment: Optional[str] = "dev",
     ) -> List[Dict[str, str]]:
@@ -1531,6 +1535,7 @@ class VespaCloud(VespaDeployment):
         Get all schemas for the application instance in the specified environment and region.
        
         Args:
+            instance (str): Application instance name.
             region (str): Region name, e.g. 'aws-us-east-1c'. If None, uses the default region for the environment.
             environment (str): Environment (dev/prod). Default is 'dev'.
         
@@ -1551,11 +1556,64 @@ class VespaCloud(VespaDeployment):
             self._request(
             "GET",
             "/application/v4/tenant/{}/application/{}/instance/{}/environment/{}/region/{}/content/schemas/".format(
-                self.tenant, self.application, self.instance, environment, region
+                self.tenant, self.application, instance, environment, region
                 )
             )]
 
         return schemas
+
+    def download_app_package_content(
+            self,
+            destination_path: str,
+            instance: Optional[str] = "default",
+            region: Optional[str] = None,
+            environment: Optional[str] = "dev",
+    ) -> None:
+        """
+        Download the application package content to a specified destination path.
+        
+        Args:
+            destination_path (str): The path where the application package content will be downloaded.
+            instance (str): Application instance name.
+            region (str): Region name, e.g. 'aws-us-east-1c'. If None, uses the default region for the environment.
+            environment (str): Environment (dev/prod). Default is 'dev'.
+        
+        Returns:
+            None
+        """
+        if region is None:
+            if environment == "dev":
+                region = self.get_dev_region()
+            elif environment == "prod":
+                region = self.get_prod_region()
+            else:
+                raise ValueError("Invalid environment. Must be 'dev' or 'prod'")
+        
+        for endpoint in self.get_app_package_contents(instance, region, environment):
+            path = urlparse(endpoint).path
+            relativePath = path.split("content/")[-1]
+            filePath = os.path.expanduser(
+                os.path.join(destination_path, relativePath)
+            ) #path to donwload to
+
+            if path.endswith("/"):
+                continue #skip directories
+
+            dirName = os.path.dirname(filePath)
+            if dirName and not os.path.exists(dirName):
+                os.makedirs(dirName, exist_ok=True)
+                
+            try:
+                data = self._request(
+                    "GET",
+                    endpoint
+                )
+               
+                with open(filePath, "wb") as f:
+                    f.write(data)
+            except Exception as e:
+                print(f"Error downloading {endpoint}: {e}")
+            
 
 
     def get_endpoint_auth_method(
