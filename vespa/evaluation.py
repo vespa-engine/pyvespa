@@ -211,6 +211,15 @@ def extract_doc_id_from_hit(hit: dict, id_field: str) -> str:
     return doc_id
 
 
+def get_id_field_from_hit(hit: dict, id_field: str) -> str:
+    """Get the ID field from a Vespa hit."""
+    id_val = hit.get("fields", {}).get(id_field, None)
+    if id_val is not None:
+        return str(id_val)
+    else:
+        raise ValueError(f"ID field '{id_field}' not found in hit: {hit}")
+
+
 def calculate_searchtime_stats(searchtimes: List[float]) -> Dict[str, float]:
     """Calculate search time statistics."""
     if not searchtimes:
@@ -1534,7 +1543,7 @@ class VespaFeatureCollector(VespaCollectorBase):
             get_relevant = metadata["get_relevant"]
 
             for hit in hits[:max_k]:
-                doc_id = extract_doc_id_from_hit(hit, self.id_field)
+                doc_id = get_id_field_from_hit(hit, self.id_field)
                 relevance_score = hit.get("relevance", 0.0)
 
                 # Determine relevance label based on whether docs are binary or graded
