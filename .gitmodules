@@ -1,7 +1,7 @@
 [submodule "pyvespa"]
-    path = vespa
-    url = https://github.com/vespa-engine/pyvespa
+	path = vespa
+	url = https://github.com/vespa-engine/pyvespa.git
 
 [submodule "vespacli"]
-    path = vespacli
-    url = https://github.com/vespa-engine/pyvespa
+	path = vespacli
+	url = https://github.com/vespa-engine/pyvespa.git
