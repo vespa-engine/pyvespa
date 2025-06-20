@@ -1,7 +1,16 @@
 import unittest
-from vespa.evaluation import VespaEvaluator, VespaMatchEvaluator
+from vespa.evaluation import (
+    VespaEvaluator,
+    VespaMatchEvaluator,
+    VespaCollectorBase,
+    VespaFeatureCollector,
+    RandomHitsSamplingStrategy,
+)
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
+import tempfile
+import os
+import csv
 
 
 @dataclass
@@ -1369,5 +1378,1389 @@ class TestUtilityFunctions(unittest.TestCase):
         self.assertAlmostEqual(percentile(values, 110), percentile(values, 100))
 
 
-if __name__ == "__main__":
-    unittest.main()
+class MockAppForDataCollector:
+    """Mock Vespa app for VespaCollectorBase tests."""
+
+    def __init__(self, responses: List[MockVespaResponse]):
+        self.responses = responses
+        self.captured_query_bodies: List[Dict] = []
+
+    def query_many(self, query_bodies: List[Dict]):
+        self.captured_query_bodies = query_bodies
+        # Convert MockVespaResponse to objects that behave like VespaQueryResponse
+        mock_responses = []
+        for mock_resp in self.responses[: len(query_bodies)]:
+            # Create a response object that has the same interface as VespaQueryResponse
+            mock_response = type(
+                "MockResponse",
+                (),
+                {
+                    "hits": mock_resp.hits,
+                    "status_code": mock_resp.status_code,
+                    "get_json": mock_resp.get_json,
+                },
+            )()
+            mock_responses.append(mock_response)
+        return mock_responses
+
+
+class TestVespaCollectorBase(unittest.TestCase):
+    """Test the abstract VespaCollectorBase base class."""
+
+    def setUp(self):
+        self.queries = {
+            "q1": "what is machine learning",
+            "q2": "how to code python",
+            "q3": "what is the capital of France",
+        }
+
+        self.relevant_docs = {
+            "q1": {"doc1", "doc2"},
+            "q2": {"doc4"},
+            "q3": {"doc6"},
+        }
+
+        def mock_vespa_query_fn(query_text: str, top_k: int) -> dict:
+            return {
+                "yql": f'select * from sources * where text contains "{query_text}";',
+                "hits": top_k,
+            }
+
+        self.vespa_query_fn = mock_vespa_query_fn
+        self.mock_app = MockAppForDataCollector([])
+
+    def test_abstract_class_cannot_be_instantiated(self):
+        """Test that VespaCollectorBase cannot be instantiated directly."""
+        with self.assertRaises(TypeError):
+            VespaCollectorBase(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+            )
+
+    def test_concrete_implementation_required(self):
+        """Test that concrete implementations must implement collect method."""
+
+        class IncompleteCollector(VespaCollectorBase):
+            pass  # Missing collect method
+
+        with self.assertRaises(TypeError):
+            IncompleteCollector(
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+            )
+
+
+class TestVespaFeatureCollector(unittest.TestCase):
+    """Test the concrete VespaFeatureCollector implementation."""
+
+    def setUp(self):
+        self.queries = {
+            "q1": "what is machine learning",
+            "q2": "how to code python",
+            "q3": "what is the capital of France",
+        }
+
+        self.relevant_docs = {
+            "q1": {"doc1", "doc2"},
+            "q2": {"doc4"},
+            "q3": {"doc6"},
+        }
+
+        # Mock responses with some relevant and non-relevant documents
+        # VespaFeatureCollector makes 2 queries per query (positive and negative recall)
+        self.mock_responses = [
+            # Response for q1 with positive recall (get relevant docs)
+            MockVespaResponse(
+                [
+                    {
+                        "id": "doc1",
+                        "relevance": 0.9,
+                        "fields": {"id": "doc1"},
+                    },  # Relevant
+                    {
+                        "id": "doc2",
+                        "relevance": 0.7,
+                        "fields": {"id": "doc2"},
+                    },  # Relevant
+                ]
+            ),
+            # Response for q1 with negative recall (get non-relevant docs)
+            MockVespaResponse(
+                [
+                    {
+                        "id": "doc10",
+                        "relevance": 0.8,
+                        "fields": {"id": "doc10"},
+                    },  # Not relevant
+                    {
+                        "id": "doc11",
+                        "relevance": 0.6,
+                        "fields": {"id": "doc11"},
+                    },  # Not relevant
+                ]
+            ),
+            # Response for q2 with positive recall (get relevant docs)
+            MockVespaResponse(
+                [
+                    {
+                        "id": "doc4",
+                        "relevance": 0.85,
+                        "fields": {"id": "doc4"},
+                    },  # Relevant
+                ]
+            ),
+            # Response for q2 with negative recall (get non-relevant docs)
+            MockVespaResponse(
+                [
+                    {
+                        "id": "doc12",
+                        "relevance": 0.95,
+                        "fields": {"id": "doc12"},
+                    },  # Not relevant
+                    {
+                        "id": "doc13",
+                        "relevance": 0.75,
+                        "fields": {"id": "doc13"},
+                    },  # Not relevant
+                ]
+            ),
+            # Response for q3 with positive recall (get relevant docs)
+            MockVespaResponse(
+                [
+                    {
+                        "id": "doc6",
+                        "relevance": 0.9,
+                        "fields": {"id": "doc6"},
+                    },  # Relevant
+                ]
+            ),
+            # Response for q3 with negative recall (get non-relevant docs)
+            MockVespaResponse(
+                [
+                    {
+                        "id": "doc16",
+                        "relevance": 0.8,
+                        "fields": {"id": "doc16"},
+                    },  # Not relevant
+                    {
+                        "id": "doc17",
+                        "relevance": 0.7,
+                        "fields": {"id": "doc17"},
+                    },  # Not relevant
+                ]
+            ),
+        ]
+
+        self.mock_app = MockAppForDataCollector(self.mock_responses)
+
+        def mock_vespa_query_fn(query_text: str, top_k: int) -> dict:
+            return {
+                "yql": f'select * from sources * where text contains "{query_text}";',
+                "hits": top_k,
+            }
+
+        self.vespa_query_fn = mock_vespa_query_fn
+
+    def test_basic_initialization(self):
+        """Test basic initialization of VespaFeatureCollector."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                name="test_collector",
+                csv_dir=temp_dir,
+            )
+
+            self.assertEqual(collector.name, "test_collector")
+            self.assertEqual(collector.csv_dir, temp_dir)
+            self.assertEqual(len(collector.queries_ids), 3)
+            self.assertEqual(set(collector.queries_ids), {"q1", "q2", "q3"})
+
+    def test_collect_creates_csv_file(self):
+        """Test that collect() creates a CSV file with training data."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                name="test_run",
+                csv_dir=temp_dir,
+            )
+
+            # Execute collection
+            collector.collect()
+
+            # Check that CSV file was created
+            csv_files = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
+            self.assertEqual(len(csv_files), 1)
+
+            csv_path = os.path.join(temp_dir, csv_files[0])
+            self.assertTrue(os.path.exists(csv_path))
+
+    def test_collect_csv_content_structure(self):
+        """Test that the CSV file has the correct structure and content."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                name="test_run",
+                csv_dir=temp_dir,
+            )
+
+            collector.collect()
+
+            # Read and verify CSV content
+            csv_files = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
+            csv_path = os.path.join(temp_dir, csv_files[0])
+
+            with open(csv_path, "r", newline="", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                rows = list(reader)
+
+            # Check header
+            self.assertEqual(
+                header,
+                [
+                    "query_id",
+                    "doc_id",
+                    "relevance_label",
+                    "relevance_score",
+                ],
+            )
+
+            # Check that we have data for all queries
+            query_ids_in_csv = set(row[0] for row in rows)
+            self.assertEqual(query_ids_in_csv, {"q1", "q2", "q3"})
+
+            # Check relevance labels are correct
+            for row in rows:
+                query_id, doc_id, relevance_label, relevance_score = row
+                relevance_label_float = float(relevance_label)
+
+                if doc_id in self.relevant_docs[query_id]:
+                    self.assertEqual(relevance_label_float, 1.0)
+                else:
+                    self.assertEqual(relevance_label_float, 0.0)
+
+                # relevance_score should be the Vespa relevance score from the hit
+                self.assertIsInstance(float(relevance_score), float)
+
+    def test_collect_with_single_relevant_doc(self):
+        """Test collection with single relevant doc per query"""
+        relevant_docs_single = {
+            "q1": "doc1",
+            "q2": "doc4",
+            "q3": "doc6",
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=relevant_docs_single,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                csv_dir=temp_dir,
+            )
+
+            collector.collect()
+
+            # Verify CSV was created and has correct content
+            csv_files = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
+            self.assertEqual(len(csv_files), 1)
+
+    def test_collect_with_custom_id_field(self):
+        """Test collection with custom id_field."""
+        # Mock responses with custom id field
+        mock_responses_custom = [
+            MockVespaResponse(
+                [
+                    {"fields": {"custom_id": "doc1"}, "relevance": 0.9},
+                    {"fields": {"custom_id": "doc10"}, "relevance": 0.8},
+                ]
+            ),
+            MockVespaResponse(
+                [
+                    {"fields": {"custom_id": "doc4"}, "relevance": 0.85},
+                ]
+            ),
+            MockVespaResponse(
+                [
+                    {"fields": {"custom_id": "doc6"}, "relevance": 0.9},
+                ]
+            ),
+        ]
+
+        mock_app = MockAppForDataCollector(mock_responses_custom)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="custom_id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=mock_app,
+                csv_dir=temp_dir,
+            )
+
+            collector.collect()
+
+            # Verify collection worked with custom id field
+            csv_files = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
+            self.assertEqual(len(csv_files), 1)
+
+    def test_collect_callable_interface(self):
+        """Test that collector can be called as a function."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                csv_dir=temp_dir,
+            )
+
+            # Should be callable
+            collector()
+
+            # Verify file was created
+            csv_files = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
+            self.assertEqual(len(csv_files), 1)
+
+    def test_collect_queries_without_relevant_docs_filtered(self):
+        """Test that queries without relevant docs are filtered out."""
+        queries_with_extra = {
+            "q1": "what is machine learning",
+            "q2": "how to code python",
+            "q4": "query without relevant docs",  # This should be filtered out
+        }
+
+        relevant_docs_partial = {
+            "q1": {"doc1"},
+            "q2": {"doc4"},
+            # q4 has no relevant docs
+        }
+
+        mock_responses_partial = [
+            # Response for q1 with positive recall
+            MockVespaResponse(
+                [
+                    {
+                        "id": "doc1",
+                        "relevance": 0.9,
+                        "fields": {"id": "doc1"},
+                    }
+                ]
+            ),
+            # Response for q1 with negative recall
+            MockVespaResponse(
+                [{"id": "doc10", "relevance": 0.8, "fields": {"id": "doc10"}}]
+            ),
+            # Response for q2 with positive recall
+            MockVespaResponse(
+                [{"id": "doc4", "relevance": 0.85, "fields": {"id": "doc4"}}]
+            ),
+            # Response for q2 with negative recall
+            MockVespaResponse(
+                [{"id": "doc12", "relevance": 0.75, "fields": {"id": "doc12"}}]
+            ),
+        ]
+
+        mock_app = MockAppForDataCollector(mock_responses_partial)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=queries_with_extra,
+                relevant_docs=relevant_docs_partial,
+                vespa_query_fn=self.vespa_query_fn,
+                app=mock_app,
+                csv_dir=temp_dir,
+            )
+
+            # Verify q4 was filtered out
+            self.assertEqual(len(collector.queries_ids), 2)
+            self.assertNotIn("q4", collector.queries_ids)
+
+            results = collector.collect()
+            print(results)
+            # Verify only q1 and q2 data in CSV
+            csv_files = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
+            csv_path = os.path.join(temp_dir, csv_files[0])
+
+            with open(csv_path, "r", newline="", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                next(reader)  # Skip header
+                rows = list(reader)
+
+            query_ids_in_csv = set(row[0] for row in rows)
+            print(query_ids_in_csv)
+            self.assertEqual(query_ids_in_csv, {"q1", "q2"})
+            self.assertNotIn("q4", query_ids_in_csv)
+
+    def test_collect_vespa_query_fn_with_query_id(self):
+        """Test collection with vespa_query_fn that accepts query_id."""
+        captured_query_ids = []
+
+        def query_fn_with_id(
+            query_text: str, top_k: int, query_id: Optional[str] = None
+        ) -> dict:
+            if query_id:
+                captured_query_ids.append(query_id)
+            return {
+                "yql": f'select * from sources * where text contains "{query_text}";',
+                "hits": top_k,
+            }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=query_fn_with_id,
+                app=self.mock_app,
+                csv_dir=temp_dir,
+            )
+
+            collector.collect()
+
+            # Verify query_ids were passed to the function
+            self.assertEqual(set(captured_query_ids), {"q1", "q2", "q3"})
+
+    def test_collect_default_body_parameters_added(self):
+        """Test that default body parameters are added to query bodies."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                csv_dir=temp_dir,
+            )
+
+            collector.collect()
+
+            # Check captured query bodies have default parameters
+            for query_body in self.mock_app.captured_query_bodies:
+                self.assertIn("timeout", query_body)
+                self.assertEqual(query_body["timeout"], "5s")
+                self.assertIn("presentation.timing", query_body)
+                self.assertEqual(query_body["presentation.timing"], True)
+
+    def test_collect_preserves_user_query_parameters(self):
+        """Test that user-provided query parameters are preserved."""
+
+        def query_fn_with_custom_timeout(query_text: str, top_k: int) -> dict:
+            return {
+                "yql": f'select * from sources * where text contains "{query_text}";',
+                "hits": top_k,
+                "timeout": "10s",  # Custom timeout
+                "custom_param": "custom_value",
+            }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=query_fn_with_custom_timeout,
+                app=self.mock_app,
+                csv_dir=temp_dir,
+            )
+
+            collector.collect()
+
+            # Check that user parameters are preserved
+            for query_body in self.mock_app.captured_query_bodies:
+                self.assertEqual(query_body["timeout"], "10s")  # User's value preserved
+                self.assertEqual(query_body["custom_param"], "custom_value")
+                self.assertEqual(
+                    query_body["presentation.timing"], True
+                )  # Default added
+
+    def test_feature_collection_parameters_initialization(self):
+        """Test initialization with feature collection parameters."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Test default parameters
+            collector_default = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                name="test_default",
+                csv_dir=temp_dir,
+            )
+
+            self.assertTrue(collector_default.collect_matchfeatures)
+
+            self.assertFalse(collector_default.collect_rankfeatures)
+            self.assertFalse(collector_default.collect_summaryfeatures)
+
+            # Test custom parameters
+            collector_custom = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                name="test_custom",
+                csv_dir=temp_dir,
+                collect_matchfeatures=False,
+                collect_rankfeatures=True,
+                collect_summaryfeatures=True,
+            )
+
+            self.assertFalse(collector_custom.collect_matchfeatures)
+            self.assertTrue(collector_custom.collect_rankfeatures)
+            self.assertTrue(collector_custom.collect_summaryfeatures)
+
+    def test_collect_with_rankfeatures_enabled(self):
+        """Test that rankfeatures parameter adds listFeatures to query body."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                name="test_rankfeatures",
+                csv_dir=temp_dir,
+                collect_rankfeatures=True,
+            )
+
+            collector.collect()
+
+            # Check that ranking.listFeatures was added to query bodies
+            captured_bodies = self.mock_app.captured_query_bodies
+            for body in captured_bodies:
+                self.assertIn("ranking", body)
+                self.assertEqual(body["ranking"]["listFeatures"], "true")
+
+    def test_collect_with_string_ranking_profile(self):
+        """Test handling of string ranking profile when rankfeatures is enabled."""
+
+        def query_fn_with_string_ranking(query_text: str, top_k: int) -> dict:
+            return {
+                "yql": f'select * from sources * where text contains "{query_text}";',
+                "hits": top_k,
+                "ranking": "my_profile",
+            }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=query_fn_with_string_ranking,
+                app=self.mock_app,
+                name="test_string_ranking",
+                csv_dir=temp_dir,
+                collect_rankfeatures=True,
+            )
+
+            collector.collect()
+
+            # Check that string ranking profile was converted to dict with listFeatures
+            captured_bodies = self.mock_app.captured_query_bodies
+            for body in captured_bodies:
+                self.assertIn("ranking", body)
+                self.assertIsInstance(body["ranking"], dict)
+                self.assertEqual(body["ranking"]["profile"], "my_profile")
+                self.assertEqual(body["ranking"]["listFeatures"], "true")
+
+    def test_collect_with_features_in_hits(self):
+        """Test collection with various feature types in mock responses."""
+        # Mock responses with different feature types
+        mock_responses_with_features = [
+            # Response for q1 with match features and rank features
+            MockVespaResponse(
+                [
+                    {
+                        "id": "doc1",
+                        "relevance": 0.9,
+                        "fields": {
+                            "id": "doc1",
+                            "matchfeatures": {
+                                "bm25(title)": 1.5,
+                                "bm25(body)": 2.3,
+                                "fieldMatch(title)": 0.8,
+                            },
+                            "rankfeatures": {
+                                "nativeRank(title)": 0.7,
+                                "nativeRank(body)": 0.6,
+                                "attributeMatch(id).totalWeight": 0.0,
+                            },
+                            "summaryfeatures": {
+                                "summary_score": 0.95,
+                                "custom_feature": 1.2,
+                            },
+                        },
+                    },
+                    {
+                        "id": "doc10",
+                        "relevance": 0.8,
+                        "fields": {
+                            "id": "doc10",
+                            "matchfeatures": {
+                                "bm25(title)": 1.2,
+                                "bm25(body)": 1.8,
+                                "fieldMatch(title)": 0.6,
+                            },
+                            "rankfeatures": {
+                                "nativeRank(title)": 0.5,
+                                "nativeRank(body)": 0.4,
+                                "attributeMatch(id).totalWeight": 0.1,
+                            },
+                            "summaryfeatures": {
+                                "summary_score": 0.85,
+                                "custom_feature": 0.9,
+                            },
+                        },
+                    },
+                ]
+            ),
+            # Response for q2
+            MockVespaResponse(
+                [
+                    {
+                        "id": "doc4",
+                        "relevance": 0.85,
+                        "fields": {
+                            "id": "doc4",
+                            "matchfeatures": {
+                                "bm25(title)": 2.1,
+                                "bm25(body)": 2.8,
+                                "fieldMatch(title)": 0.9,
+                            },
+                            "rankfeatures": {
+                                "nativeRank(title)": 0.8,
+                                "nativeRank(body)": 0.7,
+                                "attributeMatch(id).totalWeight": 0.0,
+                            },
+                            "summaryfeatures": {
+                                "summary_score": 0.92,
+                                "custom_feature": 1.1,
+                            },
+                        },
+                    }
+                ]
+            ),
+            # Response for q3
+            MockVespaResponse(
+                [
+                    {
+                        "id": "doc6",
+                        "relevance": 0.9,
+                        "fields": {
+                            "id": "doc6",
+                            "matchfeatures": {
+                                "bm25(title)": 1.8,
+                                "bm25(body)": 2.5,
+                                "fieldMatch(title)": 0.7,
+                            },
+                            "rankfeatures": {
+                                "nativeRank(title)": 0.6,
+                                "nativeRank(body)": 0.8,
+                                "attributeMatch(id).totalWeight": 0.2,
+                            },
+                            "summaryfeatures": {
+                                "summary_score": 0.88,
+                                "custom_feature": 1.0,
+                            },
+                        },
+                    }
+                ]
+            ),
+        ]
+
+        mock_app_with_features = MockAppForDataCollector(mock_responses_with_features)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Test collecting all feature types
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=mock_app_with_features,
+                name="test_all_features",
+                csv_dir=temp_dir,
+                collect_matchfeatures=True,
+                collect_rankfeatures=True,
+                collect_summaryfeatures=True,
+            )
+
+            collector.collect()
+
+            # Read and verify CSV content includes features
+            csv_files = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
+            csv_path = os.path.join(temp_dir, csv_files[0])
+
+            with open(csv_path, "r", newline="", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                rows = list(reader)
+
+            # Check that feature columns are present
+            expected_base_columns = [
+                "query_id",
+                "doc_id",
+                "relevance_label",
+                "relevance_score",
+            ]
+            expected_match_features = [
+                "match_bm25(body)",
+                "match_bm25(title)",
+                "match_fieldMatch(title)",
+            ]
+            expected_rank_features = [
+                "rank_attributeMatch(id).totalWeight",
+                "rank_nativeRank(body)",
+                "rank_nativeRank(title)",
+            ]
+            expected_summary_features = [
+                "summary_custom_feature",
+                "summary_summary_score",
+            ]
+
+            # Verify all expected columns are in header
+            for col in expected_base_columns:
+                self.assertIn(col, header)
+            for col in expected_match_features:
+                self.assertIn(col, header)
+            for col in expected_rank_features:
+                self.assertIn(col, header)
+            for col in expected_summary_features:
+                self.assertIn(col, header)
+
+            # Verify feature data is present and correctly formatted
+            for row in rows:
+                if row[2] == "doc1":  # Check specific document
+                    row_dict = dict(zip(header, row))
+                    self.assertEqual(float(row_dict["match_bm25(title)"]), 1.5)
+                    self.assertEqual(float(row_dict["rank_nativeRank(title)"]), 0.7)
+                    self.assertEqual(float(row_dict["summary_summary_score"]), 0.95)
+
+    def test_collect_with_only_matchfeatures(self):
+        """Test collection with only match features enabled."""
+        mock_responses_match_only = [
+            MockVespaResponse(
+                [
+                    {
+                        "id": "doc1",
+                        "relevance": 0.9,
+                        "fields": {
+                            "id": "doc1",
+                            "matchfeatures": {
+                                "bm25(title)": 1.5,
+                                "bm25(body)": 2.3,
+                            },
+                            "rankfeatures": {
+                                "nativeRank(title)": 0.7,  # Should be ignored
+                            },
+                        },
+                    }
+                ]
+            ),
+        ]
+
+        mock_app_match_only = MockAppForDataCollector(mock_responses_match_only)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                queries={"q1": "test query"},
+                relevant_docs={"q1": {"doc1"}},
+                vespa_query_fn=self.vespa_query_fn,
+                app=mock_app_match_only,
+                name="test_match_only",
+                id_field="id",
+                csv_dir=temp_dir,
+                collect_matchfeatures=True,
+                collect_rankfeatures=False,
+                collect_summaryfeatures=False,
+            )
+
+            collector.collect()
+
+            # Read CSV and verify only match features are included
+            csv_files = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
+            csv_path = os.path.join(temp_dir, csv_files[0])
+
+            with open(csv_path, "r", newline="", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                _rows = list(reader)
+
+            # Should have match features but not rank or summary features
+            match_feature_columns = [col for col in header if col.startswith("match_")]
+            rank_feature_columns = [col for col in header if col.startswith("rank_")]
+            summary_feature_columns = [
+                col for col in header if col.startswith("summary_")
+            ]
+
+            self.assertGreater(len(match_feature_columns), 0)
+            self.assertEqual(len(rank_feature_columns), 0)
+            self.assertEqual(len(summary_feature_columns), 0)
+
+    def test_collect_with_no_features(self):
+        """Test collection with all feature types disabled."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                name="test_no_features",
+                csv_dir=temp_dir,
+                collect_matchfeatures=False,
+                collect_rankfeatures=False,
+                collect_summaryfeatures=False,
+            )
+
+            collector.collect()
+
+            # Read CSV and verify only basic columns are present
+            csv_files = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
+            csv_path = os.path.join(temp_dir, csv_files[0])
+
+            with open(csv_path, "r", newline="", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                header = next(reader)
+
+            # Should only have the basic columns
+            expected_columns = [
+                "query_id",
+                "doc_id",
+                "relevance_label",
+                "relevance_score",
+            ]
+            self.assertEqual(header, expected_columns)
+
+    def test_collect_with_missing_features_in_hits(self):
+        """Test collection when some hits are missing feature data."""
+        mock_responses_partial_features = [
+            MockVespaResponse(
+                [
+                    {
+                        "id": "doc1",
+                        "relevance": 0.9,
+                        "fields": {
+                            "id": "doc1",
+                            "matchfeatures": {
+                                "bm25(title)": 1.5,
+                            },
+                            # Missing rankfeatures and summaryfeatures
+                        },
+                    },
+                    {
+                        "id": "doc2",
+                        "relevance": 0.8,
+                        "fields": {
+                            "id": "doc2",
+                            "matchfeatures": {},
+                            "rankfeatures": {},
+                            "summaryfeatures": {},
+                        },
+                    },
+                ]
+            ),
+        ]
+
+        mock_app_partial = MockAppForDataCollector(mock_responses_partial_features)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                queries={"q1": "test query"},
+                relevant_docs={"q1": {"doc1", "doc2"}},
+                vespa_query_fn=self.vespa_query_fn,
+                app=mock_app_partial,
+                id_field="id",
+                name="test_partial_features",
+                csv_dir=temp_dir,
+                collect_matchfeatures=True,
+                collect_rankfeatures=True,
+                collect_summaryfeatures=True,
+            )
+
+            collector.collect()
+
+            # Read CSV and verify missing features are handled as 0.0
+            csv_files = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
+            csv_path = os.path.join(temp_dir, csv_files[0])
+
+            with open(csv_path, "r", newline="", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                rows = list(reader)
+
+            # Find the row for doc2 (which has no features)
+            doc2_row = None
+            for row in rows:
+                if row[1] == "doc2":  # doc_id is now at index 1 instead of 2
+                    doc2_row = dict(zip(header, row))
+                    break
+
+            self.assertIsNotNone(doc2_row)
+
+            # Check that missing features default to empty strings (CSV best practice)
+            feature_columns = [
+                col for col in header if col.startswith(("match_", "rank_", "summary_"))
+            ]
+            for col in feature_columns:
+                if col in doc2_row:
+                    self.assertEqual(doc2_row[col], "")
+
+    def test_csv_missing_values_best_practice(self):
+        """Test that missing feature values follow CSV best practices."""
+        # Create a response where some hits have features and others don't
+        mock_responses_mixed = [
+            MockVespaResponse(
+                [
+                    {
+                        "id": "doc_with_features",
+                        "relevance": 0.9,
+                        "fields": {
+                            "id": "doc_with_features",
+                            "matchfeatures": {
+                                "bm25(title)": 1.5,
+                            },
+                        },
+                    },
+                    {
+                        "id": "doc_without_features",
+                        "relevance": 0.8,
+                        "fields": {
+                            "id": "doc_without_features",
+                            "matchfeatures": {},
+                        },
+                    },
+                ]
+            ),
+        ]
+
+        mock_app_mixed = MockAppForDataCollector(mock_responses_mixed)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                queries={"q1": "test query"},
+                relevant_docs={"q1": {"doc_with_features", "doc_without_features"}},
+                vespa_query_fn=self.vespa_query_fn,
+                id_field="id",
+                app=mock_app_mixed,
+                name="test_csv_best_practice",
+                csv_dir=temp_dir,
+                collect_matchfeatures=True,
+            )
+
+            collector.collect()
+
+            # Read CSV and verify missing values are empty strings
+            csv_files = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
+            csv_path = os.path.join(temp_dir, csv_files[0])
+
+            with open(csv_path, "r", newline="", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                rows = list(reader)
+
+            # Find rows for both documents
+            doc_with_features_row = None
+            doc_without_features_row = None
+
+            for row in rows:
+                print(row)
+                if (
+                    row[1] == "doc_with_features"
+                ):  # doc_id is now at index 1 instead of 2
+                    doc_with_features_row = dict(zip(header, row))
+                elif (
+                    row[1] == "doc_without_features"
+                ):  # doc_id is now at index 1 instead of 2
+                    doc_without_features_row = dict(zip(header, row))
+            print(doc_with_features_row)
+            print(doc_without_features_row)
+            self.assertIsNotNone(doc_with_features_row)
+            self.assertIsNotNone(doc_without_features_row)
+
+            # Check that document with features has actual values
+            match_bm25_title_col = "match_bm25(title)"
+            self.assertIn(match_bm25_title_col, header)
+            self.assertEqual(doc_with_features_row[match_bm25_title_col], "1.5")
+
+            # Check that document without features has empty string (not "0.0")
+            self.assertEqual(doc_without_features_row[match_bm25_title_col], "")
+
+            # Verify this can be properly handled by pandas (empty strings become NaN)
+            try:
+                import pandas as pd
+
+                df = pd.read_csv(csv_path)
+
+                # Empty strings should become NaN in pandas
+                self.assertTrue(
+                    pd.isna(
+                        df[df["doc_id"] == "doc_without_features"][
+                            match_bm25_title_col
+                        ].iloc[0]
+                    )
+                )
+
+                # Actual values should be preserved
+                self.assertEqual(
+                    df[df["doc_id"] == "doc_with_features"][match_bm25_title_col].iloc[
+                        0
+                    ],
+                    1.5,
+                )
+
+            except ImportError:
+                # Skip pandas test if not available, but the empty string test above is sufficient
+                pass
+
+    def test_random_hits_strategy_ratio_initialization(self):
+        """Test initialization with RATIO strategy using enum."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy=RandomHitsSamplingStrategy.RATIO,
+                random_hits_value=2.0,
+                csv_dir=temp_dir,
+            )
+
+            self.assertEqual(
+                collector.random_hits_strategy, RandomHitsSamplingStrategy.RATIO
+            )
+            self.assertEqual(collector.random_hits_ratio, 2.0)
+
+    def test_random_hits_strategy_ratio_string_initialization(self):
+        """Test initialization with RATIO strategy using string."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy="ratio",
+                random_hits_value=1.5,
+                csv_dir=temp_dir,
+            )
+
+            self.assertEqual(
+                collector.random_hits_strategy, RandomHitsSamplingStrategy.RATIO
+            )
+            self.assertEqual(collector.random_hits_ratio, 1.5)
+
+    def test_random_hits_strategy_fixed_initialization(self):
+        """Test initialization with FIXED strategy using enum."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy=RandomHitsSamplingStrategy.FIXED,
+                random_hits_value=50,
+                csv_dir=temp_dir,
+            )
+
+            self.assertEqual(
+                collector.random_hits_strategy, RandomHitsSamplingStrategy.FIXED
+            )
+            self.assertEqual(collector.random_hits_fixed, 50)
+
+    def test_random_hits_strategy_fixed_string_initialization(self):
+        """Test initialization with FIXED strategy using string."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy="fixed",
+                random_hits_value=25,
+                csv_dir=temp_dir,
+            )
+
+            self.assertEqual(
+                collector.random_hits_strategy, RandomHitsSamplingStrategy.FIXED
+            )
+            self.assertEqual(collector.random_hits_fixed, 25)
+
+    def test_invalid_random_hits_strategy_string(self):
+        """Test that invalid strategy string raises ValueError."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(ValueError, "Invalid random_hits_strategy"):
+                VespaFeatureCollector(
+                    id_field="id",
+                    queries=self.queries,
+                    relevant_docs=self.relevant_docs,
+                    vespa_query_fn=self.vespa_query_fn,
+                    app=self.mock_app,
+                    random_hits_strategy="invalid_strategy",
+                    random_hits_value=1.0,
+                    csv_dir=temp_dir,
+                )
+
+    def test_ratio_strategy_invalid_value_type(self):
+        """Test that RATIO strategy with invalid value type raises ValueError."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(ValueError, "must be a non-negative number"):
+                VespaFeatureCollector(
+                    id_field="id",
+                    queries=self.queries,
+                    relevant_docs=self.relevant_docs,
+                    vespa_query_fn=self.vespa_query_fn,
+                    app=self.mock_app,
+                    random_hits_strategy=RandomHitsSamplingStrategy.RATIO,
+                    random_hits_value="invalid",
+                    csv_dir=temp_dir,
+                )
+
+    def test_ratio_strategy_negative_value(self):
+        """Test that RATIO strategy with negative value raises ValueError."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(ValueError, "must be a non-negative number"):
+                VespaFeatureCollector(
+                    id_field="id",
+                    queries=self.queries,
+                    relevant_docs=self.relevant_docs,
+                    vespa_query_fn=self.vespa_query_fn,
+                    app=self.mock_app,
+                    random_hits_strategy=RandomHitsSamplingStrategy.RATIO,
+                    random_hits_value=-1.0,
+                    csv_dir=temp_dir,
+                )
+
+    def test_fixed_strategy_invalid_value_type(self):
+        """Test that FIXED strategy with invalid value type raises ValueError."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(ValueError, "must be a non-negative integer"):
+                VespaFeatureCollector(
+                    id_field="id",
+                    queries=self.queries,
+                    relevant_docs=self.relevant_docs,
+                    vespa_query_fn=self.vespa_query_fn,
+                    app=self.mock_app,
+                    random_hits_strategy=RandomHitsSamplingStrategy.FIXED,
+                    random_hits_value=1.5,  # float instead of int
+                    csv_dir=temp_dir,
+                )
+
+    def test_fixed_strategy_negative_value(self):
+        """Test that FIXED strategy with negative value raises ValueError."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(ValueError, "must be a non-negative integer"):
+                VespaFeatureCollector(
+                    id_field="id",
+                    queries=self.queries,
+                    relevant_docs=self.relevant_docs,
+                    vespa_query_fn=self.vespa_query_fn,
+                    app=self.mock_app,
+                    random_hits_strategy=RandomHitsSamplingStrategy.FIXED,
+                    random_hits_value=-5,
+                    csv_dir=temp_dir,
+                )
+
+    def test_max_random_hits_per_query_negative(self):
+        """Test that negative max_random_hits_per_query raises ValueError."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(ValueError, "must be non-negative"):
+                VespaFeatureCollector(
+                    id_field="id",
+                    queries=self.queries,
+                    relevant_docs=self.relevant_docs,
+                    vespa_query_fn=self.vespa_query_fn,
+                    app=self.mock_app,
+                    max_random_hits_per_query=-10,
+                    csv_dir=temp_dir,
+                )
+
+    def test_calculate_random_hits_count_ratio_strategy(self):
+        """Test calculate_random_hits_count with RATIO strategy."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Test 1: ratio 1.0 (equal number)
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy=RandomHitsSamplingStrategy.RATIO,
+                random_hits_value=1.0,
+                csv_dir=temp_dir,
+            )
+
+            self.assertEqual(collector.calculate_random_hits_count(5), 5)
+            self.assertEqual(collector.calculate_random_hits_count(2), 2)
+            self.assertEqual(collector.calculate_random_hits_count(0), 0)
+
+            # Test 2: ratio 2.0 (twice as many)
+            collector2 = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy=RandomHitsSamplingStrategy.RATIO,
+                random_hits_value=2.0,
+                csv_dir=temp_dir,
+            )
+
+            self.assertEqual(collector2.calculate_random_hits_count(3), 6)
+            self.assertEqual(collector2.calculate_random_hits_count(1), 2)
+
+            # Test 3: ratio 0.5 (half as many)
+            collector3 = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy=RandomHitsSamplingStrategy.RATIO,
+                random_hits_value=0.5,
+                csv_dir=temp_dir,
+            )
+
+            self.assertEqual(collector3.calculate_random_hits_count(4), 2)
+            self.assertEqual(
+                collector3.calculate_random_hits_count(3), 1
+            )  # int(3 * 0.5) = 1
+
+    def test_calculate_random_hits_count_ratio_with_max_limit(self):
+        """Test calculate_random_hits_count with RATIO strategy and max limit."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy=RandomHitsSamplingStrategy.RATIO,
+                random_hits_value=3.0,
+                max_random_hits_per_query=10,
+                csv_dir=temp_dir,
+            )
+
+            # Without limit: 5 * 3.0 = 15, but limited to 10
+            self.assertEqual(collector.calculate_random_hits_count(5), 10)
+
+            # Without limit: 2 * 3.0 = 6, under limit
+            self.assertEqual(collector.calculate_random_hits_count(2), 6)
+
+            # Without limit: 4 * 3.0 = 12, but limited to 10
+            self.assertEqual(collector.calculate_random_hits_count(4), 10)
+
+    def test_calculate_random_hits_count_fixed_strategy(self):
+        """Test calculate_random_hits_count with FIXED strategy."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy=RandomHitsSamplingStrategy.FIXED,
+                random_hits_value=20,
+                csv_dir=temp_dir,
+            )
+
+            # Fixed strategy should always return the same number regardless of relevant docs
+            self.assertEqual(collector.calculate_random_hits_count(1), 20)
+            self.assertEqual(collector.calculate_random_hits_count(5), 20)
+            self.assertEqual(collector.calculate_random_hits_count(100), 20)
+            self.assertEqual(collector.calculate_random_hits_count(0), 20)
+
+    def test_max_random_hits_per_query_none_with_ratio(self):
+        """Test that max_random_hits_per_query=None works correctly with RATIO strategy."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy=RandomHitsSamplingStrategy.RATIO,
+                random_hits_value=5.0,
+                max_random_hits_per_query=None,  # No limit
+                csv_dir=temp_dir,
+            )
+
+            # Should not apply any limit
+            self.assertEqual(collector.calculate_random_hits_count(10), 50)
+            self.assertEqual(collector.calculate_random_hits_count(100), 500)
+
+    def test_random_hits_strategy_case_insensitive(self):
+        """Test that strategy strings are case insensitive."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Test uppercase
+            collector1 = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy="RATIO",
+                random_hits_value=1.0,
+                csv_dir=temp_dir,
+            )
+            self.assertEqual(
+                collector1.random_hits_strategy, RandomHitsSamplingStrategy.RATIO
+            )
+
+            # Test mixed case
+            collector2 = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                random_hits_strategy="Fixed",
+                random_hits_value=10,
+                csv_dir=temp_dir,
+            )
+            self.assertEqual(
+                collector2.random_hits_strategy, RandomHitsSamplingStrategy.FIXED
+            )
+
+    def test_default_random_hits_strategy(self):
+        """Test that default random hits strategy is RATIO with value 1.0."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            collector = VespaFeatureCollector(
+                id_field="id",
+                queries=self.queries,
+                relevant_docs=self.relevant_docs,
+                vespa_query_fn=self.vespa_query_fn,
+                app=self.mock_app,
+                csv_dir=temp_dir,
+                # Not specifying random_hits_strategy or random_hits_value
+            )
+
+            self.assertEqual(
+                collector.random_hits_strategy, RandomHitsSamplingStrategy.RATIO
+            )
+            self.assertEqual(collector.random_hits_ratio, 1.0)
+            self.assertIsNone(collector.max_random_hits_per_query)
