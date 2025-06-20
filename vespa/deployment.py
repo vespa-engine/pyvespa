@@ -1592,17 +1592,17 @@ class VespaCloud(VespaDeployment):
         
         for endpoint in self.get_app_package_contents(instance, region, environment):
             path = urlparse(endpoint).path
-            relativePath = path.split("content/")[-1]
-            filePath = os.path.expanduser(
-                os.path.join(destination_path, relativePath)
-            ) #path to donwload to
+            relative_path = path.split("content/")[-1]
+            file_path = os.path.expanduser(
+                os.path.join(destination_path, relative_path)
+            ) # Path to donwload to
 
             if path.endswith("/"):
-                continue #skip directories
+                continue # Skip directories
 
-            dirName = os.path.dirname(filePath)
-            if dirName and not os.path.exists(dirName):
-                os.makedirs(dirName, exist_ok=True)
+            dir_name = os.path.dirname(file_path)
+            if dir_name and not os.path.exists(dir_name):
+                os.makedirs(dir_name, exist_ok=True)
                 
             try:
                 data = self._request(
@@ -1611,7 +1611,7 @@ class VespaCloud(VespaDeployment):
                     return_raw_response=False
                 )
                
-                with open(filePath, "wb") as f:
+                with open(file_path, "wb") as f:
                     f.write(data)
             except Exception as e:
                 print(f"Error downloading {endpoint}: {e}")

@@ -222,15 +222,15 @@ class TestMsmarcoApplication(TestApplicationCommon):
         self.assertTrue(all(isinstance(schema, str) for schema in schemas))
 
     def test_download_app_package_content(self):
-        with TemporaryDirectory() as tmpDir:
+        with TemporaryDirectory() as temp_dir:
             self.vespa_cloud.download_app_package_content(
-                tmpDir,
+                temp_dir,
                 instance="msmarco",
                 region="aws-us-east-1c",
                 environment="dev"
             )
-            expected_file = os.path.join(tmpDir, "schemas", "msmarco.sd")
-            self.assertTrue(os.path.exists(expected_file), f"msmarco.sd not downloaded. Only downloaded: {os.listdir(tmpDir)}")
+            expected_file = os.path.join(temp_dir, "schemas", "msmarco.sd")
+            self.assertTrue(os.path.exists(expected_file), f"msmarco.sd not downloaded. Only downloaded: {os.listdir(temp_dir)}")
 
 class TestRetryApplication(unittest.TestCase):
     """

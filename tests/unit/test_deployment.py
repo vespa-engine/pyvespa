@@ -90,14 +90,14 @@ class TestVespaCloud(unittest.TestCase):
         ]
         mock_request.return_value = b"file content"
         
-        with TemporaryDirectory() as tmpDir:
+        with TemporaryDirectory() as temp_dir:
             self.vespa_cloud.download_app_package_content(
-                tmpDir, 
+                temp_dir, 
                 instance="instance", 
                 region="region", 
                 environment="env"
             )
-            expected_file = os.path.join(tmpDir, "README.md")
+            expected_file = os.path.join(temp_dir, "README.md")
             self.assertTrue(os.path.exists(expected_file))
 
     @patch("vespa.deployment.VespaCloud._request")
