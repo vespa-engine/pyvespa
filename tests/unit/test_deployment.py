@@ -1,8 +1,9 @@
 import unittest
+from tempfile import TemporaryDirectory
+import os
 from unittest.mock import patch, MagicMock
 
 from vespa.deployment import VespaCloud
-
 
 class TestVespaCloud(unittest.TestCase):
     def setUp(self):
@@ -55,6 +56,49 @@ class TestVespaCloud(unittest.TestCase):
         mtls_endpoint = self.vespa_cloud.get_mtls_endpoint()
 
         self.assertEqual(mtls_endpoint, "https://endpoint1.vespa.oath.cloud:4443")
+
+    @patch("vespa.deployment.VespaCloud._request")
+    def test_get_app_package_contents(self, mock_request):
+        mock_request.return_value = [
+            "https://endpoint/content/README.md",
+            "https://endpoint/content/schemas/music.sd"
+        ]
+        result = self.vespa_cloud.get_app_package_contents("instance", region="region", environment="env")
+        self.assertIsInstance(result, list)
+        self.assertIn("https://endpoint/content/README.md", result)
+
+    @patch("vespa.deployment.VespaCloud._request")
+    def test_get_schemas(self, mock_request):
+        # First call returns the list of schema endpoints
+        # Next calls return the content for each schema
+        mock_request.side_effect = [
+            ["schemas/schema1.sd", "schemas/schema2.sd"],  # First call
+            b"schema1 content",                            # Second call (for schema1)
+            b"schema2 content"                             # Third call (for schema2)
+        ]
+        result = self.vespa_cloud.get_schemas("instance", "region", "env")
+        self.assertIsInstance(result, list)
+        self.assertIn("schema1 content", result)
+        self.assertIn("schema2 content", result)
+        self.assertTrue(all(isinstance(schema, str) for schema in result))
+
+    @patch("vespa.deployment.VespaCloud.get_app_package_contents")
+    @patch("vespa.deployment.VespaCloud._request")
+    def test_download_app_package_content(self, mock_request, mock_get_app):
+        mock_get_app.return_value = [
+            "https://endpoint/content/README.md"
+        ]
+        mock_request.return_value = b"file content"
+        
+        with TemporaryDirectory() as temp_dir:
+            self.vespa_cloud.download_app_package_content(
+                temp_dir, 
+                instance="instance", 
+                region="region", 
+                environment="env"
+            )
+            expected_file = os.path.join(temp_dir, "README.md")
+            self.assertTrue(os.path.exists(expected_file))
 
     @patch("vespa.deployment.VespaCloud._request")
     def test_follow_deployment_success(self, mock_request):
