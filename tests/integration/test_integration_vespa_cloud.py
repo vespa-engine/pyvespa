@@ -8,6 +8,7 @@ import pytest
 from requests import HTTPError
 import unittest
 from cryptography.hazmat.primitives import serialization
+from tempfile import TemporaryDirectory
 from vespa.application import Vespa
 from vespa.deployment import VespaCloud
 from vespa.package import (
@@ -201,6 +202,35 @@ class TestMsmarcoApplication(TestApplicationCommon):
         shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_cloud.delete(instance=self.instance_name)
 
+    def test_get_app_package_contents(self):
+        contents = self.vespa_cloud.get_app_package_contents(
+            instance="msmarco",
+            region="aws-us-east-1c",
+            environment="dev"
+        )
+        self.assertIsInstance(contents, list)
+        self.assertTrue(any(url.endswith(".sd") for url in contents), f"No .sd files found.")
+        self.assertTrue(any(url.endswith(".xml") for url in contents), f"No .xml files found.")
+    
+    def test_get_schemas(self):
+        schemas = self.vespa_cloud.get_schemas(
+            instance="msmarco",
+            region="aws-us-east-1c",
+            environment="dev"
+        )
+        self.assertIsInstance(schemas, list)
+        self.assertTrue(all(isinstance(schema, str) for schema in schemas))
+
+    def test_download_app_package_content(self):
+        with TemporaryDirectory() as tmpDir:
+            self.vespa_cloud.download_app_package_content(
+                tmpDir,
+                instance="msmarco",
+                region="aws-us-east-1c",
+                environment="dev"
+            )
+            expected_file = os.path.join(tmpDir, "schemas", "msmarco.sd")
+            self.assertTrue(os.path.exists(expected_file), f"msmarco.sd not downloaded. Only downloaded: {os.listdir(tmpDir)}")
 
 class TestRetryApplication(unittest.TestCase):
     """

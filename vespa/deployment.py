@@ -1395,11 +1395,12 @@ class VespaCloud(VespaDeployment):
         path: str,
         body: Union[BytesIO, MultipartEncoder] = BytesIO(),
         headers: dict = {},
+        return_raw_response: bool = False
     ) -> Union[dict, httpx.Response]:
         if self.control_plane_auth_method == "access_token":
             return self._request_with_access_token(method, path, body, headers)
         elif self.control_plane_auth_method == "api_key":
-            return self._request_with_api_key(method, path, body, headers)
+            return self._request_with_api_key(method, path, body, headers, return_raw_response)
         else:
             raise ValueError(
                 "Control plane auth method not inferred. Should be either api_key or access_token."
@@ -1551,7 +1552,7 @@ class VespaCloud(VespaDeployment):
                 raise ValueError("Invalid environment. Must be 'dev' or 'prod'")
         schemas = [self._request(
             "GET",
-            schema_endpoint
+            urlparse(schema_endpoint).path
             ).decode("utf-8") for schema_endpoint in
             self._request(
             "GET",
@@ -1606,7 +1607,8 @@ class VespaCloud(VespaDeployment):
             try:
                 data = self._request(
                     "GET",
-                    endpoint
+                    urlparse(endpoint).path,
+                    return_raw_response=False
                 )
                
                 with open(filePath, "wb") as f:
