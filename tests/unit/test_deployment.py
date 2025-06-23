@@ -77,10 +77,11 @@ class TestVespaCloud(unittest.TestCase):
             b"schema2 content"                             # Third call (for schema2)
         ]
         result = self.vespa_cloud.get_schemas("instance", "region", "env")
-        self.assertIsInstance(result, list)
-        self.assertIn("schema1 content", result)
-        self.assertIn("schema2 content", result)
-        self.assertTrue(all(isinstance(schema, str) for schema in result))
+        self.assertIsInstance(result, dict)
+        self.assertIn("schema1 content", result.values())
+        self.assertIn("schema2 content", result.values())
+        self.assertTrue(all(isinstance(schema_content, str) for schema_content in result.values()))
+        self.assertTrue(all(isinstance(schema_name, str) for schema_name in result.keys()))
 
     @patch("vespa.deployment.VespaCloud.get_app_package_contents")
     @patch("vespa.deployment.VespaCloud._request")
