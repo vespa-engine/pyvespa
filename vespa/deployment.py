@@ -1498,7 +1498,7 @@ class VespaCloud(VespaDeployment):
         instance: Optional[str] = "default",
         region: Optional[str] = None,
         environment: Optional[str] = "dev",
-    ) -> List[Dict[str, str]]:
+    ) -> List[str]:
         """
         Get all endpoints for the application package content in the specified region and environment.
        
@@ -1531,7 +1531,7 @@ class VespaCloud(VespaDeployment):
         instance: Optional[str] = "default",
         region: Optional[str] = None,
         environment: Optional[str] = "dev",
-    ) -> List[Dict[str, str]]:
+    ) -> List[str]:
         """
         Get all schemas for the application instance in the specified environment and region.
        
