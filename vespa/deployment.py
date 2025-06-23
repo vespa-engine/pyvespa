@@ -19,6 +19,7 @@ import shlex
 import select
 from dateutil import parser
 import time
+from urllib.parse import urlparse
 
 import docker
 import requests
@@ -1394,11 +1395,12 @@ class VespaCloud(VespaDeployment):
         path: str,
         body: Union[BytesIO, MultipartEncoder] = BytesIO(),
         headers: dict = {},
+        return_raw_response: bool = False
     ) -> Union[dict, httpx.Response]:
         if self.control_plane_auth_method == "access_token":
             return self._request_with_access_token(method, path, body, headers)
         elif self.control_plane_auth_method == "api_key":
-            return self._request_with_api_key(method, path, body, headers)
+            return self._request_with_api_key(method, path, body, headers, return_raw_response)
         else:
             raise ValueError(
                 "Control plane auth method not inferred. Should be either api_key or access_token."
@@ -1490,6 +1492,132 @@ class VespaCloud(VespaDeployment):
             ),
         )["endpoints"]
         return endpoints
+
+    def get_app_package_contents(
+        self,
+        instance: Optional[str] = "default",
+        region: Optional[str] = None,
+        environment: Optional[str] = "dev",
+    ) -> List[str]:
+        """
+        Get all endpoints for the application package content in the specified region and environment.
+       
+        Args:
+            instance (str): Application instance name.
+            region (str): Region name, e.g. 'aws-us-east-1c'. If None, uses the default region for the environment.
+            environment (str): Environment (dev/prod). Default is 'dev'.
+        
+        Returns:
+            list: List of endpoints for the application instance.
+        """
+        if region is None:
+            if environment == "dev":
+                region = self.get_dev_region()
+            elif environment == "prod":
+                region = self.get_prod_region()
+            else:
+                raise ValueError("Invalid environment. Must be 'dev' or 'prod'")
+        
+        app_endpoints = self._request(
+            "GET",
+            "/application/v4/tenant/{}/application/{}/instance/{}/environment/{}/region/{}/content/".format(
+                self.tenant, self.application, instance, environment, region
+                )
+            )
+        return app_endpoints
+
+    def get_schemas(
+        self,
+        instance: Optional[str] = "default",
+        region: Optional[str] = None,
+        environment: Optional[str] = "dev",
+    ) -> Dict[str, str]:
+        """
+        Get all schemas for the application instance in the specified environment and region.
+       
+        Args:
+            instance (str): Application instance name.
+            region (str): Region name, e.g. 'aws-us-east-1c'. If None, uses the default region for the environment.
+            environment (str): Environment (dev/prod). Default is 'dev'.
+        
+        Returns:
+            dict: Dictionary with schema name as key and content as value.
+        """
+        if region is None:
+            if environment == "dev":
+                region = self.get_dev_region()
+            elif environment == "prod":
+                region = self.get_prod_region()
+            else:
+                raise ValueError("Invalid environment. Must be 'dev' or 'prod'")
+        schemas = {
+            schema_endpoint.split("/")[-1][:-3] : self._request(
+            "GET",
+            urlparse(schema_endpoint).path
+            ).decode("utf-8") for schema_endpoint in
+            self._request(
+            "GET",
+            "/application/v4/tenant/{}/application/{}/instance/{}/environment/{}/region/{}/content/schemas/".format(
+                self.tenant, self.application, instance, environment, region
+                )
+            )}
+
+        return schemas
+
+    def download_app_package_content(
+            self,
+            destination_path: str,
+            instance: Optional[str] = "default",
+            region: Optional[str] = None,
+            environment: Optional[str] = "dev",
+    ) -> None:
+        """
+        Download the application package content to a specified destination path.
+        
+        Args:
+            destination_path (str): The path where the application package content will be downloaded.
+            instance (str): Application instance name.
+            region (str): Region name, e.g. 'aws-us-east-1c'. If None, uses the default region for the environment.
+            environment (str): Environment (dev/prod). Default is 'dev'.
+        
+        Returns:
+            None
+        """
+        if region is None:
+            if environment == "dev":
+                region = self.get_dev_region()
+            elif environment == "prod":
+                region = self.get_prod_region()
+            else:
+                raise ValueError("Invalid environment. Must be 'dev' or 'prod'")
+        
+        for endpoint in self.get_app_package_contents(instance, region, environment):
+            path = urlparse(endpoint).path
+            relative_path = path.split("content/")[-1]
+            file_path = os.path.expanduser(
+                os.path.join(destination_path, relative_path)
+            ) # Path to donwload to
+
+            if path.endswith("/"):
+                continue # Skip directories
+
+            dir_name = os.path.dirname(file_path)
+            if dir_name and not os.path.exists(dir_name):
+                os.makedirs(dir_name, exist_ok=True)
+                
+            try:
+                data = self._request(
+                    "GET",
+                    urlparse(endpoint).path,
+                    return_raw_response=False
+                )
+               
+                with open(file_path, "wb") as f:
+                    f.write(data)
+            except Exception as e:
+                print(f"Error downloading {endpoint}: {e}")
+            
+
 
     def get_endpoint_auth_method(
         self,
