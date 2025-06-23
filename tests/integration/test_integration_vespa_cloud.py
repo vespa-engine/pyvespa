@@ -218,8 +218,9 @@ class TestMsmarcoApplication(TestApplicationCommon):
             region="aws-us-east-1c",
             environment="dev"
         )
-        self.assertIsInstance(schemas, list)
-        self.assertTrue(all(isinstance(schema, str) for schema in schemas))
+        self.assertIsInstance(schemas, dict)
+        self.assertTrue(all(isinstance(schema_content, str) for schema_content in schemas.values()))
+        self.assertTrue(all(isinstance(schema_name, str) for schema_name in schemas.keys()))
 
     def test_download_app_package_content(self):
         with TemporaryDirectory() as temp_dir:

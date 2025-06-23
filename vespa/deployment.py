@@ -1531,7 +1531,7 @@ class VespaCloud(VespaDeployment):
         instance: Optional[str] = "default",
         region: Optional[str] = None,
         environment: Optional[str] = "dev",
-    ) -> List[str]:
+    ) -> Dict[str, str]:
         """
         Get all schemas for the application instance in the specified environment and region.
        
@@ -1541,7 +1541,7 @@ class VespaCloud(VespaDeployment):
             environment (str): Environment (dev/prod). Default is 'dev'.
         
         Returns:
-            list: List of schemas.
+            dict: Dictionary with schema name as key and content as value.
         """
         if region is None:
             if environment == "dev":
@@ -1550,7 +1550,8 @@ class VespaCloud(VespaDeployment):
                 region = self.get_prod_region()
             else:
                 raise ValueError("Invalid environment. Must be 'dev' or 'prod'")
-        schemas = [self._request(
+        schemas = {
+            schema_endpoint.split("/")[-1][:-3] : self._request(
             "GET",
             urlparse(schema_endpoint).path
             ).decode("utf-8") for schema_endpoint in
@@ -1559,7 +1560,7 @@ class VespaCloud(VespaDeployment):
             "/application/v4/tenant/{}/application/{}/instance/{}/environment/{}/region/{}/content/schemas/".format(
                 self.tenant, self.application, instance, environment, region
                 )
-            )]
+            )}
 
         return schemas
 
