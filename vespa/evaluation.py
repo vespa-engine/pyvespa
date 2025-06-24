@@ -5,6 +5,7 @@ import logging
 from typing import Dict, Set, Callable, List, Optional, Union, Tuple
 import math
 from datetime import datetime
+from enum import Enum
 from vespa.application import Vespa
 from vespa.io import VespaQueryResponse
 from abc import ABC, abstractmethod
@@ -20,6 +21,18 @@ if not logger.hasHandlers():
     )
     handler.setFormatter(formatter)
     logger.addHandler(handler)
+
+
+class RandomHitsSamplingStrategy(Enum):
+    """
+    Enum for different random hits sampling strategies.
+
+    - RATIO: Sample random hits as a ratio of relevant docs (e.g., 1.0 = equal number, 2.0 = twice as many)
+    - FIXED: Sample a fixed number of random hits per query
+    """
+
+    RATIO = "ratio"
+    FIXED = "fixed"
 
 
 def mean(values: List[float]) -> float:
@@ -196,6 +209,15 @@ def extract_doc_id_from_hit(hit: dict, id_field: str) -> str:
         raise ValueError(f"Could not extract doc_id from hit: {hit}")
 
     return doc_id
+
+
+def get_id_field_from_hit(hit: dict, id_field: str) -> str:
+    """Get the ID field from a Vespa hit."""
+    id_val = hit.get("fields", {}).get(id_field, None)
+    if id_val is not None:
+        return str(id_val)
+    else:
+        raise ValueError(f"ID field '{id_field}' not found in hit: {hit}")
 
 
 def calculate_searchtime_stats(searchtimes: List[float]) -> Dict[str, float]:
@@ -1110,3 +1132,554 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
             self._write_verbose_csv(verbose_data)
 
         return metrics
+
+
+class VespaCollectorBase(ABC):
+    """
+    Abstract base class for Vespa training data collectors providing initialization and interface.
+    """
+
+    def __init__(
+        self,
+        queries: Dict[str, str],
+        relevant_docs: Union[
+            Dict[str, Union[Set[str], Dict[str, float]]], Dict[str, str]
+        ],
+        vespa_query_fn: Callable[[str, int, Optional[str]], dict],
+        app: Vespa,
+        id_field: str,
+        name: str = "",
+        csv_dir: Optional[str] = None,
+        random_hits_strategy: Union[
+            RandomHitsSamplingStrategy, str
+        ] = RandomHitsSamplingStrategy.RATIO,
+        random_hits_value: Union[float, int] = 1.0,
+        max_random_hits_per_query: Optional[int] = None,
+        collect_matchfeatures: bool = True,
+        collect_rankfeatures: bool = False,
+        collect_summaryfeatures: bool = False,
+        write_csv: bool = True,
+    ):
+        """
+        Initialize the VespaFeatureCollector.
+
+        Args:
+            queries: Dictionary mapping query IDs to query strings
+            relevant_docs: Dictionary mapping query IDs to relevant document IDs
+            vespa_query_fn: Function to generate Vespa query bodies
+            app: Vespa application instance
+            id_field: Field name containing document IDs in Vespa hits (must be defined as an attribute in the schema)
+            name: Name for this collection run
+            csv_dir: Directory to save CSV files
+            random_hits_strategy: Strategy for sampling random hits - either "ratio" or "fixed"
+                - RATIO: Sample random hits as a ratio of relevant docs
+                - FIXED: Sample a fixed number of random hits per query
+            random_hits_value: Value for the sampling strategy
+                - For RATIO: Ratio value (e.g., 1.0 = equal, 2.0 = twice as many random hits)
+                - For FIXED: Fixed number of random hits per query
+            max_random_hits_per_query: Optional maximum limit on random hits per query
+                (only applies when using RATIO strategy to prevent excessive sampling)
+            collect_matchfeatures: Whether to collect match features
+            collect_rankfeatures: Whether to collect rank features
+            collect_summaryfeatures: Whether to collect summary features
+            write_csv: Whether to write results to CSV file
+        """
+        if not id_field:
+            raise ValueError(
+                "id_field is required and cannot be empty. "
+                "Please specify the field name that contains document IDs in your Vespa hits. "
+                "This field must be defined as an attribute in your Vespa schema."
+            )
+
+        self.id_field = id_field
+
+        # Handle strategy parameter - support both enum and string
+        if isinstance(random_hits_strategy, str):
+            try:
+                self.random_hits_strategy = RandomHitsSamplingStrategy(
+                    random_hits_strategy.lower()
+                )
+            except ValueError:
+                raise ValueError(
+                    f"Invalid random_hits_strategy '{random_hits_strategy}'. "
+                    f"Must be one of: {[s.value for s in RandomHitsSamplingStrategy]}"
+                )
+        else:
+            self.random_hits_strategy = random_hits_strategy
+
+        # Validate random_hits_value based on strategy
+        if self.random_hits_strategy == RandomHitsSamplingStrategy.RATIO:
+            if not isinstance(random_hits_value, (int, float)) or random_hits_value < 0:
+                raise ValueError(
+                    "For RATIO strategy, random_hits_value must be a non-negative number"
+                )
+            self.random_hits_ratio = float(random_hits_value)
+        elif self.random_hits_strategy == RandomHitsSamplingStrategy.FIXED:
+            if not isinstance(random_hits_value, int) or random_hits_value < 0:
+                raise ValueError(
+                    "For FIXED strategy, random_hits_value must be a non-negative integer"
+                )
+            self.random_hits_fixed = int(random_hits_value)
+
+        self.max_random_hits_per_query = max_random_hits_per_query
+        if (
+            self.max_random_hits_per_query is not None
+            and self.max_random_hits_per_query < 0
+        ):
+            raise ValueError("max_random_hits_per_query must be non-negative")
+
+        self.collect_matchfeatures = collect_matchfeatures
+        self.collect_rankfeatures = collect_rankfeatures
+        self.collect_summaryfeatures = collect_summaryfeatures
+        self.write_csv = write_csv
+
+        # Log the sampling strategy for user understanding
+        if self.random_hits_strategy == RandomHitsSamplingStrategy.RATIO:
+            strategy_desc = f"RATIO strategy with ratio={self.random_hits_ratio}"
+            if self.max_random_hits_per_query is not None:
+                strategy_desc += (
+                    f" (max {self.max_random_hits_per_query} random hits per query)"
+                )
+        else:
+            strategy_desc = (
+                f"FIXED strategy with {self.random_hits_fixed} random hits per query"
+            )
+        logger.info(f"Random hits sampling strategy: {strategy_desc}")
+        validated_queries = validate_queries(queries)
+        self._vespa_query_fn_takes_query_id = validate_vespa_query_fn(vespa_query_fn)
+        validated_relevant_docs = validate_qrels(relevant_docs)
+
+        # Filter out any queries that have no relevant docs
+        self.queries_ids = filter_queries(validated_queries, validated_relevant_docs)
+
+        self.queries = [validated_queries[qid] for qid in self.queries_ids]
+        self.relevant_docs = validated_relevant_docs
+
+        self.searchtimes: List[float] = []
+        self.vespa_query_fn: Callable = vespa_query_fn
+        self.app = app
+
+        self.name = name
+        self.csv_dir = csv_dir
+
+        # Generate datetime string for filenames
+        now = datetime.now()
+        self.dt_string = now.strftime("%Y%m%d_%H%M%S")
+
+        csv_filename = f"Vespa-training-data_{name}_{self.dt_string}.csv"
+        if csv_dir:
+            import os
+
+            self.csv_file: str = os.path.join(csv_dir, csv_filename)
+        else:
+            self.csv_file: str = csv_filename
+
+    @property
+    def default_body(self):
+        return {
+            "timeout": "5s",
+            "presentation.timing": True,
+        }
+
+    @abstractmethod
+    def collect(self) -> Union[None, Dict[str, Union[List[Dict], List[str]]]]:
+        """Abstract method to be implemented by subclasses."""
+        raise NotImplementedError("Subclasses must implement the collect method")
+
+    def __call__(self) -> None:
+        """Make the collector callable."""
+        self.collect()
+
+
+class VespaFeatureCollector(VespaCollectorBase):
+    """
+    Collects training data for retrieval tasks from a Vespa application.
+
+    This class:
+
+    - Iterates over queries and issues them against your Vespa application.
+    - Retrieves top-k documents per query.
+    - Samples random hits based on the specified strategy.
+    - Compiles a CSV file with query-document pairs and their relevance labels.
+
+    Important: If you want to sample random hits, you need to make sure that the rank profile you define in your `vespa_query_fn` has a ranking expression that
+    reflects this. See [docs](https://docs.vespa.ai/en/tutorials/text-search-ml.html#get-random-hits) for example.
+    In this case, be aware that the `relevance_score` value in the returned results (or CSV) will be of no value.
+    This will only have meaning if you use this to collect features for relevant documents only.
+
+    Example usage:
+        ```python
+        from vespa.application import Vespa
+        from vespa.evaluation import VespaFeatureCollector
+
+        queries = {
+            "q1": "What is the best GPU for gaming?",
+            "q2": "How to bake sourdough bread?",
+            # ...
+        }
+        relevant_docs = {
+            "q1": {"d12", "d99"},
+            "q2": {"d101"},
+            # ...
+        }
+
+        def my_vespa_query_fn(query_text: str, top_k: int) -> dict:
+            return {
+                "yql": 'select * from sources * where userInput("' + query_text + '");',
+                "hits": 10,  # Do not make use of top_k here.
+                "ranking": "your_ranking_profile", # This should have `random` as ranking expression
+            }
+
+        app = Vespa(url="http://localhost", port=8080)
+
+        collector = VespaFeatureCollector(
+            queries=queries,
+            relevant_docs=relevant_docs,
+            vespa_query_fn=my_vespa_query_fn,
+            app=app,
+            id_field="id",  # Field in Vespa hit that contains the document ID (must be an attribute)
+            name="retrieval-data-collection",
+            csv_dir="/path/to/save/csv",
+            random_hits_strategy="ratio",  # or RandomHitsSamplingStrategy.RATIO
+            random_hits_value=1.0,  # Sample equal number of random hits to relevant docs
+            max_random_hits_per_query=100,  # Optional: cap random hits per query
+            collect_matchfeatures=True,  # Collect match features from rank profile
+            collect_rankfeatures=False,  # Skip traditional rank features
+            collect_summaryfeatures=False,  # Skip summary features
+        )
+
+        collector()
+        ```
+
+    **Alternative Usage Examples:**
+
+    ```python
+    # Example 1: Fixed number of random hits per query
+    collector = VespaFeatureCollector(
+        queries=queries,
+        relevant_docs=relevant_docs,
+        vespa_query_fn=my_vespa_query_fn,
+        app=app,
+        id_field="id",  # Required field name
+        random_hits_strategy="fixed",
+        random_hits_value=50,  # Always sample 50 random hits per query
+    )
+
+    # Example 2: Ratio-based with a cap
+    collector = VespaFeatureCollector(
+        queries=queries,
+        relevant_docs=relevant_docs,
+        vespa_query_fn=my_vespa_query_fn,
+        app=app,
+        id_field="id",  # Required field name
+        random_hits_strategy="ratio",
+        random_hits_value=2.0,  # Sample twice as many random hits as relevant docs
+        max_random_hits_per_query=200,  # But never more than 200 per query
+    )
+    ```
+
+    Args:
+        queries (Dict[str, str]): A dictionary where keys are query IDs and values are query strings.
+        relevant_docs (Union[Dict[str, Union[Set[str], Dict[str, float]]], Dict[str, str]]):
+            A dictionary mapping query IDs to their relevant document IDs.
+            Can be a set of doc IDs for binary relevance, a dict of doc_id to relevance score (float between 0 and 1)
+            for graded relevance, or a single doc_id string.
+        vespa_query_fn (Callable[[str, int, Optional[str]], dict]): A function that takes a query string,
+            the number of hits to retrieve (top_k), and an optional query_id, and returns a Vespa query body dictionary.
+        app (Vespa): An instance of the Vespa application.
+        id_field (str): The field name in the Vespa hit that contains the document ID. This field must be defined as an attribute in your Vespa schema.
+        name (str, optional): A name for this data collection run. Defaults to "".
+        csv_dir (Optional[str], optional): Directory to save the CSV file. Defaults to None (current directory).
+        random_hits_strategy (Union[RandomHitsSamplingStrategy, str], optional): Strategy for sampling random hits.
+            Can be "ratio" (or RandomHitsSamplingStrategy.RATIO) to sample as a ratio of relevant docs,
+            or "fixed" (or RandomHitsSamplingStrategy.FIXED) to sample a fixed number per query. Defaults to "ratio".
+        random_hits_value (Union[float, int], optional): Value for the sampling strategy.
+            For RATIO strategy: ratio value (e.g., 1.0 = equal number, 2.0 = twice as many random hits).
+            For FIXED strategy: fixed number of random hits per query. Defaults to 1.0.
+        max_random_hits_per_query (Optional[int], optional): Maximum limit on random hits per query.
+            Only applies to RATIO strategy to prevent excessive sampling. Defaults to None (no limit).
+        collect_matchfeatures (bool, optional): Whether to collect match features defined in rank profile's match-features section. Defaults to True.
+        collect_rankfeatures (bool, optional): Whether to collect rank features using ranking.listFeatures=true. Defaults to False.
+        collect_summaryfeatures (bool, optional): Whether to collect summary features from document summaries. Defaults to False.
+        write_csv (bool, optional): Whether to write results to CSV file. Defaults to True.
+    """
+
+    def get_recall_param(self, relevant_doc_ids: set, get_relevant: bool) -> dict:
+        """
+        Adds the recall parameter to the Vespa query body based on relevant document IDs.
+
+        Args:
+            relevant_doc_ids (set): A set of relevant document IDs.
+            get_relevant (bool): Whether to retrieve relevant documents.
+
+        Returns:
+            dict: The updated Vespa query body with the recall parameter.
+        """
+        recall_string_base = " ".join(
+            [f"{self.id_field}:{doc_id}" for doc_id in relevant_doc_ids]
+        )
+        if get_relevant:
+            recall_string = f"+({recall_string_base})"
+        else:
+            recall_string = f"-({recall_string_base})"
+        return {"recall": recall_string}
+
+    def calculate_random_hits_count(self, num_relevant_docs: int) -> int:
+        """
+        Calculate the number of random hits to sample based on the configured strategy.
+
+        Args:
+            num_relevant_docs: Number of relevant documents for the query
+
+        Returns:
+            Number of random hits to sample
+        """
+        if self.random_hits_strategy == RandomHitsSamplingStrategy.RATIO:
+            calculated_count = int(num_relevant_docs * self.random_hits_ratio)
+            if self.max_random_hits_per_query is not None:
+                calculated_count = min(calculated_count, self.max_random_hits_per_query)
+            return calculated_count
+        else:  # FIXED strategy
+            return self.random_hits_fixed
+
+    def collect(self) -> Dict[str, List[Dict]]:
+        """
+        Collects training data by executing queries and saving results to CSV.
+
+        This method:
+        1. Executes all configured queries against the Vespa application.
+        2. Collects the top-k document IDs and their relevance labels.
+        3. Optionally writes the data to a CSV file for training purposes.
+        4. Returns the collected data as a single dictionary with results.
+
+        Returns:
+            Dict containing:
+            - 'results': List of dictionaries, each containing all data for a query-document pair
+              (query_id, doc_id, relevance_label, relevance_score, and all extracted features)
+        """
+        logger.info(f"Starting VespaFeatureCollector on {self.name}")
+        logger.info(f"Number of queries: {len(self.queries_ids)}")
+
+        # Build query bodies using the provided vespa_query_fn
+        query_bodies = []
+        query_metadata = []  # Track metadata for each query body
+
+        for qid, query_text in zip(self.queries_ids, self.queries):
+            relevant_docs = self.relevant_docs.get(qid, set())
+            if len(relevant_docs) > 0:
+                num_relevant = len(relevant_docs)
+                num_random = self.calculate_random_hits_count(num_relevant)
+                logger.info(
+                    f"Query {qid}: {num_relevant} relevant docs, {num_random} random hits to sample"
+                )
+            else:
+                logger.info(f"No relevant documents for query {qid}, skipping.")
+                continue
+            if self._vespa_query_fn_takes_query_id:
+                query_body: dict = self.vespa_query_fn(query_text, num_relevant, qid)
+            else:
+                query_body: dict = self.vespa_query_fn(query_text, num_relevant)
+            if not isinstance(query_body, dict):
+                raise ValueError(
+                    f"vespa_query_fn must return a dict, got: {type(query_body)}"
+                )
+            # Add default body parameters only if not already specified
+            for key, value in self.default_body.items():
+                if key not in query_body:
+                    query_body[key] = value
+
+            # Add feature collection parameters based on configuration
+            if self.collect_rankfeatures:
+                if "ranking" not in query_body:
+                    query_body["ranking"] = {}
+                if isinstance(query_body["ranking"], str):
+                    # Convert string ranking profile to dict
+                    query_body["ranking"] = {"profile": query_body["ranking"]}
+                elif not isinstance(query_body["ranking"], dict):
+                    query_body["ranking"] = {}
+                query_body["ranking"]["listFeatures"] = "true"
+
+            # Note: match-features and summary-features are controlled via the rank profile configuration
+            # and YQL select clause respectively, so they don't need query body modifications
+            # Add recall parameter for both True and False
+            get_relevant_flags = [(True, num_relevant), (False, num_random)]
+            for get_relevant, max_k in get_relevant_flags:
+                recall_param = self.get_recall_param(relevant_docs, get_relevant)
+                # Update hits parameter to match the max_k for this query
+                query_body_with_recall = query_body | recall_param | {"hits": max_k}
+                # Add the modified query body to the list
+                query_bodies.append(query_body_with_recall)
+                # Track metadata for this query body
+                query_metadata.append(
+                    {
+                        "qid": qid,
+                        "query_text": query_text,
+                        "relevant_docs": relevant_docs,
+                        "max_k": max_k,
+                        "get_relevant": get_relevant,
+                    }
+                )
+                logger.info(f"Querying Vespa with: {query_body_with_recall}")
+
+        responses, new_searchtimes = execute_queries(self.app, query_bodies)
+        self.searchtimes.extend(new_searchtimes)
+
+        # Collect all data and determine feature column names
+        all_rows = []
+        all_feature_names = set()
+
+        for i, (metadata, resp) in enumerate(zip(query_metadata, responses)):
+            hits = resp.hits or []
+            qid = metadata["qid"]
+            query_text = metadata["query_text"]
+            relevant_docs = metadata["relevant_docs"]
+            max_k = metadata["max_k"]
+            get_relevant = metadata["get_relevant"]
+
+            for hit in hits[:max_k]:
+                doc_id = get_id_field_from_hit(hit, self.id_field)
+                relevance_score = hit.get("relevance", 0.0)
+
+                # Determine relevance label based on whether docs are binary or graded
+                if isinstance(relevant_docs, dict):
+                    # Graded relevance - use the score directly, or 0.0 if not found
+                    relevance_label = relevant_docs.get(doc_id, 0.0)
+                else:
+                    # Binary relevance - check if doc is in the set
+                    relevance_label = 1.0 if doc_id in relevant_docs else 0.0
+
+                # Extract features based on configuration
+                features = extract_features_from_hit(
+                    hit,
+                    self.collect_matchfeatures,
+                    self.collect_rankfeatures,
+                    self.collect_summaryfeatures,
+                )
+                all_feature_names.update(features.keys())
+
+                # Create complete row with basic info and features (excluding query_text)
+                row_data = {
+                    "query_id": qid,
+                    "doc_id": doc_id,
+                    "relevance_score": relevance_score,
+                    "relevance_label": relevance_label,
+                }
+                # Add all features to the row
+                row_data.update(features)
+                all_rows.append(row_data)
+
+        # Prepare sorted feature column names
+        feature_columns = sorted(list(all_feature_names))
+
+        # Optionally write CSV file
+        if self.write_csv:
+            # All columns: basic info + features (excluding query_text)
+            all_columns = [
+                "query_id",
+                "doc_id",
+                "relevance_label",
+                "relevance_score",
+            ] + feature_columns
+
+            with open(self.csv_file, "w", newline="") as f:
+                if all_rows:
+                    writer = csv.DictWriter(f, fieldnames=all_columns)
+                    writer.writeheader()
+                    for row in all_rows:
+                        # Fill missing feature values with empty string
+                        complete_row = row.copy()
+                        for feature_name in feature_columns:
+                            if feature_name not in complete_row:
+                                complete_row[feature_name] = ""
+                        writer.writerow(complete_row)
+
+            logger.info(
+                f"Collected retrieval training data with {len(feature_columns)} features and wrote to {self.csv_file}"
+            )
+        else:
+            logger.info(
+                f"Collected retrieval training data with {len(feature_columns)} features"
+            )
+
+        # Prepare return data - single dictionary with all results like CSV output
+        results = []
+
+        for row in all_rows:
+            # Create complete row with all data (same as CSV format)
+            complete_row = {
+                "query_id": row["query_id"],
+                "doc_id": row["doc_id"],
+                "relevance_label": row["relevance_label"],
+                "relevance_score": row["relevance_score"],
+            }
+
+            # Add all features to the row, filling missing values with NaN
+            for feature_name in feature_columns:
+                complete_row[feature_name] = row.get(feature_name, math.nan)
+
+            results.append(complete_row)
+
+        return {"results": results}
+
+
+def extract_features_from_hit(
+    hit: dict,
+    collect_matchfeatures: bool,
+    collect_rankfeatures: bool,
+    collect_summaryfeatures: bool,
+) -> Dict[str, float]:
+    """
+    Extract features from a Vespa hit based on the collection configuration.
+
+    Args:
+        hit: The Vespa hit dictionary
+        collect_matchfeatures: Whether to collect match features
+        collect_rankfeatures: Whether to collect rank features
+        collect_summaryfeatures: Whether to collect summary features
+
+    Returns:
+        Dict mapping feature names to values
+    """
+    features = {}
+
+    if collect_matchfeatures:
+        # Try multiple locations for match features
+        matchfeatures = hit.get("fields", {}).get("matchfeatures", {})
+        for feature_name, feature_value in matchfeatures.items():
+            try:
+                features[f"match_{feature_name}"] = float(feature_value)
+            except (ValueError, TypeError):
+                logger.error(
+                    f"Skipping non-numeric match feature '{feature_name}': {feature_value}"
+                )
+                continue
+
+    if collect_rankfeatures:
+        # Try multiple locations for rank features
+        rankfeatures = hit.get("fields", {}).get("rankfeatures", {})
+
+        for feature_name, feature_value in rankfeatures.items():
+            try:
+                features[f"rank_{feature_name}"] = float(feature_value)
+            except (ValueError, TypeError):
+                # Skip non-numeric features
+                logger.error(
+                    f"Skipping non-numeric rank feature '{feature_name}': {feature_value}"
+                )
+                continue
+
+    if collect_summaryfeatures:
+        # Try multiple locations for summary features
+        summaryfeatures = hit.get("fields", {}).get("summaryfeatures", {})
+
+        for feature_name, feature_value in summaryfeatures.items():
+            try:
+                features[f"summary_{feature_name}"] = float(feature_value)
+            except (ValueError, TypeError):
+                # Skip non-numeric features
+                logger.error(
+                    f"Skipping non-numeric summary feature '{feature_name}': {feature_value}"
+                )
+                continue
+
+    return features
