@@ -1522,12 +1522,6 @@ class VespaFeatureCollector(VespaCollectorBase):
                 logger.info(f"Querying Vespa with: {query_body_with_recall}")
 
         responses, new_searchtimes = execute_queries(self.app, query_bodies)
-        # dump responses.json to json file for debugging
-        # import json
-
-        # with open("responses.json", "w") as f:
-        #    json.dump([resp.json for resp in responses], f, indent=2)
-
         self.searchtimes.extend(new_searchtimes)
 
         # Collect all data and determine feature column names
