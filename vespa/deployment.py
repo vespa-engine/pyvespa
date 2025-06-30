@@ -1788,10 +1788,10 @@ class VespaCloud(VespaDeployment):
                 clients_pem.write(
                     self.data_certificate.public_bytes(serialization.Encoding.PEM)
                 )
-        else:
-            raise FileExistsError(
-                f"Certificate already exists at {cert_path}. Use 'overwrite=True' to overwrite it.",
-                file=self.output,
+        elif os.path.exists(cert_path):
+            logging.info(
+                f"Will use existing file at {cert_path}."
+                f"Remove it to add new clients.pem-file on deployment."
             )
 
     def _start_prod_deployment(
