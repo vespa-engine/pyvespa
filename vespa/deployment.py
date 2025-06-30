@@ -684,10 +684,11 @@ class VespaCloud(VespaDeployment):
         if self.application_package is not None:
             if disk_folder is None:
                 disk_folder = os.path.join(os.getcwd(), self.application)
-                Path(disk_folder).mkdir(parents=True, exist_ok=True)
+            Path(disk_folder).mkdir(parents=True, exist_ok=True)
             application_zip_bytes = self._to_application_zip(disk_folder=disk_folder)
         elif self.application_root is not None:
             disk_folder = self.application_root
+            Path(disk_folder).mkdir(parents=True, exist_ok=True)
             client_pem_path = os.path.join(
                 self.application_root, "security/clients.pem"
             )
@@ -695,7 +696,6 @@ class VespaCloud(VespaDeployment):
             application_zip_bytes = BytesIO(
                 self.read_app_package_from_disk(Path(disk_folder))
             )
-
         region = self.get_dev_region()
         job = "dev-" + region
         run = self._start_deployment(
