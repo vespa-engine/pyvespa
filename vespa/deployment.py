@@ -685,19 +685,16 @@ class VespaCloud(VespaDeployment):
             if disk_folder is None:
                 disk_folder = os.path.join(os.getcwd(), self.application)
                 Path(disk_folder).mkdir(parents=True, exist_ok=True)
-                application_zip_bytes = self._to_application_zip(
-                    disk_folder=disk_folder
-                )
-        else:
-            if self.application_root is not None:
-                disk_folder = self.application_root
-                client_pem_path = os.path.join(
-                    self.application_root, "security/clients.pem"
-                )
-                self._write_certificate(cert_path=client_pem_path)
-                application_zip_bytes = BytesIO(
-                    self.read_app_package_from_disk(Path(disk_folder))
-                )
+            application_zip_bytes = self._to_application_zip(disk_folder=disk_folder)
+        elif self.application_root is not None:
+            disk_folder = self.application_root
+            client_pem_path = os.path.join(
+                self.application_root, "security/clients.pem"
+            )
+            self._write_certificate(cert_path=client_pem_path)
+            application_zip_bytes = BytesIO(
+                self.read_app_package_from_disk(Path(disk_folder))
+            )
 
         region = self.get_dev_region()
         job = "dev-" + region
