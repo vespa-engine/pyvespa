@@ -353,7 +353,7 @@ class VespaDocker(VespaDeployment):
 
     def restart_services(self) -> None:
         """
-        Restart Vespa services inside the Docker image. This is equivalent to calling 
+        Restart Vespa services inside the Docker image. This is equivalent to calling
         `self.stop_services()` followed by `self.start_services()`.
 
         Raises:
@@ -555,7 +555,7 @@ class VespaCloud(VespaDeployment):
 
         Raises:
             RuntimeError: If deployment fails.
-            
+
         Returns:
             Vespa: A Vespa connection instance for interacting with the deployed application.
         """
@@ -681,9 +681,23 @@ class VespaCloud(VespaDeployment):
         Raises:
             RuntimeError: If deployment fails or if there are issues with the deployment process.
         """
-        if not disk_folder:
-            disk_folder = os.path.join(os.getcwd(), self.application)
-        self.application_package.to_files(disk_folder)
+        if self.application_package is not None:
+            if disk_folder is None:
+                disk_folder = os.path.join(os.getcwd(), self.application)
+                Path(disk_folder).mkdir(parents=True, exist_ok=True)
+                application_zip_bytes = self._to_application_zip(
+                    disk_folder=disk_folder
+                )
+        else:
+            if self.application_root is not None:
+                disk_folder = self.application_root
+                client_pem_path = os.path.join(
+                    self.application_root, "security/clients.pem"
+                )
+                self._write_certificate(cert_path=client_pem_path)
+                application_zip_bytes = BytesIO(
+                    self.read_app_package_from_disk(Path(disk_folder))
+                )
 
         region = self.get_dev_region()
         job = "dev-" + region
@@ -691,7 +705,7 @@ class VespaCloud(VespaDeployment):
             instance=instance or self.instance,
             job=job,
             disk_folder=disk_folder,
-            application_zip_bytes=None,
+            application_zip_bytes=application_zip_bytes,
             version=version,
         )
         self._follow_deployment(instance, job, run, max_wait)
@@ -1395,12 +1409,14 @@ class VespaCloud(VespaDeployment):
         path: str,
         body: Union[BytesIO, MultipartEncoder] = BytesIO(),
         headers: dict = {},
-        return_raw_response: bool = False
+        return_raw_response: bool = False,
     ) -> Union[dict, httpx.Response]:
         if self.control_plane_auth_method == "access_token":
             return self._request_with_access_token(method, path, body, headers)
         elif self.control_plane_auth_method == "api_key":
-            return self._request_with_api_key(method, path, body, headers, return_raw_response)
+            return self._request_with_api_key(
+                method, path, body, headers, return_raw_response
+            )
         else:
             raise ValueError(
                 "Control plane auth method not inferred. Should be either api_key or access_token."
@@ -1501,12 +1517,12 @@ class VespaCloud(VespaDeployment):
     ) -> List[str]:
         """
         Get all endpoints for the application package content in the specified region and environment.
-       
+
         Args:
             instance (str): Application instance name.
             region (str): Region name, e.g. 'aws-us-east-1c'. If None, uses the default region for the environment.
             environment (str): Environment (dev/prod). Default is 'dev'.
-        
+
         Returns:
             list: List of endpoints for the application instance.
         """
@@ -1517,13 +1533,13 @@ class VespaCloud(VespaDeployment):
                 region = self.get_prod_region()
             else:
                 raise ValueError("Invalid environment. Must be 'dev' or 'prod'")
-        
+
         app_endpoints = self._request(
             "GET",
             "/application/v4/tenant/{}/application/{}/instance/{}/environment/{}/region/{}/content/".format(
                 self.tenant, self.application, instance, environment, region
-                )
-            )
+            ),
+        )
         return app_endpoints
 
     def get_schemas(
@@ -1534,12 +1550,12 @@ class VespaCloud(VespaDeployment):
     ) -> Dict[str, str]:
         """
         Get all schemas for the application instance in the specified environment and region.
-       
+
         Args:
             instance (str): Application instance name.
             region (str): Region name, e.g. 'aws-us-east-1c'. If None, uses the default region for the environment.
             environment (str): Environment (dev/prod). Default is 'dev'.
-        
+
         Returns:
             dict: Dictionary with schema name as key and content as value.
         """
@@ -1551,35 +1567,35 @@ class VespaCloud(VespaDeployment):
             else:
                 raise ValueError("Invalid environment. Must be 'dev' or 'prod'")
         schemas = {
-            schema_endpoint.split("/")[-1][:-3] : self._request(
-            "GET",
-            urlparse(schema_endpoint).path
-            ).decode("utf-8") for schema_endpoint in
-            self._request(
-            "GET",
-            "/application/v4/tenant/{}/application/{}/instance/{}/environment/{}/region/{}/content/schemas/".format(
-                self.tenant, self.application, instance, environment, region
-                )
-            )}
+            schema_endpoint.split("/")[-1][:-3]: self._request(
+                "GET", urlparse(schema_endpoint).path
+            ).decode("utf-8")
+            for schema_endpoint in self._request(
+                "GET",
+                "/application/v4/tenant/{}/application/{}/instance/{}/environment/{}/region/{}/content/schemas/".format(
+                    self.tenant, self.application, instance, environment, region
+                ),
+            )
+        }
 
         return schemas
 
     def download_app_package_content(
-            self,
-            destination_path: str,
-            instance: Optional[str] = "default",
-            region: Optional[str] = None,
-            environment: Optional[str] = "dev",
+        self,
+        destination_path: str,
+        instance: Optional[str] = "default",
+        region: Optional[str] = None,
+        environment: Optional[str] = "dev",
     ) -> None:
         """
         Download the application package content to a specified destination path.
-        
+
         Args:
             destination_path (str): The path where the application package content will be downloaded.
             instance (str): Application instance name.
             region (str): Region name, e.g. 'aws-us-east-1c'. If None, uses the default region for the environment.
             environment (str): Environment (dev/prod). Default is 'dev'.
-        
+
         Returns:
             None
         """
@@ -1590,34 +1606,30 @@ class VespaCloud(VespaDeployment):
                 region = self.get_prod_region()
             else:
                 raise ValueError("Invalid environment. Must be 'dev' or 'prod'")
-        
+
         for endpoint in self.get_app_package_contents(instance, region, environment):
             path = urlparse(endpoint).path
             relative_path = path.split("content/")[-1]
             file_path = os.path.expanduser(
                 os.path.join(destination_path, relative_path)
-            ) # Path to donwload to
+            )  # Path to donwload to
 
             if path.endswith("/"):
-                continue # Skip directories
+                continue  # Skip directories
 
             dir_name = os.path.dirname(file_path)
             if dir_name and not os.path.exists(dir_name):
                 os.makedirs(dir_name, exist_ok=True)
-                
+
             try:
                 data = self._request(
-                    "GET",
-                    urlparse(endpoint).path,
-                    return_raw_response=False
+                    "GET", urlparse(endpoint).path, return_raw_response=False
                 )
-               
+
                 with open(file_path, "wb") as f:
                     f.write(data)
             except Exception as e:
                 print(f"Error downloading {endpoint}: {e}")
-            
-
 
     def get_endpoint_auth_method(
         self,
@@ -1769,6 +1781,19 @@ class VespaCloud(VespaDeployment):
                 return True
         return False
 
+    def _write_certificate(self, cert_path: str, overwrite: bool = False) -> None:
+        if not os.path.exists(cert_path) or overwrite:
+            os.makedirs(os.path.dirname(cert_path), exist_ok=True)
+            with open(cert_path, "wb") as clients_pem:
+                clients_pem.write(
+                    self.data_certificate.public_bytes(serialization.Encoding.PEM)
+                )
+        else:
+            raise FileExistsError(
+                f"Certificate already exists at {cert_path}. Use 'overwrite=True' to overwrite it.",
+                file=self.output,
+            )
+
     def _start_prod_deployment(
         self, application_root: str, source_url: str = "", instance: str = "default"
     ) -> int:
@@ -1786,12 +1811,7 @@ class VespaCloud(VespaDeployment):
         else:
             # Need to write the certificate to disk_folder in security/clients.pem
             client_pem_path = os.path.join(application_root, "security/clients.pem")
-            if not os.path.exists(client_pem_path):
-                os.makedirs(os.path.dirname(client_pem_path), exist_ok=True)
-                with open(client_pem_path, "wb") as clients_pem:
-                    clients_pem.write(
-                        self.data_certificate.public_bytes(serialization.Encoding.PEM)
-                    )
+            self._write_certificate(cert_path=client_pem_path)
             application_package_zip_bytes = BytesIO(
                 self.read_app_package_from_disk(application_root)
             )
@@ -1924,12 +1944,6 @@ class VespaCloud(VespaDeployment):
                 self.tenant, self.application, instance, job
             )
         )
-
-        Path(disk_folder).mkdir(parents=True, exist_ok=True)
-
-        # If the deployment does not use an existing application package on disk
-        if not application_zip_bytes:
-            application_zip_bytes = self._to_application_zip(disk_folder=disk_folder)
 
         if version is not None:
             # Create multipart form data
