@@ -1,0 +1,79 @@
+# Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
+schema doc {
+
+    document doc {
+
+        field id type string {
+            indexing: summary | attribute
+        }
+
+        field title type string {
+            indexing: index | summary
+            index: enable-bm25
+        }
+
+        field text type string {
+            
+        }
+
+        field created_timestamp type long {
+            indexing: attribute | summary
+        }
+        field modified_timestamp type long {
+            indexing: attribute | summary
+        }
+        
+        field last_opened_timestamp type long {
+            indexing: attribute | summary
+        }
+        field open_count type int {
+            indexing: attribute | summary
+        }
+        field favorite type bool {
+            indexing: attribute | summary
+        }
+
+    }
+
+    field title_embedding type tensor<int8>(x[96]) {
+        indexing: input title | embed | pack_bits | attribute | index
+        attribute {
+            distance-metric: hamming
+        }
+    }
+
+    field chunks type array<string> {
+        indexing: input text | chunk fixed-length 1024 | summary | index
+        index: enable-bm25
+    }
+
+    field chunk_embeddings type tensor<int8>(chunk{}, x[96]) {
+        indexing: input text | chunk fixed-length 1024 | embed | pack_bits | attribute | index
+        attribute {
+            distance-metric: hamming
+        }
+    }
+
+    fieldset default {
+        fields: title, chunks
+    }
+
+    document-summary no-chunks {
+        summary id {}
+        summary title {}
+        summary created_timestamp {}
+        summary modified_timestamp {}
+        summary last_opened_timestamp {}
+        summary open_count {}
+        summary favorite {}
+        summary chunks {}
+    }
+
+    document-summary top_3_chunks {
+        from-disk
+        summary chunks_top3 {
+            source: chunks
+            select-elements-by: top_3_chunk_sim_scores #this needs to be added a summary-feature to the rank-profile
+        }
+    }
+}
