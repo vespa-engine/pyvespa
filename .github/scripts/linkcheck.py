@@ -732,7 +732,8 @@ class LinkChecker:
         """Print a table of all links with errors."""
         table = Table(title="Links with Errors", box=box.ROUNDED, show_lines=True)
 
-        table.add_column("URL", style="cyan", ratio=3, overflow="fold")
+        table.add_column("#", style="dim", justify="center", width=4)
+        table.add_column("URL (truncated)", style="cyan", width=60, overflow="ellipsis")
         table.add_column("Status", style="red", justify="center", width=8)
         table.add_column("Error Message", style="yellow", ratio=2, overflow="fold")
         table.add_column("Source File", style="green", ratio=1, overflow="fold")
@@ -740,6 +741,7 @@ class LinkChecker:
 
         # Keep track of URLs we've already reported
         reported_urls = set()
+        error_results = []
 
         for result in self.summary.results:
             if result.status == LinkStatus.ERROR:
@@ -747,15 +749,30 @@ class LinkChecker:
                     continue
 
                 reported_urls.add(result.url)
-                source_file = os.path.basename(result.source_file)
-                line = str(result.source_line) if result.source_line else "N/A"
-                status = str(result.status_code) if result.status_code else "N/A"
+                error_results.append(result)
 
-                table.add_row(
-                    result.url, status, result.error_message, source_file, line
-                )
+        # Add rows to table with numbered entries
+        for i, result in enumerate(error_results, 1):
+            source_file = os.path.basename(result.source_file)
+            line = str(result.source_line) if result.source_line else "N/A"
+            status = str(result.status_code) if result.status_code else "N/A"
+
+            table.add_row(
+                str(i), result.url, status, result.error_message, source_file, line
+            )
 
         self.console.print(table)
+
+        # Print full URLs separately for easy copying
+        if error_results:
+            self.console.print("\n[cyan]Full URLs (for easy copying):[/cyan]")
+            for i, result in enumerate(error_results, 1):
+                source_file = os.path.basename(result.source_file)
+                line = str(result.source_line) if result.source_line else "N/A"
+                self.console.print(f"[dim]{i:2d}.[/dim] {result.url}")
+                self.console.print(f"     [dim]Source: {source_file}:{line}[/dim]")
+                if i < len(error_results):  # Don't add blank line after last item
+                    self.console.print()
 
     def save_results(self) -> None:
         """Save the results to a file if output_file is specified."""
