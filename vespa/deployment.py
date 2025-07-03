@@ -31,7 +31,6 @@ from cryptography.hazmat.primitives.asymmetric import ec
 
 from vespa.application import Vespa
 from vespa.package import ApplicationPackage
-from vespa.utils.notebook import is_jupyter_notebook
 import vespa
 
 # Get the Vespa home directory
@@ -1106,7 +1105,6 @@ class VespaCloud(VespaDeployment):
             )
         import pty
 
-        is_notebook = is_jupyter_notebook()
         # Open a new pseudo-terminal
         master, slave = pty.openpty()
 
@@ -1138,8 +1136,8 @@ class VespaCloud(VespaDeployment):
                             finished = True  # Exit the loop after success message
                             break
 
-                        # Check for input only if running in a Jupyter Notebook
-                        if is_notebook and "[Y/n]" in output:
+                        # Check for input if running in a Jupyter Notebook or terminal
+                        if "[Y/n]" in output:
                             user_input = input() + "\n"
                             os.write(master, user_input.encode())
                             sys.stdout.flush()
