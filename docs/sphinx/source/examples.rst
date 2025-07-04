@@ -28,4 +28,4 @@ Examples
    examples/colpali-benchmark-vqa-vlm_Vespa-cloud.ipynb
    examples/pdf-retrieval-with-ColQwen2-vlm_Vespa-cloud.ipynb
    examples/visual_pdf_rag_with_vespa_colpali_cloud.ipynb
-   examples/visual_pdf_rag_with_vespa_colpali_cloud.ipynb
+   examples/rag-blueprint-vespa-cloud.ipynb
