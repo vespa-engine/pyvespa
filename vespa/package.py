@@ -2445,11 +2445,9 @@ class ContainerCluster(Cluster):
             *[search(), document_api(), document_processing()],
             *[c.to_vt() for c in self.components or []],
             *[
-                (
-                    clients(a.to_vt() for a in self.auth_clients or [])
-                    if self.auth_clients
-                    else None
-                )
+                clients(a.to_vt() for a in self.auth_clients or [])
+                if self.auth_clients
+                else None
             ],
         )
 
@@ -2530,11 +2528,9 @@ class ContentCluster(Cluster):
         return content(
             id=self.id,
             version=self.version,
-            *(
-                self.nodes.to_vt()
-                if self.nodes
-                else [nodes(node(distribution_key="0", hostalias="node1"))]
-            ),
+            *self.nodes.to_vt()
+            if self.nodes
+            else [nodes(node(distribution_key="0", hostalias="node1"))],
             *[min_redundancy(self.min_redundancy)],
             *[documents(document(type=self.document_name, mode="index"))],
         )
@@ -2928,16 +2924,16 @@ class ApplicationPackage(object):
 
     @property
     def schema(self):
-        assert len(self.schemas) <= 1, (
-            "Your application has more than one Schema, use get_schema instead."
-        )
+        assert (
+            len(self.schemas) <= 1
+        ), "Your application has more than one Schema, use get_schema instead."
         return self.schemas[0] if self.schemas else None
 
     def get_schema(self, name: Optional[str] = None):
         if not name:
-            assert len(self.schemas) <= 1, (
-                "Your application has more than one Schema, specify name argument."
-            )
+            assert (
+                len(self.schemas) <= 1
+            ), "Your application has more than one Schema, specify name argument."
             return self.schema
         return self._schema[name]
 
