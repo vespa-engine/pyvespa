@@ -80,7 +80,11 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
                 {% endif %}
                 {% if field.alias %}
                 {% for alias in field.alias %}
+                {% if ':' in alias %}
+                alias {{ alias }}
+                {% else %}
                 alias: {{ alias }}
+                {% endif %}
                 {% endfor %}
                 {% endif %}
             }
