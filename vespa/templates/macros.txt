@@ -71,7 +71,11 @@ field {{ field.name }} type {{ field.type }} {
     {% endif %}
     {% if field.alias %}
     {% for alias in field.alias %}
+    {% if ':' in alias %}
+    alias {{ alias }}
+    {% else %}
     alias: {{ alias }}
+    {% endif %}
     {% endfor %}
     {% endif %}
     {% if field.struct_fields %}

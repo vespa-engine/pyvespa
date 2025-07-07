@@ -323,6 +323,12 @@ class StructField:
 
 
 class FieldConfiguration(TypedDict, total=False):
+    """
+    alias (list[str]): Add alias to the field.
+        Use the format "component: component_alias" to add an alias to a field's component.
+        See [Vespa documentation](https://docs.vespa.ai/en/reference/schema-reference.html#uri) for an example.
+    """
+
     indexing: List[str]
     attribute: List[str]
     index: str
@@ -380,6 +386,7 @@ class Field(object):
             query_command (list, optional): Add configuration for query-command of the field.
             struct_fields (list, optional): Add struct-fields to the field.
             alias (list, optional): Add alias to the field.
+                Use the format "component: component_alias" to add an alias to a field's component. See [Vespa documentation](https://docs.vespa.ai/en/reference/schema-reference.html#uri) for an example.
 
         Example:
             ```python
@@ -492,9 +499,9 @@ class Field(object):
             Field(
                 name = "artist",
                 type = "string",
-                alias = ["artist_name"],
+                alias = ["artist_name", "component: component_alias"],
             )
-            Field('artist', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], ['artist_name'])
+            Field('artist', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], ['artist_name', 'component: component_alias'])
             ```
         """
 
@@ -2438,9 +2445,11 @@ class ContainerCluster(Cluster):
             *[search(), document_api(), document_processing()],
             *[c.to_vt() for c in self.components or []],
             *[
-                clients(a.to_vt() for a in self.auth_clients or [])
-                if self.auth_clients
-                else None
+                (
+                    clients(a.to_vt() for a in self.auth_clients or [])
+                    if self.auth_clients
+                    else None
+                )
             ],
         )
 
@@ -2521,9 +2530,11 @@ class ContentCluster(Cluster):
         return content(
             id=self.id,
             version=self.version,
-            *self.nodes.to_vt()
-            if self.nodes
-            else [nodes(node(distribution_key="0", hostalias="node1"))],
+            *(
+                self.nodes.to_vt()
+                if self.nodes
+                else [nodes(node(distribution_key="0", hostalias="node1"))]
+            ),
             *[min_redundancy(self.min_redundancy)],
             *[documents(document(type=self.document_name, mode="index"))],
         )
@@ -2917,16 +2928,16 @@ class ApplicationPackage(object):
 
     @property
     def schema(self):
-        assert (
-            len(self.schemas) <= 1
-        ), "Your application has more than one Schema, use get_schema instead."
+        assert len(self.schemas) <= 1, (
+            "Your application has more than one Schema, use get_schema instead."
+        )
         return self.schemas[0] if self.schemas else None
 
     def get_schema(self, name: Optional[str] = None):
         if not name:
-            assert (
-                len(self.schemas) <= 1
-            ), "Your application has more than one Schema, specify name argument."
+            assert len(self.schemas) <= 1, (
+                "Your application has more than one Schema, specify name argument."
+            )
             return self.schema
         return self._schema[name]
 
