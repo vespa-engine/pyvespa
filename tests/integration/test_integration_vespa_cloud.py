@@ -204,34 +204,39 @@ class TestMsmarcoApplication(TestApplicationCommon):
 
     def test_get_app_package_contents(self):
         contents = self.vespa_cloud.get_app_package_contents(
-            instance="msmarco",
-            region="aws-us-east-1c",
-            environment="dev"
+            instance="msmarco", region="aws-us-east-1c", environment="dev"
         )
         self.assertIsInstance(contents, list)
-        self.assertTrue(any(url.endswith(".sd") for url in contents), f"No .sd files found.")
-        self.assertTrue(any(url.endswith(".xml") for url in contents), f"No .xml files found.")
-    
+        self.assertTrue(
+            any(url.endswith(".sd") for url in contents), "No .sd files found."
+        )
+        self.assertTrue(
+            any(url.endswith(".xml") for url in contents), "No .xml files found."
+        )
+
     def test_get_schemas(self):
         schemas = self.vespa_cloud.get_schemas(
-            instance="msmarco",
-            region="aws-us-east-1c",
-            environment="dev"
+            instance="msmarco", region="aws-us-east-1c", environment="dev"
         )
         self.assertIsInstance(schemas, dict)
-        self.assertTrue(all(isinstance(schema_content, str) for schema_content in schemas.values()))
-        self.assertTrue(all(isinstance(schema_name, str) for schema_name in schemas.keys()))
+        self.assertTrue(
+            all(isinstance(schema_content, str) for schema_content in schemas.values())
+        )
+        self.assertTrue(
+            all(isinstance(schema_name, str) for schema_name in schemas.keys())
+        )
 
     def test_download_app_package_content(self):
         with TemporaryDirectory() as temp_dir:
             self.vespa_cloud.download_app_package_content(
-                temp_dir,
-                instance="msmarco",
-                region="aws-us-east-1c",
-                environment="dev"
+                temp_dir, instance="msmarco", region="aws-us-east-1c", environment="dev"
             )
             expected_file = os.path.join(temp_dir, "schemas", "msmarco.sd")
-            self.assertTrue(os.path.exists(expected_file), f"msmarco.sd not downloaded. Only downloaded: {os.listdir(temp_dir)}")
+            self.assertTrue(
+                os.path.exists(expected_file),
+                f"msmarco.sd not downloaded. Only downloaded: {os.listdir(temp_dir)}",
+            )
+
 
 class TestRetryApplication(unittest.TestCase):
     """
@@ -404,3 +409,39 @@ class TestGetClusterEndpoint(unittest.TestCase):
             cluster="default", environment="prod"
         )
         self.assertIn("vespa-app.cloud/", default_endpoint)
+
+
+class TestDeployApplicationRoot(unittest.TestCase):
+    def setUp(self) -> None:
+        self.application_root = (
+            pathlib.Path(__file__).parent.parent / "testapps" / "rag-blueprint"
+        )
+        self.vespa_cloud = VespaCloud(
+            tenant="vespa-team",
+            application="pyvespa-integration",
+            key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
+            application_root=self.application_root,
+        )
+        # Delete clients.pem if it exists, to test creation on first deployment
+        if (self.application_root / "security" / "clients.pem").exists():
+            os.remove(self.application_root / "security" / "clients.pem")
+        _app = self.vespa_cloud.deploy(instance="rag-blueprint", max_wait=300)
+
+    def test_deploy_application_root_with_clients_pem(self):
+        """After first deployment, the clients.pem file is created in the application root."""
+        self.assertTrue(
+            (self.application_root / "security" / "clients.pem").exists(),
+            "clients.pem file was not created.",
+        )
+        pem_file_modified_time = (
+            (self.application_root / "security" / "clients.pem").stat().st_mtime
+        )
+        _app = self.vespa_cloud.deploy(instance="rag-blueprint", max_wait=300)
+        # Verify modified time is not changed after redeployment
+        self.assertEqual(
+            pem_file_modified_time,
+            (self.application_root / "security" / "clients.pem").stat().st_mtime,
+        )
+
+    def tearDown(self) -> None:
+        self.vespa_cloud.delete(instance="rag-blueprint")
