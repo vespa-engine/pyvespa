@@ -1984,7 +1984,7 @@ class QueryTypeField(object):
 
 
 class QueryProfileType(object):
-    def __init__(self, fields: Optional[List[QueryTypeField]] = None) -> None:
+    def __init__(self, name: str = "root", fields: Optional[List[QueryTypeField]] = None) -> None:
         """
         Create a Vespa Query Profile Type.
 
@@ -2011,7 +2011,7 @@ class QueryProfileType(object):
             # Output: QueryProfileType([QueryTypeField('ranking.features.query(tensor_bert)', 'tensor<float>(x[768])')])
             ```
         """
-        self.name = "root"
+        self.name = name
         self.fields = [] if not fields else fields
 
     def add_fields(self, *fields: QueryTypeField) -> None:
@@ -2085,7 +2085,7 @@ class QueryField(object):
 
 
 class QueryProfile(object):
-    def __init__(self, fields: Optional[List[QueryField]] = None) -> None:
+    def __init__(self, name: str = "default", type: str = "root", fields: Optional[List[QueryField]] = None) -> None:
         """
         Create a Vespa Query Profile.
 
@@ -2098,6 +2098,8 @@ class QueryProfile(object):
         Type checking is turned on by referencing a `QueryProfileType` from the query profile.
 
         Args:
+            name (str): Query profile name.
+            type (str): Query profile type.
             fields (list[QueryField]): A list of `QueryField`.
 
         Example:
@@ -2106,8 +2108,8 @@ class QueryProfile(object):
             # Output: QueryProfile([QueryField('maxHits', 1000)])
             ```
         """
-        self.name = "default"
-        self.type = "root"
+        self.name = name
+        self.type = type
         self.fields = [] if not fields else fields
 
     def add_fields(self, *fields: QueryField) -> None:
@@ -3137,8 +3139,12 @@ class ApplicationPackage(object):
                 )
             )
 
-    @property
-    def query_profile_to_text(self):
+    
+    def query_profile_to_text(self, query_profile_name: str = "default"):
+        if query_profile_name not in self.query_profiles:
+            raise ValueError(
+                f"Query profile named {query_profile_name} not defined in the application package."
+            )
         env = Environment(
             loader=PackageLoader("vespa", "templates"),
             autoescape=select_autoescape(
@@ -3152,8 +3158,11 @@ class ApplicationPackage(object):
         query_profile_template = env.get_template("query_profile.xml")
         return query_profile_template.render(query_profile=self.query_profile)
 
-    @property
-    def query_profile_type_to_text(self):
+    def query_profile_type_to_text(self, query_profile_type_name: str = "root"):
+        if query_profile_type_name not in self.query_profile_types:
+            raise ValueError(
+                f"Query profile type named {query_profile_type_name} not defined in the application package."
+            )
         env = Environment(
             loader=PackageLoader("vespa", "templates"),
             autoescape=select_autoescape(
@@ -3166,7 +3175,7 @@ class ApplicationPackage(object):
         env.lstrip_blocks = True
         query_profile_type_template = env.get_template("query_profile_type.xml")
         return query_profile_type_template.render(
-            query_profile_type=self.query_profile_type
+            query_profile_type=self.query_profile_types[query_profile_type_name]
         )
 
     @property
