@@ -323,6 +323,12 @@ class StructField:
 
 
 class FieldConfiguration(TypedDict, total=False):
+    """
+    alias (list[str]): Add alias to the field.
+        Use the format "component: component_alias" to add an alias to a field's component.
+        See [Vespa documentation](https://docs.vespa.ai/en/reference/schema-reference.html#uri) for an example.
+    """
+
     indexing: List[str]
     attribute: List[str]
     index: str
@@ -380,6 +386,7 @@ class Field(object):
             query_command (list, optional): Add configuration for query-command of the field.
             struct_fields (list, optional): Add struct-fields to the field.
             alias (list, optional): Add alias to the field.
+                Use the format "component: component_alias" to add an alias to a field's component. See [Vespa documentation](https://docs.vespa.ai/en/reference/schema-reference.html#uri) for an example.
 
         Example:
             ```python
@@ -492,9 +499,9 @@ class Field(object):
             Field(
                 name = "artist",
                 type = "string",
-                alias = ["artist_name"],
+                alias = ["artist_name", "component: component_alias"],
             )
-            Field('artist', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], ['artist_name'])
+            Field('artist', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], ['artist_name', 'component: component_alias'])
             ```
         """
 
