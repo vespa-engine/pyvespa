@@ -2823,8 +2823,8 @@ class ApplicationPackage(object):
         self,
         name: str,
         schema: Optional[List[Schema]] = None,
-        query_profiles: Optional[Dict[str, QueryProfile]] = None,
-        query_profile_types: Optional[Dict[str, QueryProfileType]] = None,
+        query_profile: Optional[Dict[str, QueryProfile] | QueryProfile] = None,
+        query_profile_type: Optional[Dict[str, QueryProfileType] | QueryProfileType] = None,
         stateless_model_evaluation: bool = False,
         create_schema_by_default: bool = True,
         create_query_profile_by_default: bool = True,
@@ -2842,10 +2842,11 @@ class ApplicationPackage(object):
             name (str): Application name. Cannot contain '-' or '_'.
             schema (list, optional): List of Schema objects for the application. If None, a default Schema
                 with the same name as the application will be created. Defaults to None.
-            query_profiles (dict, optional): Dictionary of QueryProfile objects for the application. If None, a default
+            query_profile (dict, optional): QueryProfile, or Dictionary of QueryProfile objects
+                for the application. If None, a default
                 QueryProfile with QueryProfileType 'root' will be created. Defaults to None.
-            query_profile_types (dict, optional): Dictionary of QueryProfileType objects for the application. If None,
-                a default QueryProfileType 'root' will be created. Defaults to None.
+            query_profile_type (dict, optional): QueryProfileType, or Dictionary of QueryProfileType objects
+                for the application. If None, a default QueryProfileType 'root' will be created. Defaults to None.
             stateless_model_evaluation (bool, optional): Enable stateless model evaluation. Defaults to False.
             create_schema_by_default (bool, optional): Include a default Schema if none is provided in the schema
                 argument. Defaults to True.
@@ -2887,18 +2888,22 @@ class ApplicationPackage(object):
                 else []
             )
         self._schema = OrderedDict([(x.name, x) for x in schema])
+        if isinstance(query_profile, QueryProfile):
+            query_profile: dict[str, QueryProfile] = {"default": query_profile}
         if create_query_profile_by_default:
-            if not query_profiles:
-                query_profiles = {"default": QueryProfile()}
-            if "default" not in query_profiles:
-                query_profiles["default"] = QueryProfile()
-        self.query_profiles = query_profiles
+            if not query_profile:
+                query_profile = {"default": QueryProfile()}
+            if "default" not in query_profile:
+                query_profile["default"] = QueryProfile()
+        self.query_profile = query_profile
+        if isinstance(query_profile_type, QueryProfileType):
+            query_profile_type = {"root": query_profile_type}
         if create_query_profile_by_default:
-            if not query_profile_types:
-                query_profile_types = {"root": QueryProfileType()}
-            if "root" not in query_profile_types:
-                query_profile_types["root"] = QueryProfileType()
-        self.query_profile_types = query_profile_types
+            if not query_profile_type:
+                query_profile_type = {"root": QueryProfileType()}
+            if "root" not in query_profile_type:
+                query_profile_type["root"] = QueryProfileType()
+        self.query_profile_type = query_profile_type
         self.model_ids = []
         self.model_configs = {}
         self.stateless_model_evaluation = stateless_model_evaluation
@@ -2970,7 +2975,7 @@ class ApplicationPackage(object):
 
     
     def query_profile_to_text(self, query_profile_name: str = "default"):
-        if query_profile_name not in self.query_profiles:
+        if query_profile_name not in self.query_profile:
             raise ValueError(
                 f"Query profile named {query_profile_name} not defined in the application package."
             )
@@ -2986,11 +2991,11 @@ class ApplicationPackage(object):
         env.lstrip_blocks = True
         query_profile_template = env.get_template("query_profile.xml")
         return query_profile_template.render(
-            query_profile=self.query_profiles[query_profile_name]
+            query_profile=self.query_profile[query_profile_name]
         )
 
     def query_profile_type_to_text(self, query_profile_type_name: str = "root"):
-        if query_profile_type_name not in self.query_profile_types:
+        if query_profile_type_name not in self.query_profile_type:
             raise ValueError(
                 f"Query profile type named {query_profile_type_name} not defined in the application package."
             )
@@ -3006,7 +3011,7 @@ class ApplicationPackage(object):
         env.lstrip_blocks = True
         query_profile_type_template = env.get_template("query_profile_type.xml")
         return query_profile_type_template.render(
-            query_profile_type=self.query_profile_types[query_profile_type_name]
+            query_profile_type=self.query_profile_type[query_profile_type_name]
         )
 
     @property
@@ -3118,13 +3123,13 @@ class ApplicationPackage(object):
                     )
                     os.remove(temp_model_file)
 
-            if self.query_profiles:
-                for query_profile_name in self.query_profiles.keys():
+            if self.query_profile:
+                for query_profile_name in self.query_profile.keys():
                     zip_archive.writestr(
                         f"search/query-profiles/{query_profile_name}.xml",
                         self.query_profile_to_text(query_profile_name),
                     )
-                for query_profile_type_name in self.query_profile_types.keys():
+                for query_profile_type_name in self.query_profile_type.keys():
                     zip_archive.writestr(
                         f"search/query-profiles/types/{query_profile_type_name}.xml",
                         self.query_profile_type_to_text(query_profile_type_name),
@@ -3185,8 +3190,8 @@ class ApplicationPackage(object):
                     os.path.join(root, "files", model.model_file_name),
                 )
 
-        if self.query_profiles:
-            for query_profile_name in self.query_profiles.keys():
+        if self.query_profile:
+            for query_profile_name in self.query_profile.keys():
                 with open(
                     os.path.join(
                         root, f"search/query-profiles/{query_profile_name}.xml"
@@ -3194,7 +3199,7 @@ class ApplicationPackage(object):
                     "w",
                 ) as f:
                     f.write(self.query_profile_to_text(query_profile_name))
-            for query_profile_type_name in self.query_profile_types.keys():
+            for query_profile_type_name in self.query_profile_type.keys():
                 with open(
                     os.path.join(
                         root,
@@ -3231,8 +3236,8 @@ class ApplicationPackage(object):
             self.__class__.__name__,
             repr(self.name),
             repr(self.schemas),
-            repr(self.query_profiles),
-            repr(self.query_profile_types),
+            repr(self.query_profile),
+            repr(self.query_profile_type),
         )
 
 
