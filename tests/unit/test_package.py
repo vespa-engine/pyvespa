@@ -1582,12 +1582,18 @@ class TestFieldAlias(unittest.TestCase):
                         alias=["single_aliased_field_alias"],
                     ),
                     Field(
+                        name="single_component_aliased_field",
+                        type="string",
+                        alias=["component:component_alias"],
+                    ),
+                    Field(
                         name="multiple_aliased_field",
                         type="string",
                         alias=[
                             "first_alias",
                             "second_alias",
                             "third_alias",
+                            "fourth_component: fourth_alias",
                         ],
                     ),
                 ]
@@ -1606,10 +1612,14 @@ class TestFieldAlias(unittest.TestCase):
             "        field single_aliased_field type string {\n"
             "            alias: single_aliased_field_alias\n"
             "        }\n"
+            "        field single_component_aliased_field type string {\n"
+            "            alias component: component_alias\n"
+            "        }\n"
             "        field multiple_aliased_field type string {\n"
             "            alias: first_alias\n"
             "            alias: second_alias\n"
             "            alias: third_alias\n"
+            "            alias fourth_component: fourth_alias\n"
             "        }\n"
             "    }\n"
             "}"
@@ -2005,6 +2015,7 @@ class TestPredicateField(unittest.TestCase):
         print()
         print(expected_result)
         self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
+
 
 class TestRankProfileCustomSettings(unittest.TestCase):
     def test_rank_profile_with_filter_and_weakand(self):
