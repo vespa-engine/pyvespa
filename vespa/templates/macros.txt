@@ -5,16 +5,22 @@ field {{ field.name }} type {{ field.type }} {
     {% if field.indexing %}
     indexing: {{ field.indexing_to_text }}
     {% endif %}
-    {% if field.index %}
-    {% if field.index is mapping %}
+    {% if field.index_configurations %}
+    {% for index_config in field.index_configurations %}
+    {% if index_config is mapping %}
     index {
-        {% for key, value in field.index.items() %}
+        {% for key, value in index_config.items() %}
+        {% if value is none %}
+        {{ key }}
+        {% else %}
         {{ key }}: {{ value }}
+        {% endif %}
         {% endfor %}
     }
     {% else %}
-    index: {{ field.index }}
+    index: {{ index_config }}
     {% endif %}
+    {% endfor %}
     {% endif %}
     {% if field.ann or field.attribute %}
     attribute {

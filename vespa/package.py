@@ -11,7 +11,7 @@ from enum import Enum
 from io import BytesIO
 from pathlib import Path
 from shutil import copyfile
-from typing import Dict, List, Literal, Optional, Tuple, TypedDict, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict, Union
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 from vespa.configuration.vt import Xml, vt
@@ -331,7 +331,7 @@ class FieldConfiguration(TypedDict, total=False):
 
     indexing: List[str]
     attribute: List[str]
-    index: str
+    index: Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]]
     ann: HNSW
     match: List[Union[str, Tuple[str, str]]]
     weight: int
@@ -350,7 +350,7 @@ class Field(object):
         name: str,
         type: str,
         indexing: Optional[List[str]] = None,
-        index: Optional[str] = None,
+        index: Optional[Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]]] = None,
         attribute: Optional[List[str]] = None,
         ann: Optional[HNSW] = None,
         match: Optional[List[Union[str, Tuple[str, str]]]] = None,
@@ -373,7 +373,7 @@ class Field(object):
             name (str): The name of the field.
             type (str): The data type of the field.
             indexing (list, optional): Configures how to process data of a field during indexing.
-            index (str, optional): Sets index parameters. Fields with index are normalized and tokenized by default.
+            index (str, dict, or list, optional): Sets index parameters. Can be a string (e.g., "enable-bm25"), a dict for block configuration (e.g., {"arity": 2}), or a list for multiple index configurations. Fields with index are normalized and tokenized by default.
             attribute (list, optional): Specifies a property of an index structure attribute.
             ann (HNSW, optional): Add configuration for approximate nearest neighbor.
             match (list, optional): Set properties that decide how the matching method for this field operates.
@@ -503,6 +503,52 @@ class Field(object):
             )
             Field('artist', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], ['artist_name', 'component: component_alias'])
             ```
+
+            ```python
+            # Multiple index configurations (NEW in version X.X)
+            Field(
+                name = "predicate_field",
+                type = "predicate",
+                indexing = ["attribute"],
+                index = {
+                    "arity": 2,
+                    "lower-bound": 3,
+                    "upper-bound": 200,
+                    "dense-posting-list-threshold": 0.25
+                }
+            )
+            # Renders as: index { arity: 2; lower-bound: 3; upper-bound: 200; dense-posting-list-threshold: 0.25 }
+            ```
+
+            ```python
+            # Multiple index configurations with mixed types
+            Field(
+                name = "complex_field",
+                type = "string",
+                indexing = ["index", "summary"],
+                index = [
+                    "enable-bm25",  # Simple index setting
+                    {"arity": 2, "lower-bound": 3},  # Complex index block
+                    "another-setting"  # Another simple setting
+                ]
+            )
+            # Renders as:
+            # index: enable-bm25
+            # index { arity: 2; lower-bound: 3 }
+            # index: another-setting
+            ```
+
+            ```python
+            # Parameterless index settings using None values
+            Field(
+                name = "taxonomy",
+                type = "array<string>",
+                indexing = ["index", "summary"],
+                match = ["text"],
+                index = {"enable-bm25": None}
+            )
+            # Renders as: index { enable-bm25 } (without ": None")
+            ```
         """
 
         self.name = name
@@ -535,6 +581,19 @@ class Field(object):
     def indexing_to_text(self) -> Optional[str]:
         if self.indexing is not None:
             return " | ".join(self.indexing)
+
+    @property
+    def index_configurations(self) -> List[Union[str, Dict[str, Any]]]:
+        """
+        Returns index configurations as a list, normalizing single values to lists.
+        This allows the template to consistently iterate over index configurations.
+        """
+        if self.index is None:
+            return []
+        elif isinstance(self.index, list):
+            return self.index
+        else:
+            return [self.index]
 
     @property
     def struct_fields(self) -> List[StructField]:
