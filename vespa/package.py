@@ -350,7 +350,9 @@ class Field(object):
         name: str,
         type: str,
         indexing: Optional[List[str]] = None,
-        index: Optional[Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]]] = None,
+        index: Optional[
+            Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]]
+        ] = None,
         attribute: Optional[List[str]] = None,
         ann: Optional[HNSW] = None,
         match: Optional[List[Union[str, Tuple[str, str]]]] = None,
@@ -369,11 +371,20 @@ class Field(object):
         we usually want to add fields so that we can store our data in a structured manner.
         We can accomplish that by creating `Field` instances and adding those to the `ApplicationPackage` instance via `Schema` and `Document` methods.
 
+        Index Configuration Behavior:
+            - Single string configuration: uses `index: value` syntax
+            - Single dict or multiple configurations: uses `index { ... }` block syntax
+            - All configurations in a list are consolidated into a single index block
+
         Args:
             name (str): The name of the field.
             type (str): The data type of the field.
             indexing (list, optional): Configures how to process data of a field during indexing.
-            index (str, dict, or list, optional): Sets index parameters. Can be a string (e.g., "enable-bm25"), a dict for block configuration (e.g., {"arity": 2}), or a list for multiple index configurations. Fields with index are normalized and tokenized by default.
+            index (str, dict, or list, optional): Sets index parameters.
+                - Single string (e.g., "enable-bm25"): renders as `index: enable-bm25`
+                - Single dict (e.g., {"arity": 2}): renders as `index { arity: 2 }`
+                - List with multiple items: renders as single `index { ... }` block containing all configurations
+                Fields with index are normalized and tokenized by default.
             attribute (list, optional): Specifies a property of an index structure attribute.
             ann (HNSW, optional): Add configuration for approximate nearest neighbor.
             match (list, optional): Set properties that decide how the matching method for this field operates.
@@ -505,7 +516,25 @@ class Field(object):
             ```
 
             ```python
-            # Multiple index configurations (NEW in version X.X)
+            # Single string index - uses simple syntax
+            Field(name = "title", type = "string", index = "enable-bm25")
+            # Renders as: index: enable-bm25
+            ```
+
+            ```python
+            # Single dict index - uses block syntax
+            Field(name = "predicate_field", type = "predicate", index = {"arity": 2})
+            # Renders as: index { arity: 2 }
+            ```
+
+            ```python
+            # Multiple string indices - uses block syntax
+            Field(name = "multi", type = "string", index = ["enable-bm25", "another-setting"])
+            # Renders as: index { enable-bm25; another-setting }
+            ```
+
+            ```python
+            # Complex index configurations with multiple parameters
             Field(
                 name = "predicate_field",
                 type = "predicate",
@@ -532,10 +561,13 @@ class Field(object):
                     "another-setting"  # Another simple setting
                 ]
             )
-            # Renders as:
-            # index: enable-bm25
-            # index { arity: 2; lower-bound: 3 }
-            # index: another-setting
+            # Renders as single block:
+            # index {
+            #     enable-bm25
+            #     arity: 2
+            #     lower-bound: 3
+            #     another-setting
+            # }
             ```
 
             ```python
@@ -594,6 +626,16 @@ class Field(object):
             return self.index
         else:
             return [self.index]
+
+    @property
+    def use_simple_index_syntax(self) -> bool:
+        """
+        Returns True if we should use simple 'index: value' syntax.
+        Simple syntax is used only when there's exactly one string configuration.
+        Otherwise, we use the block syntax 'index { ... }'.
+        """
+        configs = self.index_configurations
+        return len(configs) == 1 and isinstance(configs[0], str)
 
     @property
     def struct_fields(self) -> List[StructField]:
