@@ -69,6 +69,51 @@ class TestField(unittest.TestCase):
         )
         self.assertEqual(field.indexing_to_text, "index | summary")
 
+    def test_field_multiline_indexing_tuple(self):
+        field = Field(
+            name="title",
+            type="array<string>",
+            indexing=('"en"', ["index", "summary"]),
+        )
+        self.assertEqual(field.name, "title")
+        self.assertEqual(field.type, "array<string>")
+        self.assertEqual(field.indexing, ('"en"', ["index", "summary"]))
+        # For tuple indexing, indexing_to_text should return None
+        self.assertIsNone(field.indexing_to_text)
+        # indexing_as_multiline should return the formatted lines
+        expected_lines = ['"en";', "index | summary;"]
+        self.assertEqual(field.indexing_as_multiline, expected_lines)
+
+    def test_field_multiline_indexing_quote_escaping(self):
+        field = Field(
+            name="title",
+            type="string",
+            indexing=('"test \\"escaped\\" quotes"', ["index"]),
+        )
+        self.assertIsNone(field.indexing_to_text)
+        expected_lines = ['"test \\"escaped\\" quotes";', "index;"]
+        self.assertEqual(field.indexing_as_multiline, expected_lines)
+
+    def test_field_multiline_indexing_multiple_statements(self):
+        field = Field(
+            name="title",
+            type="string", 
+            indexing=("statement1", ["index", "summary"], "statement2"),
+        )
+        self.assertIsNone(field.indexing_to_text)
+        expected_lines = ["statement1;", "index | summary;", "statement2;"]
+        self.assertEqual(field.indexing_as_multiline, expected_lines)
+
+    def test_field_indexing_backward_compatibility(self):
+        # Ensure existing list-based indexing still works
+        field = Field(
+            name="body",
+            type="string",
+            indexing=["index", "summary"],
+        )
+        self.assertEqual(field.indexing_to_text, "index | summary")
+        self.assertIsNone(field.indexing_as_multiline)
+
 
 class TestImportField(unittest.TestCase):
     def test_import_field(self):

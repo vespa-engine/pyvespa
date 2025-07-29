@@ -349,7 +349,7 @@ class Field(object):
         self,
         name: str,
         type: str,
-        indexing: Optional[List[str]] = None,
+        indexing: Optional[Union[List[str], Tuple[str, ...]]] = None,
         index: Optional[str] = None,
         attribute: Optional[List[str]] = None,
         ann: Optional[HNSW] = None,
@@ -372,7 +372,8 @@ class Field(object):
         Args:
             name (str): The name of the field.
             type (str): The data type of the field.
-            indexing (list, optional): Configures how to process data of a field during indexing.
+            indexing (list or tuple, optional): Configures how to process data of a field during indexing.
+                Can be a list of strings for single-line indexing, or a tuple for multiline indexing blocks.
             index (str, optional): Sets index parameters. Fields with index are normalized and tokenized by default.
             attribute (list, optional): Specifies a property of an index structure attribute.
             ann (HNSW, optional): Add configuration for approximate nearest neighbor.
@@ -392,6 +393,15 @@ class Field(object):
             ```python
             Field(name = "title", type = "string", indexing = ["index", "summary"], index = "enable-bm25")
             Field('title', 'string', ['index', 'summary'], 'enable-bm25', None, None, None, None, None, None, True, None, None, None, [], None)
+            ```
+
+            ```python
+            Field(
+                name = "title",
+                type = "array<string>",
+                indexing = ('"en"', ["index", "summary"]),
+            )
+            Field('title', 'array<string>', ('"en"', ['index', 'summary']), None, None, None, None, None, None, None, True, None, None, None, [], None)
             ```
 
             ```python
@@ -534,7 +544,25 @@ class Field(object):
     @property
     def indexing_to_text(self) -> Optional[str]:
         if self.indexing is not None:
+            if isinstance(self.indexing, tuple):
+                # For tuple, return None to signal multiline handling in template
+                return None
             return " | ".join(self.indexing)
+
+    @property
+    def indexing_as_multiline(self) -> Optional[List[str]]:
+        """Generate multiline indexing statements for tuple-based indexing."""
+        if self.indexing is not None and isinstance(self.indexing, tuple):
+            lines = []
+            for statement in self.indexing:
+                if isinstance(statement, list):
+                    # Join list elements with " | " and add semicolon
+                    lines.append(" | ".join(statement) + ";")
+                else:
+                    # Add semicolon to string statements
+                    lines.append(str(statement) + ";")
+            return lines
+        return None
 
     @property
     def struct_fields(self) -> List[StructField]:
