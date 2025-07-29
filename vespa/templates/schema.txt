@@ -17,9 +17,12 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
                 indexing: {{ field.indexing_to_text }}
                 {% endif %}
                 {% if field.index_configurations %}
-                {% for index_config in field.index_configurations %}
-                {% if index_config is mapping %}
+                {% if field.use_simple_index_syntax %}
+                index: {{ field.index_configurations[0] }}
+                {% else %}
                 index {
+                    {% for index_config in field.index_configurations %}
+                    {% if index_config is mapping %}
                     {% for key, value in index_config.items() %}
                     {% if value is none %}
                     {{ key }}
@@ -27,11 +30,12 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
                     {{ key }}: {{ value }}
                     {% endif %}
                     {% endfor %}
+                    {% else %}
+                    {{ index_config }}
+                    {% endif %}
+                    {% endfor %}
                 }
-                {% else %}
-                index: {{ index_config }}
                 {% endif %}
-                {% endfor %}
                 {% endif %}
                 {% if field.ann or field.attribute %}
                 attribute {
