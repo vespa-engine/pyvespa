@@ -97,7 +97,7 @@ class TestField(unittest.TestCase):
     def test_field_multiline_indexing_multiple_statements(self):
         field = Field(
             name="title",
-            type="string", 
+            type="string",
             indexing=("statement1", ["index", "summary"], "statement2"),
         )
         self.assertIsNone(field.indexing_to_text)
@@ -2104,3 +2104,270 @@ schema test_schema {
             actual_schema,
             expected_schema,
         )
+
+
+class TestFieldIndexConfigurations(unittest.TestCase):
+    """Tests for the multiple index configurations feature in Field definitions."""
+
+    def test_single_string_index_backward_compatibility(self):
+        """Test that single string index configuration works as before."""
+        field = Field(name="title", type="string", index="enable-bm25")
+        self.assertEqual(field.index, "enable-bm25")
+        self.assertEqual(field.index_configurations, ["enable-bm25"])
+
+        # Test rendering uses simple syntax
+        document = Document(fields=[field])
+        schema = Schema("test", document)
+        schema_text = schema.schema_to_text
+
+        expected_schema = """\
+schema test {
+    document test {
+        field title type string {
+            index: enable-bm25
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected_schema)
+
+    def test_single_dict_index(self):
+        """Test that single dict index configuration works"""
+        index_config = {"arity": 2, "lower-bound": 3}
+        field = Field(name="predicate_field", type="predicate", index=index_config)
+        self.assertEqual(field.index, index_config)
+        self.assertEqual(field.index_configurations, [index_config])
+
+        # Test rendering uses block syntax (since it's a dict)
+        document = Document(fields=[field])
+        schema = Schema("test", document)
+        schema_text = schema.schema_to_text
+
+        expected_schema = """\
+schema test {
+    document test {
+        field predicate_field type predicate {
+            index {
+                arity: 2
+                lower-bound: 3
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected_schema)
+
+    def test_no_index_configuration(self):
+        """Test field with no index configuration."""
+        field = Field(name="no_index", type="string")
+        self.assertIsNone(field.index)
+        self.assertEqual(field.index_configurations, [])
+
+        # Test rendering has no index statements
+        document = Document(fields=[field])
+        schema = Schema("test", document)
+        schema_text = schema.schema_to_text
+
+        expected_schema = """\
+schema test {
+    document test {
+        field no_index type string {
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected_schema)
+
+    def test_multiple_string_indices(self):
+        """Test field with multiple string index configurations."""
+        field = Field(
+            name="multi_string",
+            type="string",
+            index=["enable-bm25", "another-setting"],
+        )
+        document = Document(fields=[field])
+        schema = Schema("test", document)
+        schema_text = schema.schema_to_text
+        expected_schema = """\
+schema test {
+    document test {
+        field multi_string type string {
+            index {
+                enable-bm25
+                another-setting
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected_schema)
+        self.assertEqual(field.index, ["enable-bm25", "another-setting"])
+        self.assertEqual(field.index_configurations, ["enable-bm25", "another-setting"])
+
+    def test_multiple_dict_indices(self):
+        """Test field with multiple dict index configurations."""
+        indices = [{"param1": "value1"}, {"param2": "value2"}]
+        field = Field(name="multi_dict", type="string", index=indices)
+        document = Document(fields=[field])
+        schema = Schema("test", document)
+        schema_text = schema.schema_to_text
+        expected_schema = """\
+schema test {
+    document test {
+        field multi_dict type string {
+            index {
+                param1: value1
+                param2: value2
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected_schema)
+        self.assertEqual(field.index, indices)
+        self.assertEqual(field.index_configurations, indices)
+
+    def test_mixed_string_and_dict_indices(self):
+        """Test field with mixed string and dict index configurations."""
+        indices = ["enable-bm25", {"arity": 2}, "another-setting"]
+        field = Field(name="mixed", type="string", index=indices)
+        self.assertEqual(field.index, indices)
+        self.assertEqual(field.index_configurations, indices)
+
+    def test_predicate_field_from_issue(self):
+        """Test the exact predicate field example from issue #983."""
+        field = Field(
+            name="predicate_field",
+            type="predicate",
+            indexing=["attribute"],
+            index={
+                "arity": 2,
+                "lower-bound": 3,
+                "upper-bound": 200,
+                "dense-posting-list-threshold": 0.25,
+            },
+        )
+
+        # Create schema and render
+        document = Document(fields=[field])
+        schema = Schema("test", document)
+        schema_text = schema.schema_to_text
+
+        expected_schema = """\
+schema test {
+    document test {
+        field predicate_field type predicate {
+            indexing: attribute
+            index {
+                arity: 2
+                lower-bound: 3
+                upper-bound: 200
+                dense-posting-list-threshold: 0.25
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected_schema)
+
+    def test_multiple_index_configurations_rendering(self):
+        """Test that multiple index configurations render correctly in schema."""
+        field = Field(
+            name="multi_index",
+            type="string",
+            indexing=["index", "summary"],
+            index=["enable-bm25", {"arity": 2, "lower-bound": 3}, "another-setting"],
+        )
+
+        # Create schema and render
+        document = Document(fields=[field])
+        schema = Schema("test", document)
+        schema_text = schema.schema_to_text
+
+        expected_schema = """\
+schema test {
+    document test {
+        field multi_index type string {
+            indexing: index | summary
+            index {
+                enable-bm25
+                arity: 2
+                lower-bound: 3
+                another-setting
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected_schema)
+
+    def test_dict_with_none_values(self):
+        """Test that dict index configurations with None values render without ': None'."""
+        field = Field(
+            name="parameterless",
+            type="string",
+            index={"enable-bm25": None, "param": "value"},
+        )
+
+        # Create schema and render
+        document = Document(fields=[field])
+        schema = Schema("test", document)
+        schema_text = schema.schema_to_text
+
+        expected_schema = """\
+schema test {
+    document test {
+        field parameterless type string {
+            index {
+                enable-bm25
+                param: value
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected_schema)
+
+    def test_ann_field_with_additional_index_configs(self):
+        """Test that ANN fields work correctly with additional index configurations."""
+        field = Field(
+            name="vector_field",
+            type="tensor<float>(x[128])",
+            indexing=["attribute"],
+            ann=HNSW(
+                distance_metric="euclidean",
+                max_links_per_node=16,
+                neighbors_to_explore_at_insert=200,
+            ),
+            index=["enable-bm25", {"custom-param": "value"}],
+        )
+
+        # Create schema and render
+        document = Document(fields=[field])
+        schema = Schema("test", document)
+        schema_text = schema.schema_to_text
+
+        expected_schema = """\
+schema test {
+    document test {
+        field vector_field type tensor<float>(x[128]) {
+            indexing: attribute
+            index {
+                enable-bm25
+                custom-param: value
+            }
+            attribute {
+                distance-metric: euclidean
+            }
+            index {
+                hnsw {
+                    max-links-per-node: 16
+                    neighbors-to-explore-at-insert: 200
+                }
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected_schema)
+
+    def test_equality_with_multiple_indices(self):
+        """Test that Field equality works correctly with multiple index configurations."""
+        index_config = ["enable-bm25", {"arity": 2}]
+        field1 = Field(name="test", type="string", index=index_config)
+        field2 = Field(name="test", type="string", index=index_config.copy())
+        field3 = Field(name="test", type="string", index="enable-bm25")
+
+        self.assertEqual(field1, field2)
+        self.assertNotEqual(field1, field3)

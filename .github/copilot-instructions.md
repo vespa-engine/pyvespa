@@ -108,13 +108,14 @@ app_package.schema.add_fields(
 
 ## Documentation source
 
-Very often you need to consult the Vespa documentation. For example for format of the XML configuration files, or for documentation of a specific query parameter, and so on. Find relevant info using the context7 MCP server that you have available. (repo: vespa-engine/documentation)
+Very often you need to consult the Vespa documentation. For example for format of the XML configuration files, or for documentation of a specific query parameter, and so on. Find relevant info using the context7 MCP server that you have available. (repo: vespa-engine/documentation).
 
+You can also use context7 MCP server to search documentation of other libraries used in the project, such as `httpx`, `requests`, `docker`, etc.
 
 ## Development Workflow
 
 We use `uv` for managing dependencies.
-To install the project with development dependencies, run:
+You already have the project set up with development dependencies, run:
 ```bash
 uv sync --extra dev
 ``` 
@@ -123,4 +124,11 @@ After that you can run tests with:
 ```bash
 uv run pytest tests/unit/ -v
 ```
-You can also replace `unit`with `integration` to run integration tests, or just `tests/` to run all tests, or run specific test files or test cases the same way.
+You can also replace `unit` with `integration` to run integration tests, or just `tests/` to run all tests, or run specific test files or test cases the same way.
+
+Doctests: 
+You can run doctests in the examples and documentation with:
+```bash
+uv sync --extra dev --extra docs
+uv run pytest tests/mktestdocs -s -v
+```
