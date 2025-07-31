@@ -213,7 +213,7 @@ class HNSW(object):
 
 
 class StructFieldConfiguration(TypedDict, total=False):
-    indexing: List[str]
+    indexing: Union[List[str], Tuple[str, ...], str]
     attribute: List[str]
     match: List[Union[str, Tuple[str, str]]]
     query_command: List[str]
@@ -230,7 +230,10 @@ class StructField:
 
         Args:
             name (str): The name of the struct-field.
-            indexing (list, optional): Configures how to process data of a struct-field during indexing.
+            indexing (list, tuple, or str, optional): Configures how to process data of a struct-field during indexing.
+                - Tuple: renders as `indexing { value1; value2; ... }` block with each item on a new line, and semicolon at the end.
+                - List: renders as `indexing: value1 | value2 | ...`
+                - Single string: renders as `indexing: value`
             attribute (list, optional): Specifies a property of an index structure attribute.
             match (list, optional): Set properties that decide how the matching method for this field operates.
             query_command (list, optional): Add configuration for the query-command of the field.
@@ -273,6 +276,15 @@ class StructField:
             )
             StructField('first_name', ['attribute'], ['fast-search'], None, None, None, 'filter')
             ```
+
+            ```python
+            StructField(
+                name = "complex_field",
+                indexing = ('"preprocessing"', ["attribute", "summary"]),
+                attribute = ["fast-search"],
+            )
+            StructField('complex_field', ('"preprocessing"', ['attribute', 'summary']), ['fast-search'], None, None, None, None)
+            ```
         """
 
         self.name = name
@@ -286,7 +298,33 @@ class StructField:
     @property
     def indexing_to_text(self) -> Optional[str]:
         if self.indexing is not None:
-            return " | ".join(self.indexing)
+            if isinstance(self.indexing, tuple):
+                # For tuple, return None to signal multiline handling in template
+                return None
+            if isinstance(self.indexing, str):
+                # If it's a single string, return it directly
+                return self.indexing
+            # For list, join with " | "
+            if isinstance(self.indexing, list):
+                return " | ".join(self.indexing)
+            raise TypeError(
+                f"Unexpected type for indexing: {type(self.indexing).__name__}. Expected str, tuple, or list."
+            )
+
+    @property
+    def indexing_as_multiline(self) -> Optional[List[str]]:
+        """Generate multiline indexing statements for tuple-based indexing."""
+        if self.indexing is not None and isinstance(self.indexing, tuple):
+            lines = []
+            for statement in self.indexing:
+                if isinstance(statement, list):
+                    # Join list elements with " | " and add semicolon
+                    lines.append(" | ".join(statement) + ";")
+                else:
+                    # Add semicolon to string statements
+                    lines.append(str(statement) + ";")
+            return lines
+        return None
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
@@ -349,7 +387,7 @@ class Field(object):
         self,
         name: str,
         type: str,
-        indexing: Optional[List[str]] = None,
+        indexing: Optional[Union[List[str], Tuple[str, ...], str]] = None,
         index: Optional[
             Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]]
         ] = None,
@@ -379,7 +417,10 @@ class Field(object):
         Args:
             name (str): The name of the field.
             type (str): The data type of the field.
-            indexing (list, optional): Configures how to process data of a field during indexing.
+            indexing (list, tuple, or str, optional): Configures how to process data of a field during indexing.
+                - Tuple: renders as `indexing { value1; value2; ... }` block with each item on a new line, and semicolon at the end.
+                - List: renders as `indexing: value1 | value2 | ...`
+                - Single string: renders as `indexing: value`
             index (str, dict, or list, optional): Sets index parameters.
                 - Single string (e.g., "enable-bm25"): renders as `index: enable-bm25`
                 - Single dict (e.g., {"arity": 2}): renders as `index { arity: 2 }`
@@ -403,6 +444,15 @@ class Field(object):
             ```python
             Field(name = "title", type = "string", indexing = ["index", "summary"], index = "enable-bm25")
             Field('title', 'string', ['index', 'summary'], 'enable-bm25', None, None, None, None, None, None, True, None, None, None, [], None)
+            ```
+
+            ```python
+            Field(
+                name = "title",
+                type = "array<string>",
+                indexing = ('"en"', ["index", "summary"]),
+            )
+            Field('title', 'array<string>', ('"en"', ['index', 'summary']), None, None, None, None, None, None, None, True, None, None, None, [], None)
             ```
 
             ```python
@@ -612,7 +662,33 @@ class Field(object):
     @property
     def indexing_to_text(self) -> Optional[str]:
         if self.indexing is not None:
-            return " | ".join(self.indexing)
+            if isinstance(self.indexing, tuple):
+                # For tuple, return None to signal multiline handling in template
+                return None
+            if isinstance(self.indexing, str):
+                # If it's a single string, return it directly
+                return self.indexing
+            # For list, join with " | "
+            if isinstance(self.indexing, list):
+                return " | ".join(self.indexing)
+            raise TypeError(
+                f"Unexpected type for indexing: {type(self.indexing).__name__}. Expected str, tuple, or list."
+            )
+
+    @property
+    def indexing_as_multiline(self) -> Optional[List[str]]:
+        """Generate multiline indexing statements for tuple-based indexing."""
+        if self.indexing is not None and isinstance(self.indexing, tuple):
+            lines = []
+            for statement in self.indexing:
+                if isinstance(statement, list):
+                    # Join list elements with " | " and add semicolon
+                    lines.append(" | ".join(statement) + ";")
+                else:
+                    # Add semicolon to string statements
+                    lines.append(str(statement) + ";")
+            return lines
+        return None
 
     @property
     def index_configurations(self) -> List[Union[str, Dict[str, Any]]]:

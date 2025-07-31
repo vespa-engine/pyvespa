@@ -3,7 +3,15 @@
 
 field {{ field.name }} type {{ field.type }} {
     {% if field.indexing %}
+    {% if field.indexing_as_multiline %}
+    indexing {
+        {% for line in field.indexing_as_multiline %}
+        {{ line }}
+        {% endfor %}
+    }
+    {% else %}
     indexing: {{ field.indexing_to_text }}
+    {% endif %}
     {% endif %}
     {% if field.index_configurations %}
     {% if field.use_simple_index_syntax %}
@@ -92,7 +100,15 @@ field {{ field.name }} type {{ field.type }} {
     {% for struct_field in field.struct_fields %}
     struct-field {{ struct_field.name }} {
         {% if struct_field.indexing %}
+        {% if struct_field.indexing_as_multiline %}
+        indexing {
+            {% for line in struct_field.indexing_as_multiline %}
+            {{ line }}
+            {% endfor %}
+        }
+        {% else %}
         indexing: {{ struct_field.indexing_to_text }}
+        {% endif %}
         {% endif %}
         {% if struct_field.attribute %}
         attribute {

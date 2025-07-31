@@ -69,6 +69,66 @@ class TestField(unittest.TestCase):
         )
         self.assertEqual(field.indexing_to_text, "index | summary")
 
+    def test_field_multiline_indexing_tuple(self):
+        field = Field(
+            name="title",
+            type="array<string>",
+            indexing=('"en"', ["index", "summary"]),
+        )
+        self.assertEqual(field.name, "title")
+        self.assertEqual(field.type, "array<string>")
+        self.assertEqual(field.indexing, ('"en"', ["index", "summary"]))
+        # For tuple indexing, indexing_to_text should return None
+        self.assertIsNone(field.indexing_to_text)
+        # indexing_as_multiline should return the formatted lines
+        expected_lines = ['"en";', "index | summary;"]
+        self.assertEqual(field.indexing_as_multiline, expected_lines)
+
+    def test_field_multiline_indexing_quote_escaping(self):
+        field = Field(
+            name="title",
+            type="string",
+            indexing=('"test \\"escaped\\" quotes"', ["index"]),
+        )
+        self.assertIsNone(field.indexing_to_text)
+        expected_lines = ['"test \\"escaped\\" quotes";', "index;"]
+        self.assertEqual(field.indexing_as_multiline, expected_lines)
+
+    def test_field_multiline_indexing_multiple_statements(self):
+        field = Field(
+            name="title",
+            type="string",
+            indexing=("statement1", ["index", "summary"], "statement2"),
+        )
+        self.assertIsNone(field.indexing_to_text)
+        expected_lines = ["statement1;", "index | summary;", "statement2;"]
+        self.assertEqual(field.indexing_as_multiline, expected_lines)
+
+    def test_field_indexing_backward_compatibility(self):
+        # Ensure existing list-based indexing still works
+        field = Field(
+            name="body",
+            type="string",
+            indexing=["index", "summary"],
+        )
+        self.assertEqual(field.indexing_to_text, "index | summary")
+        self.assertIsNone(field.indexing_as_multiline)
+
+    def test_complex_indexing_statement(self):
+        # This is ugly, but difficult to make good SDK without schemaparser available.
+        indexing_statement = """input data_start | switch {
+                case "None": input year_start . "-01-01T00:00:00.00Z" | to_epoch_second | attribute | summary;
+                default: input data_start . "T00:00:00.00Z" | to_epoch_second | attribute | summary;
+            }"""
+        field = Field(
+            name="data_start",
+            type="string",
+            indexing=indexing_statement,  # Use a single string
+        )
+        indexing_text = field.indexing_to_text
+        print(f"Indexing text: {indexing_text}")
+        self.assertEqual(indexing_text, indexing_statement)
+
 
 class TestImportField(unittest.TestCase):
     def test_import_field(self):
@@ -1815,6 +1875,195 @@ class TestSchemaStructField(unittest.TestCase):
             "}"
         )
         self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
+
+
+class TestStructField(unittest.TestCase):
+    def test_struct_field_schema_simple(self):
+        email_struct = Struct(
+            name="email",
+            fields=[
+                Field(name="sender", type="string"),
+                Field(name="recipient", type="string"),
+                Field(name="subject", type="string"),
+                Field(name="content", type="string"),
+            ],
+        )
+        emails_field = Field(
+            name="emails",
+            type="array<email>",
+            indexing=["summary"],
+            struct_fields=[
+                StructField(
+                    name="content",
+                    indexing=["attribute", "summary"],
+                    attribute=["fast-search"],
+                )
+            ],
+        )
+        schema = Schema(name="schema", document=Document())
+        schema.add_fields(emails_field)
+        schema.document.add_structs(email_struct)
+        schema_text = schema.schema_to_text
+        expected = """\
+schema schema {
+    document schema {
+        field emails type array<email> {
+            indexing: summary
+            struct-field content {
+                indexing: attribute | summary
+                attribute {
+                    fast-search
+                }
+            }
+        }
+        struct email {
+            field sender type string {
+            }
+            field recipient type string {
+            }
+            field subject type string {
+            }
+            field content type string {
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected)
+
+    def test_struct_field_multiline_indexing_tuple(self):
+        """Test StructField with multiline indexing using tuple syntax"""
+        email_struct = Struct(
+            name="email",
+            fields=[
+                Field(name="sender", type="string"),
+                Field(name="recipient", type="string"),
+                Field(name="subject", type="string"),
+                Field(name="content", type="string"),
+            ],
+        )
+        emails_field = Field(
+            name="emails",
+            type="array<email>",
+            indexing=["summary"],
+            struct_fields=[
+                StructField(
+                    name="content",
+                    indexing=('"en"', ["attribute", "summary"]),
+                    attribute=["fast-search"],
+                )
+            ],
+        )
+        schema = Schema(name="schema", document=Document())
+        schema.add_fields(emails_field)
+        schema.document.add_structs(email_struct)
+
+        # Test the StructField properties
+        struct_field = emails_field.struct_fields[0]
+        self.assertEqual(struct_field.name, "content")
+        self.assertEqual(struct_field.indexing, ('"en"', ["attribute", "summary"]))
+        self.assertEqual(struct_field.attribute, ["fast-search"])
+
+        # Test complete schema text output
+        schema_text = schema.schema_to_text
+        expected = """\
+schema schema {
+    document schema {
+        field emails type array<email> {
+            indexing: summary
+            struct-field content {
+                indexing {
+                    "en";
+                    attribute | summary;
+                }
+                attribute {
+                    fast-search
+                }
+            }
+        }
+        struct email {
+            field sender type string {
+            }
+            field recipient type string {
+            }
+            field subject type string {
+            }
+            field content type string {
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected)
+
+    def test_struct_field_complex_indexing_statement(self):
+        """Test StructField with complex indexing using single string"""
+        email_struct = Struct(
+            name="email",
+            fields=[
+                Field(name="sender", type="string"),
+                Field(name="recipient", type="string"),
+                Field(name="subject", type="string"),
+                Field(name="content", type="string"),
+            ],
+        )
+
+        # Complex indexing statement matching the pattern from TestField
+        indexing_statement = """input content | switch {
+                case "empty": "default_content" | attribute | summary;
+                default: input content | lowercase | attribute | summary;
+            }"""
+
+        emails_field = Field(
+            name="emails",
+            type="array<email>",
+            indexing=["summary"],
+            struct_fields=[
+                StructField(
+                    name="content",
+                    indexing=indexing_statement,
+                    attribute=["fast-search"],
+                )
+            ],
+        )
+        schema = Schema(name="schema", document=Document())
+        schema.add_fields(emails_field)
+        schema.document.add_structs(email_struct)
+
+        # Test the StructField properties
+        struct_field = emails_field.struct_fields[0]
+        self.assertEqual(struct_field.name, "content")
+        self.assertEqual(struct_field.indexing, indexing_statement)
+        self.assertEqual(struct_field.attribute, ["fast-search"])
+
+        # Test complete schema text output
+        schema_text = schema.schema_to_text
+        expected = """\
+schema schema {
+    document schema {
+        field emails type array<email> {
+            indexing: summary
+            struct-field content {
+                indexing: input content | switch {
+                        case "empty": "default_content" | attribute | summary;
+                        default: input content | lowercase | attribute | summary;
+                    }
+                attribute {
+                    fast-search
+                }
+            }
+        }
+        struct email {
+            field sender type string {
+            }
+            field recipient type string {
+            }
+            field subject type string {
+            }
+            field content type string {
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected)
 
 
 class TestVTequality(unittest.TestCase):
