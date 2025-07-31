@@ -3,17 +3,35 @@
 
 field {{ field.name }} type {{ field.type }} {
     {% if field.indexing %}
-    indexing: {{ field.indexing_to_text }}
-    {% endif %}
-    {% if field.index %}
-    {% if field.index is mapping %}
-    index {
-        {% for key, value in field.index.items() %}
-        {{ key }}: {{ value }}
+    {% if field.indexing_as_multiline %}
+    indexing {
+        {% for line in field.indexing_as_multiline %}
+        {{ line }}
         {% endfor %}
     }
     {% else %}
-    index: {{ field.index }}
+    indexing: {{ field.indexing_to_text }}
+    {% endif %}
+    {% endif %}
+    {% if field.index_configurations %}
+    {% if field.use_simple_index_syntax %}
+    index: {{ field.index_configurations[0] }}
+    {% else %}
+    index {
+        {% for index_config in field.index_configurations %}
+        {% if index_config is mapping %}
+        {% for key, value in index_config.items() %}
+        {% if value is none %}
+        {{ key }}
+        {% else %}
+        {{ key }}: {{ value }}
+        {% endif %}
+        {% endfor %}
+        {% else %}
+        {{ index_config }}
+        {% endif %}
+        {% endfor %}
+    }
     {% endif %}
     {% endif %}
     {% if field.ann or field.attribute %}
@@ -82,7 +100,15 @@ field {{ field.name }} type {{ field.type }} {
     {% for struct_field in field.struct_fields %}
     struct-field {{ struct_field.name }} {
         {% if struct_field.indexing %}
+        {% if struct_field.indexing_as_multiline %}
+        indexing {
+            {% for line in struct_field.indexing_as_multiline %}
+            {{ line }}
+            {% endfor %}
+        }
+        {% else %}
         indexing: {{ struct_field.indexing_to_text }}
+        {% endif %}
         {% endif %}
         {% if struct_field.attribute %}
         attribute {

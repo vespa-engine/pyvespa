@@ -11,7 +11,7 @@ from enum import Enum
 from io import BytesIO
 from pathlib import Path
 from shutil import copyfile
-from typing import Dict, List, Literal, Optional, Tuple, TypedDict, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict, Union
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 from vespa.configuration.vt import Xml, vt
@@ -213,7 +213,7 @@ class HNSW(object):
 
 
 class StructFieldConfiguration(TypedDict, total=False):
-    indexing: List[str]
+    indexing: Union[List[str], Tuple[str, ...], str]
     attribute: List[str]
     match: List[Union[str, Tuple[str, str]]]
     query_command: List[str]
@@ -230,7 +230,10 @@ class StructField:
 
         Args:
             name (str): The name of the struct-field.
-            indexing (list, optional): Configures how to process data of a struct-field during indexing.
+            indexing (list, tuple, or str, optional): Configures how to process data of a struct-field during indexing.
+                - Tuple: renders as `indexing { value1; value2; ... }` block with each item on a new line, and semicolon at the end.
+                - List: renders as `indexing: value1 | value2 | ...`
+                - Single string: renders as `indexing: value`
             attribute (list, optional): Specifies a property of an index structure attribute.
             match (list, optional): Set properties that decide how the matching method for this field operates.
             query_command (list, optional): Add configuration for the query-command of the field.
@@ -273,6 +276,15 @@ class StructField:
             )
             StructField('first_name', ['attribute'], ['fast-search'], None, None, None, 'filter')
             ```
+
+            ```python
+            StructField(
+                name = "complex_field",
+                indexing = ('"preprocessing"', ["attribute", "summary"]),
+                attribute = ["fast-search"],
+            )
+            StructField('complex_field', ('"preprocessing"', ['attribute', 'summary']), ['fast-search'], None, None, None, None)
+            ```
         """
 
         self.name = name
@@ -286,7 +298,33 @@ class StructField:
     @property
     def indexing_to_text(self) -> Optional[str]:
         if self.indexing is not None:
-            return " | ".join(self.indexing)
+            if isinstance(self.indexing, tuple):
+                # For tuple, return None to signal multiline handling in template
+                return None
+            if isinstance(self.indexing, str):
+                # If it's a single string, return it directly
+                return self.indexing
+            # For list, join with " | "
+            if isinstance(self.indexing, list):
+                return " | ".join(self.indexing)
+            raise TypeError(
+                f"Unexpected type for indexing: {type(self.indexing).__name__}. Expected str, tuple, or list."
+            )
+
+    @property
+    def indexing_as_multiline(self) -> Optional[List[str]]:
+        """Generate multiline indexing statements for tuple-based indexing."""
+        if self.indexing is not None and isinstance(self.indexing, tuple):
+            lines = []
+            for statement in self.indexing:
+                if isinstance(statement, list):
+                    # Join list elements with " | " and add semicolon
+                    lines.append(" | ".join(statement) + ";")
+                else:
+                    # Add semicolon to string statements
+                    lines.append(str(statement) + ";")
+            return lines
+        return None
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
@@ -331,7 +369,7 @@ class FieldConfiguration(TypedDict, total=False):
 
     indexing: List[str]
     attribute: List[str]
-    index: str
+    index: Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]]
     ann: HNSW
     match: List[Union[str, Tuple[str, str]]]
     weight: int
@@ -349,8 +387,10 @@ class Field(object):
         self,
         name: str,
         type: str,
-        indexing: Optional[List[str]] = None,
-        index: Optional[str] = None,
+        indexing: Optional[Union[List[str], Tuple[str, ...], str]] = None,
+        index: Optional[
+            Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]]
+        ] = None,
         attribute: Optional[List[str]] = None,
         ann: Optional[HNSW] = None,
         match: Optional[List[Union[str, Tuple[str, str]]]] = None,
@@ -369,11 +409,23 @@ class Field(object):
         we usually want to add fields so that we can store our data in a structured manner.
         We can accomplish that by creating `Field` instances and adding those to the `ApplicationPackage` instance via `Schema` and `Document` methods.
 
+        Index Configuration Behavior:
+            - Single string configuration: uses `index: value` syntax
+            - Single dict or multiple configurations: uses `index { ... }` block syntax
+            - All configurations in a list are consolidated into a single index block
+
         Args:
             name (str): The name of the field.
             type (str): The data type of the field.
-            indexing (list, optional): Configures how to process data of a field during indexing.
-            index (str, optional): Sets index parameters. Fields with index are normalized and tokenized by default.
+            indexing (list, tuple, or str, optional): Configures how to process data of a field during indexing.
+                - Tuple: renders as `indexing { value1; value2; ... }` block with each item on a new line, and semicolon at the end.
+                - List: renders as `indexing: value1 | value2 | ...`
+                - Single string: renders as `indexing: value`
+            index (str, dict, or list, optional): Sets index parameters.
+                - Single string (e.g., "enable-bm25"): renders as `index: enable-bm25`
+                - Single dict (e.g., {"arity": 2}): renders as `index { arity: 2 }`
+                - List with multiple items: renders as single `index { ... }` block containing all configurations
+                Fields with index are normalized and tokenized by default.
             attribute (list, optional): Specifies a property of an index structure attribute.
             ann (HNSW, optional): Add configuration for approximate nearest neighbor.
             match (list, optional): Set properties that decide how the matching method for this field operates.
@@ -392,6 +444,15 @@ class Field(object):
             ```python
             Field(name = "title", type = "string", indexing = ["index", "summary"], index = "enable-bm25")
             Field('title', 'string', ['index', 'summary'], 'enable-bm25', None, None, None, None, None, None, True, None, None, None, [], None)
+            ```
+
+            ```python
+            Field(
+                name = "title",
+                type = "array<string>",
+                indexing = ('"en"', ["index", "summary"]),
+            )
+            Field('title', 'array<string>', ('"en"', ['index', 'summary']), None, None, None, None, None, None, None, True, None, None, None, [], None)
             ```
 
             ```python
@@ -503,6 +564,73 @@ class Field(object):
             )
             Field('artist', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], ['artist_name', 'component: component_alias'])
             ```
+
+            ```python
+            # Single string index - uses simple syntax
+            Field(name = "title", type = "string", index = "enable-bm25")
+            # Renders as: index: enable-bm25
+            ```
+
+            ```python
+            # Single dict index - uses block syntax
+            Field(name = "predicate_field", type = "predicate", index = {"arity": 2})
+            # Renders as: index { arity: 2 }
+            ```
+
+            ```python
+            # Multiple string indices - uses block syntax
+            Field(name = "multi", type = "string", index = ["enable-bm25", "another-setting"])
+            # Renders as: index { enable-bm25; another-setting }
+            ```
+
+            ```python
+            # Complex index configurations with multiple parameters
+            Field(
+                name = "predicate_field",
+                type = "predicate",
+                indexing = ["attribute"],
+                index = {
+                    "arity": 2,
+                    "lower-bound": 3,
+                    "upper-bound": 200,
+                    "dense-posting-list-threshold": 0.25
+                }
+            )
+            # Renders as: index { arity: 2; lower-bound: 3; upper-bound: 200; dense-posting-list-threshold: 0.25 }
+            ```
+
+            ```python
+            # Multiple index configurations with mixed types
+            Field(
+                name = "complex_field",
+                type = "string",
+                indexing = ["index", "summary"],
+                index = [
+                    "enable-bm25",  # Simple index setting
+                    {"arity": 2, "lower-bound": 3},  # Complex index block
+                    "another-setting"  # Another simple setting
+                ]
+            )
+            # Renders as single block:
+            # index {
+            #     enable-bm25
+            #     arity: 2
+            #     lower-bound: 3
+            #     another-setting
+            # }
+            ```
+
+            ```python
+            # Parameterless index settings using None values
+            Field(
+                name = "taxonomy",
+                type = "array<string>",
+                indexing = ["index", "summary"],
+                match = ["text"],
+                index = {"enable-bm25": None}
+            )
+            # Renders as: index { enable-bm25 } (without ": None")
+            ```
         """
 
         self.name = name
@@ -534,7 +662,56 @@ class Field(object):
     @property
     def indexing_to_text(self) -> Optional[str]:
         if self.indexing is not None:
-            return " | ".join(self.indexing)
+            if isinstance(self.indexing, tuple):
+                # For tuple, return None to signal multiline handling in template
+                return None
+            if isinstance(self.indexing, str):
+                # If it's a single string, return it directly
+                return self.indexing
+            # For list, join with " | "
+            if isinstance(self.indexing, list):
+                return " | ".join(self.indexing)
+            raise TypeError(
+                f"Unexpected type for indexing: {type(self.indexing).__name__}. Expected str, tuple, or list."
+            )
+
+    @property
+    def indexing_as_multiline(self) -> Optional[List[str]]:
+        """Generate multiline indexing statements for tuple-based indexing."""
+        if self.indexing is not None and isinstance(self.indexing, tuple):
+            lines = []
+            for statement in self.indexing:
+                if isinstance(statement, list):
+                    # Join list elements with " | " and add semicolon
+                    lines.append(" | ".join(statement) + ";")
+                else:
+                    # Add semicolon to string statements
+                    lines.append(str(statement) + ";")
+            return lines
+        return None
+
+    @property
+    def index_configurations(self) -> List[Union[str, Dict[str, Any]]]:
+        """
+        Returns index configurations as a list, normalizing single values to lists.
+        This allows the template to consistently iterate over index configurations.
+        """
+        if self.index is None:
+            return []
+        elif isinstance(self.index, list):
+            return self.index
+        else:
+            return [self.index]
+
+    @property
+    def use_simple_index_syntax(self) -> bool:
+        """
+        Returns True if we should use simple 'index: value' syntax.
+        Simple syntax is used only when there's exactly one string configuration.
+        Otherwise, we use the block syntax 'index { ... }'.
+        """
+        configs = self.index_configurations
+        return len(configs) == 1 and isinstance(configs[0], str)
 
     @property
     def struct_fields(self) -> List[StructField]:
