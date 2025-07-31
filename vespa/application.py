@@ -333,7 +333,7 @@ class Vespa(object):
         groupname: str = None,
         streaming: bool = False,
         **kwargs,
-    ) -> VespaQueryResponse:
+    ) -> Union[VespaQueryResponse, Generator[str, None, None]]:
         """
         Send a query request to the Vespa application.
 
@@ -1402,7 +1402,7 @@ class VespaSync(object):
         groupname: str = None,
         streaming: bool = False,
         **kwargs,
-    ):
+    ) -> Union[VespaQueryResponse, Generator[str, None, None]]:
         """
         Send a query request to the Vespa application.
 
@@ -1435,7 +1435,9 @@ class VespaSync(object):
                 url=str(response.url),
             )
 
-    def _query_streaming(self, body: Optional[Dict] = None, **kwargs):
+    def _query_streaming(
+        self, body: Optional[Dict] = None, **kwargs
+    ) -> Generator[str, None, None]:
         """Helper method for streaming queries to avoid generator function issues."""
         with self.http_session.post(
             self.app.search_end_point, json=body, params=kwargs, stream=True
