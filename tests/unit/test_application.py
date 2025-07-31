@@ -891,5 +891,103 @@ class TestVespaAsync:
         _vespa_async = VespaAsync(app, limits=limits)
 
 
+class TestVespaSyncStreaming(unittest.TestCase):
+    def test_query_streaming(self):
+        """Test the query method with streaming=True and mocked Server-Sent Events response."""
+        # Create a Vespa app instance
+        app = Vespa(url="http://localhost", port=8080)
+
+        # Mock SSE response data in the expected format
+        sse_data = [
+            "event: token",
+            'data: {"token":""}\n\n',
+            "event: token",
+            'data: {"token":"V"}\n\n',
+            "event: token",
+            'data: {"token":"es"}\n\n',
+            "event: token",
+            'data: {"token":"pa"}\n\n',
+            "event: token",
+            'data: {"token":" is"}\n\n',
+            "event: token",
+            'data: {"token":" a"}\n\n',
+            "event: token",
+            'data: {"token":" scalable"}\n\n',
+            "event: token",
+            'data: {"token":" open"}\n\n',
+            "event: token",
+            'data: {"token":"-source"}\n\n',
+            "event: token",
+            'data: {"token":" serving"}\n\n',
+            "event: token",
+            'data: {"token":" engine"}\n\n',
+            "event: token",
+            'data: {"token":" designed"}\n\n',
+            "event: token",
+            'data: {"token":" to"}\n\n',
+            "event: token",
+            'data: {"token":" store"}\n\n',
+            "event: token",
+            'data: {"token":","}\n\n',
+            "event: token",
+            'data: {"token":" compute"}\n\n',
+        ]
+
+        with requests_mock.Mocker() as m:
+            # Mock the ApplicationStatus endpoint
+            m.get(
+                "http://localhost:8080/ApplicationStatus",
+                status_code=200,
+            )
+
+            # Mock streaming response using iter_lines
+            mock_response = Mock()
+            mock_response.iter_lines.return_value = [
+                line.encode("utf-8") for line in sse_data
+            ]
+
+            # Set up context manager behavior
+            mock_response.__enter__ = Mock(return_value=mock_response)
+            mock_response.__exit__ = Mock(return_value=None)
+            results = []
+            result_string = ""
+            # Use the simpler app.syncio() syntax
+            with app.syncio() as sync_app:
+                # Manually patch the http_session.post to return our mock
+                with patch.object(
+                    sync_app.http_session, "post", return_value=mock_response
+                ):
+                    # Test the streaming query using the public query method
+                    query_body = {"query": "test streaming query"}
+                    result_generator = sync_app.query(
+                        body=query_body, streaming=True, timeout="30s"
+                    )
+                    for line in result_generator:
+                        results.append(line)
+                        print(f"Received line: {line}")
+                        print(line)
+                        if line.startswith("data: "):
+                            event = json.loads(line[6:])
+                            print(event)
+                            token = event.get("token", "")
+                            result_string += token
+
+                    # Verify we got the expected number of lines
+                    self.assertEqual(len(results), 32)
+                    # Verify the final result string
+                    self.assertEqual(
+                        result_string,
+                        "Vespa is a scalable open-source serving engine designed to store, compute",
+                    )
+
+                    # Verify the HTTP session was called with correct parameters
+                    sync_app.http_session.post.assert_called_once_with(
+                        app.search_end_point,
+                        json=query_body,
+                        params={"timeout": "30s"},
+                        stream=True,
+                    )
+
+
 if __name__ == "__main__":
     unittest.main()
