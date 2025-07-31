@@ -328,8 +328,12 @@ class Vespa(object):
             return sync_app.get_model_endpoint(model_id=model_id)
 
     def query(
-        self, body: Optional[Dict] = None, groupname: str = None, **kwargs
-    ) -> VespaQueryResponse:
+        self,
+        body: Optional[Dict] = None,
+        groupname: str = None,
+        streaming: bool = False,
+        **kwargs,
+    ) -> Union[VespaQueryResponse, Generator[str, None, None]]:
         """
         Send a query request to the Vespa application.
 
@@ -338,15 +342,18 @@ class Vespa(object):
         Args:
             body (dict): Dictionary containing request parameters.
             groupname (str, optional): The groupname used with streaming search.
+            streaming (bool, optional): Whether to use streaming mode (SSE). Defaults to False.
             **kwargs (dict, optional): Extra Vespa Query API parameters.
 
         Returns:
-            The response from the Vespa application.
+            VespaQueryResponse when streaming=False, or a generator of decoded lines when streaming=True.
         """
 
         # Use one connection as this is a single query
         with VespaSync(self, pool_maxsize=1, pool_connections=1) as sync_app:
-            return sync_app.query(body=body, groupname=groupname, **kwargs)
+            return sync_app.query(
+                body=body, groupname=groupname, streaming=streaming, **kwargs
+            )
 
     def feed_data_point(
         self,
@@ -1390,18 +1397,23 @@ class VespaSync(object):
         )
 
     def query(
-        self, body: Optional[Dict] = None, groupname: str = None, **kwargs
-    ) -> VespaQueryResponse:
+        self,
+        body: Optional[Dict] = None,
+        groupname: str = None,
+        streaming: bool = False,
+        **kwargs,
+    ) -> Union[VespaQueryResponse, Generator[str, None, None]]:
         """
         Send a query request to the Vespa application.
 
         Args:
             body (dict): Dict containing all the request parameters.
             groupname (str, optional): The groupname used in streaming search.
+            streaming (bool, optional): Whether to use streaming mode (SSE). Defaults to False.
             **kwargs (dict, optional): Additional valid Vespa HTTP Query API parameters. See: <https://docs.vespa.ai/en/reference/query-api-reference.html>.
 
         Returns:
-            The request body if `debug_request` is True, or the result from the Vespa application.
+            VespaQueryResponse when streaming=False, or a generator of decoded lines when streaming=True.
 
         Raises:
             HTTPError: If one occurred.
@@ -1409,15 +1421,30 @@ class VespaSync(object):
 
         if groupname:
             kwargs["streaming.groupname"] = groupname
-        response = self.http_session.post(
-            self.app.search_end_point, json=body, params=kwargs
-        )
-        raise_for_status(response)
-        return VespaQueryResponse(
-            json=response.json(),
-            status_code=response.status_code,
-            url=str(response.url),
-        )
+        if streaming:
+            return self._query_streaming(body, **kwargs)
+        else:
+            response = self.http_session.post(
+                self.app.search_end_point, json=body, params=kwargs
+            )
+            raise_for_status(response)
+
+            return VespaQueryResponse(
+                json=response.json(),
+                status_code=response.status_code,
+                url=str(response.url),
+            )
+
+    def _query_streaming(
+        self, body: Optional[Dict] = None, **kwargs
+    ) -> Generator[str, None, None]:
+        """Helper method for streaming queries to avoid generator function issues."""
+        with self.http_session.post(
+            self.app.search_end_point, json=body, params=kwargs, stream=True
+        ) as stream:
+            for line in stream.iter_lines():
+                if line:
+                    yield line.decode("utf-8")
 
     def delete_data(
         self,
