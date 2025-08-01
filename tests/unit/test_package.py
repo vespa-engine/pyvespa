@@ -402,6 +402,21 @@ class TestRankProfile(unittest.TestCase):
         self.assertEqual(rank_profile.mutate.on_second_phase_operation_value, 3)
         self.assertEqual(rank_profile.mutate.on_summary_operation_value, 42)
 
+    def test_rank_profile_optional_first_phase(self):
+        # Test RankProfile without first_phase (should be None)
+        rank_profile = RankProfile(name="no_first_phase")
+        self.assertEqual(rank_profile.name, "no_first_phase")
+        self.assertIsNone(rank_profile.first_phase)
+
+        # Test RankProfile with only other parameters
+        rank_profile = RankProfile(
+            name="inherit_only", inherits="default", constants={"TEST": 1}
+        )
+        self.assertEqual(rank_profile.name, "inherit_only")
+        self.assertIsNone(rank_profile.first_phase)
+        self.assertEqual(rank_profile.inherits, "default")
+        self.assertEqual(rank_profile.constants, {"TEST": 1})
+
 
 class TestSchema(unittest.TestCase):
     def setUp(self) -> None:

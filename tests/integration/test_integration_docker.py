@@ -1331,7 +1331,7 @@ class TestStreamingApplication(unittest.TestCase):
             document=document,
             fieldsets=[FieldSet(name="default", fields=["title", "body"])],
             rank_profiles=[
-                RankProfile(name="default", first_phase="nativeRank(title, body)")
+                RankProfile(name="default", first_phase="nativeRank(title, body)"),
             ],
         )
         self.app_package = ApplicationPackage(name="mail", schema=[mail_schema])
@@ -2289,6 +2289,10 @@ class TestRankProfileCustomSettingsDeployment(unittest.TestCase):
             first_phase="bm25(text)",
             weakand={"adjust-target": 0.5},
         )
+        rank_profile_no_first_phase = RankProfile(
+            name="no_first_phase",
+        )
+
         schema = Schema(
             name="testrank",
             document=document,
@@ -2297,6 +2301,7 @@ class TestRankProfileCustomSettingsDeployment(unittest.TestCase):
                 rank_profile_filter,
                 rank_profile_stopwords,
                 rank_profile_adjust,
+                rank_profile_no_first_phase,
             ],
         )
         self.app_package = ApplicationPackage(name="testrank", schema=[schema])
