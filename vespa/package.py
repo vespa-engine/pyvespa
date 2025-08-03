@@ -3026,9 +3026,9 @@ class ApplicationPackage(object):
             query_profile_type (QueryProfileType, optional): QueryProfileType of the application. If None,
                 a default QueryProfileType 'root' will be created. Defaults to None.
             additional_query_profiles (dict, optional): Dictionary of QueryProfile objects for the application. If None, a default
-                QueryProfile with QueryProfileType 'root' will be created. Defaults to None.
+                QueryProfile with QueryProfileType 'root' will be created. Defaults to None, will be converted to empty dict.
             additional_query_profile_types (dict, optional): Dictionary of QueryProfileType objects for the application. If None,
-                a default QueryProfileType 'root' will be created. Defaults to None.
+                a default QueryProfileType 'root' will be created. Defaults to None, will be converted to empty dict.
             stateless_model_evaluation (bool, optional): Enable stateless model evaluation. Defaults to False.
             create_schema_by_default (bool, optional): Include a default Schema if none is provided in the schema
                 argument. Defaults to True.
@@ -3076,8 +3076,8 @@ class ApplicationPackage(object):
         if not query_profile_type and create_query_profile_by_default:
             query_profile_type = QueryProfileType()
         self.query_profile_type = query_profile_type
-        self.additional_query_profiles = additional_query_profiles
-        self.additional_query_profile_types = additional_query_profile_types
+        self.additional_query_profiles = additional_query_profiles or {}
+        self.additional_query_profile_types = additional_query_profile_types or {}
         self.model_ids = []
         self.model_configs = {}
         self.stateless_model_evaluation = stateless_model_evaluation
