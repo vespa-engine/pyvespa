@@ -898,8 +898,6 @@ Intercept                          : -7.798639
             id="hybrid",
         )
         generated_xml = generated.to_xml()
-        print(generated_xml)
-        print(self.query_profile_xml)
         # Compare the generated XML with the expected schema
         self.assertTrue(compare_xml(self.query_profile_xml, str(generated_xml)))
 
@@ -969,6 +967,38 @@ class TestQueryProfileVariant(unittest.TestCase):
         print(self.query_profile_xml)
         # Compare the generated XML with the expected schema
         self.assertTrue(compare_xml(self.query_profile_xml, str(generated_xml)))
+
+
+class TestQueryProfileTypes(unittest.TestCase):
+    def test_query_profile_type_root(self):
+        self.query_profile_type_xml = """<query-profile-type id="root" inherits="native">
+  <match path="true"/>  
+  <field name="indexname" type="string" alias="index-name idx"/>
+</query-profile-type>"""
+        generated = query_profile_type(
+            match_(path="true"),  # Match is sanitized due to python keyword
+            field(name="indexname", type="string", alias="index-name idx"),
+            id="root",
+            inherits="native",
+        )
+        generated_xml = generated.to_xml()
+        # Compare the generated XML with the expected schema
+        self.assertTrue(compare_xml(self.query_profile_type_xml, str(generated_xml)))
+
+    def test_query_profile_type_mandatory(self):
+        self.query_profile_type_xml = """<query-profile-type id="mandatory" inherits="native">
+  <field name="timeout" type="string" mandatory="true"/>
+  <field name="foo" type="integer" mandatory="true"/>
+</query-profile-type>"""
+        generated = query_profile_type(
+            field(name="timeout", type="string", mandatory="true"),
+            field(name="foo", type="integer", mandatory="true"),
+            id="mandatory",
+            inherits="native",
+        )
+        generated_xml = generated.to_xml()
+        # Compare the generated XML with the expected schema
+        self.assertTrue(compare_xml(self.query_profile_type_xml, str(generated_xml)))
 
 
 if __name__ == "__main__":
