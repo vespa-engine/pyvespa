@@ -3009,7 +3009,7 @@ class QueryProfileItem(NamedTuple):
     xml: str
 
     @classmethod
-    def from_vt_config(cls, vt_config: VT) -> "QueryProfileItem":
+    def from_vt(cls, vt_config: VT) -> "QueryProfileItem":
         """Create a QueryProfileItem from a VT configuration object."""
         if not isinstance(vt_config, VT):
             raise TypeError(
@@ -3110,9 +3110,11 @@ class ApplicationPackage(object):
                 else []
             )
         self._schema = OrderedDict([(x.name, x) for x in schema])
-        self.query_profile_config = [
-            QueryProfileItem.from_vt_config(qp) for qp in query_profile_config
-        ]
+        self.query_profile_config = (
+            [QueryProfileItem.from_vt(qp) for qp in query_profile_config]
+            if query_profile_config
+            else []
+        )
         if self.query_profile_config:
             create_query_profile_by_default = False
 
@@ -3212,11 +3214,11 @@ class ApplicationPackage(object):
         """
         if isinstance(query_profile_item, VT):
             self.query_profile_config.append(
-                QueryProfileItem.from_vt_config(query_profile_item)
+                QueryProfileItem.from_vt(query_profile_item)
             )
         elif isinstance(query_profile_item, list):
             for item in query_profile_item:
-                self.query_profile_config.append(QueryProfileItem.from_vt_config(item))
+                self.query_profile_config.append(QueryProfileItem.from_vt(item))
         else:
             raise TypeError(
                 "query_profile_item must be an instance of VT or a list of VT, got {}".format(
@@ -3387,7 +3389,7 @@ class ApplicationPackage(object):
             if self.query_profile_config:
                 # Write each query profile config to a file. Should get file name from id-attribute of query-profile or query-profile-type tag.
                 # and query-profile-type to search/query-profiles/types/{id}.xml
-                for item in self.query_profile_config.qp_items:
+                for item in self.query_profile_config:
                     if item.tag == "query_profile":
                         zip_archive.writestr(
                             "search/query-profiles/{}.xml".format(item.id_),
@@ -3476,7 +3478,7 @@ class ApplicationPackage(object):
             with open(os.path.join(root, "validation-overrides.xml"), "w") as f:
                 f.write(self.validations_to_text)
         if self.query_profile_config:
-            for item in self.query_profile_config.qp_items:
+            for item in self.query_profile_config:
                 if item.tag == "query_profile":
                     with open(
                         os.path.join(
