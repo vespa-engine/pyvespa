@@ -3081,7 +3081,7 @@ class ApplicationPackage(object):
                 pass the auth clients to the ContainerCluster instead. Defaults to None.
             deployment_config (DeploymentConfiguration, optional): Configuration for production deployments. Defaults to None.
             services_config (ServicesConfiguration, optional): (Optional) Services configuration for the application. For advanced configuration.  See https://vespa-engine.github.io/pyvespa/advanced-configuration.html
-            query_profile_config (QueryProfileConfiguration, optional): Configuration for query profiles. If provided, will override the query_profile and query_profile_type arguments. Defaults to None. See See https://vespa-engine.github.io/pyvespa/advanced-configuration.html
+            query_profile_config (Union[VT, List[VT]], optional): Configuration for query profiles. If provided, will override the query_profile and query_profile_type arguments. Defaults to None. See See https://vespa-engine.github.io/pyvespa/advanced-configuration.html
 
            Example:
             To create a default application package:
