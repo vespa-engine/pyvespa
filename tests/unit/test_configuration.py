@@ -462,7 +462,6 @@ class TestBillionscaleServiceConfiguration(unittest.TestCase):
             ),
             version="1.0",
         )
-        # print(type(generated_services))
         generated_xml = generated_services.to_xml()
         # Validate against relaxng
         self.assertTrue(validate_services(etree.fromstring(str(generated_xml))))
@@ -818,8 +817,6 @@ class TestUnderscoreAttributes(unittest.TestCase):
         )
         generated_xml = generated.to_xml()
         # Validate against relaxng
-        print(self.xml_schema)
-        print(generated_xml)
         self.assertTrue(validate_services(str(generated_xml)))
         self.assertTrue(compare_xml(self.xml_schema, str(generated_xml)))
 
@@ -903,9 +900,9 @@ Intercept                          : -7.798639
 
 
 class TestQueryProfileVariant(unittest.TestCase):
-    def setUp(self):
+    def test_query_profile_variant(self):
         # Taken from https://docs.vespa.ai/en/query-profiles.html#variants-and-inheritance
-        self.query_profile_xml = """<query-profile id="multiprofile1"> <!-- A regular profile may define "virtual" children within itself -->
+        query_profile_xml = """<query-profile id="multiprofile1"> <!-- A regular profile may define "virtual" children within itself -->
 
     <!-- Names of the request parameters defining the variant profiles of this. Order matters as described below.
          Each individual value looked up in the profile is resolved from the most specific matching virtual
@@ -941,7 +938,6 @@ class TestQueryProfileVariant(unittest.TestCase):
 
 </query-profile>"""
 
-    def test_query_profile_variant(self):
         generated = query_profile(
             dimensions("region,model,bucket"),
             field("My general a value", name="a"),
@@ -963,10 +959,55 @@ class TestQueryProfileVariant(unittest.TestCase):
             id="multiprofile1",
         )
         generated_xml = generated.to_xml()
-        print(generated_xml)
-        print(self.query_profile_xml)
         # Compare the generated XML with the expected schema
-        self.assertTrue(compare_xml(self.query_profile_xml, str(generated_xml)))
+        self.assertTrue(compare_xml(query_profile_xml, str(generated_xml)))
+
+    def test_query_profile_multi(self):
+        query_profile_xml = """<query-profile id="multi" inherits="default multiDimensions"> <!-- default sets default-index to title -->
+  <field name="model"><ref>querybest</ref></field>
+
+  <query-profile for="love,default">
+    <field name="model"><ref>querylove</ref></field>
+    <field name="model.defaultIndex">default</field>
+  </query-profile>
+
+  <query-profile for="*,default">
+    <field name="model.defaultIndex">default</field>
+  </query-profile>
+
+  <query-profile for="love">
+    <field name="model"><ref>querylove</ref></field>
+  </query-profile>
+
+  <query-profile for="inheritslove" inherits="rootWithFilter">
+    <field name="model.filter">+me</field>
+  </query-profile>
+
+</query-profile>"""
+        generated = query_profile(
+            field(
+                ref("querybest"),
+                name="model",
+            ),
+            query_profile(for_="love,default")(
+                field(ref("querylove"), name="model"),
+                field("default", name="model.defaultIndex"),
+            ),
+            query_profile(for_="*,default")(
+                field("default", name="model.defaultIndex"),
+            ),
+            query_profile(for_="love")(
+                field(ref("querylove"), name="model"),
+            ),
+            query_profile(for_="inheritslove", inherits="rootWithFilter")(
+                field("+me", name="model.filter"),
+            ),
+            id="multi",
+            inherits="default multiDimensions",
+        )
+        generated_xml = generated.to_xml()
+        # Compare the generated XML with the expected schema
+        self.assertTrue(compare_xml(query_profile_xml, str(generated_xml)))
 
 
 class TestQueryProfileTypes(unittest.TestCase):
