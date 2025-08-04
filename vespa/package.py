@@ -2993,6 +2993,49 @@ class ServicesConfiguration(object):
         return validate_services(str(self.services_config.to_xml()))
 
 
+class QueryProfileConfiguration(object):
+    """
+    A placeholder for a QueryProfileConfiguration class.
+    This should be an optional way of configuring query profiles in the application package.
+    It should not be used together with query_profile or query_profile_type in ApplicationPackage - they are mutually exclusive.
+
+    """
+
+    def __init__(self, query_profile_config: Union[VT, List[VT]]):
+        self.query_profile_config = query_profile_config
+        if isinstance(query_profile_config, VT):
+            self.query_profile_config = [query_profile_config]
+        elif not isinstance(query_profile_config, List):
+            raise TypeError(
+                "query_profile_config must be a VT object or a list of VT objects, got {}".format(
+                    type(query_profile_config)
+                )
+            )
+
+    def __str__(self) -> str:
+        return str(self.query_profile_config.to_xml()).rstrip("\n")
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(query_profile_config={self.query_profile_config})"
+
+    def get_config_type_ids(self) -> Dict[str, List[str]]:
+        """
+        Returns a mapping of config type IDs to their names.
+        This is used to map the query profile configuration to the correct config type IDs.
+        Should iterate over the query profile config and return the appropriate IDs.
+        e.g.:
+
+        {
+            "query-profile": ["hybrid", "rag"],
+            "query-profile-type": ["root"]
+        }
+        """
+        config_type_ids = {}
+        for qp_config in self.query_profile_config:
+            pass
+        return config_type_ids
+
+
 class ApplicationPackage(object):
     def __init__(
         self,
@@ -3010,6 +3053,7 @@ class ApplicationPackage(object):
         clusters: Optional[List[Cluster]] = None,
         deployment_config: Optional[DeploymentConfiguration] = None,
         services_config: Optional[ServicesConfiguration] = None,
+        query_profile_config: Optional[QueryProfileConfiguration] = None,
     ) -> None:
         """Create an application package.
 
@@ -3034,8 +3078,10 @@ class ApplicationPackage(object):
             auth_clients (list, optional): List of AuthClient objects for client authorization. If clusters is passed,
                 pass the auth clients to the ContainerCluster instead. Defaults to None.
             deployment_config (DeploymentConfiguration, optional): Configuration for production deployments. Defaults to None.
+            services_config (ServicesConfiguration, optional): (Optional) Services configuration for the application. For advanced configuration.  See https://vespa-engine.github.io/pyvespa/advanced-configuration.html
+            query_profile_config (QueryProfileConfiguration, optional): Configuration for query profiles. If provided, will override the query_profile and query_profile_type arguments. Defaults to None. See See https://vespa-engine.github.io/pyvespa/advanced-configuration.html
 
-        Example:
+           Example:
             To create a default application package:
 
             ```python
@@ -3287,7 +3333,11 @@ class ApplicationPackage(object):
                     "search/query-profiles/types/root.xml",
                     self.query_profile_type_to_text,
                 )
-
+            if self.query_profile_config:
+                # TODO: Write each query profile config to a file. Should get name from id-attribute of query-profile or query-profile-type tag.
+                # Need to check the top level tag first, and write query-profile to search/query-profiles/{id}.xml
+                # and query-profile-type to search/query-profiles/types/{id}.xml
+                pass
             if self.deployment_config:
                 zip_archive.writestr("deployment.xml", self.deployment_to_text)
 
