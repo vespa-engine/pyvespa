@@ -8,6 +8,7 @@ queryprofile_tags = [
     "strict",
     "description",
     "dimensions",
+    "ref",
 ]
 # Fail if any tag is duplicated. Provide feedback of which tags are duplicated.
 duplicated = set([tag for tag in queryprofile_tags if queryprofile_tags.count(tag) > 1])
