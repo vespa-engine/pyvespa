@@ -2674,6 +2674,14 @@ class TestQueryProfileItems(unittest.TestCase):
         with self.assertRaises(TypeError):
             QueryProfileItem.from_vt(self.invalid_qp)
 
+    def test_single(self):
+        """Test that application package accepts a single query profile."""
+        app_package = ApplicationPackage(
+            name="testfiles",
+            query_profile_config=self.qp_simple,
+        )
+        self.assertIsInstance(app_package.query_profile_config, list)
+
     def test_to_files(self):
         """Test that query profiles can be written to files."""
         app_package = ApplicationPackage(

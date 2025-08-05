@@ -3110,14 +3110,20 @@ class ApplicationPackage(object):
                 else []
             )
         self._schema = OrderedDict([(x.name, x) for x in schema])
-        self.query_profile_config = (
-            [QueryProfileItem.from_vt(qp) for qp in query_profile_config]
-            if query_profile_config
-            else []
-        )
+        if query_profile_config:
+            if isinstance(query_profile_config, list):
+                self.query_profile_config = [
+                    QueryProfileItem.from_vt(qp) for qp in query_profile_config
+                ]
+            else:
+                self.query_profile_config = [
+                    QueryProfileItem.from_vt(query_profile_config)
+                ]
+        else:
+            self.query_profile_config = []
+
         if self.query_profile_config:
             create_query_profile_by_default = False
-
         if not query_profile and create_query_profile_by_default:
             query_profile = QueryProfile()
         self.query_profile = query_profile
