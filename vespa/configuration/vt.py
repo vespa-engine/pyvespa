@@ -91,7 +91,7 @@ class VT:
 def attrmap(o):
     """This maps the attributes that we don't want to be Python keywords or commonly used names to the replacement names."""
     # Handle reserved attribute names by checking if they end with underscore and are in our mapping
-    if o.endswith("_") and o in restore_reserved:
+    if o in restore_reserved:
         o = restore_reserved[o]
     else:
         o = dict(_global="global").get(o, o)
