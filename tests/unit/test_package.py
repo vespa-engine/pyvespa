@@ -69,6 +69,66 @@ class TestField(unittest.TestCase):
         )
         self.assertEqual(field.indexing_to_text, "index | summary")
 
+    def test_field_multiline_indexing_tuple(self):
+        field = Field(
+            name="title",
+            type="array<string>",
+            indexing=('"en"', ["index", "summary"]),
+        )
+        self.assertEqual(field.name, "title")
+        self.assertEqual(field.type, "array<string>")
+        self.assertEqual(field.indexing, ('"en"', ["index", "summary"]))
+        # For tuple indexing, indexing_to_text should return None
+        self.assertIsNone(field.indexing_to_text)
+        # indexing_as_multiline should return the formatted lines
+        expected_lines = ['"en";', "index | summary;"]
+        self.assertEqual(field.indexing_as_multiline, expected_lines)
+
+    def test_field_multiline_indexing_quote_escaping(self):
+        field = Field(
+            name="title",
+            type="string",
+            indexing=('"test \\"escaped\\" quotes"', ["index"]),
+        )
+        self.assertIsNone(field.indexing_to_text)
+        expected_lines = ['"test \\"escaped\\" quotes";', "index;"]
+        self.assertEqual(field.indexing_as_multiline, expected_lines)
+
+    def test_field_multiline_indexing_multiple_statements(self):
+        field = Field(
+            name="title",
+            type="string",
+            indexing=("statement1", ["index", "summary"], "statement2"),
+        )
+        self.assertIsNone(field.indexing_to_text)
+        expected_lines = ["statement1;", "index | summary;", "statement2;"]
+        self.assertEqual(field.indexing_as_multiline, expected_lines)
+
+    def test_field_indexing_backward_compatibility(self):
+        # Ensure existing list-based indexing still works
+        field = Field(
+            name="body",
+            type="string",
+            indexing=["index", "summary"],
+        )
+        self.assertEqual(field.indexing_to_text, "index | summary")
+        self.assertIsNone(field.indexing_as_multiline)
+
+    def test_complex_indexing_statement(self):
+        # This is ugly, but difficult to make good SDK without schemaparser available.
+        indexing_statement = """input data_start | switch {
+                case "None": input year_start . "-01-01T00:00:00.00Z" | to_epoch_second | attribute | summary;
+                default: input data_start . "T00:00:00.00Z" | to_epoch_second | attribute | summary;
+            }"""
+        field = Field(
+            name="data_start",
+            type="string",
+            indexing=indexing_statement,  # Use a single string
+        )
+        indexing_text = field.indexing_to_text
+        print(f"Indexing text: {indexing_text}")
+        self.assertEqual(indexing_text, indexing_statement)
+
 
 class TestImportField(unittest.TestCase):
     def test_import_field(self):
@@ -1582,12 +1642,18 @@ class TestFieldAlias(unittest.TestCase):
                         alias=["single_aliased_field_alias"],
                     ),
                     Field(
+                        name="single_component_aliased_field",
+                        type="string",
+                        alias=["component:component_alias"],
+                    ),
+                    Field(
                         name="multiple_aliased_field",
                         type="string",
                         alias=[
                             "first_alias",
                             "second_alias",
                             "third_alias",
+                            "fourth_component: fourth_alias",
                         ],
                     ),
                 ]
@@ -1606,10 +1672,14 @@ class TestFieldAlias(unittest.TestCase):
             "        field single_aliased_field type string {\n"
             "            alias: single_aliased_field_alias\n"
             "        }\n"
+            "        field single_component_aliased_field type string {\n"
+            "            alias component: component_alias\n"
+            "        }\n"
             "        field multiple_aliased_field type string {\n"
             "            alias: first_alias\n"
             "            alias: second_alias\n"
             "            alias: third_alias\n"
+            "            alias fourth_component: fourth_alias\n"
             "        }\n"
             "    }\n"
             "}"
@@ -1805,6 +1875,195 @@ class TestSchemaStructField(unittest.TestCase):
             "}"
         )
         self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
+
+
+class TestStructField(unittest.TestCase):
+    def test_struct_field_schema_simple(self):
+        email_struct = Struct(
+            name="email",
+            fields=[
+                Field(name="sender", type="string"),
+                Field(name="recipient", type="string"),
+                Field(name="subject", type="string"),
+                Field(name="content", type="string"),
+            ],
+        )
+        emails_field = Field(
+            name="emails",
+            type="array<email>",
+            indexing=["summary"],
+            struct_fields=[
+                StructField(
+                    name="content",
+                    indexing=["attribute", "summary"],
+                    attribute=["fast-search"],
+                )
+            ],
+        )
+        schema = Schema(name="schema", document=Document())
+        schema.add_fields(emails_field)
+        schema.document.add_structs(email_struct)
+        schema_text = schema.schema_to_text
+        expected = """\
+schema schema {
+    document schema {
+        field emails type array<email> {
+            indexing: summary
+            struct-field content {
+                indexing: attribute | summary
+                attribute {
+                    fast-search
+                }
+            }
+        }
+        struct email {
+            field sender type string {
+            }
+            field recipient type string {
+            }
+            field subject type string {
+            }
+            field content type string {
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected)
+
+    def test_struct_field_multiline_indexing_tuple(self):
+        """Test StructField with multiline indexing using tuple syntax"""
+        email_struct = Struct(
+            name="email",
+            fields=[
+                Field(name="sender", type="string"),
+                Field(name="recipient", type="string"),
+                Field(name="subject", type="string"),
+                Field(name="content", type="string"),
+            ],
+        )
+        emails_field = Field(
+            name="emails",
+            type="array<email>",
+            indexing=["summary"],
+            struct_fields=[
+                StructField(
+                    name="content",
+                    indexing=('"en"', ["attribute", "summary"]),
+                    attribute=["fast-search"],
+                )
+            ],
+        )
+        schema = Schema(name="schema", document=Document())
+        schema.add_fields(emails_field)
+        schema.document.add_structs(email_struct)
+
+        # Test the StructField properties
+        struct_field = emails_field.struct_fields[0]
+        self.assertEqual(struct_field.name, "content")
+        self.assertEqual(struct_field.indexing, ('"en"', ["attribute", "summary"]))
+        self.assertEqual(struct_field.attribute, ["fast-search"])
+
+        # Test complete schema text output
+        schema_text = schema.schema_to_text
+        expected = """\
+schema schema {
+    document schema {
+        field emails type array<email> {
+            indexing: summary
+            struct-field content {
+                indexing {
+                    "en";
+                    attribute | summary;
+                }
+                attribute {
+                    fast-search
+                }
+            }
+        }
+        struct email {
+            field sender type string {
+            }
+            field recipient type string {
+            }
+            field subject type string {
+            }
+            field content type string {
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected)
+
+    def test_struct_field_complex_indexing_statement(self):
+        """Test StructField with complex indexing using single string"""
+        email_struct = Struct(
+            name="email",
+            fields=[
+                Field(name="sender", type="string"),
+                Field(name="recipient", type="string"),
+                Field(name="subject", type="string"),
+                Field(name="content", type="string"),
+            ],
+        )
+
+        # Complex indexing statement matching the pattern from TestField
+        indexing_statement = """input content | switch {
+                case "empty": "default_content" | attribute | summary;
+                default: input content | lowercase | attribute | summary;
+            }"""
+
+        emails_field = Field(
+            name="emails",
+            type="array<email>",
+            indexing=["summary"],
+            struct_fields=[
+                StructField(
+                    name="content",
+                    indexing=indexing_statement,
+                    attribute=["fast-search"],
+                )
+            ],
+        )
+        schema = Schema(name="schema", document=Document())
+        schema.add_fields(emails_field)
+        schema.document.add_structs(email_struct)
+
+        # Test the StructField properties
+        struct_field = emails_field.struct_fields[0]
+        self.assertEqual(struct_field.name, "content")
+        self.assertEqual(struct_field.indexing, indexing_statement)
+        self.assertEqual(struct_field.attribute, ["fast-search"])
+
+        # Test complete schema text output
+        schema_text = schema.schema_to_text
+        expected = """\
+schema schema {
+    document schema {
+        field emails type array<email> {
+            indexing: summary
+            struct-field content {
+                indexing: input content | switch {
+                        case "empty": "default_content" | attribute | summary;
+                        default: input content | lowercase | attribute | summary;
+                    }
+                attribute {
+                    fast-search
+                }
+            }
+        }
+        struct email {
+            field sender type string {
+            }
+            field recipient type string {
+            }
+            field subject type string {
+            }
+            field content type string {
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected)
 
 
 class TestVTequality(unittest.TestCase):
@@ -2006,6 +2265,7 @@ class TestPredicateField(unittest.TestCase):
         print(expected_result)
         self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
 
+
 class TestRankProfileCustomSettings(unittest.TestCase):
     def test_rank_profile_with_filter_and_weakand(self):
         # Create a minimal schema with a dummy document to allow rank profile rendering.
@@ -2048,3 +2308,270 @@ schema test_schema {
             actual_schema,
             expected_schema,
         )
+
+
+class TestFieldIndexConfigurations(unittest.TestCase):
+    """Tests for the multiple index configurations feature in Field definitions."""
+
+    def test_single_string_index_backward_compatibility(self):
+        """Test that single string index configuration works as before."""
+        field = Field(name="title", type="string", index="enable-bm25")
+        self.assertEqual(field.index, "enable-bm25")
+        self.assertEqual(field.index_configurations, ["enable-bm25"])
+
+        # Test rendering uses simple syntax
+        document = Document(fields=[field])
+        schema = Schema("test", document)
+        schema_text = schema.schema_to_text
+
+        expected_schema = """\
+schema test {
+    document test {
+        field title type string {
+            index: enable-bm25
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected_schema)
+
+    def test_single_dict_index(self):
+        """Test that single dict index configuration works"""
+        index_config = {"arity": 2, "lower-bound": 3}
+        field = Field(name="predicate_field", type="predicate", index=index_config)
+        self.assertEqual(field.index, index_config)
+        self.assertEqual(field.index_configurations, [index_config])
+
+        # Test rendering uses block syntax (since it's a dict)
+        document = Document(fields=[field])
+        schema = Schema("test", document)
+        schema_text = schema.schema_to_text
+
+        expected_schema = """\
+schema test {
+    document test {
+        field predicate_field type predicate {
+            index {
+                arity: 2
+                lower-bound: 3
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected_schema)
+
+    def test_no_index_configuration(self):
+        """Test field with no index configuration."""
+        field = Field(name="no_index", type="string")
+        self.assertIsNone(field.index)
+        self.assertEqual(field.index_configurations, [])
+
+        # Test rendering has no index statements
+        document = Document(fields=[field])
+        schema = Schema("test", document)
+        schema_text = schema.schema_to_text
+
+        expected_schema = """\
+schema test {
+    document test {
+        field no_index type string {
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected_schema)
+
+    def test_multiple_string_indices(self):
+        """Test field with multiple string index configurations."""
+        field = Field(
+            name="multi_string",
+            type="string",
+            index=["enable-bm25", "another-setting"],
+        )
+        document = Document(fields=[field])
+        schema = Schema("test", document)
+        schema_text = schema.schema_to_text
+        expected_schema = """\
+schema test {
+    document test {
+        field multi_string type string {
+            index {
+                enable-bm25
+                another-setting
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected_schema)
+        self.assertEqual(field.index, ["enable-bm25", "another-setting"])
+        self.assertEqual(field.index_configurations, ["enable-bm25", "another-setting"])
+
+    def test_multiple_dict_indices(self):
+        """Test field with multiple dict index configurations."""
+        indices = [{"param1": "value1"}, {"param2": "value2"}]
+        field = Field(name="multi_dict", type="string", index=indices)
+        document = Document(fields=[field])
+        schema = Schema("test", document)
+        schema_text = schema.schema_to_text
+        expected_schema = """\
+schema test {
+    document test {
+        field multi_dict type string {
+            index {
+                param1: value1
+                param2: value2
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected_schema)
+        self.assertEqual(field.index, indices)
+        self.assertEqual(field.index_configurations, indices)
+
+    def test_mixed_string_and_dict_indices(self):
+        """Test field with mixed string and dict index configurations."""
+        indices = ["enable-bm25", {"arity": 2}, "another-setting"]
+        field = Field(name="mixed", type="string", index=indices)
+        self.assertEqual(field.index, indices)
+        self.assertEqual(field.index_configurations, indices)
+
+    def test_predicate_field_from_issue(self):
+        """Test the exact predicate field example from issue #983."""
+        field = Field(
+            name="predicate_field",
+            type="predicate",
+            indexing=["attribute"],
+            index={
+                "arity": 2,
+                "lower-bound": 3,
+                "upper-bound": 200,
+                "dense-posting-list-threshold": 0.25,
+            },
+        )
+
+        # Create schema and render
+        document = Document(fields=[field])
+        schema = Schema("test", document)
+        schema_text = schema.schema_to_text
+
+        expected_schema = """\
+schema test {
+    document test {
+        field predicate_field type predicate {
+            indexing: attribute
+            index {
+                arity: 2
+                lower-bound: 3
+                upper-bound: 200
+                dense-posting-list-threshold: 0.25
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected_schema)
+
+    def test_multiple_index_configurations_rendering(self):
+        """Test that multiple index configurations render correctly in schema."""
+        field = Field(
+            name="multi_index",
+            type="string",
+            indexing=["index", "summary"],
+            index=["enable-bm25", {"arity": 2, "lower-bound": 3}, "another-setting"],
+        )
+
+        # Create schema and render
+        document = Document(fields=[field])
+        schema = Schema("test", document)
+        schema_text = schema.schema_to_text
+
+        expected_schema = """\
+schema test {
+    document test {
+        field multi_index type string {
+            indexing: index | summary
+            index {
+                enable-bm25
+                arity: 2
+                lower-bound: 3
+                another-setting
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected_schema)
+
+    def test_dict_with_none_values(self):
+        """Test that dict index configurations with None values render without ': None'."""
+        field = Field(
+            name="parameterless",
+            type="string",
+            index={"enable-bm25": None, "param": "value"},
+        )
+
+        # Create schema and render
+        document = Document(fields=[field])
+        schema = Schema("test", document)
+        schema_text = schema.schema_to_text
+
+        expected_schema = """\
+schema test {
+    document test {
+        field parameterless type string {
+            index {
+                enable-bm25
+                param: value
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected_schema)
+
+    def test_ann_field_with_additional_index_configs(self):
+        """Test that ANN fields work correctly with additional index configurations."""
+        field = Field(
+            name="vector_field",
+            type="tensor<float>(x[128])",
+            indexing=["attribute"],
+            ann=HNSW(
+                distance_metric="euclidean",
+                max_links_per_node=16,
+                neighbors_to_explore_at_insert=200,
+            ),
+            index=["enable-bm25", {"custom-param": "value"}],
+        )
+
+        # Create schema and render
+        document = Document(fields=[field])
+        schema = Schema("test", document)
+        schema_text = schema.schema_to_text
+
+        expected_schema = """\
+schema test {
+    document test {
+        field vector_field type tensor<float>(x[128]) {
+            indexing: attribute
+            index {
+                enable-bm25
+                custom-param: value
+            }
+            attribute {
+                distance-metric: euclidean
+            }
+            index {
+                hnsw {
+                    max-links-per-node: 16
+                    neighbors-to-explore-at-insert: 200
+                }
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema_text, expected_schema)
+
+    def test_equality_with_multiple_indices(self):
+        """Test that Field equality works correctly with multiple index configurations."""
+        index_config = ["enable-bm25", {"arity": 2}]
+        field1 = Field(name="test", type="string", index=index_config)
+        field2 = Field(name="test", type="string", index=index_config.copy())
+        field3 = Field(name="test", type="string", index="enable-bm25")
+
+        self.assertEqual(field1, field2)
+        self.assertNotEqual(field1, field3)
