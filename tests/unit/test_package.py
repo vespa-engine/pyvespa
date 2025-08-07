@@ -3,6 +3,8 @@
 import unittest
 import platform
 import pytest
+import tempfile
+import zipfile
 
 from vespa.package import (
     HNSW,
@@ -34,9 +36,11 @@ from vespa.package import (
     StructField,
     ServicesConfiguration,
     ApplicationConfiguration,
+    QueryProfileItem,
 )
 from vespa.configuration.vt import compare_xml
 from vespa.configuration.services import *
+from vespa.configuration.query_profiles import *
 
 
 class TestField(unittest.TestCase):
@@ -2613,3 +2617,160 @@ schema test {
 
         self.assertEqual(field1, field2)
         self.assertNotEqual(field1, field3)
+
+
+class TestQueryProfileItems(unittest.TestCase):
+    def setUp(self) -> None:
+        self.app_package = ApplicationPackage(name="test")
+        self.qp_simple = query_profile(
+            field(
+                30,
+                name="hits",
+            ),
+            field(
+                3,
+                name="trace.level",
+            ),
+            id="root",
+        )
+        self.qp_multi = query_profile(
+            field(
+                ref("querybest"),
+                name="model",
+            ),
+            query_profile(for_="love,default")(
+                field(ref("querylove"), name="model"),
+                field("default", name="model.defaultIndex"),
+            ),
+            query_profile(for_="*,default")(
+                field("default", name="model.defaultIndex"),
+            ),
+            query_profile(for_="love")(
+                field(ref("querylove"), name="model"),
+            ),
+            query_profile(for_="inheritslove", inherits="rootWithFilter")(
+                field("+me", name="model.filter"),
+            ),
+            id="multi",
+            inherits="default multiDimensions",
+        )
+        self.qpt = query_profile_type(
+            match_(path="true"),  # Match is sanitized due to python keyword
+            field(name="indexname", type="string", alias="index-name idx"),
+            id="default",
+            inherits="native",
+        )
+        self.invalid_qp = QueryProfile(fields=[Field(name="invalid", type="string")])
+
+    def test_single_can_be_created(self):
+        """Test that query profiles can be created without errors."""
+        qpc = QueryProfileItem.from_vt(self.qp_simple)
+        self.assertIsInstance(qpc, QueryProfileItem)
+        self.assertEqual(qpc.id_, "root")
+        self.assertEqual(qpc.tag, "query_profile")
+
+    def test_multi_can_be_created(self):
+        """Test that multiple query profiles can be created without errors."""
+        qpc = QueryProfileItem.from_vt(self.qp_multi)
+        self.assertIsInstance(qpc, QueryProfileItem)
+        self.assertEqual(qpc.id_, "multi")
+        self.assertEqual(qpc.tag, "query_profile")
+
+    def test_three_query_profiles(self):
+        """Test that three query profiles can be added to ApplicationPackage without errors."""
+        self.app_package.add_query_profile(self.qp_simple)
+        self.assertIsInstance(self.app_package.query_profile_config, list)
+        self.assertEqual(self.app_package.query_profile_config[0].id_, "root")
+        self.assertEqual(self.app_package.query_profile_config[0].tag, "query_profile")
+
+    def test_get_items(self):
+        """Test that the tags of the query profiles can be retrieved."""
+        app = ApplicationPackage(
+            name="test2", query_profile_config=[self.qp_simple, self.qp_multi, self.qpt]
+        )
+        self.assertEqual(len(app.query_profile_config), 3)
+        self.assertEqual(app.query_profile_config[0].tag, "query_profile")
+        self.assertEqual(app.query_profile_config[1].tag, "query_profile")
+        self.assertEqual(app.query_profile_config[2].tag, "query_profile_type")
+
+    def test_not_query_profile_fails(self):
+        """Test that adding a non-query profile raises a TypeError."""
+        not_qp = field(10, name="not_query_profile")
+        with self.assertRaises(ValueError):
+            self.app_package.add_query_profile(not_qp)
+
+    def test_missing_id_fails(self):
+        """Test that a query profile without an id raises a ValueError."""
+        no_id = query_profile(
+            field(10, name="hits"),
+        )
+        with self.assertRaises(ValueError):
+            self.app_package.add_query_profile(no_id)
+
+    def test_invalid_type_fails(self):
+        """Test that an invalid query profile raises a TypeError."""
+        with self.assertRaises(TypeError):
+            QueryProfileItem.from_vt(self.invalid_qp)
+
+    def test_single(self):
+        """Test that application package accepts a single query profile."""
+        app_package = ApplicationPackage(
+            name="testfiles",
+            query_profile_config=self.qp_simple,
+        )
+        self.assertIsInstance(app_package.query_profile_config, list)
+
+    def test_to_files(self):
+        """Test that query profiles can be written to files."""
+        app_package = ApplicationPackage(
+            name="testfiles",
+            query_profile_config=[self.qp_simple, self.qp_multi, self.qpt],
+        )
+        with tempfile.TemporaryDirectory() as tempdir:
+            app_package.to_files(tempdir)
+            # Check if files are created
+            for qp in app_package.query_profile_config:
+                if qp.tag == "query_profile":
+                    path = os.path.join(
+                        tempdir,
+                        "search",
+                        "query-profiles",
+                        f"{qp.id_}.xml",
+                    )
+                elif qp.tag == "query_profile_type":
+                    path = os.path.join(
+                        tempdir,
+                        "search",
+                        "query-profiles",
+                        "types",
+                        f"{qp.id_}.xml",
+                    )
+                self.assertTrue(os.path.exists(path))
+                # Check xml content is same
+                with open(path, "r") as file:
+                    content = file.read()
+                    self.assertTrue(compare_xml(str(qp.xml), content))
+
+    def test_to_zip(self):
+        """Test that query profiles can be written to a zip archive."""
+        app_package = ApplicationPackage(
+            name="testzip",
+            query_profile_config=[self.qp_simple, self.qp_multi, self.qpt],
+        )
+        with tempfile.TemporaryDirectory() as tempdir:
+            zip_path = os.path.join(tempdir, "test.zip")
+            app_package.to_zipfile(zip_path)
+            # Check if zip file is created
+            self.assertTrue(os.path.exists(zip_path))
+            # Check if files are inside the zip
+            with zipfile.ZipFile(zip_path, "r") as zip_file:
+                for qp in app_package.query_profile_config:
+                    if qp.tag == "query_profile":
+                        expected_path = f"search/query-profiles/{qp.id_}.xml"
+                    elif qp.tag == "query_profile_type":
+                        expected_path = f"search/query-profiles/types/{qp.id_}.xml"
+                    self.assertIn(expected_path, zip_file.namelist())
+                    # Check xml content is same
+                    with zip_file.open(expected_path) as file:
+                        content = file.read().decode("utf-8")
+                        self.assertTrue(compare_xml(str(qp.xml), content))
