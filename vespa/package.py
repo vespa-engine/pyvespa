@@ -11,7 +11,17 @@ from enum import Enum
 from io import BytesIO
 from pathlib import Path
 from shutil import copyfile
-from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict, Union
+from typing import (
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    TypedDict,
+    Union,
+    NamedTuple,
+)
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 from vespa.configuration.vt import Xml, vt
@@ -2993,6 +3003,41 @@ class ServicesConfiguration(object):
         return validate_services(str(self.services_config.to_xml()))
 
 
+class QueryProfileItem(NamedTuple):
+    tag: str
+    id_: str
+    xml: str
+
+    @classmethod
+    def from_vt(cls, vt_config: VT) -> "QueryProfileItem":
+        """Create a QueryProfileItem from a VT configuration object."""
+        if not isinstance(vt_config, VT):
+            raise TypeError(
+                f"vt_config must be an instance of VT, got {type(vt_config).__name__}"
+            )
+        tag = vt_config.tag
+        id_ = vt_config.get("id")
+
+        # Validate
+        if tag not in ["query_profile", "query_profile_type"]:
+            raise ValueError(
+                f"Query profile item must be of type 'query_profile' or 'query_profile_type', got '{tag}'"
+            )
+
+        if not id_ or not str(id_).strip():
+            raise ValueError(
+                f"Query profile item of type '{tag}' must have a non-empty 'id'"
+            )
+
+        clean_id = str(id_).strip()
+        xml = vt_config.to_xml()
+
+        return cls(tag, clean_id, xml)
+
+    def __str__(self) -> str:
+        return self.xml
+
+
 class ApplicationPackage(object):
     def __init__(
         self,
@@ -3010,6 +3055,7 @@ class ApplicationPackage(object):
         clusters: Optional[List[Cluster]] = None,
         deployment_config: Optional[DeploymentConfiguration] = None,
         services_config: Optional[ServicesConfiguration] = None,
+        query_profile_config: Optional[Union[VT, List[VT]]] = None,
     ) -> None:
         """Create an application package.
 
@@ -3034,8 +3080,10 @@ class ApplicationPackage(object):
             auth_clients (list, optional): List of AuthClient objects for client authorization. If clusters is passed,
                 pass the auth clients to the ContainerCluster instead. Defaults to None.
             deployment_config (DeploymentConfiguration, optional): Configuration for production deployments. Defaults to None.
+            services_config (ServicesConfiguration, optional): (Optional) Services configuration for the application. For advanced configuration.  See https://vespa-engine.github.io/pyvespa/advanced-configuration.html
+            query_profile_config (Union[VT, List[VT]], optional): Configuration for query profiles. If provided, will override the query_profile and query_profile_type arguments. Defaults to None. See See https://vespa-engine.github.io/pyvespa/advanced-configuration.html
 
-        Example:
+           Example:
             To create a default application package:
 
             ```python
@@ -3062,12 +3110,31 @@ class ApplicationPackage(object):
                 else []
             )
         self._schema = OrderedDict([(x.name, x) for x in schema])
+        if query_profile_config:
+            if isinstance(query_profile_config, list):
+                self.query_profile_config = [
+                    QueryProfileItem.from_vt(qp) for qp in query_profile_config
+                ]
+            else:
+                self.query_profile_config = [
+                    QueryProfileItem.from_vt(query_profile_config)
+                ]
+        else:
+            self.query_profile_config = []
+
+        if self.query_profile_config:
+            create_query_profile_by_default = False
         if not query_profile and create_query_profile_by_default:
             query_profile = QueryProfile()
         self.query_profile = query_profile
         if not query_profile_type and create_query_profile_by_default:
             query_profile_type = QueryProfileType()
         self.query_profile_type = query_profile_type
+        if self.query_profile_config:
+            if query_profile or query_profile_type:
+                raise ValueError(
+                    "query_profile_config is mutually exclusive with query_profile and query_profile_type. Use one of them, not both."
+                )
         self.model_ids = []
         self.model_configs = {}
         self.stateless_model_evaluation = stateless_model_evaluation
@@ -3126,6 +3193,44 @@ class ApplicationPackage(object):
         """
         for schema in schemas:
             self._schema.update({schema.name: schema})
+
+    def add_query_profile(self, query_profile_item: Union[VT, List[VT]]) -> None:
+        """
+        Add a query profile item (query-profile or query-profile-type) to the application package.
+
+        Args:
+            query_profile_item (VT or List[VT]): Query profile item(s) to be added.
+
+        Returns:
+            None
+
+        Example:
+            ```python
+            app_package = ApplicationPackage(name="testapp")
+            qp = query_profile(
+                field(30, name="hits"),
+                field(3, name="trace.level"),
+            )
+            app_package.add_query_profile(
+                qp
+            )
+            # Query profile item is added to the application package.
+            # inspect with `app_package.query_profile_config`
+            ```
+        """
+        if isinstance(query_profile_item, VT):
+            self.query_profile_config.append(
+                QueryProfileItem.from_vt(query_profile_item)
+            )
+        elif isinstance(query_profile_item, list):
+            for item in query_profile_item:
+                self.query_profile_config.append(QueryProfileItem.from_vt(item))
+        else:
+            raise TypeError(
+                "query_profile_item must be an instance of VT or a list of VT, got {}".format(
+                    type(query_profile_item).__name__
+                )
+            )
 
     def get_model(self, model_id: str):
         try:
@@ -3287,7 +3392,20 @@ class ApplicationPackage(object):
                     "search/query-profiles/types/root.xml",
                     self.query_profile_type_to_text,
                 )
-
+            if self.query_profile_config:
+                # Write each query profile config to a file. Should get file name from id-attribute of query-profile or query-profile-type tag.
+                # and query-profile-type to search/query-profiles/types/{id}.xml
+                for item in self.query_profile_config:
+                    if item.tag == "query_profile":
+                        zip_archive.writestr(
+                            "search/query-profiles/{}.xml".format(item.id_),
+                            item.xml,
+                        )
+                    elif item.tag == "query_profile_type":
+                        zip_archive.writestr(
+                            "search/query-profiles/types/{}.xml".format(item.id_),
+                            item.xml,
+                        )
             if self.deployment_config:
                 zip_archive.writestr("deployment.xml", self.deployment_to_text)
 
@@ -3365,7 +3483,24 @@ class ApplicationPackage(object):
         if self.validations:
             with open(os.path.join(root, "validation-overrides.xml"), "w") as f:
                 f.write(self.validations_to_text)
-
+        if self.query_profile_config:
+            for item in self.query_profile_config:
+                if item.tag == "query_profile":
+                    with open(
+                        os.path.join(
+                            root, "search/query-profiles/{}.xml".format(item.id_)
+                        ),
+                        "w",
+                    ) as f:
+                        f.write(item.xml)
+                elif item.tag == "query_profile_type":
+                    with open(
+                        os.path.join(
+                            root, "search/query-profiles/types/{}.xml".format(item.id_)
+                        ),
+                        "w",
+                    ) as f:
+                        f.write(item.xml)
         if self.deployment_config:
             with open(os.path.join(root, "deployment.xml"), "w") as f:
                 f.write(self.deployment_to_text)
