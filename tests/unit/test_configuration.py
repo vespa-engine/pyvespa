@@ -14,6 +14,7 @@ from vespa.configuration.vt import (
 
 from vespa.configuration.services import *
 from vespa.configuration.query_profiles import *
+from vespa.configuration.deployment import *
 
 
 class TestVT(unittest.TestCase):
@@ -941,20 +942,24 @@ class TestQueryProfileVariant(unittest.TestCase):
         generated = query_profile(
             dimensions("region,model,bucket"),
             field("My general a value", name="a"),
-            query_profile(for_="us,nokia,test1")(
+            query_profile(
                 field("My value of the combination us-nokia-test1-a", name="a"),
+                for_="us,nokia,test1",
             ),
-            query_profile(for_="us")(
+            query_profile(
                 field("My value of the combination us-a", name="a"),
                 field("My value of the combination us-b", name="b"),
+                for_="us",
             ),
-            query_profile(for_="us,nokia,*")(
+            query_profile(
                 field("My value of the combination us-nokia-a", name="a"),
                 field("My value of the combination us-nokia-b", name="b"),
+                for_="us,nokia,*",
             ),
-            query_profile(for_="us,*,test1")(
+            query_profile(
                 field("My value of the combination us-test1-a", name="a"),
                 field("My value of the combination us-test1-b", name="b"),
+                for_="us,*,test1",
             ),
             id="multiprofile1",
         )
@@ -989,18 +994,19 @@ class TestQueryProfileVariant(unittest.TestCase):
                 ref("querybest"),
                 name="model",
             ),
-            query_profile(for_="love,default")(
+            query_profile(
                 field(ref("querylove"), name="model"),
                 field("default", name="model.defaultIndex"),
+                for_="love,default",
             ),
-            query_profile(for_="*,default")(
-                field("default", name="model.defaultIndex"),
+            query_profile(
+                field("default", name="model.defaultIndex"), for_="*,default"
             ),
-            query_profile(for_="love")(
-                field(ref("querylove"), name="model"),
-            ),
-            query_profile(for_="inheritslove", inherits="rootWithFilter")(
+            query_profile(field(ref("querylove"), name="model"), for_="love"),
+            query_profile(
                 field("+me", name="model.filter"),
+                for_="inheritslove",
+                inherits="rootWithFilter",
             ),
             id="multi",
             inherits="default multiDimensions",
@@ -1040,6 +1046,105 @@ class TestQueryProfileTypes(unittest.TestCase):
         generated_xml = generated.to_xml()
         # Compare the generated XML with the expected schema
         self.assertTrue(compare_xml(self.query_profile_type_xml, str(generated_xml)))
+
+
+class TestDeploymentVT(unittest.TestCase):
+    # Examples taken from https://docs.vespa.ai/en/reference/deployment.html
+    def setUp(self):
+        self.simple_vt = deployment(
+            prod(region("aws-us-east-1c"), region("aws-us-west-2a")), version="1.0"
+        )
+
+        self.complex_vt = deployment(
+            instance(prod(region("aws-us-east-1c")), id="beta"),
+            instance(
+                block_change(
+                    revision="false",
+                    days="mon,wed-fri",
+                    hours="16-23",
+                    time_zone="UTC",
+                ),
+                prod(
+                    region("aws-us-east-1c"),
+                    delay(hours="3", minutes="7", seconds="13"),
+                    parallel(
+                        region("aws-us-west-1c"),
+                        steps(
+                            region("aws-eu-west-1a"),
+                            delay(hours="3"),
+                        ),
+                    ),
+                ),
+                endpoints(
+                    endpoint(
+                        region("aws-us-east-1c"), container_id="my-container-service"
+                    )
+                ),
+                id="default",
+            ),
+            endpoints(
+                endpoint(
+                    instance("beta", weight="1"),
+                    id="my-weighted-endpoint",
+                    container_id="my-container-service",
+                    region="aws-us-east-1c",
+                )
+            ),
+            version="1.0",
+        )
+
+    def test_simple_valid(self):
+        item = DeploymentItem.from_vt(self.simple_vt)
+        self.assertIsInstance(item, DeploymentItem)
+        expected = """<deployment version="1.0">
+    <prod>
+        <region>aws-us-east-1c</region>
+        <region>aws-us-west-2a</region>
+    </prod>
+</deployment>"""
+        self.assertTrue(compare_xml(expected, item.xml))
+
+    def test_complex_valid(self):
+        expected = """<deployment version="1.0">
+    <instance id="beta">
+        <prod>
+            <region>aws-us-east-1c</region>
+        </prod>
+    </instance>
+    <instance id="default">
+        <block-change revision="false" days="mon,wed-fri" hours="16-23" time-zone="UTC"></block-change>
+        <prod>
+            <region>aws-us-east-1c</region>
+            <delay hours="3" minutes="7" seconds="13"></delay>
+            <parallel>
+                <region>aws-us-west-1c</region>
+                <steps>
+                    <region>aws-eu-west-1a</region>
+                    <delay hours="3"></delay>
+                </steps>
+            </parallel>
+        </prod>
+        <endpoints>
+            <endpoint container-id="my-container-service">
+                <region>aws-us-east-1c</region>
+            </endpoint>
+        </endpoints>
+    </instance>
+    <endpoints>
+        <endpoint id="my-weighted-endpoint" container-id="my-container-service" region="aws-us-east-1c">
+            <instance weight="1">beta</instance>
+        </endpoint>
+    </endpoints>
+</deployment>"""
+        self.assertTrue(compare_xml(self.complex_vt.to_xml(), expected))
+
+    def test_invalid_top_level(self):
+        with self.assertRaises(ValueError):
+            DeploymentItem.from_vt(prod())  # Not deployment root
+
+    def test_error_wrong_type(self):
+        with self.assertRaises(TypeError):
+            DeploymentItem.from_vt("invalid")  # Not a VT object
 
 
 if __name__ == "__main__":
