@@ -1,0 +1,5191 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="application.html">
+      
+      
+        <link rel="next" href="evaluation.html">
+      
+      
+      <link rel="icon" href="../../_static/logo-symbol/Vespa-isolated-symbol-white-rgb.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.16">
+    
+    
+      
+        <title>Deployment - Vespa python API</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.7e37652d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Merriweather+Sans:300,300i,400,400i,700,700i%7CRed+Hat+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Merriweather Sans";--md-code-font:"Red Hat Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="green" data-md-color-accent="yellow">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#vespa.deployment" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Vespa python API" class="md-header__button md-logo" aria-label="Vespa python API" data-md-component="logo">
+      
+  <img src="../../_static/logo/Vespa-logo-white-rgb.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Vespa python API
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Deployment
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="green" data-md-color-accent="yellow"  aria-label="Dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="deep-purple"  aria-label="Light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/vespa-engine/pyvespa" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Vespa python API" class="md-nav__button md-logo" aria-label="Vespa python API" data-md-component="logo">
+      
+  <img src="../../_static/logo/Vespa-logo-white-rgb.svg" alt="logo">
+
+    </a>
+    Vespa python API
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/vespa-engine/pyvespa" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started-pyvespa.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Hybrid Search - Quickstart
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started-pyvespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Hybrid Search - Quickstart on Vespa Cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced-configuration.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Advanced Configuration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../authenticating-to-vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Authenticating to Vespa Cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../application-packages.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Application packages
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../query.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Querying Vespa
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reads-writes.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Read and write operations
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluating-vespa-application-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Evaluating a Vespa Application
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../troubleshooting.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Troubleshooting
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Examples
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            Examples
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/Matryoshka_embeddings_in_Vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Matryoshka embeddings in Vespa cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/billion-scale-vector-search-with-cohere-embeddings-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Billion scale vector search with cohere embeddings cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/chat_with_your_pdfs_using_colbert_langchain_and_Vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    chat with your pdfs using colbert langchain and Vespa cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/cohere-binary-vectors-in-vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Cohere binary vectors in vespa cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/colbert_standalone_Vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    colbert standalone Vespa cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/colbert_standalone_long_context_Vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    colbert standalone long context Vespa cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/colpali-benchmark-vqa-vlm_Vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    colpali benchmark vqa vlm Vespa cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/colpali-document-retrieval-vision-language-models-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Colpali document retrieval vision language models cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/cross-encoders-for-global-reranking.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Cross encoders for global reranking
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/evaluating-with-snowflake-arctic-embed.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Evaluating with snowflake arctic embed
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/feed_performance.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Feed performance
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/feed_performance_cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Feed performance cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/lightgbm-with-categorical-mapping.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Lightgbm with categorical mapping
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/lightgbm-with-categorical.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Lightgbm with categorical
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/mixedbread-binary-embeddings-with-sentence-transformers-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Mixedbread binary embeddings with sentence transformers cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/mother-of-all-embedding-models-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Mother of all embedding models cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/multi-vector-indexing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Multi vector indexing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/multilingual-multi-vector-reps-with-cohere-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Multilingual multi vector reps with cohere cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/pdf-retrieval-with-ColQwen2-vlm_Vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    pdf retrieval with ColQwen2 vlm Vespa cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/pyvespa-examples.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Pyvespa examples
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/rag-blueprint-vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Rag blueprint vespa cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/scaling-personal-ai-assistants-with-streaming-mode-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Scaling personal ai assistants with streaming mode cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/simplified-retrieval-with-colpali-vlm_Vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    simplified retrieval with colpali vlm Vespa cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/turbocharge-rag-with-langchain-and-vespa-streaming-mode-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Turbocharge rag with langchain and vespa streaming mode cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/video_search_twelvelabs_cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Video search twelvelabs cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/visual_pdf_rag_with_vespa_colpali_cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Visual pdf rag with vespa colpali cloud
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            API Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="application.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Application
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Deployment
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="deployment.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Deployment
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#vespa.deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;deployment
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" deployment">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaDeployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;VespaDeployment
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" VespaDeployment">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaDeployment.read_app_package_from_disk" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;read_app_package_from_disk
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaDocker" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;VespaDocker
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" VespaDocker">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaDocker.from_container_name_or_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;from_container_name_or_id
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaDocker.deploy" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;deploy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaDocker.deploy_from_disk" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;deploy_from_disk
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaDocker.wait_for_config_server_start" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;wait_for_config_server_start
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaDocker.start_services" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;start_services
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaDocker.stop_services" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;stop_services
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaDocker.restart_services" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;restart_services
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;VespaCloud
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" VespaCloud">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.deploy" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;deploy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.deploy_to_prod" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;deploy_to_prod
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.get_application" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_application
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.check_production_build_status" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;check_production_build_status
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.wait_for_prod_deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;wait_for_prod_deployment
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.deploy_from_disk" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;deploy_from_disk
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.delete" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;delete
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.get_all_endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_all_endpoints
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.get_app_package_contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_app_package_contents
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.get_schemas" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_schemas
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.download_app_package_content" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;download_app_package_content
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.get_endpoint_auth_method" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_endpoint_auth_method
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.get_endpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_endpoint
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.get_mtls_endpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_mtls_endpoint
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.get_token_endpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_token_endpoint
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="evaluation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Evaluation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="exceptions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Exceptions
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="io.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    IO
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="package.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Package
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_11_7" id="__nav_11_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Querybuilder
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11_7">
+            <span class="md-nav__icon md-icon"></span>
+            Querybuilder
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="querybuilder/grouping/grouping.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Grouping
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#vespa.deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;deployment
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" deployment">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaDeployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;VespaDeployment
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" VespaDeployment">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaDeployment.read_app_package_from_disk" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;read_app_package_from_disk
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaDocker" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;VespaDocker
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" VespaDocker">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaDocker.from_container_name_or_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;from_container_name_or_id
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaDocker.deploy" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;deploy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaDocker.deploy_from_disk" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;deploy_from_disk
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaDocker.wait_for_config_server_start" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;wait_for_config_server_start
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaDocker.start_services" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;start_services
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaDocker.stop_services" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;stop_services
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaDocker.restart_services" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;restart_services
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;VespaCloud
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" VespaCloud">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.deploy" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;deploy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.deploy_to_prod" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;deploy_to_prod
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.get_application" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_application
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.check_production_build_status" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;check_production_build_status
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.wait_for_prod_deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;wait_for_prod_deployment
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.deploy_from_disk" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;deploy_from_disk
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.delete" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;delete
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.get_all_endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_all_endpoints
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.get_app_package_contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_app_package_contents
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.get_schemas" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_schemas
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.download_app_package_content" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;download_app_package_content
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.get_endpoint_auth_method" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_endpoint_auth_method
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.get_endpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_endpoint
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.get_mtls_endpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_mtls_endpoint
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.deployment.VespaCloud.get_token_endpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_token_endpoint
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+  <h1>Deployment</h1>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="vespa.deployment" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-module"></code>            <code>vespa.deployment</code>
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="vespa.deployment.VespaDeployment" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>VespaDeployment</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaDeployment.read_app_package_from_disk" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">read_app_package_from_disk</span><span class="p">(</span><span class="n">application_root</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Reads the contents of an application package on disk into a zip file.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>application_root</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The directory root of the application package.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>bytes</code></td>            <td>
+                  <code><span title="bytes">bytes</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The zipped application package.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="vespa.deployment.VespaDocker" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>              <code class="highlight language-python"><span class="n">VespaDocker</span><span class="p">(</span><span class="n">port</span><span class="o">=</span><span class="mi">8080</span><span class="p">,</span> <span class="n">container_memory</span><span class="o">=</span><span class="mi">4</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">**</span> <span class="mi">3</span><span class="p">,</span> <span class="n">output_file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">container</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">container_image</span><span class="o">=</span><span class="s1">&#39;vespaengine/vespa&#39;</span><span class="p">,</span> <span class="n">volumes</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cfgsrv_port</span><span class="o">=</span><span class="mi">19071</span><span class="p">,</span> <span class="n">debug_port</span><span class="o">=</span><span class="mi">5005</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="            VespaDeployment (vespa.deployment.VespaDeployment)" href="#vespa.deployment.VespaDeployment">VespaDeployment</a></code></p>
+
+
+        <p>Manage Docker deployments.</p>
+<p>Make sure to start the Docker daemon before instantiating this class.</p>
+
+
+<details class="example-usage" open>
+  <summary>Example usage</summary>
+  <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">vespa.deployment</span><span class="w"> </span><span class="kn">import</span> <span class="n">VespaDocker</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">vespa_docker</span> <span class="o">=</span> <span class="n">VespaDocker</span><span class="p">(</span><span class="n">port</span><span class="o">=</span><span class="mi">8080</span><span class="p">)</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># or initialize from a running container:</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">vespa_docker</span> <span class="o">=</span> <span class="n">VespaDocker</span><span class="p">(</span><span class="s1">&#39;http://localhost&#39;</span><span class="p">,</span> <span class="mi">8080</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">4294967296</span><span class="p">,</span> <span class="s1">&#39;vespaengine/vespa&#39;</span><span class="p">)</span>
+</span></code></pre></div>
+</details>        <p><strong>Note</strong>:</p>
+<p>It is <strong>NOT</strong> possible to refer to Volume Mounts in your Application Package.
+This means that for example .onnx-model files that are part of the Application Package <strong>must</strong> be on your host machine, so
+that it can be uploaded as part of the Application Package to the Vespa container.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>port</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The port for the container. Default is 8080.</p>
+              </div>
+            </td>
+            <td>
+                  <code>8080</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>cfgsrv_port</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The Vespa Config Server port. Default is 19071.</p>
+              </div>
+            </td>
+            <td>
+                  <code>19071</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>debug_port</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The port to connect to for debugging the Vespa container. Default is 5005.</p>
+              </div>
+            </td>
+            <td>
+                  <code>5005</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>output_file</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The file to write output messages to.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="sys.stdout">stdout</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>container_memory</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Memory available to the container in bytes. Default is 4GB.</p>
+              </div>
+            </td>
+            <td>
+                  <code>4 * 1024 ** 3</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>container</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Used when instantiating <code>VespaDocker</code> from a running container.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>volumes</code>
+            </td>
+            <td>
+                  <code>list of str</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A list of volume mount strings, such as <code>['/home/user1/:/mnt/vol2', '/var/www:/mnt/vol1']</code>. The Application Package cannot reference volume mounts.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>container_image</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The Docker container image to use.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;vespaengine/vespa&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaDocker.from_container_name_or_id" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">from_container_name_or_id</span><span class="p">(</span><span class="n">name_or_id</span><span class="p">,</span> <span class="n">output_file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-staticmethod"><code>staticmethod</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Instantiate VespaDocker from a running container.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>name_or_id</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The name or id of the running container.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>output_file</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The file to write output messages to.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="sys.stdout">stdout</span></code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the specified container is not found.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>VespaDocker</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="              VespaDocker(port=8080, container_memory=4 * 1024 ** 3, output_file=sys.stdout, container=None, container_image='vespaengine/vespa', volumes=None, cfgsrv_port=19071, debug_port=5005) (vespa.deployment.VespaDocker)" href="#vespa.deployment.VespaDocker">VespaDocker</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>An instance of VespaDocker associated with the running container.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaDocker.deploy" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">deploy</span><span class="p">(</span><span class="n">application_package</span><span class="p">,</span> <span class="n">max_wait_configserver</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">max_wait_deployment</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span> <span class="n">max_wait_docker</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Deploy the application package into a Vespa container.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>application_package</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="              ApplicationPackage(name, schema=None, query_profile=None, query_profile_type=None, stateless_model_evaluation=False, create_schema_by_default=True, create_query_profile_by_default=True, configurations=None, validations=None, components=None, auth_clients=None, clusters=None, deployment_config=None, services_config=None, query_profile_config=None) (vespa.package.ApplicationPackage)" href="package.html#vespa.package.ApplicationPackage">ApplicationPackage</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The application package to be deployed.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_wait_configserver</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Maximum seconds to wait for the config server to start.</p>
+              </div>
+            </td>
+            <td>
+                  <code>60</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_wait_deployment</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Maximum seconds to wait for the deployment to complete.</p>
+              </div>
+            </td>
+            <td>
+                  <code>300</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_wait_docker</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Maximum seconds to wait for the Docker container to start.</p>
+              </div>
+            </td>
+            <td>
+                  <code>300</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>debug</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, adds the configured debug_port to the Docker port mapping.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>VespaConnection</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="              Vespa(url, port=None, deployment_message=None, cert=None, key=None, vespa_cloud_secret_token=None, output_file=sys.stdout, application_package=None, additional_headers=None) (vespa.application.Vespa)" href="application.html#vespa.application.Vespa">Vespa</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A Vespa connection instance once the deployment is complete.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaDocker.deploy_from_disk" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">deploy_from_disk</span><span class="p">(</span><span class="n">application_name</span><span class="p">,</span> <span class="n">application_root</span><span class="p">,</span> <span class="n">max_wait_configserver</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">max_wait_application</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span> <span class="n">docker_timeout</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Deploy from a directory tree.</p>
+<p>This method is used when making changes to application package files that are not supported by pyvespa.
+This is why this method is not found in the ApplicationPackage class.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>application_name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The name of the application package.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>application_root</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The root directory of the application package.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>debug</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, adds the configured debug_port to the Docker port mapping.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>VespaConnection</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="              Vespa(url, port=None, deployment_message=None, cert=None, key=None, vespa_cloud_secret_token=None, output_file=sys.stdout, application_package=None, additional_headers=None) (vespa.application.Vespa)" href="application.html#vespa.application.Vespa">Vespa</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A Vespa connection instance once the deployment is complete.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaDocker.wait_for_config_server_start" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">wait_for_config_server_start</span><span class="p">(</span><span class="n">max_wait</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Waits for the Config Server to start inside the Docker image.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_wait</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The maximum number of seconds to wait for the application endpoint to become available.</p>
+              </div>
+            </td>
+            <td>
+                  <code>300</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="RuntimeError">RuntimeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the config server does not start within the specified max_wait time.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>None</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaDocker.start_services" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">start_services</span><span class="p">(</span><span class="n">max_wait</span><span class="o">=</span><span class="mi">120</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Start Vespa services inside the Docker image, first waiting for the Config Server, then for other services.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_wait</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The maximum number of seconds to wait for the application endpoint to become available.</p>
+              </div>
+            </td>
+            <td>
+                  <code>120</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="RuntimeError">RuntimeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If a container has not been set or the services fail to start within the specified max_wait time.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>None</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaDocker.stop_services" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">stop_services</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Stop Vespa services inside the Docker image, first stopping the services, then stopping the Config Server.</p>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="RuntimeError">RuntimeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If a container has not been set or an error occurs while stopping the services.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>None</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaDocker.restart_services" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">restart_services</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Restart Vespa services inside the Docker image. This is equivalent to calling
+<code>self.stop_services()</code> followed by <code>self.start_services()</code>.</p>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="RuntimeError">RuntimeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If a container has not been set or an error occurs during the restart process.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>None</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="vespa.deployment.VespaCloud" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>              <code class="highlight language-python"><span class="n">VespaCloud</span><span class="p">(</span><span class="n">tenant</span><span class="p">,</span> <span class="n">application</span><span class="p">,</span> <span class="n">application_package</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">key_location</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">key_content</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">auth_client_token_id</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">output_file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">application_root</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cluster</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">instance</span><span class="o">=</span><span class="s1">&#39;default&#39;</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="            VespaDeployment (vespa.deployment.VespaDeployment)" href="#vespa.deployment.VespaDeployment">VespaDeployment</a></code></p>
+
+
+        <p>Deploy an application to the Vespa Cloud (cloud.vespa.ai).</p>
+<p>There are several ways to initialize VespaCloud:
+- Application source: From a Python-defined application package or from the application_root folder.
+- Control plane access: Using an API key (must be added to Vespa Cloud Console) or an access token, obtained by interactive login.
+- Data plane access: mTLS is used by default, but Vespa applications can also be configured to use token-based authentication (token must be added to Vespa Cloud Console, and the corresponding auth_token_id must be provided).</p>
+
+
+<details class="example-usage" open>
+  <summary>Example usage</summary>
+  <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># 1. Initialize VespaCloud with an application package and existing API key for control plane access.</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">vespa_cloud</span> <span class="o">=</span> <span class="n">VespaCloud</span><span class="p">(</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">tenant</span><span class="o">=</span><span class="s2">&quot;my-tenant&quot;</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">application</span><span class="o">=</span><span class="s2">&quot;my-application&quot;</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">application_package</span><span class="o">=</span><span class="n">app_package</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">key_location</span><span class="o">=</span><span class="s2">&quot;/path/to/private-key.pem&quot;</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># 2. Initialize VespaCloud from disk folder by interactive control plane auth.</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="n">vespa_cloud</span> <span class="o">=</span> <span class="n">VespaCloud</span><span class="p">(</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">tenant</span><span class="o">=</span><span class="s2">&quot;my-tenant&quot;</span><span class="p">,</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">application</span><span class="o">=</span><span class="s2">&quot;my-application&quot;</span><span class="p">,</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">application_root</span><span class="o">=</span><span class="s2">&quot;/path/to/application&quot;</span><span class="p">,</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="p">)</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="c1"># 3. Initialize VespaCloud with an application package and token-based data plane access.</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="n">vespa_cloud</span> <span class="o">=</span> <span class="n">VespaCloud</span><span class="p">(</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">tenant</span><span class="o">=</span><span class="s2">&quot;my-tenant&quot;</span><span class="p">,</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">application</span><span class="o">=</span><span class="s2">&quot;my-application&quot;</span><span class="p">,</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>    <span class="n">application_package</span><span class="o">=</span><span class="n">app_package</span><span class="p">,</span>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>    <span class="n">auth_client_token_id</span><span class="o">=</span><span class="s2">&quot;my-token-id&quot;</span><span class="p">,</span> <span class="c1"># Must be added in Vespa Cloud Console</span>
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="p">)</span>
+</span></code></pre></div>
+</details>
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>tenant</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Tenant name registered in the Vespa Cloud.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>application</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Application name in the Vespa Cloud.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>application_package</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="              ApplicationPackage(name, schema=None, query_profile=None, query_profile_type=None, stateless_model_evaluation=False, create_schema_by_default=True, create_query_profile_by_default=True, configurations=None, validations=None, components=None, auth_clients=None, clusters=None, deployment_config=None, services_config=None, query_profile_config=None) (vespa.package.ApplicationPackage)" href="package.html#vespa.package.ApplicationPackage">ApplicationPackage</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Application package to be deployed. Either this or application_root must be set.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>key_location</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Location of the control plane key used for signing HTTP requests to the Vespa Cloud.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>key_content</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Content of the control plane key used for signing HTTP requests to the Vespa Cloud. Use only when the key file is not available.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>auth_client_token_id</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Token-based data plane authentication. This token name must be configured in the Vespa Cloud Console. It configures Vespa's services.xml, and the token must have read and write permissions.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>output_file</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Output file to write output messages. Default is sys.stdout.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="sys.stdout">stdout</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>application_root</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Directory for the application root (location of services.xml, models/, schemas/, etc.). If the application is packaged with Maven, use the generated <code>&lt;myapp&gt;/target/application</code> directory.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>cluster</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of the cluster to target when retrieving endpoints. This affects which endpoints are used for initializing the :class:<code>Vespa</code> instance in <code>VespaCloud.get_application</code> and <code>VespaCloud.deploy</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>instance</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of the application instance. Default is "default".</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;default&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="RuntimeError">RuntimeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If deployment fails.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Vespa</code></td>            <td>
+                  <code>None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A Vespa connection instance for interacting with the deployed application.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaCloud.deploy" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">deploy</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="s1">&#39;default&#39;</span><span class="p">,</span> <span class="n">disk_folder</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">max_wait</span><span class="o">=</span><span class="mi">1800</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Deploy the given application package as the given instance in the Vespa Cloud dev environment.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>instance</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of this instance of the application in the Vespa Cloud.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;default&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>disk_folder</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Disk folder to save the required Vespa config files. Defaults to the application name folder within the user's current working directory.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>version</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Vespa version to use for deployment. Defaults to None, meaning the latest version. Should only be set based on instructions from the Vespa team. Must be a valid Vespa version, e.g., "8.435.13".</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_wait</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Seconds to wait for the deployment to complete.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1800</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Vespa</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="              Vespa(url, port=None, deployment_message=None, cert=None, key=None, vespa_cloud_secret_token=None, output_file=sys.stdout, application_package=None, additional_headers=None) (vespa.application.Vespa)" href="application.html#vespa.application.Vespa">Vespa</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A Vespa connection instance. This instance connects to the mTLS endpoint. To connect to the token endpoint, use <code>VespaCloud.get_application(endpoint_type="token")</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="RuntimeError">RuntimeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If deployment fails or if there are issues with the deployment process.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaCloud.deploy_to_prod" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">deploy_to_prod</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="s1">&#39;default&#39;</span><span class="p">,</span> <span class="n">application_root</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">source_url</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Deploy the given application package as the given instance in the Vespa Cloud prod environment.
+NB! This feature is experimental and may fail in unexpected ways. Expect better support in future releases.</p>
+<p>If submitting an application that is not yet packaged, tests should be located in <application_root>/tests.
+If submitting an application packaged with maven, application_root should refer to the generated <myapp>/target/application directory.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>instance</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of this instance of the application in the Vespa Cloud.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;default&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>application_root</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Path to either save the required Vespa config files (if initialized with application_package) or read them from (if initialized with application_root).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>source_url</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional source URL (including commit hash) for the deployment. This is a URL to the source code repository, e.g., GitHub, that is used to build the application package. Example: <a href="https://github.com/vespa-cloud/vector-search/commit/474d7771bd938d35dc5dcfd407c21c019d15df3c">https://github.com/vespa-cloud/vector-search/commit/474d7771bd938d35dc5dcfd407c21c019d15df3c</a>. The source URL will show up in the Vespa Cloud Console next to the build number.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="RuntimeError">RuntimeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If deployment fails or if there are issues with the deployment process.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Note</summary>
+  <p>This feature is still experimental and may not have full stability in production. Future releases will provide better support for this functionality.</p>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaCloud.get_application" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">get_application</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="s1">&#39;default&#39;</span><span class="p">,</span> <span class="n">environment</span><span class="o">=</span><span class="s1">&#39;dev&#39;</span><span class="p">,</span> <span class="n">endpoint_type</span><span class="o">=</span><span class="s1">&#39;mtls&#39;</span><span class="p">,</span> <span class="n">vespa_cloud_secret_token</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">max_wait</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Get a connection to the Vespa application instance.
+Will only work if the application is already deployed.</p>
+
+
+<details class="example-usage" open>
+  <summary>Example usage</summary>
+  <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">vespa_cloud</span> <span class="o">=</span> <span class="n">VespaCloud</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">app</span><span class="p">:</span> <span class="n">Vespa</span> <span class="o">=</span> <span class="n">vespa_cloud</span><span class="o">.</span><span class="n">get_application</span><span class="p">()</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># Feed, query, visit, etc.</span>
+</span></code></pre></div>
+</details>
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>instance</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of this instance of the application in the Vespa Cloud. Default is "default".</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;default&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>environment</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Environment of the application. Default is "dev". Options are "dev" or "prod".</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;dev&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>endpoint_type</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Type of endpoint to connect to. Default is "mtls". Options are "mtls" or "token".</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;mtls&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>vespa_cloud_secret_token</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Vespa Cloud Secret Token. Only required if endpoint_type is "token".</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>region</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Region of the application in Vespa Cloud, e.g., "aws-us-east-1c". If not provided, the first region from the environment will be used.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_wait</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Seconds to wait for the application to be up. Default is 60 seconds.</p>
+              </div>
+            </td>
+            <td>
+                  <code>60</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Vespa</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="              Vespa(url, port=None, deployment_message=None, cert=None, key=None, vespa_cloud_secret_token=None, output_file=sys.stdout, application_package=None, additional_headers=None) (vespa.application.Vespa)" href="application.html#vespa.application.Vespa">Vespa</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Vespa application instance.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="RuntimeError">RuntimeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the application is not yet deployed or there are issues retrieving the connection.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaCloud.check_production_build_status" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">check_production_build_status</span><span class="p">(</span><span class="n">build_no</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Check the status of a production build.
+Useful for example in CI/CD pipelines to check when a build has converged.</p>
+
+
+<details class="example-usage" open>
+  <summary>Example usage</summary>
+  <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">vespa_cloud</span> <span class="o">=</span> <span class="n">VespaCloud</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">build_no</span> <span class="o">=</span> <span class="n">vespa_cloud</span><span class="o">.</span><span class="n">deploy_to_prod</span><span class="p">()</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">status</span> <span class="o">=</span> <span class="n">vespa_cloud</span><span class="o">.</span><span class="n">check_production_build_status</span><span class="p">(</span><span class="n">build_no</span><span class="p">)</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># This can yield one of three responses:</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># 1. If the revision (build_no), or higher, has successfully converged everywhere, and nothing older has then been deployed on top of that again. Nothing more will happen in this case.</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># {</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1">#     &quot;deployed&quot;: True,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1">#     &quot;status&quot;: &quot;done&quot;</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># }</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c1"># 2. If the revision (build_no), or newer, has not yet converged, but the system is (most likely) still trying to deploy it. There is a point in polling again later when this is the response.</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="c1"># {</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="c1">#     &quot;deployed&quot;: False,</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="c1">#     &quot;status&quot;: &quot;deploying&quot;</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="c1"># }</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="c1"># 3. If the revision, or newer, has not yet converged everywhere, and it&#39;s never going to, because it was similar to the previous build, or marked obsolete by a user. There is no point in asking again for this revision.</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="c1"># {</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="c1">#     &quot;deployed&quot;: False,</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="c1">#     &quot;status&quot;: &quot;done&quot;</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="c1"># }</span>
+</span></code></pre></div>
+</details>
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>build_no</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The build number to check.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>dict</code></td>            <td>
+                  <code><span title="dict">dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A dictionary with the aggregated status of all deployment jobs for the given build number. The dictionary contains:
+- "deployed" (bool): Whether the build has successfully converged.
+- "status" (str): The current status of the build ("done", "deploying").</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="RuntimeError">RuntimeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If there are issues with retrieving the status of the build.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaCloud.wait_for_prod_deployment" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">wait_for_prod_deployment</span><span class="p">(</span><span class="n">build_no</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">max_wait</span><span class="o">=</span><span class="mi">3600</span><span class="p">,</span> <span class="n">poll_interval</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Wait for a production deployment to finish.
+Useful for example in CI/CD pipelines to wait for a deployment to finish.</p>
+
+
+<details class="example-usage" open>
+  <summary>Example usage</summary>
+  <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">vespa_cloud</span> <span class="o">=</span> <span class="n">VespaCloud</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">build_no</span> <span class="o">=</span> <span class="n">vespa_cloud</span><span class="o">.</span><span class="n">deploy_to_prod</span><span class="p">()</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">success</span> <span class="o">=</span> <span class="n">vespa_cloud</span><span class="o">.</span><span class="n">wait_for_prod_deployment</span><span class="p">(</span><span class="n">build_no</span><span class="p">,</span> <span class="n">max_wait</span><span class="o">=</span><span class="mi">3600</span><span class="p">,</span> <span class="n">poll_interval</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">success</span><span class="p">)</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># Output: True</span>
+</span></code></pre></div>
+</details>
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>build_no</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The build number to check.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_wait</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Maximum time to wait for the deployment in seconds. Default is 3600 (1 hour).</p>
+              </div>
+            </td>
+            <td>
+                  <code>3600</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>poll_interval</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Polling interval in seconds. Default is 5 seconds.</p>
+              </div>
+            </td>
+            <td>
+                  <code>5</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>bool</code></td>            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>True if the deployment is done and converged, False if the deployment has failed.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="TimeoutError">TimeoutError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the deployment did not finish within <code>max_wait</code> seconds.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaCloud.deploy_from_disk" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">deploy_from_disk</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">application_root</span><span class="p">,</span> <span class="n">max_wait</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Deploy to the development environment from a directory tree.
+This method is used when making changes to application package files that are not supported by pyvespa.
+Note: Requires a certificate and key to be generated using 'vespa auth cert'.</p>
+
+
+<details class="example-usage" open>
+  <summary>Example usage</summary>
+  <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">vespa_cloud</span> <span class="o">=</span> <span class="n">VespaCloud</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">vespa_cloud</span><span class="o">.</span><span class="n">deploy_to_dev_from_directory</span><span class="p">(</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">instance</span><span class="o">=</span><span class="s2">&quot;my-instance&quot;</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">application_root</span><span class="o">=</span><span class="s2">&quot;/path/to/application&quot;</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">max_wait</span><span class="o">=</span><span class="mi">3600</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">version</span><span class="o">=</span><span class="s2">&quot;8.435.13&quot;</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span>
+</span></code></pre></div>
+</details>
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>instance</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The name of the instance where the application will be run.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>application_root</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The root directory of the application package.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_wait</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The maximum number of seconds to wait for the deployment. Default is 3600 (1 hour).</p>
+              </div>
+            </td>
+            <td>
+                  <code>300</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>version</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The Vespa version to use for the deployment. Default is None, which means the latest version. It must be a valid Vespa version (e.g., "8.435.13").</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Vespa</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="              Vespa(url, port=None, deployment_message=None, cert=None, key=None, vespa_cloud_secret_token=None, output_file=sys.stdout, application_package=None, additional_headers=None) (vespa.application.Vespa)" href="application.html#vespa.application.Vespa">Vespa</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A Vespa connection instance. This connects to the mtls endpoint. To connect to the token endpoint, use <code>VespaCloud.get_application(endpoint_type="token")</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaCloud.delete" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">delete</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="s1">&#39;default&#39;</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Delete the specified instance from the development environment in the Vespa Cloud.
+To delete a production instance, you must submit a new deployment with <code>deployment-removal</code> added to the 'validation-overrides.xml'.
+See <a href="https://cloud.vespa.ai/en/deleting-applications">https://cloud.vespa.ai/en/deleting-applications</a> for more details.</p>
+
+
+<details class="example-usage" open>
+  <summary>Example usage</summary>
+  <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">vespa_cloud</span> <span class="o">=</span> <span class="n">VespaCloud</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">vespa_cloud</span><span class="o">.</span><span class="n">delete_instance</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="s2">&quot;my-instance&quot;</span><span class="p">)</span>
+</span></code></pre></div>
+</details>
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>instance</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The name of the instance to delete.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;default&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>None</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaCloud.get_all_endpoints" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">get_all_endpoints</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="s1">&#39;default&#39;</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">environment</span><span class="o">=</span><span class="s1">&#39;dev&#39;</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Get all endpoints for the application instance.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>instance</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Application instance name.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;default&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>region</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Region name, e.g. 'aws-us-east-1c'.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>environment</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Environment (dev/prod).</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;dev&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>list</code></td>            <td>
+                  <code><span title="typing.List">List</span>[<span title="typing.Dict">Dict</span>[<span title="str">str</span>, <span title="str">str</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>List of endpoints.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaCloud.get_app_package_contents" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">get_app_package_contents</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="s1">&#39;default&#39;</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">environment</span><span class="o">=</span><span class="s1">&#39;dev&#39;</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Get all endpoints for the application package content in the specified region and environment.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>instance</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Application instance name.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;default&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>region</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Region name, e.g. 'aws-us-east-1c'. If None, uses the default region for the environment.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>environment</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Environment (dev/prod). Default is 'dev'.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;dev&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>list</code></td>            <td>
+                  <code><span title="typing.List">List</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>List of endpoints for the application instance.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaCloud.get_schemas" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">get_schemas</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="s1">&#39;default&#39;</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">environment</span><span class="o">=</span><span class="s1">&#39;dev&#39;</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Get all schemas for the application instance in the specified environment and region.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>instance</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Application instance name.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;default&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>region</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Region name, e.g. 'aws-us-east-1c'. If None, uses the default region for the environment.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>environment</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Environment (dev/prod). Default is 'dev'.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;dev&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>dict</code></td>            <td>
+                  <code><span title="typing.Dict">Dict</span>[<span title="str">str</span>, <span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Dictionary with schema name as key and content as value.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaCloud.download_app_package_content" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">download_app_package_content</span><span class="p">(</span><span class="n">destination_path</span><span class="p">,</span> <span class="n">instance</span><span class="o">=</span><span class="s1">&#39;default&#39;</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">environment</span><span class="o">=</span><span class="s1">&#39;dev&#39;</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Download the application package content to a specified destination path.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>destination_path</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The path where the application package content will be downloaded.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>instance</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Application instance name.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;default&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>region</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Region name, e.g. 'aws-us-east-1c'. If None, uses the default region for the environment.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>environment</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Environment (dev/prod). Default is 'dev'.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;dev&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>None</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaCloud.get_endpoint_auth_method" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">get_endpoint_auth_method</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">instance</span><span class="o">=</span><span class="s1">&#39;default&#39;</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">environment</span><span class="o">=</span><span class="s1">&#39;dev&#39;</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Get the authentication method for the given endpoint URL.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>url</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The endpoint URL.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>instance</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Application instance name.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;default&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>region</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Region name, e.g. 'aws-us-east-1c'.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>environment</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Environment (dev/prod).</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;dev&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>str</code></td>            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The authentication method ('mtls' or 'token').</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaCloud.get_endpoint" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">get_endpoint</span><span class="p">(</span><span class="n">auth_method</span><span class="p">,</span> <span class="n">instance</span><span class="o">=</span><span class="s1">&#39;default&#39;</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">environment</span><span class="o">=</span><span class="s1">&#39;dev&#39;</span><span class="p">,</span> <span class="n">cluster</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Get the endpoint URL for the application.</p>
+<p>Tip: See the 'endpoint'-tab in Vespa Cloud Console for available endpoints.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>auth_method</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Authentication method. Options are 'mtls' or 'token'.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>instance</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Application instance name.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;default&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>region</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Region name, e.g. 'aws-us-east-1c'.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>environment</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Environment (dev/prod).</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;dev&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>cluster</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Specific cluster to get the endpoint for. If None, uses the instance's default cluster.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>str</code></td>            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The endpoint URL.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaCloud.get_mtls_endpoint" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">get_mtls_endpoint</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="s1">&#39;default&#39;</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">environment</span><span class="o">=</span><span class="s1">&#39;dev&#39;</span><span class="p">,</span> <span class="n">cluster</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Get the endpoint URL of a mTLS endpoint for the application.
+Will return the first mTLS endpoint found if multiple exist.
+Use <code>VespaCloud.get_all_endpoints</code> to get all endpoints.</p>
+<p>Tip: See the 'endpoint'-tab in Vespa Cloud Console for available endpoints.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>instance</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Application instance name.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;default&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>region</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Region name.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>environment</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Environment (dev/prod).</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;dev&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>cluster</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Specific cluster to get the endpoint for. If None, uses the instance's default cluster.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>str</code></td>            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The endpoint URL.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.deployment.VespaCloud.get_token_endpoint" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">get_token_endpoint</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="s1">&#39;default&#39;</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">environment</span><span class="o">=</span><span class="s1">&#39;dev&#39;</span><span class="p">,</span> <span class="n">cluster</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Get the endpoint URL of a token endpoint for the application.
+Will return the first token endpoint found if multiple exist.
+Use <code>VespaCloud.get_all_endpoints</code> to get all endpoints.</p>
+<p>Tip: See the 'endpoint'-tab in Vespa Cloud Console for available endpoints.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>instance</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Application instance name.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;default&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>region</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Region name.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>environment</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Environment (dev/prod).</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;dev&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>cluster</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Specific cluster to get the endpoint for. If None, uses the instance's default cluster.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>str</code></td>            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The endpoint URL.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["content.code.copy"], "search": "../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.50899def.min.js"></script>
+      
+    
+  </body>
+</html>
