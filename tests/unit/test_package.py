@@ -41,6 +41,7 @@ from vespa.package import (
 from vespa.configuration.vt import compare_xml
 from vespa.configuration.services import *
 from vespa.configuration.query_profiles import *
+from vespa.configuration.deployment import *
 
 
 class TestField(unittest.TestCase):
@@ -2736,3 +2737,125 @@ class TestQueryProfileItems(unittest.TestCase):
                     with zip_file.open(expected_path) as file:
                         content = file.read().decode("utf-8")
                         self.assertTrue(compare_xml(str(qp.xml), content))
+
+
+class TestDeploymentVT(unittest.TestCase):
+    def setUp(self):
+        self.simple_vt = deployment(
+            prod(region("aws-us-east-1c"), region("aws-us-west-2a")), version="1.0"
+        )
+        self.simple_expected = """<deployment version="1.0">
+    <prod>
+        <region>aws-us-east-1c</region>
+        <region>aws-us-west-2a</region>
+    </prod>
+</deployment>"""
+        self.complex_vt = deployment(
+            instance(prod(region("aws-us-east-1c")), id="beta"),
+            instance(
+                block_change(
+                    revision="false",
+                    days="mon,wed-fri",
+                    hours="16-23",
+                    time_zone="UTC",
+                ),
+                prod(
+                    region("aws-us-east-1c"),
+                    delay(hours="3", minutes="7", seconds="13"),
+                    parallel(
+                        region("aws-us-west-1c"),
+                        steps(
+                            region("aws-eu-west-1a"),
+                            delay(hours="3"),
+                        ),
+                    ),
+                ),
+                endpoints(
+                    endpoint(
+                        region("aws-us-east-1c"), container_id="my-container-service"
+                    )
+                ),
+                id="default",
+            ),
+            endpoints(
+                endpoint(
+                    instance("beta", weight="1"),
+                    id="my-weighted-endpoint",
+                    container_id="my-container-service",
+                    region="aws-us-east-1c",
+                )
+            ),
+            version="1.0",
+        )
+        self.complex_expected = """<deployment version="1.0">
+    <instance id="beta">
+        <prod>
+            <region>aws-us-east-1c</region>
+        </prod>
+    </instance>
+    <instance id="default">
+        <block-change revision="false" days="mon,wed-fri" hours="16-23" time-zone="UTC"></block-change>
+        <prod>
+            <region>aws-us-east-1c</region>
+            <delay hours="3" minutes="7" seconds="13"></delay>
+            <parallel>
+                <region>aws-us-west-1c</region>
+                <steps>
+                    <region>aws-eu-west-1a</region>
+                    <delay hours="3"></delay>
+                </steps>
+            </parallel>
+        </prod>
+        <endpoints>
+            <endpoint container-id="my-container-service">
+                <region>aws-us-east-1c</region>
+            </endpoint>
+        </endpoints>
+    </instance>
+    <endpoints>
+        <endpoint id="my-weighted-endpoint" container-id="my-container-service" region="aws-us-east-1c">
+            <instance weight="1">beta</instance>
+        </endpoint>
+    </endpoints>
+</deployment>"""
+
+    def test_application_package_integration_simple(self):
+        app = ApplicationPackage(name="test", deployment_config=self.simple_vt)
+        self.assertTrue(compare_xml(self.simple_expected, app.deployment_to_text))
+
+    def test_application_package_integration_complex(self):
+        app = ApplicationPackage(name="test2", deployment_config=self.complex_vt)
+        self.assertTrue(compare_xml(self.complex_expected, app.deployment_to_text))
+
+    def _assert_deployment_files_and_zip(self, app_package, expected_deployment_xml):
+        """Helper method to test deployment.xml creation in files and zip format."""
+        with tempfile.TemporaryDirectory() as tmp:
+            # Test to_files
+            app_package.to_files(tmp)
+            dep_path = os.path.join(tmp, "deployment.xml")
+            self.assertTrue(os.path.exists(dep_path))
+            with open(dep_path) as f:
+                content = f.read()
+                self.assertTrue(compare_xml(app_package.deployment_to_text, content))
+
+            # Test to_zipfile
+            zip_path = os.path.join(tmp, "app.zip")
+            app_package.to_zipfile(zip_path)
+            self.assertTrue(os.path.exists(zip_path))
+            with zipfile.ZipFile(zip_path) as zf:
+                self.assertIn("deployment.xml", zf.namelist())
+                with zf.open("deployment.xml") as f:
+                    content = f.read().decode("utf-8")
+                    self.assertTrue(compare_xml(expected_deployment_xml, content))
+
+    def test_to_files_and_zip(self):
+        app_package = ApplicationPackage(
+            name="testfiles", deployment_config=self.simple_vt
+        )
+        self._assert_deployment_files_and_zip(app_package, self.simple_expected)
+
+    def test_to_files_and_zip_complex(self):
+        app_package = ApplicationPackage(
+            name="testfilescomplex", deployment_config=self.complex_vt
+        )
+        self._assert_deployment_files_and_zip(app_package, self.complex_expected)
