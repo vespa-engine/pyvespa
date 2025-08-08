@@ -363,6 +363,44 @@ class TestRankProfile(unittest.TestCase):
         self.assertEqual(rank_profile.inputs[0][0], "query(image_query_embedding)")
         self.assertEqual(rank_profile.inputs[1][0], "query(image_query_embedding2)")
 
+    def test_rank_profile_inputs_schema_rendering(self):
+        """Test that rank profile inputs are properly rendered in the schema text output."""
+        # Create a simple test document and schema with inputs
+        doc = Document(fields=[Field(name="test", type="string")])
+        rank_profile = RankProfile(
+            name="test",
+            first_phase="bm25(test)",
+            inputs=[
+                ("query(q1)", "tensor<float>(querytoken{}, v[128])"),
+                ("query(q2)", "tensor<float>(querytoken{}, d1[128])"),
+                ("query(q3)", "tensor<int>(querytoken{}, d2[32])", "0"),
+            ],
+        )
+        schema = Schema(name="test", document=doc, rank_profiles=[rank_profile])
+
+        # Expected schema text with properly formatted inputs
+        expected_schema = """schema test {
+    document test {
+        field test type string {
+        }
+    }
+    rank-profile test {
+        inputs {
+            query(q1) tensor<float>(querytoken{}, v[128])
+            query(q2) tensor<float>(querytoken{}, d1[128])
+            query(q3) tensor<int>(querytoken{}, d2[32]): 0
+        }
+        first-phase {
+            expression {
+                bm25(test)
+            }
+        }
+    }
+}"""
+
+        # Compare the actual schema text with expected
+        self.assertEqual(schema.schema_to_text, expected_schema)
+
     def test_rank_profile_mutate_definition(self):
         mutate: Mutate = Mutate(
             on_match={
