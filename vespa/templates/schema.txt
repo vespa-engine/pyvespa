@@ -79,6 +79,12 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
         }
         {% endfor %}
         {% endif %}
+        {% if value.diversity %}
+        diversity {
+            attribute: {{ value.diversity.attribute }}
+            min-groups: {{ value.diversity.min_groups }}
+        }
+        {% endif %}
         {% if value.match_phase %}
         match-phase {
             attribute: {{ value.match_phase.attribute }}

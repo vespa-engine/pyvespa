@@ -1431,6 +1431,41 @@ class Mutate(object):
         )
 
 
+class Diversity(object):
+    def __init__(self, attribute: str, min_groups: int) -> None:
+        r"""
+        Create a Vespa ranking diversity configuration.
+
+        This is an optional config that is used to guarantee diversity in the different query phases.
+        Check the `Vespa documentation
+        <https://docs.vespa.ai/en/reference/schema-reference.html#diversity>`__
+        for more detailed information about diversity configuration.
+
+        :param attribute: Which attribute to use when deciding diversity. The attribute must be a single-valued numeric, string or reference type.
+        :param min_groups: Specifies the minimum number of groups returned from the phase.
+
+        >>> Diversity(attribute="popularity", min_groups=5)
+        Diversity('popularity', 5)
+        """
+        self.attribute = attribute
+        self.min_groups = min_groups
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (
+                self.attribute == other.attribute
+                and self.min_groups == other.min_groups
+        )
+
+    def __repr__(self) -> str:
+        return "{0}({1}, {2})".format(
+            self.__class__.__name__,
+            repr(self.attribute),
+            repr(self.min_groups),
+        )
+
+
 class MatchPhaseRanking(object):
     def __init__(
         self, attribute: str, order: Literal["ascending", "descending"], max_hits: int
@@ -1481,6 +1516,7 @@ class RankProfileFields(TypedDict, total=False):
     functions: List[Function]
     summary_features: List
     match_features: List
+    diversity: Diversity
     match_phase: MatchPhaseRanking
     second_phase: SecondPhaseRanking
     global_phase: GlobalPhaseRanking
@@ -1491,6 +1527,7 @@ class RankProfileFields(TypedDict, total=False):
     mutate: Mutate
     filter_threshold: float
     weakand: Dict[str, float]  # <-- NEW: weakand parameters
+    num_threads_per_search: int
 
 
 class RankProfile(object):
@@ -1508,6 +1545,7 @@ class RankProfile(object):
         global_phase: Optional[GlobalPhaseRanking] = None,
         match_phase: Optional[MatchPhaseRanking] = None,
         num_threads_per_search: Optional[int] = None,
+        diversity: Optional[Diversity] = None,
         **kwargs: Unpack[RankProfileFields],
     ) -> None:
         r"""
@@ -1534,6 +1572,7 @@ class RankProfile(object):
             global_phase (GlobalPhaseRanking, optional): Config specifying the global phase of ranking. See `GlobalPhaseRanking`.
             match_phase (MatchPhaseRanking, optional): Config specifying the match phase of ranking. See `MatchPhaseRanking`.
             num_threads_per_search (int, optional): Overrides the global `persearch` value for this rank profile to a lower value.
+            diversity: Optional config specifying the diversity of ranking.
             weight (list, optional): A list of tuples containing the field and their weight.
             rank_type (list, optional): A list of tuples containing a field and the rank-type-name.
                 [More info](https://docs.vespa.ai/en/reference/schema-reference.html#rank-type) about rank-type.
@@ -1620,6 +1659,7 @@ class RankProfile(object):
         self.constants = kwargs.get("constants", constants)
         self.functions = kwargs.get("functions", functions)
         self.summary_features = kwargs.get("summary_features", summary_features)
+        self.diversity = kwargs.get("diversity", diversity)
         self.match_features = kwargs.get("match_features", match_features)
         self.second_phase = kwargs.get("second_phase", second_phase)
         self.global_phase = kwargs.get("global_phase", global_phase)
@@ -1649,6 +1689,7 @@ class RankProfile(object):
             and self.second_phase == other.second_phase
             and self.global_phase == other.global_phase
             and self.match_phase == other.match_phase
+            and self.diversity == other.diversity
             and self.num_threads_per_search == other.num_threads_per_search
             and self.weight == other.weight
             and self.rank_type == other.rank_type
@@ -1658,7 +1699,7 @@ class RankProfile(object):
         )
 
     def __repr__(self) -> str:
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15}, {16})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.first_phase),
@@ -1675,6 +1716,7 @@ class RankProfile(object):
             repr(self.rank_type),
             repr(self.rank_properties),
             repr(self.inputs),
+            repr(self.diversity)
         )
 
 
