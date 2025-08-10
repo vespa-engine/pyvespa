@@ -1433,19 +1433,25 @@ class Mutate(object):
 
 class Diversity(object):
     def __init__(self, attribute: str, min_groups: int) -> None:
-        r"""
+        """
         Create a Vespa ranking diversity configuration.
 
         This is an optional config that is used to guarantee diversity in the different query phases.
-        Check the `Vespa documentation
-        <https://docs.vespa.ai/en/reference/schema-reference.html#diversity>`__
+        Check the [Vespa documentation](https://docs.vespa.ai/en/reference/schema-reference.html#diversity)
         for more detailed information about diversity configuration.
 
-        :param attribute: Which attribute to use when deciding diversity. The attribute must be a single-valued numeric, string or reference type.
-        :param min_groups: Specifies the minimum number of groups returned from the phase.
+        Args:
+            attribute (str): Which attribute to use when deciding diversity. The attribute must be a single-valued numeric, string or reference type.
+            min_groups (int): Specifies the minimum number of groups returned from the phase.
 
-        >>> Diversity(attribute="popularity", min_groups=5)
-        Diversity('popularity', 5)
+        Returns:
+            Diversity: A ranking diversity configuration instance.
+
+        Example:
+            ```
+            Diversity(attribute="popularity", min_groups=5)
+            Diversity('popularity', 5)
+            ```
         """
         self.attribute = attribute
         self.min_groups = min_groups
