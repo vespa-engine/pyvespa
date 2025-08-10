@@ -309,12 +309,12 @@ class TestRankProfile(unittest.TestCase):
                 Function(
                     name="token_type_ids",
                     expression="tensor<float>(d0[1],d1[128])(\n"
-                               "    if (d1 < question_length,\n"
-                               "        0,\n"
-                               "    if (d1 < question_length + doc_length,\n"
-                               "        1,\n"
-                               "        TOKEN_NONE\n"
-                               "    )))",
+                    "    if (d1 < question_length,\n"
+                    "        0,\n"
+                    "    if (d1 < question_length + doc_length,\n"
+                    "        1,\n"
+                    "        TOKEN_NONE\n"
+                    "    )))",
                 ),
             ],
             summary_features=[
