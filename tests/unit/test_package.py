@@ -37,6 +37,7 @@ from vespa.package import (
     ServicesConfiguration,
     ApplicationConfiguration,
     QueryProfileItem,
+    Diversity,
 )
 from vespa.configuration.vt import compare_xml
 from vespa.configuration.services import *
@@ -1326,6 +1327,64 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
             "</query-profile-type>"
         )
         self.assertEqual(self.app_package.query_profile_type_to_text, expected_result)
+
+    def test_rank_profile_diversity(self):
+        rank_profile = RankProfile(
+            name="diversity_test",
+            diversity=Diversity(attribute='popularity', min_groups=5),
+            first_phase="bm25(title) + bm25(body)",
+        )
+        self.assertEqual(rank_profile.name, "diversity_test")
+        self.assertEqual(rank_profile.first_phase, "bm25(title) + bm25(body)")
+        self.assertEqual(rank_profile.diversity.attribute, "popularity")
+        self.assertEqual(rank_profile.diversity.min_groups, 5)
+
+    def test_schema_to_text_with_diversity(self):
+        schema = Schema(
+            name="test_diversity",
+            document=Document(
+                fields=[
+                    Field(name="title", type="string", indexing=["index", "summary"]),
+                    Field(name="body", type="string", indexing=["index", "summary"]),
+                    Field(name="popularity", type="int", indexing=["attribute"]),
+                ]
+            ),
+            rank_profiles=[
+                RankProfile(
+                    name="diversity_test",
+                    first_phase="bm25(title) + bm25(body)",
+                    diversity=Diversity(
+                        attribute="popularity", min_groups=10
+                    ),
+                ),
+            ],
+        )
+        expected_schema = """schema test_diversity {
+    document test_diversity {
+        field title type string {
+            indexing: index | summary
+        }
+        field body type string {
+            indexing: index | summary
+        }
+        field popularity type int {
+            indexing: attribute
+        }
+    }
+    rank-profile diversity_test {
+        diversity {
+            attribute: popularity
+            min-groups: 10
+        }
+        first-phase {
+            expression {
+                bm25(title) + bm25(body)
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema.schema_to_text, expected_schema)
+
 
     def test_rank_profile_match_phase(self):
         rank_profile = RankProfile(
