@@ -27,7 +27,7 @@ Example:
 """
 
 from typing import List
-from vespa.configuration.vt import VT, create_tag_function, voids, to_xml
+from vespa.configuration.vt import VT, create_tag_function, voids
 
 # Tags used (subset guided by reference examples). Add more as needed.
 deployment_tags: List[str] = [
@@ -76,9 +76,8 @@ class DeploymentItem:
     def from_vt(cls, vt_obj: VT) -> "DeploymentItem":
         return cls(vt_obj)
 
-    @property
-    def xml(self) -> str:
-        return str(to_xml(self.root)).strip()
+    def to_xml(self) -> str:
+        return str(self.root.to_xml()).strip()
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"DeploymentItem(root={self.root!r})"
