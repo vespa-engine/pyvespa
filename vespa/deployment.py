@@ -10,7 +10,7 @@ from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from time import sleep, strftime, gmtime
-from typing import Tuple, Union, IO, Optional, List, Dict
+from typing import Tuple, Union, IO, Optional, List, Dict, Literal
 from tenacity import retry, stop_after_attempt, wait_exponential
 from datetime import timezone
 import platform
@@ -664,15 +664,17 @@ class VespaCloud(VespaDeployment):
         disk_folder: Optional[str] = None,
         version: Optional[str] = None,
         max_wait: int = 1800,
+        environment: Literal["dev", "perf"] = "dev",
     ) -> Vespa:
         """
-        Deploy the given application package as the given instance in the Vespa Cloud dev environment.
+        Deploy the given application package as the given instance in the Vespa Cloud dev or perf environment.
 
         Args:
             instance (str): Name of this instance of the application in the Vespa Cloud.
             disk_folder (str, optional): Disk folder to save the required Vespa config files. Defaults to the application name folder within the user's current working directory.
             version (str, optional): Vespa version to use for deployment. Defaults to None, meaning the latest version. Should only be set based on instructions from the Vespa team. Must be a valid Vespa version, e.g., "8.435.13".
             max_wait (int, optional): Seconds to wait for the deployment to complete.
+            environment (Literal["dev", "perf"]): Environment to deploy to. Default is "dev".
 
         Returns:
             Vespa: A Vespa connection instance. This instance connects to the mTLS endpoint. To connect to the token endpoint, use `VespaCloud.get_application(endpoint_type="token")`.
@@ -680,6 +682,10 @@ class VespaCloud(VespaDeployment):
         Raises:
             RuntimeError: If deployment fails or if there are issues with the deployment process.
         """
+        if environment not in ["dev", "perf"]:
+            raise ValueError(
+                f"Invalid environment: {environment}. Must be 'dev' or 'perf'."
+            )
         if self.application_package is not None:
             if disk_folder is None:
                 disk_folder = os.path.join(os.getcwd(), self.application)
@@ -695,8 +701,12 @@ class VespaCloud(VespaDeployment):
             application_zip_bytes = BytesIO(
                 self.read_app_package_from_disk(Path(disk_folder))
             )
-        region = self.get_dev_region()
-        job = "dev-" + region
+        if environment == "perf":
+            region = self.get_perf_region()
+            job = "perf-" + region
+        else:
+            region = self.get_dev_region()
+            job = "dev-" + region
         run = self._start_deployment(
             instance=instance or self.instance,
             job=job,
@@ -706,7 +716,7 @@ class VespaCloud(VespaDeployment):
         )
         self._follow_deployment(instance, job, run, max_wait)
         app: Vespa = self.get_application(
-            instance=instance, environment="dev", endpoint_type="mtls"
+            instance=instance, environment=environment, endpoint_type="mtls"
         )
         return app
 
@@ -803,7 +813,7 @@ class VespaCloud(VespaDeployment):
 
         Args:
             instance (str, optional): Name of this instance of the application in the Vespa Cloud. Default is "default".
-            environment (str, optional): Environment of the application. Default is "dev". Options are "dev" or "prod".
+            environment (str, optional): Environment of the application. Default is "dev". Options are "dev", "perf", or "prod".
             endpoint_type (str, optional): Type of endpoint to connect to. Default is "mtls". Options are "mtls" or "token".
             vespa_cloud_secret_token (str, optional): Vespa Cloud Secret Token. Only required if endpoint_type is "token".
             region (str, optional): Region of the application in Vespa Cloud, e.g., "aws-us-east-1c". If not provided, the first region from the environment will be used.
@@ -823,6 +833,12 @@ class VespaCloud(VespaDeployment):
             print(
                 f"Only region: {region} available in dev environment.", file=self.output
             )
+        elif environment == "perf":
+            region = self.get_perf_region()
+            print(
+                f"Only region: {region} available in perf environment.",
+                file=self.output,
+            )
         elif environment == "prod":
             valid_regions = self.get_prod_regions(instance=instance or self.instance)
             if region is not None:
@@ -833,7 +849,7 @@ class VespaCloud(VespaDeployment):
             else:
                 region = valid_regions[0]
         else:
-            raise ValueError("Environment must be 'dev' or 'prod'.")
+            raise ValueError("Environment must be 'dev', 'perf', or 'prod'.")
         if endpoint_type == "mtls":
             mtls_endpoint = self.get_mtls_endpoint(
                 instance=instance or self.instance,
@@ -966,9 +982,10 @@ class VespaCloud(VespaDeployment):
         application_root: Path,
         max_wait: int = 300,
         version: Optional[str] = None,
+        environment: str = "dev",
     ) -> Vespa:
         """
-        Deploy to the development environment from a directory tree.
+        Deploy to the development or performance environment from a directory tree.
         This method is used when making changes to application package files that are not supported by pyvespa.
         Note: Requires a certificate and key to be generated using 'vespa auth cert'.
 
@@ -989,6 +1006,7 @@ class VespaCloud(VespaDeployment):
             application_root (str): The root directory of the application package.
             max_wait (int, optional): The maximum number of seconds to wait for the deployment. Default is 3600 (1 hour).
             version (str, optional): The Vespa version to use for the deployment. Default is None, which means the latest version. It must be a valid Vespa version (e.g., "8.435.13").
+            environment (str, optional): Environment to deploy to. Default is "dev". Options are "dev" or "perf".
 
         Returns:
             Vespa: A Vespa connection instance. This connects to the mtls endpoint. To connect to the token endpoint, use `VespaCloud.get_application(endpoint_type="token")`.
@@ -998,8 +1016,14 @@ class VespaCloud(VespaDeployment):
 
         # Deploy the zipped application package
         disk_folder = os.path.join(os.getcwd(), self.application)
-        region = self.get_dev_region()
-        job = "dev-" + region
+        if environment == "perf":
+            region = self.get_perf_region()
+            job = "perf-" + region
+        elif environment == "dev":
+            region = self.get_dev_region()
+            job = "dev-" + region
+        else:
+            raise ValueError("Environment must be 'dev' or 'perf'.")
         run = self._start_deployment(
             instance=instance or self.instance,
             job=job,
@@ -1009,11 +1033,15 @@ class VespaCloud(VespaDeployment):
         )
         self._follow_deployment(instance, job, run)
         app: Vespa = self.get_application(
-            instance=instance or self.instance, environment="dev", endpoint_type="mtls"
+            instance=instance or self.instance,
+            environment=environment,
+            endpoint_type="mtls",
         )
         return app
 
-    def delete(self, instance: Optional[str] = "default") -> None:
+    def delete(
+        self, instance: Optional[str] = "default", environment: Optional[str] = "dev"
+    ) -> None:
         """
         Delete the specified instance from the development environment in the Vespa Cloud.
         To delete a production instance, you must submit a new deployment with `deployment-removal` added to the 'validation-overrides.xml'.
@@ -1027,16 +1055,22 @@ class VespaCloud(VespaDeployment):
 
         Args:
             instance (str): The name of the instance to delete.
+            environment (str): The environment from which to delete the instance.
 
         Returns:
             None
         """
-
+        if environment == "dev":
+            region = self.get_dev_region()
+        elif environment == "perf":
+            region = self.get_perf_region()
+        else:
+            raise ValueError("Environment must be 'dev' or 'perf'.")
         print(
             self._request(
                 "DELETE",
-                "/application/v4/tenant/{}/application/{}/instance/{}/environment/dev/region/{}".format(
-                    self.tenant, self.application, instance, self.get_dev_region()
+                "/application/v4/tenant/{}/application/{}/instance/{}/environment/{}/region/{}".format(
+                    self.tenant, self.application, instance, environment, region
                 ),
             )["message"],
             file=self.output,
@@ -1243,6 +1277,10 @@ class VespaCloud(VespaDeployment):
 
     def get_dev_region(self) -> str:
         return "aws-us-east-1c"  # Default dev region
+
+    def get_perf_region(self) -> str:
+        # Only one available for now (https://cloud.vespa.ai/en/reference/zones)
+        return "aws-us-east-1c"  # Default perf region
 
     def get_prod_region(self):
         regions = self.get_prod_regions()
@@ -1482,7 +1520,7 @@ class VespaCloud(VespaDeployment):
         Args:
             instance (str): Application instance name.
             region (str): Region name, e.g. 'aws-us-east-1c'.
-            environment (str): Environment (dev/prod).
+            environment (str): Environment (dev/perf/prod).
 
         Returns:
             list: List of endpoints.
@@ -1491,10 +1529,14 @@ class VespaCloud(VespaDeployment):
         if region is None:
             if environment == "dev":
                 region = self.get_dev_region()
+            elif environment == "perf":
+                region = self.get_perf_region()
             elif environment == "prod":
                 region = self.get_prod_region()
             else:
-                raise ValueError("Invalid environment. Must be 'dev' or 'prod'")
+                raise ValueError(
+                    "Invalid environment. Must be 'dev', 'perf', or 'prod'"
+                )
 
         endpoints = self._request(
             "GET",
@@ -1516,7 +1558,7 @@ class VespaCloud(VespaDeployment):
         Args:
             instance (str): Application instance name.
             region (str): Region name, e.g. 'aws-us-east-1c'. If None, uses the default region for the environment.
-            environment (str): Environment (dev/prod). Default is 'dev'.
+            environment (str): Environment (dev/perf/prod). Default is 'dev'.
 
         Returns:
             list: List of endpoints for the application instance.
@@ -1524,10 +1566,14 @@ class VespaCloud(VespaDeployment):
         if region is None:
             if environment == "dev":
                 region = self.get_dev_region()
+            elif environment == "perf":
+                region = self.get_perf_region()
             elif environment == "prod":
                 region = self.get_prod_region()
             else:
-                raise ValueError("Invalid environment. Must be 'dev' or 'prod'")
+                raise ValueError(
+                    "Invalid environment. Must be 'dev', 'perf', or 'prod'"
+                )
 
         app_endpoints = self._request(
             "GET",
@@ -1549,7 +1595,7 @@ class VespaCloud(VespaDeployment):
         Args:
             instance (str): Application instance name.
             region (str): Region name, e.g. 'aws-us-east-1c'. If None, uses the default region for the environment.
-            environment (str): Environment (dev/prod). Default is 'dev'.
+            environment (str): Environment (dev/perf/prod). Default is 'dev'.
 
         Returns:
             dict: Dictionary with schema name as key and content as value.
@@ -1557,10 +1603,14 @@ class VespaCloud(VespaDeployment):
         if region is None:
             if environment == "dev":
                 region = self.get_dev_region()
+            elif environment == "perf":
+                region = self.get_perf_region()
             elif environment == "prod":
                 region = self.get_prod_region()
             else:
-                raise ValueError("Invalid environment. Must be 'dev' or 'prod'")
+                raise ValueError(
+                    "Invalid environment. Must be 'dev', 'perf', or 'prod'"
+                )
         schemas = {
             schema_endpoint.split("/")[-1][:-3]: self._request(
                 "GET", urlparse(schema_endpoint).path
@@ -1589,7 +1639,7 @@ class VespaCloud(VespaDeployment):
             destination_path (str): The path where the application package content will be downloaded.
             instance (str): Application instance name.
             region (str): Region name, e.g. 'aws-us-east-1c'. If None, uses the default region for the environment.
-            environment (str): Environment (dev/prod). Default is 'dev'.
+            environment (str): Environment (dev/perf/prod). Default is 'dev'.
 
         Returns:
             None
@@ -1597,10 +1647,14 @@ class VespaCloud(VespaDeployment):
         if region is None:
             if environment == "dev":
                 region = self.get_dev_region()
+            elif environment == "perf":
+                region = self.get_perf_region()
             elif environment == "prod":
                 region = self.get_prod_region()
             else:
-                raise ValueError("Invalid environment. Must be 'dev' or 'prod'")
+                raise ValueError(
+                    "Invalid environment. Must be 'dev', 'perf', or 'prod'"
+                )
 
         for endpoint in self.get_app_package_contents(instance, region, environment):
             path = urlparse(endpoint).path
@@ -1640,7 +1694,7 @@ class VespaCloud(VespaDeployment):
             url (str): The endpoint URL.
             instance (str): Application instance name.
             region (str): Region name, e.g. 'aws-us-east-1c'.
-            environment (str): Environment (dev/prod).
+            environment (str): Environment (dev/perf/prod).
 
         Returns:
             str: The authentication method ('mtls' or 'token').
@@ -1670,7 +1724,7 @@ class VespaCloud(VespaDeployment):
             auth_method (str): Authentication method. Options are 'mtls' or 'token'.
             instance (str): Application instance name.
             region (str): Region name, e.g. 'aws-us-east-1c'.
-            environment (str): Environment (dev/prod).
+            environment (str): Environment (dev/perf/prod).
             cluster (str): Specific cluster to get the endpoint for. If None, uses the instance's default cluster.
 
         Returns:
@@ -1735,7 +1789,7 @@ class VespaCloud(VespaDeployment):
         Args:
             instance (str): Application instance name.
             region (str): Region name.
-            environment (str): Environment (dev/prod).
+            environment (str): Environment (dev/perf/prod).
             cluster (str): Specific cluster to get the endpoint for. If None, uses the instance's default cluster.
 
         Returns:
@@ -1761,7 +1815,7 @@ class VespaCloud(VespaDeployment):
         Args:
             instance (str): Application instance name.
             region (str): Region name.
-            environment (str): Environment (dev/prod).
+            environment (str): Environment (dev/perf/prod).
             cluster (str): Specific cluster to get the endpoint for. If None, uses the instance's default cluster.
 
         Returns:
