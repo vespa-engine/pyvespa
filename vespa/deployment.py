@@ -68,6 +68,7 @@ class VespaDeployment:
 class VespaDocker(VespaDeployment):
     def __init__(
         self,
+        url: str = "http://localhost",
         port: int = 8080,
         container_memory: Union[str, int] = 4 * (1024**3),
         output_file: IO = sys.stdout,
@@ -106,6 +107,7 @@ class VespaDocker(VespaDeployment):
             container (str, optional): Used when instantiating `VespaDocker` from a running container.
             volumes (list of str, optional): A list of volume mount strings, such as `['/home/user1/:/mnt/vol2', '/var/www:/mnt/vol1']`. The Application Package cannot reference volume mounts.
             container_image (str): The Docker container image to use.
+            url (str): The URL to connect to the Vespa instance. Default is "http://localhost".
 
         """
 
@@ -117,7 +119,7 @@ class VespaDocker(VespaDeployment):
             container_name = container.name
         self.container_name = container_name
         self.container_id = container_id
-        self.url = "http://localhost"
+        self.url = url
         self.local_port = port
         self.cfgsrv_port = cfgsrv_port
         self.debug_port = debug_port
