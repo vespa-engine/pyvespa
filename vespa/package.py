@@ -20,7 +20,6 @@ from typing import (
     Tuple,
     TypedDict,
     Union,
-    NamedTuple,
 )
 
 from jinja2 import Environment, PackageLoader, select_autoescape
@@ -28,6 +27,7 @@ from vespa.configuration.vt import Xml, vt
 from vespa.configuration.services import services
 from vespa.configuration.services import *
 from vespa.configuration.deployment import DeploymentItem
+from vespa.configuration.query_profiles import QueryProfileItem
 
 if sys.version_info >= (3, 11):
     from typing import Unpack
@@ -3049,41 +3049,6 @@ class ServicesConfiguration(object):
         return validate_services(str(self.services_config.to_xml()))
 
 
-class QueryProfileItem(NamedTuple):
-    tag: str
-    id_: str
-    xml: str
-
-    @classmethod
-    def from_vt(cls, vt_config: VT) -> "QueryProfileItem":
-        """Create a QueryProfileItem from a VT configuration object."""
-        if not isinstance(vt_config, VT):
-            raise TypeError(
-                f"vt_config must be an instance of VT, got {type(vt_config).__name__}"
-            )
-        tag = vt_config.tag
-        id_ = vt_config.get("id")
-
-        # Validate
-        if tag not in ["query_profile", "query_profile_type"]:
-            raise ValueError(
-                f"Query profile item must be of type 'query_profile' or 'query_profile_type', got '{tag}'"
-            )
-
-        if not id_ or not str(id_).strip():
-            raise ValueError(
-                f"Query profile item of type '{tag}' must have a non-empty 'id'"
-            )
-
-        clean_id = str(id_).strip()
-        xml = vt_config.to_xml()
-
-        return cls(tag, clean_id, xml)
-
-    def __str__(self) -> str:
-        return self.xml
-
-
 class ApplicationPackage(object):
     def __init__(
         self,
@@ -3385,7 +3350,7 @@ class ApplicationPackage(object):
     @property
     def deployment_to_text(self):
         if self.deployment_is_vt:
-            return self.deployment_config.xml
+            return self.deployment_config.to_xml()
         env = Environment(
             loader=PackageLoader("vespa", "templates"),
             autoescape=select_autoescape(
