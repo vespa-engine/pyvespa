@@ -19,6 +19,7 @@ from vespa.package import (
 )
 import vespa
 import random
+import time
 from vespa.io import VespaResponse
 from test_integration_docker import (
     TestApplicationCommon,
@@ -31,6 +32,7 @@ from vespa.package import (
     EmptyDeploymentConfiguration,
     Validation,
     ValidationID,
+    sample_package,
 )
 
 APP_INIT_TIMEOUT = 900
@@ -445,3 +447,33 @@ class TestDeployApplicationRoot(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.vespa_cloud.delete(instance="rag-blueprint")
+
+
+class TestDeployPerf(unittest.TestCase):
+    def setUp(self) -> None:
+        self.app_package = sample_package
+        self.instance = "perf-deployment"
+        self.vespa_cloud = VespaCloud(
+            tenant="vespa-team",
+            application="pyvespa-integration",
+            key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
+            application_package=self.app_package,
+        )
+
+    def test_deploy(self):
+        self.app = self.vespa_cloud.deploy(
+            instance=self.instance, environment="perf", max_wait=600
+        )
+        endpoints = self.vespa_cloud.get_all_endpoints(
+            instance=self.instance, environment="perf"
+        )
+        self.assertGreater(len(endpoints), 0)
+        contents = self.vespa_cloud.get_app_package_contents(
+            instance=self.instance, environment="perf"
+        )
+        self.assertGreater(len(contents), 0)
+
+    def tearDown(self) -> None:
+        # Wait a little bit to make sure the deployment is finished
+        time.sleep(10)
+        self.vespa_cloud.delete(instance=self.instance)
