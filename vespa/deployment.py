@@ -1075,15 +1075,6 @@ class VespaCloud(VespaDeployment):
             )["message"],
             file=self.output,
         )
-        print(
-            self._request(
-                "DELETE",
-                "/application/v4/tenant/{}/application/{}/instance/{}".format(
-                    self.tenant, self.application, instance
-                ),
-            )["message"],
-            file=self.output,
-        )
 
     @staticmethod
     def _read_private_key(
