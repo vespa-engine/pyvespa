@@ -1459,10 +1459,7 @@ class Diversity(object):
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
             return NotImplemented
-        return (
-                self.attribute == other.attribute
-                and self.min_groups == other.min_groups
-        )
+        return self.attribute == other.attribute and self.min_groups == other.min_groups
 
     def __repr__(self) -> str:
         return "{0}({1}, {2})".format(
@@ -1722,7 +1719,7 @@ class RankProfile(object):
             repr(self.rank_type),
             repr(self.rank_properties),
             repr(self.inputs),
-            repr(self.diversity)
+            repr(self.diversity),
         )
 
 
