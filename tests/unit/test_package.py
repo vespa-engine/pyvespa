@@ -2806,7 +2806,7 @@ class TestQueryProfileItems(unittest.TestCase):
                 # Check xml content is same
                 with open(path, "r") as file:
                     content = file.read()
-                    self.assertTrue(compare_xml(str(qp.xml), content))
+                    self.assertTrue(compare_xml(qp.to_xml(), content))
 
     def test_to_zip(self):
         """Test that query profiles can be written to a zip archive."""
@@ -2830,7 +2830,7 @@ class TestQueryProfileItems(unittest.TestCase):
                     # Check xml content is same
                     with zip_file.open(expected_path) as file:
                         content = file.read().decode("utf-8")
-                        self.assertTrue(compare_xml(str(qp.xml), content))
+                        self.assertTrue(compare_xml(qp.to_xml(), content))
 
 
 class TestDeploymentVT(unittest.TestCase):

@@ -1102,7 +1102,7 @@ class TestDeploymentVT(unittest.TestCase):
         <region>aws-us-west-2a</region>
     </prod>
 </deployment>"""
-        self.assertTrue(compare_xml(expected, item.xml))
+        self.assertTrue(compare_xml(expected, item.to_xml()))
 
     def test_complex_valid(self):
         expected = """<deployment version="1.0">
