@@ -1046,6 +1046,7 @@ class VespaCloud(VespaDeployment):
     ) -> None:
         """
         Delete the specified instance from the development environment in the Vespa Cloud.
+
         To delete a production instance, you must submit a new deployment with `deployment-removal` added to the 'validation-overrides.xml'.
         See <https://cloud.vespa.ai/en/deleting-applications> for more details.
 
@@ -1057,7 +1058,7 @@ class VespaCloud(VespaDeployment):
 
         Args:
             instance (str): The name of the instance to delete.
-            environment (str): The environment from which to delete the instance.
+            environment (str): The environment from which to delete the instance. Must be "dev" or "perf".
 
         Returns:
             None
