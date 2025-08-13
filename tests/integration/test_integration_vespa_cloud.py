@@ -459,21 +459,22 @@ class TestDeployPerf(unittest.TestCase):
             key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
             application_package=self.app_package,
         )
+        self.environment = "perf"
 
     def test_deploy(self):
         self.app = self.vespa_cloud.deploy(
-            instance=self.instance, environment="perf", max_wait=600
+            instance=self.instance, environment=self.environment, max_wait=600
         )
         endpoints = self.vespa_cloud.get_all_endpoints(
-            instance=self.instance, environment="perf"
+            instance=self.instance, environment=self.environment
         )
         self.assertGreater(len(endpoints), 0)
         contents = self.vespa_cloud.get_app_package_contents(
-            instance=self.instance, environment="perf"
+            instance=self.instance, environment=self.environment
         )
         self.assertGreater(len(contents), 0)
 
     def tearDown(self) -> None:
         # Wait a little bit to make sure the deployment is finished
         time.sleep(10)
-        self.vespa_cloud.delete(instance=self.instance)
+        self.vespa_cloud.delete(instance=self.instance, environment=self.environment)
