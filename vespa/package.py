@@ -3090,8 +3090,8 @@ class ApplicationPackage(object):
                 any Component must be part of a cluster. Defaults to None.
             auth_clients (list, optional): List of AuthClient objects for client authorization. If clusters is passed,
                 pass the auth clients to the ContainerCluster instead. Defaults to None.
-            deployment_config (DeploymentConfiguration, optional): Configuration for production deployments. Either
-                a DeploymentConfiguration object or a VT (Vespa Tag) based deployment configuration whose top-level tag must be `deployment`. Defaults to None.
+            deployment_config (Union[DeploymentConfiguration, VT], optional): Deployment configuration for the application.
+                Must be either a DeploymentConfiguration object (legacy) or a VT (Vespa Tag) based deployment configuration whose top-level tag must be `deployment`. Defaults to None.
             services_config (ServicesConfiguration, optional): (Optional) Services configuration for the application. For advanced configuration.  See https://vespa-engine.github.io/pyvespa/advanced-configuration.html
             query_profile_config (Union[VT, List[VT]], optional): Configuration for query profiles. If provided, will override the query_profile and query_profile_type arguments. Defaults to None. See See https://vespa-engine.github.io/pyvespa/advanced-configuration.html
            Example:
