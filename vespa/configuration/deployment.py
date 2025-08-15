@@ -42,6 +42,14 @@ deployment_tags: List[str] = [
     "endpoints",
     "endpoint",
     "staging",
+    "upgrade",
+    "test",
+    "dev",
+    "tester",
+    "nodes",
+    "allow",
+    "bcp",
+    "group",
 ]
 
 # Fail fast on duplicates
