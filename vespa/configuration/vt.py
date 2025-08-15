@@ -14,6 +14,7 @@ replace_reserved = {
     "io": "io_",
     "from": "from_",
     "match": "match_",
+    "test": "test_",
 }
 restore_reserved = {v: k for k, v in replace_reserved.items()}
 
