@@ -20,13 +20,14 @@ from typing import (
     Tuple,
     TypedDict,
     Union,
-    NamedTuple,
 )
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 from vespa.configuration.vt import Xml, vt
 from vespa.configuration.services import services
 from vespa.configuration.services import *
+from vespa.configuration.deployment import DeploymentItem
+from vespa.configuration.query_profiles import QueryProfileItem
 
 if sys.version_info >= (3, 11):
     from typing import Unpack
@@ -3048,41 +3049,6 @@ class ServicesConfiguration(object):
         return validate_services(str(self.services_config.to_xml()))
 
 
-class QueryProfileItem(NamedTuple):
-    tag: str
-    id_: str
-    xml: str
-
-    @classmethod
-    def from_vt(cls, vt_config: VT) -> "QueryProfileItem":
-        """Create a QueryProfileItem from a VT configuration object."""
-        if not isinstance(vt_config, VT):
-            raise TypeError(
-                f"vt_config must be an instance of VT, got {type(vt_config).__name__}"
-            )
-        tag = vt_config.tag
-        id_ = vt_config.get("id")
-
-        # Validate
-        if tag not in ["query_profile", "query_profile_type"]:
-            raise ValueError(
-                f"Query profile item must be of type 'query_profile' or 'query_profile_type', got '{tag}'"
-            )
-
-        if not id_ or not str(id_).strip():
-            raise ValueError(
-                f"Query profile item of type '{tag}' must have a non-empty 'id'"
-            )
-
-        clean_id = str(id_).strip()
-        xml = vt_config.to_xml()
-
-        return cls(tag, clean_id, xml)
-
-    def __str__(self) -> str:
-        return self.xml
-
-
 class ApplicationPackage(object):
     def __init__(
         self,
@@ -3098,7 +3064,7 @@ class ApplicationPackage(object):
         components: Optional[List[Component]] = None,
         auth_clients: Optional[List[AuthClient]] = None,
         clusters: Optional[List[Cluster]] = None,
-        deployment_config: Optional[DeploymentConfiguration] = None,
+        deployment_config: Optional[Union[DeploymentConfiguration, VT]] = None,
         services_config: Optional[ServicesConfiguration] = None,
         query_profile_config: Optional[Union[VT, List[VT]]] = None,
     ) -> None:
@@ -3124,10 +3090,10 @@ class ApplicationPackage(object):
                 any Component must be part of a cluster. Defaults to None.
             auth_clients (list, optional): List of AuthClient objects for client authorization. If clusters is passed,
                 pass the auth clients to the ContainerCluster instead. Defaults to None.
-            deployment_config (DeploymentConfiguration, optional): Configuration for production deployments. Defaults to None.
+            deployment_config (Union[DeploymentConfiguration, VT], optional): Deployment configuration for the application.
+                Must be either a DeploymentConfiguration object (legacy) or a VT (Vespa Tag) based deployment configuration whose top-level tag must be `deployment`. Defaults to None.
             services_config (ServicesConfiguration, optional): (Optional) Services configuration for the application. For advanced configuration.  See https://vespa-engine.github.io/pyvespa/advanced-configuration.html
             query_profile_config (Union[VT, List[VT]], optional): Configuration for query profiles. If provided, will override the query_profile and query_profile_type arguments. Defaults to None. See See https://vespa-engine.github.io/pyvespa/advanced-configuration.html
-
            Example:
             To create a default application package:
 
@@ -3136,7 +3102,6 @@ class ApplicationPackage(object):
             ApplicationPackage('testapp', [Schema('testapp', Document(None, None, None), None, None, [], False, None, [], None)],
                             QueryProfile(None), QueryProfileType(None))
             ```
-
         This creates a default Schema, QueryProfile, and QueryProfileType, which can be populated with your application's specifics.
         """
         if not (
@@ -3204,7 +3169,12 @@ class ApplicationPackage(object):
                             )
                             cluster.auth_clients = self.auth_clients
 
-        self.deployment_config = deployment_config
+        # Determine if the deployment configuration is VT based
+        self.deployment_is_vt: bool = isinstance(deployment_config, VT)
+        if self.deployment_is_vt:
+            self.deployment_config = DeploymentItem.from_vt(deployment_config)
+        else:
+            self.deployment_config = deployment_config
         self.services_config = services_config
 
     @property
@@ -3379,6 +3349,8 @@ class ApplicationPackage(object):
 
     @property
     def deployment_to_text(self):
+        if self.deployment_is_vt:
+            return self.deployment_config.to_xml()
         env = Environment(
             loader=PackageLoader("vespa", "templates"),
             autoescape=select_autoescape(
