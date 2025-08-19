@@ -1539,7 +1539,7 @@ class RankProfile(object):
         self,
         name: str,
         # Allow a str object as expression for backwards compatibility
-        first_phase: Union[str, FirstPhaseRanking],
+        first_phase: Optional[Union[str, FirstPhaseRanking]] = None,
         inherits: Optional[str] = None,
         constants: Optional[Dict] = None,
         functions: Optional[List[Function]] = None,
@@ -1561,7 +1561,7 @@ class RankProfile(object):
 
         Args:
             name (str): Rank profile name.
-            first_phase (str): The config specifying the first phase of ranking.
+            first_phase (str, optional): The config specifying the first phase of ranking.
                 [More info](https://docs.vespa.ai/en/reference/schema-reference.html#firstphase-rank) about first phase ranking.
             inherits (str, optional): The inherits attribute is optional. If defined, it contains the name of another rank profile
                 in the same schema. Values not defined in this rank profile will then be inherited.
@@ -1700,10 +1700,12 @@ class RankProfile(object):
             and self.rank_properties == other.rank_properties
             and self.inputs == other.inputs
             and self.mutate == other.mutate
+            and self.filter_threshold == other.filter_threshold
+            and self.weakand == other.weakand
         )
 
     def __repr__(self) -> str:
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15}, {16})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15}, {16}, {17})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.first_phase),
@@ -1720,6 +1722,8 @@ class RankProfile(object):
             repr(self.rank_type),
             repr(self.rank_properties),
             repr(self.inputs),
+            repr(self.mutate),
+            repr(self.filter_threshold),
             repr(self.diversity),
         )
 
