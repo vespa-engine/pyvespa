@@ -11,12 +11,23 @@ from enum import Enum
 from io import BytesIO
 from pathlib import Path
 from shutil import copyfile
-from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict, Union
+from typing import (
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    TypedDict,
+    Union,
+)
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 from vespa.configuration.vt import Xml, vt
 from vespa.configuration.services import services
 from vespa.configuration.services import *
+from vespa.configuration.deployment import DeploymentItem
+from vespa.configuration.query_profiles import QueryProfileItem
 
 if sys.version_info >= (3, 11):
     from typing import Unpack
@@ -1421,6 +1432,44 @@ class Mutate(object):
         )
 
 
+class Diversity(object):
+    def __init__(self, attribute: str, min_groups: int) -> None:
+        """
+        Create a Vespa ranking diversity configuration.
+
+        This is an optional config that is used to guarantee diversity in the different query phases.
+        Check the [Vespa documentation](https://docs.vespa.ai/en/reference/schema-reference.html#diversity)
+        for more detailed information about diversity configuration.
+
+        Args:
+            attribute (str): Which attribute to use when deciding diversity. The attribute must be a single-valued numeric, string or reference type.
+            min_groups (int): Specifies the minimum number of groups returned from the phase.
+
+        Returns:
+            Diversity: A ranking diversity configuration instance.
+
+        Example:
+            ```
+            Diversity(attribute="popularity", min_groups=5)
+            Diversity('popularity', 5)
+            ```
+        """
+        self.attribute = attribute
+        self.min_groups = min_groups
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return self.attribute == other.attribute and self.min_groups == other.min_groups
+
+    def __repr__(self) -> str:
+        return "{0}({1}, {2})".format(
+            self.__class__.__name__,
+            repr(self.attribute),
+            repr(self.min_groups),
+        )
+
+
 class MatchPhaseRanking(object):
     def __init__(
         self, attribute: str, order: Literal["ascending", "descending"], max_hits: int
@@ -1471,6 +1520,7 @@ class RankProfileFields(TypedDict, total=False):
     functions: List[Function]
     summary_features: List
     match_features: List
+    diversity: Diversity
     match_phase: MatchPhaseRanking
     second_phase: SecondPhaseRanking
     global_phase: GlobalPhaseRanking
@@ -1481,6 +1531,7 @@ class RankProfileFields(TypedDict, total=False):
     mutate: Mutate
     filter_threshold: float
     weakand: Dict[str, float]  # <-- NEW: weakand parameters
+    num_threads_per_search: int
 
 
 class RankProfile(object):
@@ -1498,6 +1549,7 @@ class RankProfile(object):
         global_phase: Optional[GlobalPhaseRanking] = None,
         match_phase: Optional[MatchPhaseRanking] = None,
         num_threads_per_search: Optional[int] = None,
+        diversity: Optional[Diversity] = None,
         **kwargs: Unpack[RankProfileFields],
     ) -> None:
         r"""
@@ -1524,6 +1576,7 @@ class RankProfile(object):
             global_phase (GlobalPhaseRanking, optional): Config specifying the global phase of ranking. See `GlobalPhaseRanking`.
             match_phase (MatchPhaseRanking, optional): Config specifying the match phase of ranking. See `MatchPhaseRanking`.
             num_threads_per_search (int, optional): Overrides the global `persearch` value for this rank profile to a lower value.
+            diversity: Optional config specifying the diversity of ranking.
             weight (list, optional): A list of tuples containing the field and their weight.
             rank_type (list, optional): A list of tuples containing a field and the rank-type-name.
                 [More info](https://docs.vespa.ai/en/reference/schema-reference.html#rank-type) about rank-type.
@@ -1610,6 +1663,7 @@ class RankProfile(object):
         self.constants = kwargs.get("constants", constants)
         self.functions = kwargs.get("functions", functions)
         self.summary_features = kwargs.get("summary_features", summary_features)
+        self.diversity = kwargs.get("diversity", diversity)
         self.match_features = kwargs.get("match_features", match_features)
         self.second_phase = kwargs.get("second_phase", second_phase)
         self.global_phase = kwargs.get("global_phase", global_phase)
@@ -1639,6 +1693,7 @@ class RankProfile(object):
             and self.second_phase == other.second_phase
             and self.global_phase == other.global_phase
             and self.match_phase == other.match_phase
+            and self.diversity == other.diversity
             and self.num_threads_per_search == other.num_threads_per_search
             and self.weight == other.weight
             and self.rank_type == other.rank_type
@@ -1669,6 +1724,7 @@ class RankProfile(object):
             repr(self.inputs),
             repr(self.mutate),
             repr(self.filter_threshold),
+            repr(self.diversity),
         )
 
 
@@ -3012,8 +3068,9 @@ class ApplicationPackage(object):
         components: Optional[List[Component]] = None,
         auth_clients: Optional[List[AuthClient]] = None,
         clusters: Optional[List[Cluster]] = None,
-        deployment_config: Optional[DeploymentConfiguration] = None,
+        deployment_config: Optional[Union[DeploymentConfiguration, VT]] = None,
         services_config: Optional[ServicesConfiguration] = None,
+        query_profile_config: Optional[Union[VT, List[VT]]] = None,
     ) -> None:
         """Create an application package.
 
@@ -3037,9 +3094,11 @@ class ApplicationPackage(object):
                 any Component must be part of a cluster. Defaults to None.
             auth_clients (list, optional): List of AuthClient objects for client authorization. If clusters is passed,
                 pass the auth clients to the ContainerCluster instead. Defaults to None.
-            deployment_config (DeploymentConfiguration, optional): Configuration for production deployments. Defaults to None.
-
-        Example:
+            deployment_config (Union[DeploymentConfiguration, VT], optional): Deployment configuration for the application.
+                Must be either a DeploymentConfiguration object (legacy) or a VT (Vespa Tag) based deployment configuration whose top-level tag must be `deployment`. Defaults to None.
+            services_config (ServicesConfiguration, optional): (Optional) Services configuration for the application. For advanced configuration.  See https://vespa-engine.github.io/pyvespa/advanced-configuration.html
+            query_profile_config (Union[VT, List[VT]], optional): Configuration for query profiles. If provided, will override the query_profile and query_profile_type arguments. Defaults to None. See See https://vespa-engine.github.io/pyvespa/advanced-configuration.html
+           Example:
             To create a default application package:
 
             ```python
@@ -3047,7 +3106,6 @@ class ApplicationPackage(object):
             ApplicationPackage('testapp', [Schema('testapp', Document(None, None, None), None, None, [], False, None, [], None)],
                             QueryProfile(None), QueryProfileType(None))
             ```
-
         This creates a default Schema, QueryProfile, and QueryProfileType, which can be populated with your application's specifics.
         """
         if not (
@@ -3066,12 +3124,31 @@ class ApplicationPackage(object):
                 else []
             )
         self._schema = OrderedDict([(x.name, x) for x in schema])
+        if query_profile_config:
+            if isinstance(query_profile_config, list):
+                self.query_profile_config = [
+                    QueryProfileItem.from_vt(qp) for qp in query_profile_config
+                ]
+            else:
+                self.query_profile_config = [
+                    QueryProfileItem.from_vt(query_profile_config)
+                ]
+        else:
+            self.query_profile_config = []
+
+        if self.query_profile_config:
+            create_query_profile_by_default = False
         if not query_profile and create_query_profile_by_default:
             query_profile = QueryProfile()
         self.query_profile = query_profile
         if not query_profile_type and create_query_profile_by_default:
             query_profile_type = QueryProfileType()
         self.query_profile_type = query_profile_type
+        if self.query_profile_config:
+            if query_profile or query_profile_type:
+                raise ValueError(
+                    "query_profile_config is mutually exclusive with query_profile and query_profile_type. Use one of them, not both."
+                )
         self.model_ids = []
         self.model_configs = {}
         self.stateless_model_evaluation = stateless_model_evaluation
@@ -3096,7 +3173,12 @@ class ApplicationPackage(object):
                             )
                             cluster.auth_clients = self.auth_clients
 
-        self.deployment_config = deployment_config
+        # Determine if the deployment configuration is VT based
+        self.deployment_is_vt: bool = isinstance(deployment_config, VT)
+        if self.deployment_is_vt:
+            self.deployment_config = DeploymentItem.from_vt(deployment_config)
+        else:
+            self.deployment_config = deployment_config
         self.services_config = services_config
 
     @property
@@ -3130,6 +3212,44 @@ class ApplicationPackage(object):
         """
         for schema in schemas:
             self._schema.update({schema.name: schema})
+
+    def add_query_profile(self, query_profile_item: Union[VT, List[VT]]) -> None:
+        """
+        Add a query profile item (query-profile or query-profile-type) to the application package.
+
+        Args:
+            query_profile_item (VT or List[VT]): Query profile item(s) to be added.
+
+        Returns:
+            None
+
+        Example:
+            ```python
+            app_package = ApplicationPackage(name="testapp")
+            qp = query_profile(
+                field(30, name="hits"),
+                field(3, name="trace.level"),
+            )
+            app_package.add_query_profile(
+                qp
+            )
+            # Query profile item is added to the application package.
+            # inspect with `app_package.query_profile_config`
+            ```
+        """
+        if isinstance(query_profile_item, VT):
+            self.query_profile_config.append(
+                QueryProfileItem.from_vt(query_profile_item)
+            )
+        elif isinstance(query_profile_item, list):
+            for item in query_profile_item:
+                self.query_profile_config.append(QueryProfileItem.from_vt(item))
+        else:
+            raise TypeError(
+                "query_profile_item must be an instance of VT or a list of VT, got {}".format(
+                    type(query_profile_item).__name__
+                )
+            )
 
     def get_model(self, model_id: str):
         try:
@@ -3233,6 +3353,8 @@ class ApplicationPackage(object):
 
     @property
     def deployment_to_text(self):
+        if self.deployment_is_vt:
+            return self.deployment_config.to_xml()
         env = Environment(
             loader=PackageLoader("vespa", "templates"),
             autoescape=select_autoescape(
@@ -3291,7 +3413,20 @@ class ApplicationPackage(object):
                     "search/query-profiles/types/root.xml",
                     self.query_profile_type_to_text,
                 )
-
+            if self.query_profile_config:
+                # Write each query profile config to a file. Should get file name from id-attribute of query-profile or query-profile-type tag.
+                # and query-profile-type to search/query-profiles/types/{id}.xml
+                for item in self.query_profile_config:
+                    if item.tag == "query_profile":
+                        zip_archive.writestr(
+                            "search/query-profiles/{}.xml".format(item.id_),
+                            item.xml,
+                        )
+                    elif item.tag == "query_profile_type":
+                        zip_archive.writestr(
+                            "search/query-profiles/types/{}.xml".format(item.id_),
+                            item.xml,
+                        )
             if self.deployment_config:
                 zip_archive.writestr("deployment.xml", self.deployment_to_text)
 
@@ -3369,7 +3504,24 @@ class ApplicationPackage(object):
         if self.validations:
             with open(os.path.join(root, "validation-overrides.xml"), "w") as f:
                 f.write(self.validations_to_text)
-
+        if self.query_profile_config:
+            for item in self.query_profile_config:
+                if item.tag == "query_profile":
+                    with open(
+                        os.path.join(
+                            root, "search/query-profiles/{}.xml".format(item.id_)
+                        ),
+                        "w",
+                    ) as f:
+                        f.write(item.xml)
+                elif item.tag == "query_profile_type":
+                    with open(
+                        os.path.join(
+                            root, "search/query-profiles/types/{}.xml".format(item.id_)
+                        ),
+                        "w",
+                    ) as f:
+                        f.write(item.xml)
         if self.deployment_config:
             with open(os.path.join(root, "deployment.xml"), "w") as f:
                 f.write(self.deployment_to_text)

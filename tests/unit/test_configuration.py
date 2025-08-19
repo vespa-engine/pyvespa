@@ -13,6 +13,8 @@ from vespa.configuration.vt import (
 )
 
 from vespa.configuration.services import *
+from vespa.configuration.query_profiles import *
+from vespa.configuration.deployment import *
 
 
 class TestVT(unittest.TestCase):
@@ -461,7 +463,6 @@ class TestBillionscaleServiceConfiguration(unittest.TestCase):
             ),
             version="1.0",
         )
-        # print(type(generated_services))
         generated_xml = generated_services.to_xml()
         # Validate against relaxng
         self.assertTrue(validate_services(etree.fromstring(str(generated_xml))))
@@ -564,7 +565,8 @@ class TestColbertLongServicesConfiguration(unittest.TestCase):
         )
         generated_xml = generated_services.to_xml()
         # Validate against relaxng
-        self.assertTrue(validate_services(str(generated_xml)))
+        self.assertTrue(validate_services(etree.fromstring(str(generated_xml))))
+        # Check all nodes and attributes being equal
         self.assertTrue(compare_xml(self.xml_schema, str(generated_xml)))
 
 
@@ -816,10 +818,333 @@ class TestUnderscoreAttributes(unittest.TestCase):
         )
         generated_xml = generated.to_xml()
         # Validate against relaxng
-        print(self.xml_schema)
-        print(generated_xml)
         self.assertTrue(validate_services(str(generated_xml)))
         self.assertTrue(compare_xml(self.xml_schema, str(generated_xml)))
+
+
+class TestQueryProfileSimple(unittest.TestCase):
+    def setUp(self):
+        self.query_profile_xml = """<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the
+project root. -->
+<!--
+match_avg_top_3_chunk_sim_scores   : 13.383840
+match_avg_top_3_chunk_text_scores  : 0.203145
+match_bm25(chunks)                 : 0.159914
+match_bm25(title)                  : 0.191867
+match_max_chunk_sim_scores         : 10.067169
+match_max_chunk_text_scores        : 0.153392
+Intercept                          : -7.798639
+-->
+<query-profile id="hybrid">
+    <field name="schema">doc</field>
+    <field name="ranking.features.query(embedding)">embed(@query)</field>
+    <field name="ranking.features.query(float_embedding)">embed(@query)</field>
+    <field name="ranking.features.query(intercept)">-7.798639</field>
+    <field name="ranking.features.query(avg_top_3_chunk_sim_scores_param)">13.383840</field>
+    <field name="ranking.features.query(avg_top_3_chunk_text_scores_param)">0.203145</field>
+    <field name="ranking.features.query(bm25_chunks_param)">0.159914</field>
+    <field name="ranking.features.query(bm25_title_param)">0.191867</field>
+    <field name="ranking.features.query(max_chunk_sim_scores_param)">10.067169</field>
+    <field name="ranking.features.query(max_chunk_text_scores_param)">0.153392</field>
+    <field name="yql">
+        select *
+        from %{schema}
+        where userInput(@query) or
+        ({label:"title_label", targetHits:100}nearestNeighbor(title_embedding, embedding)) or
+        ({label:"chunks_label", targetHits:100}nearestNeighbor(chunk_embeddings, embedding))
+    </field>
+    <field name="hits">10</field>
+    <field name="ranking.profile">learned-linear</field>
+    <field name="presentation.summary">top_3_chunks</field>
+</query-profile>    
+"""
+
+    def test_simple_query_profile(self):
+        generated = query_profile(
+            field("doc", name="schema"),
+            field("embed(@query)", name="ranking.features.query(embedding)"),
+            field("embed(@query)", name="ranking.features.query(float_embedding)"),
+            field("-7.798639", name="ranking.features.query(intercept)"),
+            field(
+                "13.383840",
+                name="ranking.features.query(avg_top_3_chunk_sim_scores_param)",
+            ),
+            field(
+                "0.203145",
+                name="ranking.features.query(avg_top_3_chunk_text_scores_param)",
+            ),
+            field("0.159914", name="ranking.features.query(bm25_chunks_param)"),
+            field("0.191867", name="ranking.features.query(bm25_title_param)"),
+            field(
+                "10.067169", name="ranking.features.query(max_chunk_sim_scores_param)"
+            ),
+            field(
+                "0.153392", name="ranking.features.query(max_chunk_text_scores_param)"
+            ),
+            field(
+                """select *
+        from %{schema}
+        where userInput(@query) or
+        ({label:"title_label", targetHits:100}nearestNeighbor(title_embedding, embedding)) or
+        ({label:"chunks_label", targetHits:100}nearestNeighbor(chunk_embeddings, embedding))""",
+                name="yql",
+            ),
+            field("10", name="hits"),
+            field("learned-linear", name="ranking.profile"),
+            field("top_3_chunks", name="presentation.summary"),
+            id="hybrid",
+        )
+        generated_xml = generated.to_xml()
+        # Compare the generated XML with the expected schema
+        self.assertTrue(compare_xml(self.query_profile_xml, str(generated_xml)))
+
+
+class TestQueryProfileVariant(unittest.TestCase):
+    def test_query_profile_variant(self):
+        # Taken from https://docs.vespa.ai/en/query-profiles.html#variants-and-inheritance
+        query_profile_xml = """<query-profile id="multiprofile1"> <!-- A regular profile may define "virtual" children within itself -->
+
+    <!-- Names of the request parameters defining the variant profiles of this. Order matters as described below.
+         Each individual value looked up in the profile is resolved from the most specific matching virtual
+         variant profile -->
+    <dimensions>region,model,bucket</dimensions>
+
+    <!-- Values may be set in the profile itself as usual, this becomes the default values given no matching
+         virtual variant provides a value for the property -->
+    <field name="a">My general a value</field>
+
+    <!-- The "for" attribute in a child profile supplies values in order for each of the dimensions -->
+    <query-profile for="us,nokia,test1">
+        <field name="a">My value of the combination us-nokia-test1-a</field>
+    </query-profile>
+
+    <!-- Same as [us,*,*]  - trailing "*"'s may be omitted -->
+    <query-profile for="us">
+        <field name="a">My value of the combination us-a</field>
+        <field name="b">My value of the combination us-b</field>
+    </query-profile>
+
+    <!-- Given a request which matches both the below, the one which specifies concrete values to the left
+         gets precedence over those specifying concrete values to the right
+         (i.e the first one gets precedence here) -->
+    <query-profile for="us,nokia,*">
+        <field name="a">My value of the combination us-nokia-a</field>
+        <field name="b">My value of the combination us-nokia-b</field>
+    </query-profile>
+    <query-profile for="us,*,test1">
+        <field name="a">My value of the combination us-test1-a</field>
+        <field name="b">My value of the combination us-test1-b</field>
+    </query-profile>
+
+</query-profile>"""
+
+        generated = query_profile(
+            dimensions("region,model,bucket"),
+            field("My general a value", name="a"),
+            query_profile(
+                field("My value of the combination us-nokia-test1-a", name="a"),
+                for_="us,nokia,test1",
+            ),
+            query_profile(
+                field("My value of the combination us-a", name="a"),
+                field("My value of the combination us-b", name="b"),
+                for_="us",
+            ),
+            query_profile(
+                field("My value of the combination us-nokia-a", name="a"),
+                field("My value of the combination us-nokia-b", name="b"),
+                for_="us,nokia,*",
+            ),
+            query_profile(
+                field("My value of the combination us-test1-a", name="a"),
+                field("My value of the combination us-test1-b", name="b"),
+                for_="us,*,test1",
+            ),
+            id="multiprofile1",
+        )
+        generated_xml = generated.to_xml()
+        # Compare the generated XML with the expected schema
+        self.assertTrue(compare_xml(query_profile_xml, str(generated_xml)))
+
+    def test_query_profile_multi(self):
+        query_profile_xml = """<query-profile id="multi" inherits="default multiDimensions"> <!-- default sets default-index to title -->
+  <field name="model"><ref>querybest</ref></field>
+
+  <query-profile for="love,default">
+    <field name="model"><ref>querylove</ref></field>
+    <field name="model.defaultIndex">default</field>
+  </query-profile>
+
+  <query-profile for="*,default">
+    <field name="model.defaultIndex">default</field>
+  </query-profile>
+
+  <query-profile for="love">
+    <field name="model"><ref>querylove</ref></field>
+  </query-profile>
+
+  <query-profile for="inheritslove" inherits="rootWithFilter">
+    <field name="model.filter">+me</field>
+  </query-profile>
+
+</query-profile>"""
+        generated = query_profile(
+            field(
+                ref("querybest"),
+                name="model",
+            ),
+            query_profile(
+                field(ref("querylove"), name="model"),
+                field("default", name="model.defaultIndex"),
+                for_="love,default",
+            ),
+            query_profile(
+                field("default", name="model.defaultIndex"), for_="*,default"
+            ),
+            query_profile(field(ref("querylove"), name="model"), for_="love"),
+            query_profile(
+                field("+me", name="model.filter"),
+                for_="inheritslove",
+                inherits="rootWithFilter",
+            ),
+            id="multi",
+            inherits="default multiDimensions",
+        )
+        generated_xml = generated.to_xml()
+        # Compare the generated XML with the expected schema
+        self.assertTrue(compare_xml(query_profile_xml, str(generated_xml)))
+
+
+class TestQueryProfileTypes(unittest.TestCase):
+    def test_query_profile_type_root(self):
+        self.query_profile_type_xml = """<query-profile-type id="root" inherits="native">
+  <match path="true"/>  
+  <field name="indexname" type="string" alias="index-name idx"/>
+</query-profile-type>"""
+        generated = query_profile_type(
+            match_(path="true"),  # Match is sanitized due to python keyword
+            field(name="indexname", type="string", alias="index-name idx"),
+            id="root",
+            inherits="native",
+        )
+        generated_xml = generated.to_xml()
+        # Compare the generated XML with the expected schema
+        self.assertTrue(compare_xml(self.query_profile_type_xml, str(generated_xml)))
+
+    def test_query_profile_type_mandatory(self):
+        self.query_profile_type_xml = """<query-profile-type id="mandatory" inherits="native">
+  <field name="timeout" type="string" mandatory="true"/>
+  <field name="foo" type="integer" mandatory="true"/>
+</query-profile-type>"""
+        generated = query_profile_type(
+            field(name="timeout", type="string", mandatory="true"),
+            field(name="foo", type="integer", mandatory="true"),
+            id="mandatory",
+            inherits="native",
+        )
+        generated_xml = generated.to_xml()
+        # Compare the generated XML with the expected schema
+        self.assertTrue(compare_xml(self.query_profile_type_xml, str(generated_xml)))
+
+
+class TestDeploymentVT(unittest.TestCase):
+    # Examples taken from https://docs.vespa.ai/en/reference/deployment.html
+    def setUp(self):
+        self.simple_vt = deployment(
+            prod(region("aws-us-east-1c"), region("aws-us-west-2a")), version="1.0"
+        )
+
+        self.complex_vt = deployment(
+            instance(prod(region("aws-us-east-1c")), id="beta"),
+            instance(
+                block_change(
+                    revision="false",
+                    days="mon,wed-fri",
+                    hours="16-23",
+                    time_zone="UTC",
+                ),
+                prod(
+                    region("aws-us-east-1c"),
+                    delay(hours="3", minutes="7", seconds="13"),
+                    parallel(
+                        region("aws-us-west-1c"),
+                        steps(
+                            region("aws-eu-west-1a"),
+                            delay(hours="3"),
+                        ),
+                    ),
+                ),
+                endpoints(
+                    endpoint(
+                        region("aws-us-east-1c"), container_id="my-container-service"
+                    )
+                ),
+                id="default",
+            ),
+            endpoints(
+                endpoint(
+                    instance("beta", weight="1"),
+                    id="my-weighted-endpoint",
+                    container_id="my-container-service",
+                    region="aws-us-east-1c",
+                )
+            ),
+            version="1.0",
+        )
+
+    def test_simple_valid(self):
+        item = DeploymentItem.from_vt(self.simple_vt)
+        self.assertIsInstance(item, DeploymentItem)
+        expected = """<deployment version="1.0">
+    <prod>
+        <region>aws-us-east-1c</region>
+        <region>aws-us-west-2a</region>
+    </prod>
+</deployment>"""
+        self.assertTrue(compare_xml(expected, item.to_xml()))
+
+    def test_complex_valid(self):
+        expected = """<deployment version="1.0">
+    <instance id="beta">
+        <prod>
+            <region>aws-us-east-1c</region>
+        </prod>
+    </instance>
+    <instance id="default">
+        <block-change revision="false" days="mon,wed-fri" hours="16-23" time-zone="UTC"></block-change>
+        <prod>
+            <region>aws-us-east-1c</region>
+            <delay hours="3" minutes="7" seconds="13"></delay>
+            <parallel>
+                <region>aws-us-west-1c</region>
+                <steps>
+                    <region>aws-eu-west-1a</region>
+                    <delay hours="3"></delay>
+                </steps>
+            </parallel>
+        </prod>
+        <endpoints>
+            <endpoint container-id="my-container-service">
+                <region>aws-us-east-1c</region>
+            </endpoint>
+        </endpoints>
+    </instance>
+    <endpoints>
+        <endpoint id="my-weighted-endpoint" container-id="my-container-service" region="aws-us-east-1c">
+            <instance weight="1">beta</instance>
+        </endpoint>
+    </endpoints>
+</deployment>"""
+        self.assertTrue(compare_xml(self.complex_vt.to_xml(), expected))
+
+    def test_invalid_top_level(self):
+        with self.assertRaises(ValueError):
+            DeploymentItem.from_vt(prod())  # Not deployment root
+
+    def test_error_wrong_type(self):
+        with self.assertRaises(TypeError):
+            DeploymentItem.from_vt("invalid")  # Not a VT object
 
 
 if __name__ == "__main__":

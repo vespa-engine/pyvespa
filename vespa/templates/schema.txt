@@ -65,7 +65,8 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
         {% if value.inputs %}
         inputs {
         {% for input in value.inputs %}
-            {{ input.0 }} {{ input.1 }} {% if input.2 %}: {{ input.2 }}{% endif %}
+            {{ input.0 }} {{ input.1 }}{% if input|length > 2 %}: {{ input.2 }}{% endif %}{% raw %}
+{% endraw %}
         {% endfor %}
         }
         {% endif %}
@@ -77,6 +78,12 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
             }
         }
         {% endfor %}
+        {% endif %}
+        {% if value.diversity %}
+        diversity {
+            attribute: {{ value.diversity.attribute }}
+            min-groups: {{ value.diversity.min_groups }}
+        }
         {% endif %}
         {% if value.match_phase %}
         match-phase {
