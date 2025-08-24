@@ -77,7 +77,7 @@ feed = [
     "PyYAML",
     "spacy",
     "mmh3",
-    "requests<=2.31.0",
+    "requests<=2.32.4",
     "html5lib",
     "beautifulsoup4",
     "markdownify",
