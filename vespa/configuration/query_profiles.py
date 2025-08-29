@@ -1,6 +1,7 @@
 from vespa.configuration.vt import VT, create_tag_function, voids
 from typing import NamedTuple
 
+# NB! If you modify this, please run 'python vespa/configuration/generate_pyi.py' to regenerate the .pyi stub files.
 queryprofile_tags = [
     "query-profile",
     "query-profile-type",
@@ -18,9 +19,11 @@ if duplicated:
 # Mapping general XML tags
 _g = globals()
 
+generated_query_profile_tags = set()
 # Generate dynamic tag functions and map them to valid Python names
 for tag in queryprofile_tags:
     sanitized_name = VT.sanitize_tag_name(tag)
+    generated_query_profile_tags.add(sanitized_name)
     _g[sanitized_name] = create_tag_function(tag, tag in voids)
 
 
