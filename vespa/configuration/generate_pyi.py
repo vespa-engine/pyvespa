@@ -11,8 +11,6 @@ for mod, tag_set in [
     mod_location = mod.__file__
     file_location = mod.__file__
     pyi_file = file_location.replace(".py", ".pyi")
-    print(f"File location: {file_location}")
-    print(generated_services_tags)
     with open(pyi_file, "w") as f:
         # write import statement for VT
         f.write("from vespa.configuration.vt import VT\n\n")
