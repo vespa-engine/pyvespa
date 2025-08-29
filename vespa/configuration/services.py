@@ -8,6 +8,7 @@ from typing import Union
 # List of XML tags (customized for Vespa configuration)
 # Please keep this in alphabetical order so it is easier to maintain.
 # The list is used to generate functions for each tag dynamically.
+# NB! If you modify this, please run 'python vespa/configuration/generate_pyi.py' to regenerate the .pyi stub files.
 services_tags = [
     "abortondocumenterror",
     "accesslog",
@@ -184,9 +185,11 @@ if duplicated:
 # Mapping general XML tags
 _g = globals()
 
+generated_services_tags = set()
 # Generate dynamic tag functions and map them to valid Python names
 for tag in services_tags:
     sanitized_name = VT.sanitize_tag_name(tag)
+    generated_services_tags.add(sanitized_name)
     _g[sanitized_name] = create_tag_function(tag, tag in voids)
 
 
