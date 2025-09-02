@@ -30,6 +30,7 @@ from typing import List
 from vespa.configuration.vt import VT, create_tag_function, voids
 
 # Tags used (subset guided by reference examples). Add more as needed.
+# NB! If you modify this, please run 'python vespa/configuration/generate_pyi.py' to regenerate the .pyi stub files.
 deployment_tags: List[str] = [
     "deployment",
     "instance",
@@ -57,9 +58,12 @@ _dup = {t for t in deployment_tags if deployment_tags.count(t) > 1}
 if _dup:
     raise ValueError(f"Tags duplicated in deployment_tags: {_dup}")
 
+generated_deployment_tags = set()
 g = globals()
 for _tag in deployment_tags:
-    g[VT.sanitize_tag_name(_tag)] = create_tag_function(_tag, _tag in voids)
+    sanitized_name = VT.sanitize_tag_name(_tag)
+    generated_deployment_tags.add(sanitized_name)
+    g[sanitized_name] = create_tag_function(_tag, _tag in voids)
 
 
 class DeploymentItem:
