@@ -994,7 +994,7 @@ class VespaCloud(VespaDeployment):
         Example usage:
             ```python
             vespa_cloud = VespaCloud(...)
-            vespa_cloud.deploy_to_dev_from_directory(
+            vespa_cloud.deploy_from_disk(
                 instance="my-instance",
                 application_root="/path/to/application",
                 max_wait=3600,
