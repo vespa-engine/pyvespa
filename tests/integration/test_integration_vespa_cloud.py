@@ -449,6 +449,38 @@ class TestDeployApplicationRoot(unittest.TestCase):
         self.vespa_cloud.delete(instance="rag-blueprint")
 
 
+class TestDeployKeyLocation(unittest.TestCase):
+    def test_deploy_key_location(self) -> None:
+        self.application_root = (
+            pathlib.Path(__file__).parent.parent / "testapps" / "rag-blueprint"
+        )
+        self.instance = "key-location"
+        # Read key from environment variable and write to file
+        key = os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n")
+        self.key_location = pathlib.Path.home() / ".vespa" / "my-key.pem"
+        self.key_location.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.key_location, "w") as f:
+            f.write(key)
+        self.vespa_cloud = VespaCloud(
+            tenant="vespa-team",
+            application="pyvespa-integration",
+            key_content=None,  # Not needed, but here for clarity
+            key_location=self.key_location,
+            application_root=self.application_root,
+        )
+        # Delete clients.pem if it exists, to test creation on first deployment
+        if (self.application_root / "security" / "clients.pem").exists():
+            os.remove(self.application_root / "security" / "clients.pem")
+        self.app = self.vespa_cloud.deploy(instance=self.instance, max_wait=300)
+        self.assertEqual(200, self.app.get_application_status().status_code)
+
+    def tearDown(self) -> None:
+        # Remove key file
+        if self.key_location.exists():
+            os.remove(self.key_location)
+        self.vespa_cloud.delete(instance=self.instance)
+
+
 class TestDeployPerf(unittest.TestCase):
     def setUp(self) -> None:
         self.app_package = sample_package
