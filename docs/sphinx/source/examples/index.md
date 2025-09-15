@@ -4,7 +4,7 @@ Here you can find a wide variety of examples that demonstrate how to use the Ves
 
 ## Vespa Cloud
 
-To create a free Vespa Cloud account, including a free trail visit [Vespa Cloud](https://vespa.ai/free-trial/).
+To create a free Vespa Cloud account, visit [Vespa Cloud](https://vespa.ai/free-trial/).
 
 - [BGE-M3 - The Mother of all embedding models](/examples/mother-of-all-embedding-models-cloud.html)
 - [Billion-scale vector search with Cohere binary embeddings in Vespa](/examples/billion-scale-vector-search-with-cohere-embeddings-cloud.html)
