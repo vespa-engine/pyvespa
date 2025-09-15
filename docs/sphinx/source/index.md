@@ -1,43 +1,52 @@
 # Vespa python API
 
-[Vespa](https://vespa.ai/) is the scalable open-sourced serving engine to store, compute and rank big data at user serving time. `pyvespa` provides a python API to Vespa - use it to create, modify, deploy and interact with running Vespa instances. The main goal of the library is to allow for faster prototyping and get familiar with Vespa features.
+[Vespa](https://vespa.ai/) is the scalable open-sourced serving engine to store, compute and rank big data at user serving time. `pyvespa` provides a python API to Vespa.
 
-!!!warning
-    pyvespa is under active development and backward incompatible changes may occur.
+We aim for complete feature parity with Vespa, and estimate that we cover > 95% of Vespa features, with all most commonly used features supported.
 
-[Hybrid Search](https://vespa-engine.github.io/pyvespa//getting-started-pyvespa) - Quickstart is a good primer on how to create an application, feed data and run queries. See Examples for use cases. The following blog post series will get you started:
+If you find a Vespa feature that you are not able to express/use with `pyvespa`, please [open an issue](https://github.com/vespa-engine/pyvespa/issues/new/choose).
 
-* [Run search engine experiments in Vespa from python](https://blog.vespa.ai/run-search-engine-experiments-in-Vespa-from-python/)
+## Quick start
 
-* [Build sentence/paragraph level QA application from python with Vespa](https://blog.vespa.ai/build-qa-app-from-python-with-vespa/)
+To get a sense of the most basic functionality, check out the Hybrid Search Quick start: 
 
-* [Build a basic text search application from python with Vespa: Part 1](https://blog.vespa.ai/build-basic-text-search-app-from-python-with-vespa/)
+- [Hybrid search quick start - Docker](getting-started-pyvespa)
+- [Hybrid search quick start - Vespa Cloud](/getting-started-pyvespa-cloud)
 
-* [Build a News recommendation app from python with Vespa: Part 1](https://blog.vespa.ai/build-news-search-app-from-python-with-vespa/)
+## Overview of pyvespa features
 
-The [Vespa FAQ](https://docs.vespa.ai/en/faq.html) is a great resource, also see pyvespa troubleshooting.
+!!! info 
+    There are two main interfaces to Vespa:
+
+    1. Control-plane API: Used to deploy and manage Vespa applications.
+        - [`VespaCloud`](/api/vespa/deployment.html#vespa.deployment.VespaCloud): Control-plane interface to Vespa Cloud.
+        - [`VespaDocker`](/api/vespa/deployment.html#vespa.deployment.VespaDocker): Control-plane iterface to local Vespa instance (docker/podman).
+    2. Data-plane API: Used to feed and query data in Vespa applications.
+        -  [`Vespa`](/api/vespa/application.html#vespa.application.Vespa)
+
+    Note that `VespaCloud` and `Vespa` require two separate authentication methods.
+
+    Refer to the [Authenticating to Vespa Cloud](/authenticating-to-vespa-cloud) for details.
+
+- Create and deploy application packages, including schemas, rank profiles, `services.xml`, query profiles etc.
+- [Feed and retrieve](/reads-writes) documents to/from Vespa, using `/document/v1/` API.
+- [Query](/query) Vespa applications, using `/search/` API.
+- [Build complex queries](/query.html#using-the-querybuilder-dsl-api) using the [`QueryBuilder`](/api/vespa/querybuilder/builder/builder.html) API.
+- [Collect training data](/evaluating-vespa-application-cloud) for ML using [`VespaFeatureCollector`](/api/vespa/evaluation.html#vespa.evaluation.VespaFeatureCollector).
+- [Evaluate](/evaluating-vespa-application-cloud) Vespa applications using [`VespaEvaluator`](/api/vespa/evaluation.html#vespa.evaluation.VespaEvaluator)/[`VespaMatchEvaluator`](/api/vespa/evaluation.html#vespa.evaluation.VespaMatchEvaluator).
 
 ## Requirements
 
-Install ``pyvespa``:
+Install `pyvespa`:
 
-```bash
-  python3 -m pip install pyvespa
-```
+We recommend using [`uv`](https://docs.astral.sh/uv/) to manage your python environments:
 
-Install [jupyter notebook](https://jupyter.org/install#jupyter-notebook) to run the notebooks in a browser:
+    uv add pyvespa
 
-```bash
-  git clone --depth 1 https://github.com/vespa-engine/pyvespa.git
-  jupyter notebook --notebook-dir pyvespa/docs/sphinx/source
-```
-Many of the pyvespa guides / notebooks use Docker -
-minimum memory requirement is 4 Gb unless other documented:
+or using `pip`:
 
-```bash
-  docker info | grep "Total Memory"
-  or
-  podman info | grep "memTotal"
-```
+    pip install pyvespa
 
-One can also use [Vespa Cloud](https://vespa-engine.github.io/pyvespa/getting-started-pyvespa-cloud) to run the notebooks.
+## Check out the examples
+
+Check out our wide variety of [Examples](/examples/) that demonstrate how to use the Vespa Python API to serve various use cases.
