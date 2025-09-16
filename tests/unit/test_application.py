@@ -348,6 +348,161 @@ class TestVespa(unittest.TestCase):
             "X-Custom-Header": "test",
         }
 
+    def test_cert_content_and_key_content_accepted(self):
+        """Test that cert_content and key_content are accepted together."""
+        cert_content = "-----BEGIN CERTIFICATE-----\ntest cert content\n-----END CERTIFICATE-----"
+        key_content = "-----BEGIN PRIVATE KEY-----\ntest key content\n-----END PRIVATE KEY-----"
+        
+        app = Vespa(
+            url="http://localhost",
+            cert_content=cert_content,
+            key_content=key_content
+        )
+        
+        self.assertEqual(app.cert_content, cert_content)
+        self.assertEqual(app.key_content, key_content)
+        self.assertIsNone(app.cert)
+        self.assertIsNone(app.key)
+
+    def test_cert_and_cert_content_mutual_exclusion(self):
+        """Test that cert and cert_content are mutually exclusive."""
+        with self.assertRaises(ValueError) as context:
+            Vespa(
+                url="http://localhost",
+                cert="path/to/cert.pem",
+                cert_content="cert content"
+            )
+        self.assertIn("cert and cert_content are mutually exclusive", str(context.exception))
+
+    def test_key_and_key_content_mutual_exclusion(self):
+        """Test that key and key_content are mutually exclusive."""
+        with self.assertRaises(ValueError) as context:
+            Vespa(
+                url="http://localhost",
+                key="path/to/key.pem",
+                key_content="key content"
+            )
+        self.assertIn("key and key_content are mutually exclusive", str(context.exception))
+
+    def test_cert_content_without_key_content_rejected(self):
+        """Test that cert_content without key_content is rejected."""
+        with self.assertRaises(ValueError) as context:
+            Vespa(
+                url="http://localhost",
+                cert_content="cert content"
+            )
+        self.assertIn("cert_content and key_content must be provided together", str(context.exception))
+
+    def test_key_content_without_cert_content_rejected(self):
+        """Test that key_content without cert_content is rejected."""
+        with self.assertRaises(ValueError) as context:
+            Vespa(
+                url="http://localhost",
+                key_content="key content"
+            )
+        self.assertIn("cert_content and key_content must be provided together", str(context.exception))
+
+    def test_key_without_cert_rejected(self):
+        """Test that providing key without cert is rejected."""
+        with self.assertRaises(ValueError) as context:
+            Vespa(
+                url="http://localhost",
+                key="path/to/key.pem"
+            )
+        self.assertIn("If key is provided, cert must also be provided", str(context.exception))
+
+    def test_cert_without_key_accepted(self):
+        """Test that providing cert without key is accepted (combined cert+key file)."""
+        app = Vespa(
+            url="http://localhost",
+            cert="path/to/combined.pem"
+        )
+        self.assertEqual(app.cert, "path/to/combined.pem")
+        self.assertIsNone(app.key)
+
+    def test_vespa_sync_with_cert_content(self):
+        """Test that VespaSync creates temporary files for cert_content and key_content."""
+        import tempfile
+        import os
+        from vespa.application import VespaSync
+        from unittest.mock import patch
+        
+        cert_content = "-----BEGIN CERTIFICATE-----\ntest cert content\n-----END CERTIFICATE-----"
+        key_content = "-----BEGIN PRIVATE KEY-----\ntest key content\n-----END PRIVATE KEY-----"
+        
+        app = Vespa(
+            url="http://localhost",
+            cert_content=cert_content,
+            key_content=key_content
+        )
+        
+        # Mock Session.cert to avoid actual SSL operations
+        with patch('requests.Session.cert', create=True):
+            with VespaSync(app) as sync_app:
+                # Check that cert is a tuple (cert_path, key_path)
+                self.assertIsInstance(sync_app.cert, tuple)
+                cert_path, key_path = sync_app.cert
+                
+                # Verify that temporary files exist and contain the correct content
+                self.assertTrue(os.path.exists(cert_path))
+                self.assertTrue(os.path.exists(key_path))
+                
+                with open(cert_path, 'r') as f:
+                    self.assertEqual(f.read(), cert_content)
+                
+                with open(key_path, 'r') as f:
+                    self.assertEqual(f.read(), key_content)
+            
+            # After exiting context, temporary files should be cleaned up
+            self.assertFalse(os.path.exists(cert_path))
+            self.assertFalse(os.path.exists(key_path))
+
+    def test_vespa_async_with_cert_content(self):
+        """Test that VespaAsync creates temporary files for cert_content and key_content."""
+        import tempfile
+        import os
+        from vespa.application import VespaAsync
+        import asyncio
+        from unittest.mock import patch
+        
+        cert_content = "-----BEGIN CERTIFICATE-----\ntest cert content\n-----END CERTIFICATE-----"
+        key_content = "-----BEGIN PRIVATE KEY-----\ntest key content\n-----END PRIVATE KEY-----"
+        
+        app = Vespa(
+            url="http://localhost",
+            cert_content=cert_content,
+            key_content=key_content
+        )
+        
+        async def test_async():
+            with patch('httpx.create_ssl_context') as mock_ssl_context:
+                # Mock the SSL context creation to avoid SSL validation
+                mock_ssl_context.return_value = None
+                
+                async with VespaAsync(app) as async_app:
+                    # Check that temporary files are created
+                    self.assertTrue(os.path.exists(async_app._cert_path))
+                    self.assertTrue(os.path.exists(async_app._key_path))
+                    
+                    # Verify that temporary files contain the correct content
+                    with open(async_app._cert_path, 'r') as f:
+                        self.assertEqual(f.read(), cert_content)
+                    
+                    with open(async_app._key_path, 'r') as f:
+                        self.assertEqual(f.read(), key_content)
+                    
+                    # Store paths for cleanup verification
+                    cert_path = async_app._cert_path
+                    key_path = async_app._key_path
+                    return cert_path, key_path
+                
+                # After exiting context, temporary files should be cleaned up
+                self.assertFalse(os.path.exists(cert_path))
+                self.assertFalse(os.path.exists(key_path))
+        
+        # Run the async test
+        asyncio.run(test_async())
+
 
 class TestRaiseForStatus(unittest.TestCase):
     def test_successful_response(self):
