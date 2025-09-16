@@ -993,12 +993,16 @@ class MockVespa:
         vespa_cloud_secret_token=None,
         cert=None,
         key=None,
+        cert_content=None,
+        key_content=None,
     ):
         self.base_headers = base_headers or {}
         self.auth_method = auth_method
         self.vespa_cloud_secret_token = vespa_cloud_secret_token
         self.cert = cert
         self.key = key
+        self.cert_content = cert_content
+        self.key_content = key_content
 
 
 # Test class
