@@ -1791,6 +1791,9 @@ class OnnxModel(object):
             repr(self.outputs),
         )
 
+    def export_to_onnx(self, output_path: Path) -> None:
+        copyfile(self.model_file_path, output_path)
+
 
 class SchemaConfiguration(TypedDict, total=False):
     stemming: Optional[str]
