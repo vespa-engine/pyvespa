@@ -48,7 +48,7 @@ file = "LICENSE"
 [project.optional-dependencies]
 vespacli = ["vespacli"]
 build = [
-    "setuptools==69.0.3",
+    "setuptools==78.1.1",
     "build==1.0.3",
     "twine==5.1.1",
     "toml==0.10.2",
