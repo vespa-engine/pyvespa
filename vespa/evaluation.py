@@ -752,6 +752,15 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
     If you do so, you need to make sure that the rank profile you use has the same inputs. For example, if you want to evaluate a YQL query including nearestNeighbor-operator, your rank-profile needs to define the corresponding input tensor.
     You must also either provide the query tensor or define it as input (e.g 'input.query(embedding)=embed(@query)') in your Vespa query function.
     Also note that the 'id_field' needs to be marked as an attribute in your Vespa schema, so filtering can be done on it.
+
+    **Important Caveats**: The filtering-approach and whether to prefer exact NN for queries containing nearestNeighbor-operator will be affected by the additional
+        filter introduced by the recall parameter. To mitigate this, we will set these parameters in the default body of each query.
+            - `ranking.matching.postFilterThreshold`: 0.0, # We always want post-filtering.
+            - `ranking.matching.approximateThreshold`: 0.0, # We never want fallback to exact search.
+
+            This means that if the query you want to evaluate have a strong filter (meaning these parameters would change the behavior of the query), keep in mind that `VespaMatchEvaluator` will not
+            produce identical results.
+
     Example usage:
         ```python
         from vespa.application import Vespa
@@ -821,6 +830,15 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
             Defaults to False.
         csv_dir (Optional[str], optional): Directory to save the CSV files. Defaults to None (current directory).
     """
+
+    @property
+    def default_body(self):
+        base_defaults = super().default_body
+        return {
+            **base_defaults,
+            "ranking.matching.postFilterThreshold": 0.0,  # We always want post-filtering.
+            "ranking.matching.approximateThreshold": 0.0,  # We never want fallback to exact search.
+        }
 
     def __init__(
         self,
