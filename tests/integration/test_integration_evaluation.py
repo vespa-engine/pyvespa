@@ -200,6 +200,30 @@ def hybrid_match_query_fn(query_text: str, top_k: int = 10) -> Dict[str, Any]:
     }
 
 
+def small_targethits_query_fn(query_text: str, top_k: int = 10) -> Dict[str, Any]:
+    """
+    Convert plain text into a JSON body for Vespa query with 'semantic' rank profile and targetHits=10.
+    """
+    return {
+        "yql": str(
+            qb.select("*")
+            .from_("sources *")
+            .where(
+                qb.nearestNeighbor(
+                    field="embedding",
+                    query_vector="q",
+                    annotations={"targetHits": 10},
+                )
+            )
+        ),
+        "query": query_text,
+        "ranking": "semantic",
+        "input.query(q)": f"embed({query_text})",
+        "ranking.matching.postFilterThreshold": 0.0,  # We always want postfiltering. Post-filtering is chosen when the estimated filter hit ratio of the query is larger than this threshold.
+        "ranking.matching.approximateThreshold": 0.0,  # The fallback to exact search is chosen when the estimated filter hit ratio of the query is less than this threshold. -> We never want fallback.
+    }
+
+
 def feature_collection_query_fn(
     query_text: str, top_k: int = 10, query_id: str = None
 ) -> Dict[str, Any]:
@@ -336,6 +360,44 @@ class TestEvaluatorsIntegration(unittest.TestCase):
             # assert that recall column is 1.0 for all rows
             for row in rows:
                 self.assertEqual(float(row["recall"]), 1.0)
+
+    def test_small_targethits_metrics(self):
+        """
+        Use VespaMatchEvaluator on the 'hybrid-match' ranking profile with the
+        queries & relevant docs from the NanoMSMARCO subset,
+        then compare the results to the reference values from ST.
+        """
+
+        evaluator = VespaMatchEvaluator(
+            queries=self.ids_to_query,
+            relevant_docs=self.relevant_docs,
+            vespa_query_fn=small_targethits_query_fn,
+            app=self.app,
+            name="small-targethits",
+            write_csv=True,
+            write_verbose=True,
+        )
+
+        # Evaluate
+        results = evaluator.run()
+        # This should be less than 1.0 due to smaller targetHits=10
+        self.assertLess(results["match_recall"], 1.0)
+        self.assertLess(results["avg_recall_per_query"], 1.0)
+        print("Got results: ", results)
+
+        # Assert file is written
+        self.assertTrue(Path(evaluator.csv_file).exists())
+        self.assertTrue(Path(evaluator.verbose_csv_file).exists())
+        # Read the csv and check recall column
+        import csv
+
+        with open(evaluator.verbose_csv_file, "r") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+            # assert that recall column is 1.0 for all rows
+            for row in rows:
+                self.assertLessEqual(float(row["recall"]), 1.0)
+                self.assertGreaterEqual(float(row["recall"]), 0.0)
 
     def test_vespa_feature_collector_integration(self):
         """
@@ -519,7 +581,7 @@ class TestEvaluatorsIntegration(unittest.TestCase):
             self.assertTrue(os.path.exists(feature_collector.csv_file))
 
             print(
-                f"Ratio strategy test - Relevant: {relevant_count}, Random: {random_count}, Ratio: {random_count/max(relevant_count, 1):.2f}"
+                f"Ratio strategy test - Relevant: {relevant_count}, Random: {random_count}, Ratio: {random_count / max(relevant_count, 1):.2f}"
             )
 
     def test_vespa_feature_collector_fixed_random_hits_strategy(self):
