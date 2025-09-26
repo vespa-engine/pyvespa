@@ -219,8 +219,6 @@ def small_targethits_query_fn(query_text: str, top_k: int = 10) -> Dict[str, Any
         "query": query_text,
         "ranking": "semantic",
         "input.query(q)": f"embed({query_text})",
-        "ranking.matching.postFilterThreshold": 0.0,  # We always want postfiltering. Post-filtering is chosen when the estimated filter hit ratio of the query is larger than this threshold.
-        "ranking.matching.approximateThreshold": 0.0,  # The fallback to exact search is chosen when the estimated filter hit ratio of the query is less than this threshold. -> We never want fallback.
     }
 
 
@@ -380,6 +378,8 @@ class TestEvaluatorsIntegration(unittest.TestCase):
 
         # Evaluate
         results = evaluator.run()
+        # Assert avg_matched_per_query is 10
+        self.assertEqual(results["avg_matched_per_query"], 10.0)
         # This should be less than 1.0 due to smaller targetHits=10
         self.assertLess(results["match_recall"], 1.0)
         self.assertLess(results["avg_recall_per_query"], 1.0)
