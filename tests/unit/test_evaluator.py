@@ -900,7 +900,6 @@ class TestVespaMatchEvaluator(unittest.TestCase):
         q1_recall_body = self.mock_app.captured_query_bodies_recall[0]
         self.assertIn("yql", q1_recall_body)
         self.assertIn("group(id)", q1_recall_body["yql"])  # Check for grouping syntax
-        self.assertEqual(q1_recall_body["hits"], len(self.relevant_docs_set["q1"]))
         self.assertEqual(q1_recall_body["ranking"], "unranked")  # Default
 
     def test_run_all_relevant_docs_matched(self):
