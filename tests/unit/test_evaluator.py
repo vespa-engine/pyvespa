@@ -780,25 +780,14 @@ class MockAppForMatchEvaluator:
 
     def __init__(
         self,
-        limit_responses: List[MockVespaResponse],
         recall_responses: List[MockVespaResponse],
     ):
-        self.limit_responses = limit_responses
         self.recall_responses = recall_responses
-        self.call_count = 0
-        self.captured_query_bodies_limit: List[Dict] = []
         self.captured_query_bodies_recall: List[Dict] = []
 
     def query_many(self, query_bodies: List[Dict]):
-        if self.call_count == 0:  # First call is for limit queries
-            self.call_count += 1
-            self.captured_query_bodies_limit = query_bodies
-            return self.limit_responses[: len(query_bodies)]
-        elif self.call_count == 1:  # Second call is for recall queries
-            self.call_count += 1
-            self.captured_query_bodies_recall = query_bodies
-            return self.recall_responses[: len(query_bodies)]
-        raise AssertionError(f"query_many called too many times: {self.call_count}")
+        self.captured_query_bodies_recall = query_bodies
+        return self.recall_responses[: len(query_bodies)]
 
 
 class TestVespaMatchEvaluator(unittest.TestCase):
@@ -822,24 +811,48 @@ class TestVespaMatchEvaluator(unittest.TestCase):
         self.vespa_query_fn = mock_vespa_query_fn
 
         # Default mock app for 2 queries (q1, q2)
+        # Create mock responses that simulate grouping query responses
+        # Structure: hits contains the grouping response where root.children[0].children contains the grouped results
+        mock_response_q1 = MockVespaResponse(
+            hits=[
+                {
+                    "id": "group:root:0",
+                    "relevance": 1.0,
+                    "continuation": {"this": ""},
+                    "children": [
+                        {
+                            "id": "group:string:doc1",
+                            "relevance": 0.4395870752632618,
+                            "value": "doc1",
+                            "fields": {"count()": 1},
+                        }
+                    ],
+                }
+            ],
+            _timing={"searchtime": 0.01},
+            _total_count=100,
+        )
+        mock_response_q2 = MockVespaResponse(
+            hits=[
+                {
+                    "id": "group:root:0",
+                    "relevance": 1.0,
+                    "continuation": {"this": ""},
+                    "children": [
+                        {
+                            "id": "group:string:doc4",
+                            "relevance": 0.4395870752632618,
+                            "value": "doc4",
+                            "fields": {"count()": 1},
+                        }
+                    ],
+                }
+            ],
+            _timing={"searchtime": 0.02},
+            _total_count=100,
+        )
         self.mock_app = MockAppForMatchEvaluator(
-            limit_responses=[
-                MockVespaResponse(
-                    hits=[], _total_count=10, _timing={"searchtime": 0.01}
-                ),  # q1
-                MockVespaResponse(
-                    hits=[], _total_count=5, _timing={"searchtime": 0.02}
-                ),  # q2
-            ],
-            recall_responses=[
-                MockVespaResponse(
-                    hits=[{"id": "doc1"}, {"id": "doc_other"}],
-                    _timing={"searchtime": 0.03},
-                ),  # q1 (1 of 2 relevant)
-                MockVespaResponse(
-                    hits=[{"id": "doc4"}], _timing={"searchtime": 0.04}
-                ),  # q2 (1 of 1 relevant)
-            ],
+            recall_responses=[mock_response_q1, mock_response_q2],
         )
 
     def test_basic_initialization(self):
@@ -863,6 +876,7 @@ class TestVespaMatchEvaluator(unittest.TestCase):
             vespa_query_fn=self.vespa_query_fn,
             app=self.mock_app,
             name="basic_match_run",
+            id_field="id",
         )
         results = evaluator.run()
 
@@ -872,44 +886,59 @@ class TestVespaMatchEvaluator(unittest.TestCase):
         # total_matched_relevant = 1 + 1 = 2
         # match_recall = 2 / 3
         # avg_recall_per_query = (0.5 + 1.0) / 2 = 0.75
-        # avg_matched_per_query (totalCount from limit) = (10 + 5) / 2 = 7.5
+        # avg_matched_per_query (totalCount from grouping query) = (100 + 100) / 2 = 100
         self.assertAlmostEqual(results["match_recall"], 2 / 3)
         self.assertAlmostEqual(results["avg_recall_per_query"], 0.75)
         self.assertEqual(results["total_relevant_docs"], 3)
         self.assertEqual(results["total_matched_relevant"], 2)
-        self.assertAlmostEqual(results["avg_matched_per_query"], 7.5)
+        self.assertAlmostEqual(results["avg_matched_per_query"], 100.0)
         self.assertEqual(results["total_queries"], 2)
         self.assertEqual(evaluator.primary_metric, "match_recall")
-        self.assertAlmostEqual(
-            results["searchtime_avg"], (0.01 + 0.02 + 0.03 + 0.04) / 4
-        )
+        self.assertAlmostEqual(results["searchtime_avg"], (0.01 + 0.02) / 2)
 
-        # Check captured query bodies
-        self.assertEqual(len(self.mock_app.captured_query_bodies_limit), 2)
-        q1_limit_body = self.mock_app.captured_query_bodies_limit[0]
-        self.assertIn("limit 0", q1_limit_body["yql"])
-        self.assertNotIn("hits", q1_limit_body)  # 'hits' key popped for limit query
-
+        # Check captured query bodies - now using grouping instead of recall parameter
         self.assertEqual(len(self.mock_app.captured_query_bodies_recall), 2)
         q1_recall_body = self.mock_app.captured_query_bodies_recall[0]
-        self.assertIn("recall", q1_recall_body)
-        self.assertTrue(
-            "id:doc1" in q1_recall_body["recall"]
-            and "id:doc2" in q1_recall_body["recall"]
-        )
+        self.assertIn("yql", q1_recall_body)
+        self.assertIn("group(id)", q1_recall_body["yql"])  # Check for grouping syntax
         self.assertEqual(q1_recall_body["hits"], len(self.relevant_docs_set["q1"]))
         self.assertEqual(q1_recall_body["ranking"], "unranked")  # Default
 
     def test_run_all_relevant_docs_matched(self):
+        # Create mock response with correct grouping structure
+        mock_response = MockVespaResponse(
+            hits=[
+                {
+                    "id": "group:root:0",
+                    "relevance": 1.0,
+                    "continuation": {"this": ""},
+                    "children": [
+                        {
+                            "id": "group:string:doc1",
+                            "relevance": 0.4395870752632618,
+                            "value": "doc1",
+                            "fields": {"count()": 1},
+                        },
+                        {
+                            "id": "group:string:doc2",
+                            "relevance": 0.4395870752632618,
+                            "value": "doc2",
+                            "fields": {"count()": 1},
+                        },
+                    ],
+                }
+            ],
+            _total_count=100,
+        )
         app = MockAppForMatchEvaluator(
-            limit_responses=[MockVespaResponse(hits=[], _total_count=3)],
-            recall_responses=[MockVespaResponse(hits=[{"id": "doc1"}, {"id": "doc2"}])],
+            recall_responses=[mock_response],
         )
         evaluator = VespaMatchEvaluator(
             queries={"q1": "q"},
             relevant_docs={"q1": {"doc1", "doc2"}},
             vespa_query_fn=self.vespa_query_fn,
             app=app,
+            id_field="id",
         )
         results = evaluator.run()
         self.assertAlmostEqual(results["match_recall"], 1.0)
@@ -917,9 +946,20 @@ class TestVespaMatchEvaluator(unittest.TestCase):
         self.assertEqual(results["total_matched_relevant"], 2)
 
     def test_run_no_relevant_docs_matched(self):
+        # Create mock response with no matching relevant docs in grouping
+        mock_response = MockVespaResponse(
+            hits=[
+                {
+                    "id": "group:root:0",
+                    "relevance": 1.0,
+                    "continuation": {"this": ""},
+                    "children": [],  # No matching docs in grouping
+                }
+            ],
+            _total_count=5,
+        )
         app = MockAppForMatchEvaluator(
-            limit_responses=[MockVespaResponse(hits=[], _total_count=3)],
-            recall_responses=[MockVespaResponse(hits=[{"id": "other_doc"}])],
+            recall_responses=[mock_response],
         )
         evaluator = VespaMatchEvaluator(
             queries={"q1": "q"},
@@ -939,6 +979,7 @@ class TestVespaMatchEvaluator(unittest.TestCase):
             relevant_docs=graded_relevant_docs,
             vespa_query_fn=self.vespa_query_fn,
             app=self.mock_app,  # App setup doesn't matter as error is before query
+            id_field="id",
         )
         with self.assertRaisesRegex(
             ValueError, "Graded relevance is not supported in VespaMatchEvaluator"
@@ -946,14 +987,27 @@ class TestVespaMatchEvaluator(unittest.TestCase):
             evaluator.run()
 
     def test_id_field_usage(self):
-        # Hits should contain the id_field in 'fields'
-        app = MockAppForMatchEvaluator(
-            limit_responses=[MockVespaResponse(hits=[], _total_count=1)],
-            recall_responses=[
-                MockVespaResponse(
-                    hits=[{"fields": {"custom_doc_id": "doc123"}, "relevance": 1.0}]
-                )
+        # Test with custom id field using grouping structure
+        mock_response = MockVespaResponse(
+            hits=[
+                {
+                    "id": "group:root:0",
+                    "relevance": 1.0,
+                    "continuation": {"this": ""},
+                    "children": [
+                        {
+                            "id": "group:string:doc123",
+                            "relevance": 0.4395870752632618,
+                            "value": "doc123",
+                            "fields": {"count()": 1},
+                        }
+                    ],
+                }
             ],
+            _total_count=50,
+        )
+        app = MockAppForMatchEvaluator(
+            recall_responses=[mock_response],
         )
         evaluator = VespaMatchEvaluator(
             queries={"q1": "q"},
@@ -969,38 +1023,21 @@ class TestVespaMatchEvaluator(unittest.TestCase):
 
     def test_vespa_query_failure(self):
         app = MockAppForMatchEvaluator(
-            limit_responses=[
+            recall_responses=[
                 MockVespaResponse(hits=[], _status_code=500, _total_count=0)
-            ],  # Error on limit query
-            recall_responses=[],
+            ],  # Error on grouping query
         )
         evaluator = VespaMatchEvaluator(
             queries={"q1": "q"},
             relevant_docs={"q1": {"d1"}},
             vespa_query_fn=self.vespa_query_fn,
             app=app,
+            id_field="id",
         )
         with self.assertRaisesRegex(
             ValueError, "Vespa query failed with status code 500"
         ):
             evaluator.run()
-
-        app_recall_fail = MockAppForMatchEvaluator(
-            limit_responses=[MockVespaResponse(hits=[], _total_count=1)],
-            recall_responses=[
-                MockVespaResponse(hits=[], _status_code=503)
-            ],  # Error on recall query
-        )
-        evaluator_recall_fail = VespaMatchEvaluator(
-            queries={"q1": "q"},
-            relevant_docs={"q1": {"d1"}},
-            vespa_query_fn=self.vespa_query_fn,
-            app=app_recall_fail,
-        )
-        with self.assertRaisesRegex(
-            ValueError, "Vespa query failed with status code 503"
-        ):
-            evaluator_recall_fail.run()
 
     def test_custom_rank_profile_in_query_fn(self):
         def query_fn_custom_ranking(
@@ -1012,24 +1049,38 @@ class TestVespaMatchEvaluator(unittest.TestCase):
                 "ranking": "my_custom_profile",  # Explicitly set
             }
 
+        mock_response = MockVespaResponse(
+            hits=[
+                {
+                    "id": "group:root:0",
+                    "relevance": 1.0,
+                    "continuation": {"this": ""},
+                    "children": [
+                        {
+                            "id": "group:string:doc1",
+                            "relevance": 0.4395870752632618,
+                            "value": "doc1",
+                            "fields": {"count()": 1},
+                        }
+                    ],
+                }
+            ],
+            _total_count=25,
+        )
         app = MockAppForMatchEvaluator(
-            limit_responses=[MockVespaResponse(hits=[], _total_count=1)],
-            recall_responses=[MockVespaResponse(hits=[{"id": "doc1"}])],
+            recall_responses=[mock_response],
         )
         evaluator = VespaMatchEvaluator(
             queries={"q1": "q"},
             relevant_docs={"q1": {"doc1"}},
             vespa_query_fn=query_fn_custom_ranking,
             app=app,
+            id_field="id",
         )
         evaluator.run()
-        # Recall query should use the ranking from the function
+        # Grouping query should use the ranking from the function
         self.assertEqual(
             app.captured_query_bodies_recall[0]["ranking"], "my_custom_profile"
-        )
-        # Limit query body also contains it, though it might not be used by Vespa for limit 0
-        self.assertEqual(
-            app.captured_query_bodies_limit[0]["ranking"], "my_custom_profile"
         )
 
 
