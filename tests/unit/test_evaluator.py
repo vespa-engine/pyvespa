@@ -1083,6 +1083,106 @@ class TestVespaMatchEvaluator(unittest.TestCase):
             app.captured_query_bodies_recall[0]["ranking"], "my_custom_profile"
         )
 
+    def test_extract_matched_ids(self):
+        """Test extract_matched_ids method with different response structures"""
+        evaluator = VespaMatchEvaluator(
+            queries={"q1": "test"},
+            relevant_docs={"q1": {"doc1"}},
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+            id_field="id",
+        )
+
+        # Test with normal grouping response
+        mock_response = MockVespaResponse(
+            hits=[
+                {
+                    "id": "group:root:0",
+                    "children": [
+                        {"value": "doc1"},
+                        {"value": "doc2"},
+                        {"value": "doc3"},
+                    ],
+                }
+            ]
+        )
+
+        matched_ids = evaluator.extract_matched_ids(mock_response, "id")
+        self.assertEqual(matched_ids, {"doc1", "doc2", "doc3"})
+
+        # Test with empty response
+        empty_response = MockVespaResponse(
+            hits=[{"id": "group:root:0", "children": []}]
+        )
+
+        matched_ids = evaluator.extract_matched_ids(empty_response, "id")
+        self.assertEqual(matched_ids, set())
+
+        # Test with missing value field
+        incomplete_response = MockVespaResponse(
+            hits=[
+                {
+                    "id": "group:root:0",
+                    "children": [
+                        {"value": "doc1"},
+                        {"id": "group:string:doc2"},  # Missing value field
+                        {"value": "doc3"},
+                    ],
+                }
+            ]
+        )
+
+        matched_ids = evaluator.extract_matched_ids(incomplete_response, "id")
+        self.assertEqual(matched_ids, {"doc1", "doc3"})
+
+    def test_create_grouping_filter(self):
+        """Test create_grouping_filter method with different inputs"""
+        evaluator = VespaMatchEvaluator(
+            queries={"q1": "test"},
+            relevant_docs={"q1": {"doc1"}},
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+            id_field="id",
+        )
+
+        # Test with single document ID
+        base_yql = 'select * from sources * where userInput("test");'
+        result = evaluator.create_grouping_filter(base_yql, "id", "doc1")
+        expected = 'select * from sources * where userInput("test") | all( group(id) filter(regex("^doc1$", id)) each(output(count())) )'
+        self.assertEqual(result, expected)
+
+        # Test with multiple document IDs
+        result = evaluator.create_grouping_filter(
+            base_yql, "id", ["doc1", "doc2", "doc3"]
+        )
+        expected = 'select * from sources * where userInput("test") | all( group(id) filter(regex("^(?:doc1|doc2|doc3)$", id)) each(output(count())) )'
+        self.assertEqual(result, expected)
+
+        # Test with document IDs containing special regex characters
+        result = evaluator.create_grouping_filter(
+            base_yql, "id", ["doc.1", "doc+2", "doc[3]"]
+        )
+        expected = 'select * from sources * where userInput("test") | all( group(id) filter(regex("^(?:doc\\.1|doc\\+2|doc\\[3\\])$", id)) each(output(count())) )'
+        self.assertEqual(result, expected)
+
+        # Test with custom id field
+        result = evaluator.create_grouping_filter(
+            base_yql, "custom_id", ["doc1", "doc2"]
+        )
+        expected = 'select * from sources * where userInput("test") | all( group(custom_id) filter(regex("^(?:doc1|doc2)$", custom_id)) each(output(count())) )'
+        self.assertEqual(result, expected)
+
+        # Test with YQL that already has semicolon
+        yql_with_semicolon = 'select * from sources * where userInput("test");'
+        result = evaluator.create_grouping_filter(yql_with_semicolon, "id", "doc1")
+        expected = 'select * from sources * where userInput("test") | all( group(id) filter(regex("^doc1$", id)) each(output(count())) )'
+        self.assertEqual(result, expected)
+
+        # Test error case with empty relevant_ids
+        with self.assertRaises(ValueError) as cm:
+            evaluator.create_grouping_filter(base_yql, "id", [])
+        self.assertIn("relevant_ids must contain at least one value", str(cm.exception))
+
 
 class TestUtilityFunctions(unittest.TestCase):
     """Test the module-level utility functions extracted from VespaEvaluatorBase."""
