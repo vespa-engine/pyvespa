@@ -336,6 +336,7 @@ class TestEvaluatorsIntegration(unittest.TestCase):
             vespa_query_fn=hybrid_match_query_fn,
             app=self.app,
             name="hybrid-match",
+            id_field="id",
             write_csv=True,
             write_verbose=True,
         )
@@ -372,6 +373,7 @@ class TestEvaluatorsIntegration(unittest.TestCase):
             vespa_query_fn=small_targethits_query_fn,
             app=self.app,
             name="small-targethits",
+            id_field="id",
             write_csv=True,
             write_verbose=True,
         )
