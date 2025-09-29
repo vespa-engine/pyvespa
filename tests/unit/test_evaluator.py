@@ -812,45 +812,44 @@ class TestVespaMatchEvaluator(unittest.TestCase):
 
         # Default mock app for 2 queries (q1, q2)
         # Create mock responses that simulate grouping query responses
-        # Structure: hits contains the grouping response where root.children[0].children contains the grouped results
+        # Structure: proper two-level nesting for extract_matched_ids
+        def create_mock_response_json(matched_doc_id, searchtime, total_count):
+            return {
+                "root": {
+                    "children": [
+                        {
+                            "id": "group:root:0",
+                            "relevance": 1.0,
+                            "continuation": {"this": ""},
+                            "children": [
+                                {
+                                    "id": "group:string:id",
+                                    "children": [
+                                        {
+                                            "id": f"group:string:{matched_doc_id}",
+                                            "relevance": 0.4395870752632618,
+                                            "value": matched_doc_id,
+                                            "fields": {"count()": 1},
+                                        }
+                                    ],
+                                }
+                            ],
+                        }
+                    ],
+                    "fields": {"totalCount": total_count},
+                },
+                "timing": {"searchtime": searchtime},
+            }
+
         mock_response_q1 = MockVespaResponse(
-            hits=[
-                {
-                    "id": "group:root:0",
-                    "relevance": 1.0,
-                    "continuation": {"this": ""},
-                    "children": [
-                        {
-                            "id": "group:string:doc1",
-                            "relevance": 0.4395870752632618,
-                            "value": "doc1",
-                            "fields": {"count()": 1},
-                        }
-                    ],
-                }
-            ],
-            _timing={"searchtime": 0.01},
-            _total_count=100,
+            hits=[], _timing={"searchtime": 0.01}, _total_count=100
         )
+        mock_response_q1.get_json = lambda: create_mock_response_json("doc1", 0.01, 100)
+
         mock_response_q2 = MockVespaResponse(
-            hits=[
-                {
-                    "id": "group:root:0",
-                    "relevance": 1.0,
-                    "continuation": {"this": ""},
-                    "children": [
-                        {
-                            "id": "group:string:doc4",
-                            "relevance": 0.4395870752632618,
-                            "value": "doc4",
-                            "fields": {"count()": 1},
-                        }
-                    ],
-                }
-            ],
-            _timing={"searchtime": 0.02},
-            _total_count=100,
+            hits=[], _timing={"searchtime": 0.02}, _total_count=100
         )
+        mock_response_q2.get_json = lambda: create_mock_response_json("doc4", 0.02, 100)
         self.mock_app = MockAppForMatchEvaluator(
             recall_responses=[mock_response_q1, mock_response_q2],
         )
@@ -905,31 +904,39 @@ class TestVespaMatchEvaluator(unittest.TestCase):
         self.assertEqual(q1_recall_body["ranking"], "unranked")  # Default
 
     def test_run_all_relevant_docs_matched(self):
-        # Create mock response with correct grouping structure
-        mock_response = MockVespaResponse(
-            hits=[
+        # Create mock response with correct two-level grouping structure
+        def create_response_json_with_docs(doc_ids):
+            group_children = [
                 {
-                    "id": "group:root:0",
-                    "relevance": 1.0,
-                    "continuation": {"this": ""},
+                    "id": f"group:string:{doc_id}",
+                    "relevance": 0.4395870752632618,
+                    "value": doc_id,
+                    "fields": {"count()": 1},
+                }
+                for doc_id in doc_ids
+            ]
+            return {
+                "root": {
                     "children": [
                         {
-                            "id": "group:string:doc1",
-                            "relevance": 0.4395870752632618,
-                            "value": "doc1",
-                            "fields": {"count()": 1},
-                        },
-                        {
-                            "id": "group:string:doc2",
-                            "relevance": 0.4395870752632618,
-                            "value": "doc2",
-                            "fields": {"count()": 1},
-                        },
+                            "id": "group:root:0",
+                            "relevance": 1.0,
+                            "continuation": {"this": ""},
+                            "children": [
+                                {"id": "group:string:id", "children": group_children}
+                            ],
+                        }
                     ],
-                }
-            ],
-            _total_count=100,
+                    "fields": {"totalCount": 150},
+                },
+                "timing": {"searchtime": 0.015},
+            }
+
+        mock_response = MockVespaResponse(hits=[], _total_count=150)
+        mock_response.get_json = lambda: create_response_json_with_docs(
+            ["doc1", "doc2"]
         )
+
         app = MockAppForMatchEvaluator(
             recall_responses=[mock_response],
         )
@@ -947,17 +954,27 @@ class TestVespaMatchEvaluator(unittest.TestCase):
 
     def test_run_no_relevant_docs_matched(self):
         # Create mock response with no matching relevant docs in grouping
-        mock_response = MockVespaResponse(
-            hits=[
-                {
-                    "id": "group:root:0",
-                    "relevance": 1.0,
-                    "continuation": {"this": ""},
-                    "children": [],  # No matching docs in grouping
-                }
-            ],
-            _total_count=5,
-        )
+        no_match_response_json = {
+            "root": {
+                "children": [
+                    {
+                        "id": "group:root:0",
+                        "relevance": 1.0,
+                        "continuation": {"this": ""},
+                        "children": [
+                            {
+                                "id": "group:string:id",
+                                "children": [],  # No matching docs in grouping
+                            }
+                        ],
+                    }
+                ],
+                "fields": {"totalCount": 5},
+            },
+            "timing": {"searchtime": 0.01},
+        }
+        mock_response = MockVespaResponse(hits=[], _total_count=5)
+        mock_response.get_json = lambda: no_match_response_json
         app = MockAppForMatchEvaluator(
             recall_responses=[mock_response],
         )
@@ -987,25 +1004,35 @@ class TestVespaMatchEvaluator(unittest.TestCase):
             evaluator.run()
 
     def test_id_field_usage(self):
-        # Test with custom id field using grouping structure
-        mock_response = MockVespaResponse(
-            hits=[
-                {
-                    "id": "group:root:0",
-                    "relevance": 1.0,
-                    "continuation": {"this": ""},
-                    "children": [
-                        {
-                            "id": "group:string:doc123",
-                            "relevance": 0.4395870752632618,
-                            "value": "doc123",
-                            "fields": {"count()": 1},
-                        }
-                    ],
-                }
-            ],
-            _total_count=50,
-        )
+        # Test with custom id field using correct two-level grouping structure
+        custom_id_response_json = {
+            "root": {
+                "children": [
+                    {
+                        "id": "group:root:0",
+                        "relevance": 1.0,
+                        "continuation": {"this": ""},
+                        "children": [
+                            {
+                                "id": "group:string:custom_doc_id",
+                                "children": [
+                                    {
+                                        "id": "group:string:doc123",
+                                        "relevance": 0.4395870752632618,
+                                        "value": "doc123",
+                                        "fields": {"count()": 1},
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+                "fields": {"totalCount": 50},
+            },
+            "timing": {"searchtime": 0.01},
+        }
+        mock_response = MockVespaResponse(hits=[], _total_count=50)
+        mock_response.get_json = lambda: custom_id_response_json
         app = MockAppForMatchEvaluator(
             recall_responses=[mock_response],
         )
@@ -1022,10 +1049,13 @@ class TestVespaMatchEvaluator(unittest.TestCase):
         )  # doc123 should be extracted and matched
 
     def test_vespa_query_failure(self):
+        error_response = MockVespaResponse(hits=[], _status_code=500, _total_count=0)
+        error_response.get_json = lambda: {
+            "root": {},
+            "errors": [{"message": "Internal error"}],
+        }
         app = MockAppForMatchEvaluator(
-            recall_responses=[
-                MockVespaResponse(hits=[], _status_code=500, _total_count=0)
-            ],  # Error on grouping query
+            recall_responses=[error_response],  # Error on grouping query
         )
         evaluator = VespaMatchEvaluator(
             queries={"q1": "q"},
@@ -1093,47 +1123,161 @@ class TestVespaMatchEvaluator(unittest.TestCase):
             id_field="id",
         )
 
-        # Test with normal grouping response
-        mock_response = MockVespaResponse(
-            hits=[
-                {
-                    "id": "group:root:0",
+        # Test with normal grouping response - proper two-level nesting
+        def create_grouping_response_json(group_children):
+            return {
+                "root": {
                     "children": [
-                        {"value": "doc1"},
-                        {"value": "doc2"},
-                        {"value": "doc3"},
-                    ],
+                        {
+                            "id": "group:root:0",
+                            "children": [
+                                {"id": "group:string:id", "children": group_children}
+                            ],
+                        }
+                    ]
                 }
+            }
+
+        normal_response_json = create_grouping_response_json(
+            [
+                {"value": "doc1", "fields": {"count()": 1}},
+                {"value": "doc2", "fields": {"count()": 1}},
+                {"value": "doc3", "fields": {"count()": 1}},
             ]
         )
+        mock_response = MockVespaResponse(hits=[])
+        mock_response.get_json = lambda: normal_response_json
 
         matched_ids = evaluator.extract_matched_ids(mock_response, "id")
         self.assertEqual(matched_ids, {"doc1", "doc2", "doc3"})
 
-        # Test with empty response
-        empty_response = MockVespaResponse(
-            hits=[{"id": "group:root:0", "children": []}]
-        )
+        # Test with empty response at third level
+        empty_response_json = create_grouping_response_json([])
+        empty_response = MockVespaResponse(hits=[])
+        empty_response.get_json = lambda: empty_response_json
 
         matched_ids = evaluator.extract_matched_ids(empty_response, "id")
         self.assertEqual(matched_ids, set())
 
         # Test with missing value field
-        incomplete_response = MockVespaResponse(
-            hits=[
-                {
-                    "id": "group:root:0",
-                    "children": [
-                        {"value": "doc1"},
-                        {"id": "group:string:doc2"},  # Missing value field
-                        {"value": "doc3"},
-                    ],
-                }
+        incomplete_response_json = create_grouping_response_json(
+            [
+                {"value": "doc1", "fields": {"count()": 1}},
+                {"id": "group:string:doc2"},  # Missing value field
+                {"value": "doc3", "fields": {"count()": 1}},
             ]
         )
+        incomplete_response = MockVespaResponse(hits=[])
+        incomplete_response.get_json = lambda: incomplete_response_json
 
         matched_ids = evaluator.extract_matched_ids(incomplete_response, "id")
         self.assertEqual(matched_ids, {"doc1", "doc3"})
+
+    def test_extract_matched_ids_robust_navigation(self):
+        """Test extract_matched_ids method with edge cases for robust navigation"""
+        evaluator = VespaMatchEvaluator(
+            queries={"q1": "test"},
+            relevant_docs={"q1": {"doc1"}},
+            vespa_query_fn=self.vespa_query_fn,
+            app=self.mock_app,
+            id_field="id",
+        )
+
+        # Create a proper grouping response structure that matches Vespa's actual format
+        # Structure: root -> children[0] -> children[0] -> children[]
+        def create_grouping_response(group_children):
+            return {
+                "root": {
+                    "children": [
+                        {
+                            "id": "group:root:0",
+                            "children": [
+                                {"id": "group:string:id", "children": group_children}
+                            ],
+                        }
+                    ]
+                }
+            }
+
+        # Test 1: Normal case with matched documents
+        normal_response_json = create_grouping_response(
+            [
+                {"value": "doc1", "fields": {"count()": 1}},
+                {"value": "doc2", "fields": {"count()": 1}},
+                {"value": "doc3", "fields": {"count()": 1}},
+            ]
+        )
+        normal_response = MockVespaResponse(hits=[])
+        normal_response.get_json = lambda: normal_response_json
+
+        matched_ids = evaluator.extract_matched_ids(normal_response, "id")
+        self.assertEqual(matched_ids, {"doc1", "doc2", "doc3"})
+
+        # Test 2: Empty children at first level
+        empty_first_level_json = {"root": {"children": []}}
+        empty_first_response = MockVespaResponse(hits=[])
+        empty_first_response.get_json = lambda: empty_first_level_json
+
+        matched_ids = evaluator.extract_matched_ids(empty_first_response, "id")
+        self.assertEqual(matched_ids, set())
+
+        # Test 3: Empty children at second level
+        empty_second_level_json = {
+            "root": {"children": [{"id": "group:root:0", "children": []}]}
+        }
+        empty_second_response = MockVespaResponse(hits=[])
+        empty_second_response.get_json = lambda: empty_second_level_json
+
+        matched_ids = evaluator.extract_matched_ids(empty_second_response, "id")
+        self.assertEqual(matched_ids, set())
+
+        # Test 4: Empty children at third level (group level)
+        empty_third_level_json = create_grouping_response([])
+        empty_third_response = MockVespaResponse(hits=[])
+        empty_third_response.get_json = lambda: empty_third_level_json
+
+        matched_ids = evaluator.extract_matched_ids(empty_third_response, "id")
+        self.assertEqual(matched_ids, set())
+
+        # Test 5: Missing children keys
+        missing_children_json = {
+            "root": {
+                "children": [
+                    {
+                        "id": "group:root:0"
+                        # Missing "children" key
+                    }
+                ]
+            }
+        }
+        missing_children_response = MockVespaResponse(hits=[])
+        missing_children_response.get_json = lambda: missing_children_json
+
+        matched_ids = evaluator.extract_matched_ids(missing_children_response, "id")
+        self.assertEqual(matched_ids, set())
+
+        # Test 6: Some children have no value field
+        mixed_values_json = create_grouping_response(
+            [
+                {"value": "doc1", "fields": {"count()": 1}},
+                {"id": "group:string:doc2"},  # Missing value field
+                {"value": "doc3", "fields": {"count()": 1}},
+                {"value": None, "fields": {"count()": 1}},  # None value
+            ]
+        )
+        mixed_values_response = MockVespaResponse(hits=[])
+        mixed_values_response.get_json = lambda: mixed_values_json
+
+        matched_ids = evaluator.extract_matched_ids(mixed_values_response, "id")
+        self.assertEqual(matched_ids, {"doc1", "doc3"})
+
+        # Test 7: Completely missing root structure
+        missing_root_json = {}
+        missing_root_response = MockVespaResponse(hits=[])
+        missing_root_response.get_json = lambda: missing_root_json
+
+        matched_ids = evaluator.extract_matched_ids(missing_root_response, "id")
+        self.assertEqual(matched_ids, set())
 
     def test_create_grouping_filter(self):
         """Test create_grouping_filter method with different inputs"""
