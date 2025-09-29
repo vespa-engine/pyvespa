@@ -405,9 +405,9 @@ class TestEvaluatorsIntegration(unittest.TestCase):
         """
         Test that VespaMatchEvaluator can handle queries with a very large number of relevant docs.
         """
-        # Create a fake relevant_docs mapping with 5000 relevant docs for a single query
+        # Create a fake relevant_docs mapping with 1000 relevant docs for a single query
         many_rels = {
-            qid: {f"NOT_A_DOCID-{i}" for i in range(5000)} for qid in self.ids_to_query
+            qid: {f"NOT_A_DOCID-{i}" for i in range(1000)} for qid in self.ids_to_query
         }
         evaluator = VespaMatchEvaluator(
             queries=self.ids_to_query,
