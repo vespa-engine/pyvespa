@@ -219,6 +219,7 @@ def small_targethits_query_fn(query_text: str, top_k: int = 10) -> Dict[str, Any
         "query": query_text,
         "ranking": "semantic",
         "input.query(q)": f"embed({query_text})",
+        "timeout": "10s",
     }
 
 
