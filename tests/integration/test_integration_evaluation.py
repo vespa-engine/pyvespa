@@ -362,9 +362,8 @@ class TestEvaluatorsIntegration(unittest.TestCase):
 
     def test_small_targethits_metrics(self):
         """
-        Use VespaMatchEvaluator on the 'hybrid-match' ranking profile with the
-        queries & relevant docs from the NanoMSMARCO subset,
-        then compare the results to the reference values from ST.
+        Test VespaMatchEvaluator with a smaller targetHits=10 in the query,
+        to verify that match_recall and avg_recall_per_query are less than 1.0.
         """
 
         evaluator = VespaMatchEvaluator(
@@ -400,6 +399,35 @@ class TestEvaluatorsIntegration(unittest.TestCase):
             for row in rows:
                 self.assertLessEqual(float(row["recall"]), 1.0)
                 self.assertGreaterEqual(float(row["recall"]), 0.0)
+
+    def test_extremely_many_relevant_docs(self):
+        """
+        Test that VespaMatchEvaluator can handle queries with a very large number of relevant docs.
+        """
+        # Create a fake relevant_docs mapping with 5000 relevant docs for a single query
+        many_rels = {
+            qid: {f"NOT_A_DOCID-{i}" for i in range(5000)} for qid in self.ids_to_query
+        }
+        evaluator = VespaMatchEvaluator(
+            queries=self.ids_to_query,
+            relevant_docs=many_rels,
+            vespa_query_fn=small_targethits_query_fn,
+            app=self.app,
+            name="many-relevant-docs",
+            id_field="id",
+            write_csv=False,
+            write_verbose=False,
+        )
+
+        # Evaluate
+        results = evaluator.run()
+        print("Got results: ", results)
+
+        # Assert avg_matched_per_query is 10 (due to targetHits=10)
+        self.assertEqual(results["avg_matched_per_query"], 10.0)
+        # match_recall should be = 0.0
+        self.assertEqual(results["match_recall"], 0.0)
+        self.assertEqual(results["avg_recall_per_query"], 0.0)
 
     def test_vespa_feature_collector_integration(self):
         """
