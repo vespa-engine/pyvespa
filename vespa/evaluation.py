@@ -832,13 +832,20 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
         ],
         vespa_query_fn: Callable[[str, int, Optional[str]], dict],
         app: Vespa,
+        id_field: str,
         name: str = "",
-        id_field: str = "",
         rank_profile: str = "unranked",
         write_csv: bool = False,
         write_verbose: bool = False,
         csv_dir: Optional[str] = None,
     ):
+        if not id_field:
+            raise ValueError(
+                "The 'id_field' parameter is required for VespaMatchEvaluator. "
+                "Please specify the field name that contains document IDs in your Vespa schema "
+                "(e.g., id_field='id'). This field must be defined as an attribute in your schema."
+            )
+
         super().__init__(
             queries=queries,
             relevant_docs=relevant_docs,
