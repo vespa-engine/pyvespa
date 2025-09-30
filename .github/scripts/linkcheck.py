@@ -700,6 +700,19 @@ class LinkChecker:
             # Join with the relative path
             resolved_path = os.path.normpath(os.path.join(source_dir, path_part))
 
+            # If the file doesn't exist, try checking in the build directory
+            # This handles cases where markdown files in source/ link to HTML files in build/
+            if not os.path.exists(resolved_path):
+                # Check if we're in a source directory and try the corresponding build directory
+                source_abs = os.path.abspath(source_file)
+                if "/sphinx/source/" in source_abs:
+                    # Replace source with build in the path
+                    build_path = resolved_path.replace(
+                        "/sphinx/source/", "/sphinx/build/"
+                    )
+                    if os.path.exists(build_path):
+                        return build_path
+
             return resolved_path
         except Exception:
             return None
