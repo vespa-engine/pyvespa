@@ -6,11 +6,12 @@ from typing import Dict, Set, Callable, List, Optional, Union, Tuple
 import math
 from datetime import datetime
 from enum import Enum
-from vespa.application import Vespa
-from vespa.io import VespaQueryResponse
 from abc import ABC, abstractmethod
 from typing import Iterable
 import re
+from vespa.application import Vespa
+from vespa.io import VespaQueryResponse
+
 
 logger = logging.getLogger(__name__)
 
@@ -941,7 +942,8 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
         modified_yql = yql.strip().rstrip(";")
         return modified_yql + grouping_clause
 
-    def extract_matched_ids(self, resp: VespaQueryResponse, id_field: str) -> Set[str]:
+    @staticmethod
+    def extract_matched_ids(resp: VespaQueryResponse, id_field: str) -> Set[str]:
         """
         Extract matched document IDs from Vespa query response hits.
         Parameters:
