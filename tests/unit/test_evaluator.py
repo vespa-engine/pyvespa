@@ -180,6 +180,7 @@ class TestVespaEvaluator(unittest.TestCase):
             relevant_docs=self.relevant_docs,
             vespa_query_fn=self.vespa_query_fn,
             app=self.mock_app,
+            id_field="id",
         )
 
         self.assertEqual(len(evaluator.queries_ids), 3)
@@ -860,10 +861,11 @@ class TestVespaMatchEvaluator(unittest.TestCase):
             relevant_docs=self.relevant_docs_set,
             vespa_query_fn=self.vespa_query_fn,
             app=self.mock_app,
+            id_field="id",
         )
         self.assertIsInstance(evaluator, VespaMatchEvaluator)
         self.assertEqual(evaluator.name, "")
-        self.assertEqual(evaluator.id_field, "")
+        self.assertEqual(evaluator.id_field, "id")
         self.assertEqual(evaluator.write_csv, False)
         self.assertEqual(evaluator.write_verbose, False)
         self.assertEqual(set(evaluator.queries_ids), {"q1", "q2"})  # q3 filtered
@@ -982,6 +984,7 @@ class TestVespaMatchEvaluator(unittest.TestCase):
             relevant_docs={"q1": {"doc1", "doc2"}},
             vespa_query_fn=self.vespa_query_fn,
             app=app,
+            id_field="id",
         )
         results = evaluator.run()
         self.assertAlmostEqual(results["match_recall"], 0.0)
