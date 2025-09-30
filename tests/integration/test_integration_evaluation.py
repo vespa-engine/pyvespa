@@ -247,7 +247,7 @@ def feature_collection_query_fn(
         "ranking": "feature-collection",
         "input.query(q)": f"embed({query_text})",
         "hits": top_k,
-        "timeout": "5s",
+        "timeout": "10s",
         "presentation.timing": True,
     }
 
