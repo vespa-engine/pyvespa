@@ -1004,10 +1004,10 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
 
             # Add recall parameter based on relevant docs
             if isinstance(relevant_docs, set):
-                recall_string = " ".join([f"id:{doc_id}" for doc_id in relevant_docs])
+                recall_string = " ".join([f"{self.id_field}:{doc_id}" for doc_id in relevant_docs])
             elif isinstance(relevant_docs, dict):
                 recall_string = " ".join(
-                    [f"id:{doc_id}" for doc_id in relevant_docs.keys()]
+                    [f"{self.id_field}:{doc_id}" for doc_id in relevant_docs.keys()]
                 )
             else:
                 raise ValueError(
