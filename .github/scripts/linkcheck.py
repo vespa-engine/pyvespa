@@ -877,7 +877,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--status-codes",
         type=lambda s: {int(x) for x in s.split(",")},
-        default="200,201,202,203,204,205,206,207,208,226,301,302,307,308",
+        default="200,201,202,203,204,205,206,207,208,226,301,302,303,307,308",
         help="Comma-separated list of acceptable HTTP status codes",
     )
 
