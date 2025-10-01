@@ -6,9 +6,11 @@ from typing import Dict, Set, Callable, List, Optional, Union, Tuple
 import math
 from datetime import datetime
 from enum import Enum
+from abc import ABC, abstractmethod
+import re
 from vespa.application import Vespa
 from vespa.io import VespaQueryResponse
-from abc import ABC, abstractmethod
+
 
 logger = logging.getLogger(__name__)
 
@@ -830,13 +832,20 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
         ],
         vespa_query_fn: Callable[[str, int, Optional[str]], dict],
         app: Vespa,
+        id_field: str,
         name: str = "",
-        id_field: str = "",
         rank_profile: str = "unranked",
         write_csv: bool = False,
         write_verbose: bool = False,
         csv_dir: Optional[str] = None,
     ):
+        if not id_field:
+            raise ValueError(
+                "The 'id_field' parameter is required for VespaMatchEvaluator. "
+                "Please specify the field name that contains document IDs in your Vespa schema "
+                "(e.g., id_field='id'). This field must be defined as an attribute in your schema."
+            )
+
         super().__init__(
             queries=queries,
             relevant_docs=relevant_docs,
@@ -906,13 +915,68 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
 
         logger.info(f"Wrote verbose match evaluation results to {csv_path}")
 
+    @staticmethod
+    def create_grouping_filter(
+        yql: str, id_field: str, relevant_ids: Union[str, List[str]]
+    ) -> str:
+        """
+        Create a grouping filter to append Vespa YQL queries to limit results to relevant documents.
+        | all( group(id_field) filter(regex("<regex matching all ids>", id_field)) each(output(count())))
+
+        Parameters:
+        yql (str): The base YQL query string.
+        id_field (str): The field name in the Vespa hit that contains the document ID.
+        relevant_ids (list[str]): List of relevant document IDs to include in the filter.
+
+        Returns:
+        str: The modified YQL query string with the grouping filter applied.
+        """
+        ids = [relevant_ids] if isinstance(relevant_ids, str) else list(relevant_ids)
+        if not ids:
+            raise ValueError("relevant_ids must contain at least one value.")
+        escaped = [re.escape(doc_id) for doc_id in ids]
+        pattern = "|".join(escaped)
+        if len(escaped) > 1:
+            pattern = f"(?:{pattern})"
+        grouping_clause = f' | all( group({id_field}) filter(regex("^{pattern}$", {id_field})) each(output(count())) )'
+        modified_yql = yql.strip().rstrip(";")
+        return modified_yql + grouping_clause
+
+    @staticmethod
+    def extract_matched_ids(resp: VespaQueryResponse, id_field: str) -> Set[str]:
+        """
+        Extract matched document IDs from Vespa query response hits.
+        Parameters:
+        resp (VespaQueryResponse): The Vespa query response object.
+        id_field (str): The field name in the Vespa hit that contains the document ID
+
+        Returns:
+        Set[str]: A set of matched document IDs.
+        """
+        # Navigate safely through the nested structure to get group hits
+        root = resp.get_json().get("root", {})
+        first_level_children = root.get("children", [])
+        if not first_level_children:
+            group_hits = []
+        else:
+            second_level_children = first_level_children[0].get("children", [])
+            if not second_level_children:
+                group_hits = []
+            else:
+                group_hits = second_level_children[0].get("children", [])
+        matched_ids = set()
+        for child in group_hits:
+            val = child.get("value", None)
+            if val is not None:
+                matched_ids.add(val)
+        return matched_ids
+
     def run(self) -> Dict[str, float]:
         """
         Executes the match-phase recall evaluation.
 
         This method:
-        1. Sends a query with limit 0 to get the number of matched documents.
-        2. Sends a recall query with the relevant documents.
+        1. Sends a grouping query to see which of the relevant documents were matched, and get totalCount.
         3. Computes recall metrics and match statistics.
         4. Logs results and optionally writes them to CSV.
 
@@ -938,49 +1002,6 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
         # though typically a new instance is created for each evaluation.
         self.searchtimes: List[float] = []
 
-        # Step 1: Initial query to get number of matched documents (limit 0)
-        initial_query_bodies = []
-        for qid, query_text in zip(self.queries_ids, self.queries):
-            if self._vespa_query_fn_takes_query_id:
-                query_body: dict = self.vespa_query_fn(query_text, 0, qid)
-            else:
-                query_body: dict = self.vespa_query_fn(query_text, 0)
-
-            if not isinstance(query_body, dict):
-                raise ValueError(
-                    f"vespa_query_fn must return a dict, got: {type(query_body)}"
-                )
-
-            # Add default body parameters only if not already specified
-            for key, value in self.default_body.items():
-                if key not in query_body:
-                    query_body[key] = value
-
-            # Remove 'hits' key for the initial query
-            query_body.pop("hits", None)
-            initial_query_bodies.append(query_body)
-
-        # Add ' limit 0' to each yql-element in the query bodies
-        limit_query_bodies = []
-        for body in initial_query_bodies:
-            # Create a copy of the body and modify the yql
-            new_body = body.copy()
-            new_body["yql"] = body["yql"].replace(";", " limit 0;")
-            limit_query_bodies.append(new_body)
-
-        limit_responses, searchtimes_limit_queries = execute_queries(
-            self.app, limit_query_bodies
-        )
-        self.searchtimes.extend(searchtimes_limit_queries)
-
-        logger.debug(f"Initial responses: {limit_responses[0].get_json()}")
-        # Extract the number of matched documents from the initial responses
-        matched_docs_counts = [
-            resp.get_json().get("root", {}).get("fields", {}).get("totalCount", 0)
-            for resp in limit_responses
-        ]
-        logger.info(f"Total matched documents per query: {matched_docs_counts}")
-
         # Step 2: Recall query with relevant documents
         recall_query_bodies = []
         for qid, query_text in zip(self.queries_ids, self.queries):
@@ -1001,29 +1022,29 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
             for key, value in self.default_body.items():
                 if key not in query_body:
                     query_body[key] = value
-
-            # Add recall parameter based on relevant docs
-            if isinstance(relevant_docs, set):
-                recall_string = " ".join([f"id:{doc_id}" for doc_id in relevant_docs])
-            elif isinstance(relevant_docs, dict):
-                recall_string = " ".join(
-                    [f"id:{doc_id}" for doc_id in relevant_docs.keys()]
-                )
-            else:
-                raise ValueError(
-                    f"Unsupported type of relevant docs for query {qid}: {type(relevant_docs)}"
-                )
-            query_body["recall"] = f"+({recall_string})"
-            # Set to rank_profile
+            query_body["grouping.defaultMaxHits"] = len(relevant_docs)
+            if "hits" in query_body:
+                del query_body["hits"]  # Remove hits parameter if present
+            # Add grouping clause based on relevant docs
+            relevant_docs = list(relevant_docs)
+            query_body["yql"] = self.create_grouping_filter(
+                query_body["yql"], self.id_field, relevant_docs
+            )
+            # Set rank_profile
             if "ranking" not in query_body:
                 query_body["ranking"] = "unranked"  # Set to unranked if not specified
 
             recall_query_bodies.append(query_body)
-
         # Execute recall queries
         recall_responses, searchtimes_recall_queries = execute_queries(
             self.app, recall_query_bodies
         )
+        matched_docs_counts = [
+            resp.get_json().get("root", {}).get("fields", {}).get("totalCount", 0)
+            for resp in recall_responses
+        ]
+        logger.info(f"Total matched documents per query: {matched_docs_counts}")
+
         self.searchtimes.extend(searchtimes_recall_queries)
 
         # Compute comprehensive match metrics
@@ -1042,10 +1063,7 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
                 total_relevant_docs += num_relevant
 
                 # Extract retrieved document IDs
-                retrieved_ids = set()
-                for hit in resp.hits:
-                    doc_id = extract_doc_id_from_hit(hit, self.id_field)
-                    retrieved_ids.add(doc_id)
+                retrieved_ids = self.extract_matched_ids(resp, self.id_field)
 
                 # Calculate matches
                 matched_relevant_ids = retrieved_ids & relevant_docs
@@ -1072,9 +1090,6 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
                             "recall": query_recall,
                             "ids_matched": sorted(list(matched_relevant_ids)),
                             "ids_not_matched": sorted(list(not_matched_ids)),
-                            "searchtime_limit_query": searchtimes_limit_queries[idx]
-                            if idx < len(searchtimes_limit_queries)
-                            else float("nan"),
                             "searchtime_recall_query": searchtimes_recall_queries[idx]
                             if idx < len(searchtimes_recall_queries)
                             else float("nan"),

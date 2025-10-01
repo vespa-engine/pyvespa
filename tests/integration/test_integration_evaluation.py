@@ -200,6 +200,29 @@ def hybrid_match_query_fn(query_text: str, top_k: int = 10) -> Dict[str, Any]:
     }
 
 
+def small_targethits_query_fn(query_text: str, top_k: int = 10) -> Dict[str, Any]:
+    """
+    Convert plain text into a JSON body for Vespa query with 'semantic' rank profile and targetHits=10.
+    """
+    return {
+        "yql": str(
+            qb.select("*")
+            .from_("sources *")
+            .where(
+                qb.nearestNeighbor(
+                    field="embedding",
+                    query_vector="q",
+                    annotations={"targetHits": 10},
+                )
+            )
+        ),
+        "query": query_text,
+        "ranking": "semantic",
+        "input.query(q)": f"embed({query_text})",
+        "timeout": "10s",
+    }
+
+
 def feature_collection_query_fn(
     query_text: str, top_k: int = 10, query_id: str = None
 ) -> Dict[str, Any]:
@@ -224,7 +247,7 @@ def feature_collection_query_fn(
         "ranking": "feature-collection",
         "input.query(q)": f"embed({query_text})",
         "hits": top_k,
-        "timeout": "5s",
+        "timeout": "10s",
         "presentation.timing": True,
     }
 
@@ -314,6 +337,7 @@ class TestEvaluatorsIntegration(unittest.TestCase):
             vespa_query_fn=hybrid_match_query_fn,
             app=self.app,
             name="hybrid-match",
+            id_field="id",
             write_csv=True,
             write_verbose=True,
         )
@@ -336,6 +360,75 @@ class TestEvaluatorsIntegration(unittest.TestCase):
             # assert that recall column is 1.0 for all rows
             for row in rows:
                 self.assertEqual(float(row["recall"]), 1.0)
+
+    def test_small_targethits_metrics(self):
+        """
+        Test VespaMatchEvaluator with a smaller targetHits=10 in the query,
+        to verify that match_recall and avg_recall_per_query are less than 1.0.
+        """
+
+        evaluator = VespaMatchEvaluator(
+            queries=self.ids_to_query,
+            relevant_docs=self.relevant_docs,
+            vespa_query_fn=small_targethits_query_fn,
+            app=self.app,
+            name="small-targethits",
+            id_field="id",
+            write_csv=True,
+            write_verbose=True,
+        )
+
+        # Evaluate
+        results = evaluator.run()
+        # Assert avg_matched_per_query is 10
+        self.assertEqual(results["avg_matched_per_query"], 10.0)
+        # This should be less than 1.0 due to smaller targetHits=10
+        self.assertLess(results["match_recall"], 1.0)
+        self.assertLess(results["avg_recall_per_query"], 1.0)
+        print("Got results: ", results)
+
+        # Assert file is written
+        self.assertTrue(Path(evaluator.csv_file).exists())
+        self.assertTrue(Path(evaluator.verbose_csv_file).exists())
+        # Read the csv and check recall column
+        import csv
+
+        with open(evaluator.verbose_csv_file, "r") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+            # assert that recall column is 1.0 for all rows
+            for row in rows:
+                self.assertLessEqual(float(row["recall"]), 1.0)
+                self.assertGreaterEqual(float(row["recall"]), 0.0)
+
+    def test_extremely_many_relevant_docs(self):
+        """
+        Test that VespaMatchEvaluator can handle queries with a very large number of relevant docs.
+        """
+        # Create a fake relevant_docs mapping with 1000 relevant docs for a single query
+        many_rels = {
+            qid: {f"NOT_A_DOCID-{i}" for i in range(1000)} for qid in self.ids_to_query
+        }
+        evaluator = VespaMatchEvaluator(
+            queries=self.ids_to_query,
+            relevant_docs=many_rels,
+            vespa_query_fn=small_targethits_query_fn,
+            app=self.app,
+            name="many-relevant-docs",
+            id_field="id",
+            write_csv=False,
+            write_verbose=False,
+        )
+
+        # Evaluate
+        results = evaluator.run()
+        print("Got results: ", results)
+
+        # Assert avg_matched_per_query is 10 (due to targetHits=10)
+        self.assertEqual(results["avg_matched_per_query"], 10.0)
+        # match_recall should be = 0.0
+        self.assertEqual(results["match_recall"], 0.0)
+        self.assertEqual(results["avg_recall_per_query"], 0.0)
 
     def test_vespa_feature_collector_integration(self):
         """
@@ -519,7 +612,7 @@ class TestEvaluatorsIntegration(unittest.TestCase):
             self.assertTrue(os.path.exists(feature_collector.csv_file))
 
             print(
-                f"Ratio strategy test - Relevant: {relevant_count}, Random: {random_count}, Ratio: {random_count/max(relevant_count, 1):.2f}"
+                f"Ratio strategy test - Relevant: {relevant_count}, Random: {random_count}, Ratio: {random_count / max(relevant_count, 1):.2f}"
             )
 
     def test_vespa_feature_collector_fixed_random_hits_strategy(self):
