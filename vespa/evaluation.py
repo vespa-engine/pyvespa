@@ -7,7 +7,6 @@ import math
 from datetime import datetime
 from enum import Enum
 from abc import ABC, abstractmethod
-from typing import Iterable
 import re
 from vespa.application import Vespa
 from vespa.io import VespaQueryResponse
@@ -916,8 +915,9 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
 
         logger.info(f"Wrote verbose match evaluation results to {csv_path}")
 
+    @staticmethod
     def create_grouping_filter(
-        self, yql: str, id_field: str, relevant_ids: Union[str, Iterable]
+        yql: str, id_field: str, relevant_ids: Union[str, List[str]]
     ) -> str:
         """
         Create a grouping filter to append Vespa YQL queries to limit results to relevant documents.
@@ -1026,6 +1026,7 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
             if "hits" in query_body:
                 del query_body["hits"]  # Remove hits parameter if present
             # Add grouping clause based on relevant docs
+            relevant_docs = list(relevant_docs)
             query_body["yql"] = self.create_grouping_filter(
                 query_body["yql"], self.id_field, relevant_docs
             )
