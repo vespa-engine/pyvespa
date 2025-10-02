@@ -1329,6 +1329,23 @@ class TestVespaMatchEvaluator(unittest.TestCase):
             evaluator.create_grouping_filter(base_yql, "id", [])
         self.assertIn("relevant_ids must contain at least one value", str(cm.exception))
 
+        # Test with URLs as document IDs
+        # Use some special characters in URLs to test escaping
+        # like &=()[]?+*
+        self.maxDiff = None  # For full diff in assertion errors
+        urls = [
+            "http://example.com/doc1",
+            "https://example.com/doc2",
+            "http://example.com/doc?query=1",
+            "http://example.com/doc+plus",
+            "http://example.com/doc[brackets]",
+            "http://example.com/doc*star",
+        ]
+        result = evaluator.create_grouping_filter(base_yql, "url", urls)
+        expected_pattern = "^(?:http://example\.com/doc1|https://example\.com/doc2|http://example\.com/doc\?query=1|http://example\.com/doc\+plus|http://example\.com/doc\[brackets\]|http://example\.com/doc\*star)$"
+        expected = f'select * from sources * where userInput("test") | all( group(url) filter(regex("{expected_pattern}", url)) each(output(count())) )'
+        self.assertEqual(result, expected)
+
 
 class TestUtilityFunctions(unittest.TestCase):
     """Test the module-level utility functions extracted from VespaEvaluatorBase."""
