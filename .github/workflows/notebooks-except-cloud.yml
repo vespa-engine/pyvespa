@@ -50,6 +50,11 @@ jobs:
           cache-dependency-path: |
             pyproject.toml
 
+      - name: Upgrade deps
+        run: |
+          pip install --upgrade pip
+          pip install --upgrade numpy pandas
+
       - name: Install dependencies
         run: |
           pip install --no-cache-dir -e .[dev,notebooks]
