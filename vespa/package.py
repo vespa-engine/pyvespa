@@ -80,6 +80,12 @@ class Summary(object):
 
         self.name = name
         self.type = type
+        if self.type is not None:
+            warnings.warn(
+                "Setting a 'type' in a 'Summary' is deprecated and will be removed in the future. Omit 'type'; it is inferred from the Field type.",
+                category=FutureWarning,
+                stacklevel=2,
+            )
         self.fields = fields
 
     @property
