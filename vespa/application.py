@@ -1350,7 +1350,11 @@ class VespaSync(object):
             if response.status_code == 200:
                 return response.json()
             else:
-                return {"status_code": response.status_code, "message": response.reason}
+                return {
+                    "status_code": response.status_code,
+                    "response": response.json(),
+                    "message": response.reason,
+                }
         except ConnectionError:
             response = None
         return response
