@@ -939,9 +939,16 @@ class TestEvaluatorsIntegration(unittest.TestCase):
 
 class TestVespaMatchEvaluatorWithURLs(unittest.TestCase):
     """
-    Test VespaMatchEvaluator with URL-based document IDs.
-    This tests the evaluator's ability to handle special characters in document IDs
-    such as those commonly found in URLs (., ?, +, [, ], *, etc.).
+    Integration tests for VespaMatchEvaluator with URL-based document IDs.
+
+    Purpose:
+        Verify that VespaMatchEvaluator correctly handles document IDs containing special characters,
+        such as those commonly found in URLs (e.g., ., ?, +, [, ], *, etc.).
+
+    Test Coverage:
+        - Feeding documents with URL-based IDs containing special characters.
+        - Evaluating retrieval and matching functionality for these documents.
+        - Ensuring robustness against edge cases in document ID parsing and matc
     """
 
     @classmethod
