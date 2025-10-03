@@ -1332,7 +1332,6 @@ class TestVespaMatchEvaluator(unittest.TestCase):
         # Test with URLs as document IDs
         # Use some special characters in URLs to test escaping
         # like &=()[]?+*
-        self.maxDiff = None  # For full diff in assertion errors
         urls = [
             "http://example.com/doc1",
             "https://example.com/doc2",
