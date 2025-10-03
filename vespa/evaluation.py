@@ -938,6 +938,8 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
         pattern = "|".join(escaped)
         if len(escaped) > 1:
             pattern = f"(?:{pattern})"
+        # Need to escape backslashes again for YQL string
+        pattern = pattern.replace("\\", "\\\\")
         grouping_clause = f' | all( group({id_field}) filter(regex("^{pattern}$", {id_field})) each(output(count())) )'
         modified_yql = yql.strip().rstrip(";")
         return modified_yql + grouping_clause
@@ -1022,7 +1024,9 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
             for key, value in self.default_body.items():
                 if key not in query_body:
                     query_body[key] = value
-            query_body["grouping.defaultMaxHits"] = len(relevant_docs)
+            # See https://docs.vespa.ai/en/reference/query-api-reference.html#grouping.defaultMaxGroups
+            query_body["grouping.defaultMaxHits"] = -1  # Disable hits
+            query_body["grouping.defaultMaxGroups"] = len(relevant_docs)
             if "hits" in query_body:
                 del query_body["hits"]  # Remove hits parameter if present
             # Add grouping clause based on relevant docs
@@ -1033,7 +1037,6 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
             # Set rank_profile
             if "ranking" not in query_body:
                 query_body["ranking"] = "unranked"  # Set to unranked if not specified
-
             recall_query_bodies.append(query_body)
         # Execute recall queries
         recall_responses, searchtimes_recall_queries = execute_queries(
@@ -1056,15 +1059,12 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
         for idx, (qid, resp) in enumerate(zip(self.queries_ids, recall_responses)):
             relevant_docs = self.relevant_docs[qid]
             query_text = self.queries[idx]
-
             if isinstance(relevant_docs, set):
                 # Binary relevance
                 num_relevant = len(relevant_docs)
                 total_relevant_docs += num_relevant
-
                 # Extract retrieved document IDs
                 retrieved_ids = self.extract_matched_ids(resp, self.id_field)
-
                 # Calculate matches
                 matched_relevant_ids = retrieved_ids & relevant_docs
                 not_matched_ids = relevant_docs - retrieved_ids
