@@ -935,3 +935,191 @@ class TestEvaluatorsIntegration(unittest.TestCase):
             "rank_textSimilarity(text).score",
         ]
         self.assertListEqual(results_df.columns.tolist(), expected_columns)
+
+
+class TestVespaMatchEvaluatorWithURLs(unittest.TestCase):
+    """
+    Test VespaMatchEvaluator with URL-based document IDs.
+    This tests the evaluator's ability to handle special characters in document IDs
+    such as those commonly found in URLs (., ?, +, [, ], *, etc.).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        # Create an application package with URL as the id field
+        app_name = "urlevaluation"
+        cls.package = ApplicationPackage(
+            name=app_name,
+            schema=[
+                Schema(
+                    name="urldoc",
+                    document=Document(
+                        fields=[
+                            Field(
+                                name="url",
+                                type="string",
+                                indexing=["attribute", "summary"],
+                            ),
+                            Field(
+                                name="title",
+                                type="string",
+                                indexing=["index", "summary"],
+                                index="enable-bm25",
+                            ),
+                            Field(
+                                name="content",
+                                type="string",
+                                indexing=["index", "summary"],
+                                index="enable-bm25",
+                            ),
+                        ]
+                    ),
+                    fieldsets=[FieldSet(name="default", fields=["title", "content"])],
+                    rank_profiles=[
+                        RankProfile(
+                            name="bm25",
+                            first_phase="bm25(title) + bm25(content)",
+                        ),
+                        RankProfile(
+                            name="unranked",
+                            first_phase="",
+                        ),
+                    ],
+                )
+            ],
+        )
+
+        # Deploy to Docker
+        cls.vespa_docker = VespaDocker(port=8090)
+        cls.app = cls.vespa_docker.deploy(application_package=cls.package)
+
+        # Feed documents with URL-based IDs containing special characters
+        cls.test_docs = [
+            {
+                "id": "doc1",
+                "fields": {
+                    "url": "http://example.com/doc1",
+                    "title": "GPU Gaming Guide",
+                    "content": "The best GPU for gaming in 2024 is the RTX 4090.",
+                },
+            },
+            {
+                "id": "doc2",
+                "fields": {
+                    "url": "https://example.com/doc2",
+                    "title": "Sourdough Bread Recipe",
+                    "content": "How to bake sourdough bread at home with natural yeast.",
+                },
+            },
+            {
+                "id": "doc3",
+                "fields": {
+                    "url": "http://example.com/doc?query=1",
+                    "title": "Gaming Tips",
+                    "content": "Advanced gaming tips for competitive players.",
+                },
+            },
+            {
+                "id": "doc4",
+                "fields": {
+                    "url": "http://example.com/doc+plus",
+                    "title": "GPU Benchmark",
+                    "content": "GPU benchmark results for gaming performance.",
+                },
+            },
+            {
+                "id": "doc5",
+                "fields": {
+                    "url": "http://example.com/doc[brackets]",
+                    "title": "Bread Making",
+                    "content": "Professional bread making techniques.",
+                },
+            },
+            {
+                "id": "doc6",
+                "fields": {
+                    "url": "http://example.com/doc*star",
+                    "title": "Baking Guide",
+                    "content": "Complete guide to baking various types of bread.",
+                },
+            },
+        ]
+
+        def feed_callback(response: VespaResponse, doc_id: str):
+            if not response.is_successful():
+                print(f"Error feeding doc {doc_id}: {response.json}")
+
+        cls.app.feed_iterable(cls.test_docs, schema="urldoc", callback=feed_callback)
+
+        # Define test queries and relevant docs with URLs
+        cls.queries = {
+            "q1": "best GPU for gaming",
+            "q2": "how to bake sourdough bread",
+        }
+
+        # Relevant docs with URL-based IDs
+        cls.relevant_docs = {
+            "q1": {
+                "http://example.com/doc1",
+                "http://example.com/doc?query=1",
+                "http://example.com/doc+plus",
+            },
+            "q2": {
+                "https://example.com/doc2",
+                "http://example.com/doc[brackets]",
+                "http://example.com/doc*star",
+            },
+        }
+
+    @classmethod
+    def tearDownClass(cls):
+        # Clean up container
+        cls.vespa_docker.container.stop(timeout=10)
+        cls.vespa_docker.container.remove()
+
+    def test_match_evaluator_with_url_ids(self):
+        """
+        Test VespaMatchEvaluator with URL-based document IDs.
+        This verifies that the evaluator can correctly match documents
+        when IDs contain special regex characters.
+        """
+
+        def url_query_fn(query_text: str, top_k: int) -> Dict[str, Any]:
+            return {
+                "yql": f'select * from sources * where userInput("{query_text}");',
+                "ranking": "unranked",
+                "hits": top_k,
+                "timeout": "5s",
+            }
+
+        evaluator = VespaMatchEvaluator(
+            queries=self.queries,
+            relevant_docs=self.relevant_docs,
+            vespa_query_fn=url_query_fn,
+            app=self.app,
+            name="url-test",
+            id_field="url",
+            write_csv=True,
+            write_verbose=True,
+        )
+
+        # Run evaluation
+        results = evaluator.run()
+
+        # Debug: print results
+        print(f"\nEvaluation results: {results}")
+
+        # Assertions
+        self.assertIn("match_recall", results)
+        self.assertIn("avg_recall_per_query", results)
+        self.assertIn("total_relevant_docs", results)
+        self.assertIn("total_matched_relevant", results)
+
+        # Total relevant docs should be 6 (3 per query)
+        self.assertEqual(results["total_relevant_docs"], 6)
+
+        # We expect to match all relevant docs for both queries
+        self.assertEqual(results["total_matched_relevant"], 6)
+
+        self.assertEqual(results["match_recall"], 1.0)
+        self.assertEqual(results["avg_recall_per_query"], 1.0)
