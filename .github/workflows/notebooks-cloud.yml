@@ -52,17 +52,15 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Set up uv
-        # Install a specific uv version using the installer
-        run: curl -LsSf https://astral.sh/uv/0.4.5/install.sh | sh
-
-      - name: Upgrade deps
-        run: |
-          uv pip install --upgrade numpy pandas
+      - name: Install uv
+        uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb # v6
+        with:
+          version: "0.6.16"
 
       - name: Install dependencies
         run: |
           uv sync --extra dev --extra notebooks
+          uv add -U numpy pandas
 
       - name: Run notebooks tests
         env:
