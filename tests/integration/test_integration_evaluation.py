@@ -1106,9 +1106,6 @@ class TestVespaMatchEvaluatorWithURLs(unittest.TestCase):
         # Run evaluation
         results = evaluator.run()
 
-        # Debug: print results
-        print(f"\nEvaluation results: {results}")
-
         # Assertions
         self.assertIn("match_recall", results)
         self.assertIn("avg_recall_per_query", results)
