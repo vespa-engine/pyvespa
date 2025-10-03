@@ -60,7 +60,7 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync --extra dev --extra notebooks
-          uv add -U numpy pandas
+          uv add -U "numpy<2.0.0" pandas
 
       - name: Run notebooks tests
         env:
