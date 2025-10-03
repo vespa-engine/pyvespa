@@ -1024,6 +1024,7 @@ class VespaMatchEvaluator(VespaEvaluatorBase):
             for key, value in self.default_body.items():
                 if key not in query_body:
                     query_body[key] = value
+            # See https://docs.vespa.ai/en/reference/query-api-reference.html#grouping.defaultMaxGroups
             query_body["grouping.defaultMaxHits"] = -1  # Disable hits
             query_body["grouping.defaultMaxGroups"] = len(relevant_docs)
             if "hits" in query_body:
