@@ -4,6 +4,7 @@ import unittest
 import platform
 import pytest
 import tempfile
+import warnings
 import zipfile
 
 from vespa.package import (
@@ -38,6 +39,7 @@ from vespa.package import (
     ApplicationConfiguration,
     QueryProfileItem,
     Diversity,
+    Summary,
 )
 from vespa.configuration.vt import compare_xml
 from vespa.configuration.services import *
@@ -2968,3 +2970,27 @@ class TestDeploymentVT(unittest.TestCase):
             name="testfilescomplex", deployment_config=self.complex_vt
         )
         self._assert_deployment_files_and_zip(app_package, self.complex_expected)
+
+
+class TestSummary(unittest.TestCase):
+    def test_warning_for_type(self):
+        with self.assertWarnsRegex(FutureWarning, r"(?i)\btype\b.*deprecated.*removed"):
+            Summary(
+                name="test_summary",
+                type="string",
+                fields=[
+                    ("source", ["synopsis_parts_chunks"]),
+                    ("select-elements-by", "top_chunks_sim_scores"),
+                ],
+            )
+
+    def test_no_warning_when_type_omitted(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            Summary(
+                name="test_summary",
+                fields=[
+                    ("source", ["synopsis_parts_chunks"]),
+                    ("select-elements-by", "top_chunks_sim_scores"),
+                ],
+            )
