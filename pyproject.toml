@@ -89,7 +89,7 @@ notebooks = [
     "nbconvert<=7.12.0",
     "ipykernel",
     "jupytext",
-    "numpy",
+    "numpy<2.0.0",
     "pandas",
     "plotly",
     "torch",
@@ -100,6 +100,7 @@ notebooks = [
     "papermill",
     "ipywidgets",
     "matplotlib",
+    "httpx<0.28",
 ]
 dev = [
     "pre-commit",
