@@ -3,8 +3,10 @@ from vespa.querybuilder import Grouping as G
 import unittest
 
 
-class TestQueryBuilderGrouping(unittest.TestCase):
-    maxDiff = None
+class GroupingQueries:
+    """Helper class that generates grouping queries for testing.
+    This class is used by both unit tests and integration tests.
+    Each method builds a query and validates it against an expected result."""
 
     def test_grouping_with_condition(self):
         grouping = G.all(
@@ -16,7 +18,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "select * from purchase where true limit 0 "
             "| all(group(customer) each(output(sum(price))))"
         )
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_grouping_with_ordering_and_limiting(self):
@@ -32,7 +34,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "select * from purchase where true "
             "| all(group(customer) max(2) precision(12) order(-count()) each(output(sum(price))))"
         )
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_grouping_with_map_keys(self):
@@ -48,7 +50,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "select * from purchase where true "
             "| all(group(mymap.key) each(group(mymap.value) each(output(count()))))"
         )
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_group_by_year(self):
@@ -61,7 +63,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "select * from purchase where true "
             "| all(group(time.year(a)) each(output(count())))"
         )
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_grouping_with_date_agg(self):
@@ -95,7 +97,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(time.dayofmonth(a)) each(output(count()) "
             "all(group(time.hourofday(a)) each(output(count())))))))))"
         )
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_grouping_hits_per_group(self):
@@ -113,7 +115,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "select * from purchase where true | "
             "all(group(customer) each(max(3) each(output(summary()))))"
         )
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     #
@@ -137,7 +139,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "select * from test where true | "
             "all(group(a) max(5) each(output(count()) each(output(summary(normal)))))"
         )
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_subgroup1_part2(self):
@@ -154,7 +156,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "select * from test where true | "
             "all(group(a) max(5) each(max(69) output(count()) each(output(summary(normal)))))"
         )
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_subgroup2(self):
@@ -182,7 +184,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(a) max(5) each(output(count()) "
             "all(group(b) max(5) each(max(69) output(count()) each(output(summary(normal)))))))"
         )
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_subgroup3(self):
@@ -218,7 +220,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(c) max(5) each(max(69) output(count()) each(output(summary(normal)))))))))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_subgroup4(self):
@@ -238,7 +240,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(a) max(2) each(output(count())))))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_subgroup5(self):
@@ -259,7 +261,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(a) max(2) each(output(count())))))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_subgroup6(self):
@@ -287,7 +289,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(a) max(2) each(max(1) output(count()) each(output(summary(normal)))))))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     #
@@ -303,7 +305,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(a) order(-sum(from)) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_orderby_neg1(self):
@@ -316,7 +318,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(a) order(sum(from)) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_orderby1_m1(self):
@@ -333,7 +335,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(a) max(2) order(-sum(from)) precision(3) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_orderby_neg1_m1(self):
@@ -350,7 +352,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(a) max(2) order(sum(from)) precision(3) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_orderby2(self):
@@ -363,7 +365,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(a) max(2) order(-count()) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_combination_1(self):
@@ -377,7 +379,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
         # (We store it as a literal for demonstration; the DSL itself doesn't have a method for "as(...)".)
         q = f"select * from test where true | {grouping}"
         expected = "select * from test where true | all(group(a) max(2) order(-count()) each(output(count())) as(foo) each(output(max(b))) as(bar))"
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     #
@@ -391,7 +393,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(a) max(2) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_constraint3(self):
@@ -404,7 +406,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(a) max(2) precision(10) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     #
@@ -418,7 +420,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(time.year(from)) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_time_month(self):
@@ -431,7 +433,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(time.monthofyear(from)) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     # ... similarly for time.dayofmonth, time.dayofweek, time.dayofyear, etc. ...
@@ -459,7 +461,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(a) each(output(count(),sum(mod(relevance(),100000)))))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     #
@@ -473,7 +475,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(cat(a,b,c)) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     #
@@ -487,7 +489,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(zcurve.x(to)) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     #
@@ -501,7 +503,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(add(n, f)) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_mul_nf(self):
@@ -512,7 +514,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(mul(n, f)) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     #
@@ -536,7 +538,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(a) order(sum(relevance()),-count()) each(output(count(),sum(mod(relevance(),100000)))))"
         )
         q = f"select * from test where true | {grouping}"
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     #
@@ -550,7 +552,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(strcat(a,b,c)) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_strlen_example(self):
@@ -563,7 +565,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(strlen(strcat(a,b,c))) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     #
@@ -577,7 +579,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(tostring(f)) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     #
@@ -591,7 +593,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(math.exp(d)) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     def test_math_pow(self):
@@ -602,7 +604,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(math.pow(d,d)) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     #
@@ -616,7 +618,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(size(na)) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     #
@@ -633,7 +635,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(predefined(n,bucket(1,3),bucket(6,9))) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     #
@@ -647,7 +649,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(fixedwidth(n,3)) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     #
@@ -663,7 +665,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(xorbit(cat(a,b,c), 16)) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     #
@@ -679,7 +681,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(md5(cat(a,b,c), 64)) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     #
@@ -692,7 +694,7 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "select * from test where true | " "all(group(boool) each(output(count())))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
     #
@@ -708,5 +710,141 @@ class TestQueryBuilderGrouping(unittest.TestCase):
             "all(group(a) alias(myalias,count()) each(output($myalias)))"
         )
         q = qb.select("*").from_("test").where(True).groupby(grouping)
-        self.assertTrue(q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}")
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
+
+
+class TestQueryBuilderGrouping(unittest.TestCase):
+    """Unit tests for grouping query builder functionality.
+    
+    This test class uses the GroupingQueries helper class to validate
+    that each query is built correctly. Test methods do not return values."""
+    
+    maxDiff = None
+
+    def setUp(self):
+        """Set up a GroupingQueries instance for use in tests."""
+        self.queries = GroupingQueries()
+
+    def test_grouping_with_condition(self):
+        self.queries.test_grouping_with_condition()
+
+    def test_grouping_with_ordering_and_limiting(self):
+        self.queries.test_grouping_with_ordering_and_limiting()
+
+    def test_grouping_with_map_keys(self):
+        self.queries.test_grouping_with_map_keys()
+
+    def test_group_by_year(self):
+        self.queries.test_group_by_year()
+
+    def test_grouping_with_date_agg(self):
+        self.queries.test_grouping_with_date_agg()
+
+    def test_grouping_hits_per_group(self):
+        self.queries.test_grouping_hits_per_group()
+
+    def test_subgroup1_part1(self):
+        self.queries.test_subgroup1_part1()
+
+    def test_subgroup1_part2(self):
+        self.queries.test_subgroup1_part2()
+
+    def test_subgroup2(self):
+        self.queries.test_subgroup2()
+
+    def test_subgroup3(self):
+        self.queries.test_subgroup3()
+
+    def test_subgroup4(self):
+        self.queries.test_subgroup4()
+
+    def test_subgroup5(self):
+        self.queries.test_subgroup5()
+
+    def test_subgroup6(self):
+        self.queries.test_subgroup6()
+
+    def test_orderby1(self):
+        self.queries.test_orderby1()
+
+    def test_orderby_neg1(self):
+        self.queries.test_orderby_neg1()
+
+    def test_orderby1_m1(self):
+        self.queries.test_orderby1_m1()
+
+    def test_orderby_neg1_m1(self):
+        self.queries.test_orderby_neg1_m1()
+
+    def test_orderby2(self):
+        self.queries.test_orderby2()
+
+    def test_combination_1(self):
+        self.queries.test_combination_1()
+
+    def test_constraint2(self):
+        self.queries.test_constraint2()
+
+    def test_constraint3(self):
+        self.queries.test_constraint3()
+
+    def test_time_year(self):
+        self.queries.test_time_year()
+
+    def test_time_month(self):
+        self.queries.test_time_month()
+
+    def test_relevance(self):
+        self.queries.test_relevance()
+
+    def test_cat(self):
+        self.queries.test_cat()
+
+    def test_zcurve_x(self):
+        self.queries.test_zcurve_x()
+
+    def test_add_nf(self):
+        self.queries.test_add_nf()
+
+    def test_mul_nf(self):
+        self.queries.test_mul_nf()
+
+    def test_rank_relevance_count(self):
+        self.queries.test_rank_relevance_count()
+
+    def test_strcat_example(self):
+        self.queries.test_strcat_example()
+
+    def test_strlen_example(self):
+        self.queries.test_strlen_example()
+
+    def test_tostring_field(self):
+        self.queries.test_tostring_field()
+
+    def test_math_exp(self):
+        self.queries.test_math_exp()
+
+    def test_math_pow(self):
+        self.queries.test_math_pow()
+
+    def test_size_na(self):
+        self.queries.test_size_na()
+
+    def test_predef1(self):
+        self.queries.test_predef1()
+
+    def test_fixedwidth_n_3(self):
+        self.queries.test_fixedwidth_n_3()
+
+    def test_xorbit_16(self):
+        self.queries.test_xorbit_16()
+
+    def test_md5_64(self):
+        self.queries.test_md5_64()
+
+    def test_boool(self):
+        self.queries.test_boool()
+
+    def test_alias(self):
+        self.queries.test_alias()
