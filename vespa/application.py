@@ -151,6 +151,7 @@ class Vespa(object):
         connections: Optional[int] = 1,
         total_timeout: Optional[int] = None,
         timeout: Union[httpx.Timeout, int] = httpx.Timeout(5),
+        client: Optional[httpx.AsyncClient] = None,
         **kwargs,
     ) -> "VespaAsync":
         """
@@ -175,6 +176,8 @@ class Vespa(object):
             connections (int): Number of maximum_keepalive_connections.
             total_timeout (int, optional): Deprecated. Will be ignored. Use timeout instead.
             timeout (httpx.Timeout, optional): httpx.Timeout object. See [Timeouts](https://www.python-httpx.org/advanced/timeouts/). Defaults to 5 seconds.
+            client (httpx.AsyncClient, optional): Reusable httpx.AsyncClient to use instead of creating a new
+                one. When provided, the caller is responsible for closing the client.
             **kwargs (dict, optional): Additional arguments to be passed to the httpx.AsyncClient.
 
         Returns:
@@ -186,13 +189,51 @@ class Vespa(object):
             connections=connections,
             total_timeout=total_timeout,
             timeout=timeout,
+            client=client,
+            owns_client=client is None,
             **kwargs,
         )
+
+    def get_async_session(
+        self,
+        connections: Optional[int] = 1,
+        total_timeout: Optional[int] = None,
+        timeout: Union[httpx.Timeout, int] = httpx.Timeout(5),
+        **kwargs,
+    ) -> httpx.AsyncClient:
+        """Return a configured `httpx.AsyncClient` for reuse.
+
+        The client is created with the same configuration as `VespaAsync` and is HTTP/2
+        enabled by default. Callers are responsible for closing the client via
+        `await client.aclose()` when finished.
+
+        Args:
+            connections (int, optional): Number of logical connections to keep alive.
+            timeout (httpx.Timeout | int, optional): Timeout configuration for the client.
+            **kwargs: Additional keyword arguments forwarded to `httpx.AsyncClient`.
+
+        Returns:
+            httpx.AsyncClient: Configured asynchronous HTTP client.
+        """
+
+        async_layer = VespaAsync(
+            app=self,
+            connections=connections,
+            total_timeout=total_timeout,
+            timeout=timeout,
+            client=None,
+            owns_client=True,
+            **kwargs,
+        )
+        client = async_layer._open_httpx_client()
+        async_layer._owns_client = False
+        return client
 
     def syncio(
         self,
         connections: Optional[int] = 8,
         compress: Union[str, bool] = "auto",
+        session: Optional[Session] = None,
     ) -> "VespaSync":
         """
         Access Vespa synchronous connection layer.
@@ -212,6 +253,8 @@ class Vespa(object):
             total_timeout (float): Total timeout in seconds.
             compress (Union[str, bool], optional): Whether to compress the request body. Defaults to "auto",
                 which will compress if the body is larger than 1024 bytes.
+            session (requests.Session, optional): Reusable requests session to utilise for all requests made
+                within the context manager. When provided, the caller is responsible for closing the session.
 
         Returns:
             VespaAsyncLayer: Instance of Vespa asynchronous layer.
@@ -221,7 +264,38 @@ class Vespa(object):
             pool_connections=connections,
             pool_maxsize=connections,
             compress=compress,
+            session=session,
+            owns_session=session is None,
         )
+
+    def get_sync_session(
+        self,
+        connections: Optional[int] = 8,
+        compress: Union[str, bool] = "auto",
+    ) -> Session:
+        """Return a configured `requests.Session` for reuse.
+
+        The returned session is configured with the same headers, authentication, and
+        connection pooling behaviour as the `VespaSync` context manager. Callers are
+        responsible for closing the session when it is no longer needed.
+
+        Args:
+            connections (int, optional): Number of allowed concurrent connections.
+            compress (Union[str, bool], optional): Whether to compress request bodies.
+
+        Returns:
+            Session: Configured requests session using `CustomHTTPAdapter` pooling.
+        """
+
+        sync_layer = VespaSync(
+            app=self,
+            pool_connections=connections,
+            pool_maxsize=connections,
+            compress=compress,
+            session=Session(),
+            owns_session=False,
+        )
+        return sync_layer._open_http_session()
 
     @staticmethod
     def _run_coroutine_new_event_loop(loop, coro):
@@ -1234,6 +1308,8 @@ class VespaSync(object):
         pool_maxsize: int = 10,
         pool_connections: int = 10,
         compress: Union[str, bool] = "auto",
+        session: Optional[Session] = None,
+        owns_session: bool = True,
     ) -> None:
         """
         Class to handle synchronous requests to Vespa.
@@ -1252,6 +1328,22 @@ class VespaSync(object):
                 with app.syncio() as sync_app:
                     response = sync_app.query(body=body)
                 ```
+
+            **Reusing a session across multiple contexts** (avoids TLS handshake overhead):
+                ```python
+                # Get a reusable session
+                session = app.get_sync_session()
+                try:
+                    # Use it multiple times
+                    with app.syncio(session=session) as sync_app:
+                        response1 = sync_app.query(body=body1)
+                    with app.syncio(session=session) as sync_app:
+                        response2 = sync_app.query(body=body2)
+                finally:
+                    # User is responsible for closing
+                    session.close()
+                ```
+
             See also `Vespa.feed_iterable` for a convenient way to feed data synchronously.
 
         Args:
@@ -1259,6 +1351,8 @@ class VespaSync(object):
             pool_maxsize (int, optional): The maximum number of connections to save in the pool. Defaults to 10.
             pool_connections (int, optional): The number of urllib3 connection pools to cache. Defaults to 10.
             compress (Union[str, bool], optional): Whether to compress the request body. Defaults to "auto", which will compress if the body is larger than 1024 bytes.
+            session (requests.Session, optional): An externally managed session to reuse. When provided, the caller is responsible for closing it. Defaults to None.
+            owns_session (bool, optional): Whether this instance owns the session and should close it. Automatically set based on whether `session` is provided. Defaults to True.
         """
 
         if compress not in ["auto", True, False]:
@@ -1277,7 +1371,9 @@ class VespaSync(object):
                 {"Authorization": f"Bearer {self.app.vespa_cloud_secret_token}"}
             )
         self.compress = compress
-        self.http_session = None
+        self.http_session = session
+        self._owns_session = owns_session
+        self._session_configured = False
         self.adapter = CustomHTTPAdapter(
             pool_maxsize=pool_maxsize,
             pool_connections=pool_connections,
@@ -1295,24 +1391,29 @@ class VespaSync(object):
         self._close_http_session()
 
     def _open_http_session(self):
-        if self.http_session is not None:
-            return
+        if self.http_session is None:
+            self.http_session = Session()
+            self._owns_session = True
 
-        self.http_session = Session()
-        self.http_session.headers.update(self.headers)
-        self.http_session.mount("https://", self.adapter)
-        self.http_session.mount("http://", self.adapter)
-        if self.app.auth_method == "token" and self.app.vespa_cloud_secret_token:
+        if not self._session_configured:
             self.http_session.headers.update(self.headers)
-        else:
-            self.http_session.cert = self.cert
+            self.http_session.mount("https://", self.adapter)
+            self.http_session.mount("http://", self.adapter)
+            if self.app.auth_method == "token" and self.app.vespa_cloud_secret_token:
+                self.http_session.headers.update(self.headers)
+            elif self.cert and getattr(self.http_session, "cert", None) != self.cert:
+                self.http_session.cert = self.cert
+            self._session_configured = True
 
         return self.http_session
 
     def _close_http_session(self):
         if self.http_session is None:
             return
-        self.http_session.close()
+        if self._owns_session:
+            self.http_session.close()
+            self.http_session = None
+        self._session_configured = False
 
     def get_model_endpoint(self, model_id: Optional[str] = None) -> Optional[dict]:
         """Get model evaluation endpoints."""
@@ -1740,6 +1841,8 @@ class VespaAsync(object):
         connections: Optional[int] = 1,
         total_timeout: Optional[int] = None,
         timeout: Union[httpx.Timeout, int] = httpx.Timeout(5),
+        client: Optional[httpx.AsyncClient] = None,
+        owns_client: bool = True,
         **kwargs,
     ) -> None:
         """
@@ -1788,6 +1891,21 @@ class VespaAsync(object):
                 )
             ```
 
+        **Reusing a client across multiple contexts** (avoids TLS handshake overhead):
+            ```python
+            # Get a reusable client
+            client = app.get_async_session()
+            try:
+                # Use it multiple times
+                async with app.asyncio(client=client) as async_app:
+                    response1 = await async_app.query(body=body1)
+                async with app.asyncio(client=client) as async_app:
+                    response2 = await async_app.query(body=body2)
+            finally:
+                # User is responsible for closing
+                await client.aclose()
+            ```
+
         See also `Vespa.feed_async_iterable` for a convenient interface to async data feeding.
 
         Args:
@@ -1795,6 +1913,8 @@ class VespaAsync(object):
             connections (Optional[int], optional): Number of connections. Defaults to 1 as HTTP/2 is multiplexed.
             total_timeout (int, optional): **Deprecated**. Will be ignored and removed in future versions. Use `timeout` to pass an `httpx.Timeout` object instead.
             timeout (httpx.Timeout, optional): Timeout settings for the `httpx.AsyncClient`. Defaults to `httpx.Timeout(5)`.
+            client (httpx.AsyncClient, optional): An externally managed async client to reuse. When provided, the caller is responsible for closing it. Defaults to None.
+            owns_client (bool, optional): Whether this instance owns the client and should close it. Automatically set based on whether `client` is provided. Defaults to True.
             **kwargs: Additional arguments to be passed to the `httpx.AsyncClient`. See
                 [HTTPX AsyncClient documentation](https://www.python-httpx.org/api/#asyncclient) for more details.
 
@@ -1803,9 +1923,9 @@ class VespaAsync(object):
             - The `limits` parameter can be used to control connection pooling behavior, such as the maximum number of concurrent connections.
             - See [HTTPX documentation](https://www.python-httpx.org/) for more information on `httpx` and its features.
         """
-
         self.app = app
-        self.httpx_client = None
+        self.httpx_client = client
+        self._owns_client = owns_client
         self.connections = connections
         self.total_timeout = total_timeout
         if self.total_timeout is not None:
@@ -1843,7 +1963,7 @@ class VespaAsync(object):
 
     def _open_httpx_client(self):
         if self.httpx_client is not None:
-            return
+            return self.httpx_client
 
         if self.app.cert is not None:
             sslcontext = httpx.create_ssl_context(cert=(self.app.cert, self.app.key))
@@ -1857,12 +1977,15 @@ class VespaAsync(object):
             http1=False,
             **self.kwargs,
         )
+        self._owns_client = True
         return self.httpx_client
 
     async def _close_httpx_client(self):
         if self.httpx_client is None:
             return
-        await self.httpx_client.aclose()
+        if self._owns_client:
+            await self.httpx_client.aclose()
+            self.httpx_client = None
 
     async def _wait(f, args, **kwargs):
         tasks = [asyncio.create_task(f(*arg, **kwargs)) for arg in args]
