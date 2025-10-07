@@ -1412,7 +1412,6 @@ class VespaSync(object):
             return
         if self._owns_session:
             self.http_session.close()
-            self.http_session = None
         self._session_configured = False
 
     def get_model_endpoint(self, model_id: Optional[str] = None) -> Optional[dict]:
@@ -1985,7 +1984,6 @@ class VespaAsync(object):
             return
         if self._owns_client:
             await self.httpx_client.aclose()
-            self.httpx_client = None
 
     async def _wait(f, args, **kwargs):
         tasks = [asyncio.create_task(f(*arg, **kwargs)) for arg in args]
