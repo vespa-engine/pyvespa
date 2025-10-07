@@ -421,6 +421,36 @@ class TestConnectionReuse(unittest.TestCase):
         # Reusing should be faster
         self.assertLess(time_with_reuse, time_without_reuse)
 
+    def test_sync_connection_reuse_faster(self):
+        """Test that reusing a sync session is faster than creating new ones"""
+        import time
+
+        # Without reuse - create new session each time
+        start = time.time()
+        for _ in range(5):
+            with self.app.syncio() as session:
+                session.query(yql="select * from doc where true limit 1")
+        time_without_reuse = time.time() - start
+
+        # With reuse - use external session
+        sync_session = self.app.get_sync_session()
+        try:
+            start = time.time()
+            with self.app.syncio(session=sync_session) as session:
+                for _ in range(5):
+                    session.query(yql="select * from doc where true limit 1")
+            time_with_reuse = time.time() - start
+        finally:
+            sync_session.close()
+
+        print("\nSync query timing:")
+        print(f"  Without reuse (5 queries, 5 sessions): {time_without_reuse:.3f}s")
+        print(f"  With reuse (5 queries, 1 session): {time_with_reuse:.3f}s")
+        print(f"  Speedup: {time_without_reuse / time_with_reuse:.2f}x")
+
+        # Reusing should be faster
+        self.assertLess(time_with_reuse, time_without_reuse)
+
 
 class TestDeployProdWithTests(unittest.TestCase):
     def setUp(self) -> None:
