@@ -77,10 +77,7 @@ jobs:
           sh .github/scripts/replace_pip_install_notebooks.sh ${{ matrix.notebook }}
 
           # Install additional requirements with uv
-          uv export --format requirements-txt --frozen --extra notebooks > resolved-constraints.txt
-          # Remove any local path references (pip can’t handle them in constraints)
-          grep -vE "^-e|file://" resolved-constraints.txt > constraints.txt
-          uv pip install --no-cache-dir -r additional_requirements.txt -c constraints.txt
+          uv add -r additional_requirements.txt
 
           # Run the modified notebook
           uv run papermill --log-output ${{ matrix.notebook }} ${{ matrix.notebook }}-out.ipynb
