@@ -720,6 +720,8 @@ class TestQueryMany(unittest.TestCase):
             connections=2,
             total_timeout=None,
             timeout=10,
+            client=None,
+            owns_client=True,
         )
 
     def test_query_many_query_kwargs(self):
