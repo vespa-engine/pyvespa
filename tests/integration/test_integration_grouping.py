@@ -12,9 +12,9 @@ from vespa.package import (
     DocumentSummary,
     Summary,
 )
-from tests.unit.test_grouping import TestQueryBuilderGrouping
+from tests.unit.test_grouping import GroupingQueries
 
-qb = TestQueryBuilderGrouping()
+qb = GroupingQueries()
 
 
 class TestGroupingIntegration(unittest.TestCase):
