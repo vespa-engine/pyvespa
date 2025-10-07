@@ -1308,7 +1308,7 @@ class TestVespaMatchEvaluator(unittest.TestCase):
         result = evaluator.create_grouping_filter(
             base_yql, "id", ["doc.1", "doc+2", "doc[3]"]
         )
-        expected = 'select * from sources * where userInput("test") | all( group(id) filter(regex("^(?:doc\\.1|doc\\+2|doc\\[3\\])$", id)) each(output(count())) )'
+        expected = 'select * from sources * where userInput("test") | all( group(id) filter(regex("^(?:doc\\\\.1|doc\\\\+2|doc\\\\[3\\\\])$", id)) each(output(count())) )'
         self.assertEqual(result, expected)
 
         # Test with custom id field
@@ -1328,6 +1328,22 @@ class TestVespaMatchEvaluator(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             evaluator.create_grouping_filter(base_yql, "id", [])
         self.assertIn("relevant_ids must contain at least one value", str(cm.exception))
+
+        # Test with URLs as document IDs
+        # Use some special characters in URLs to test escaping
+        # like &=()[]?+*
+        urls = [
+            "http://example.com/doc1",
+            "https://example.com/doc2",
+            "http://example.com/doc?query=1",
+            "http://example.com/doc+plus",
+            "http://example.com/doc[brackets]",
+            "http://example.com/doc*star",
+        ]
+        result = evaluator.create_grouping_filter(base_yql, "url", urls)
+        expected_pattern = "^(?:http://example\\\\.com/doc1|https://example\\\\.com/doc2|http://example\\\\.com/doc\\\\?query=1|http://example\\\\.com/doc\\\\+plus|http://example\\\\.com/doc\\\\[brackets\\\\]|http://example\\\\.com/doc\\\\*star)$"
+        expected = f'select * from sources * where userInput("test") | all( group(url) filter(regex("{expected_pattern}", url)) each(output(count())) )'
+        self.assertEqual(result, expected)
 
 
 class TestUtilityFunctions(unittest.TestCase):

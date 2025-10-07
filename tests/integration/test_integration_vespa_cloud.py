@@ -324,6 +324,134 @@ class TestRetryApplication(unittest.TestCase):
         self.vespa_cloud.delete(instance=self.instance_name)
 
 
+class TestConnectionReuse(unittest.TestCase):
+    """
+    Test that reusing an async client is faster than creating new ones,
+    avoiding the overhead of TLS handshakes.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        # Create minimal application package
+        cls.app_name = "connectionreuse"
+        cls.app_package = ApplicationPackage(
+            name=cls.app_name,
+            schema=[
+                Schema(
+                    name="doc",
+                    document=Document(
+                        fields=[
+                            Field(
+                                name="id",
+                                type="string",
+                                indexing=["attribute", "summary"],
+                            ),
+                            Field(
+                                name="title",
+                                type="string",
+                                indexing=["index", "summary"],
+                            ),
+                        ],
+                    ),
+                )
+            ],
+        )
+
+        cls.instance_name = "connection-reuse"
+        # Deploy to Vespa Cloud
+        cls.vespa_cloud = VespaCloud(
+            tenant="vespa-team",
+            application="pyvespa-integration",
+            key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
+            application_package=cls.app_package,
+        )
+
+        cls.app = cls.vespa_cloud.deploy(instance=cls.instance_name)
+
+        # Feed a few inline documents
+        test_docs = [
+            {"id": "1", "fields": {"id": "1", "title": "First document"}},
+            {"id": "2", "fields": {"id": "2", "title": "Second document"}},
+            {"id": "3", "fields": {"id": "3", "title": "Third document"}},
+        ]
+        cls.app.feed_iterable(test_docs, schema="doc")
+        cls.test_query = "select * from doc where true limit 1"
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.vespa_cloud.delete(instance=cls.instance_name)
+
+    def test_async_connection_reuse_faster(self):
+        """Test that reusing an async client is faster than creating new ones"""
+        import time
+
+        # Without reuse - create new client each time
+        start = time.time()
+        for _ in range(5):
+
+            async def query_without_reuse():
+                async with self.app.asyncio() as session:
+                    return await session.query(
+                        yql="select * from testapp where true limit 1"
+                    )
+
+            asyncio.run(query_without_reuse())
+        time_without_reuse = time.time() - start
+
+        # With reuse - use external client
+        start = time.time()
+
+        async def query_with_reuse():
+            async_client = self.app.get_async_session()
+            try:
+                async with self.app.asyncio(client=async_client) as session:
+                    start_inner = time.time()
+                    for _ in range(5):
+                        await session.query(yql="select * from doc where true limit 1")
+                    return time.time() - start_inner
+            finally:
+                await async_client.aclose()
+
+        time_with_reuse = asyncio.run(query_with_reuse())
+        print("\nAsync query timing:")
+        print(f"  Without reuse (5 queries, 5 clients): {time_without_reuse:.3f}s")
+        print(f"  With reuse (5 queries, 1 client): {time_with_reuse:.3f}s")
+        print(f"  Speedup: {time_without_reuse / time_with_reuse:.2f}x")
+
+        # Reusing should be faster
+        self.assertLess(time_with_reuse, time_without_reuse)
+
+    def test_sync_connection_reuse_faster(self):
+        """Test that reusing a sync session is faster than creating new ones"""
+        import time
+
+        # Without reuse - create new session each time
+        start = time.time()
+        for _ in range(5):
+            with self.app.syncio() as session:
+                session.query(yql="select * from doc where true limit 1")
+        time_without_reuse = time.time() - start
+
+        # With reuse - use external session
+        sync_session = self.app.get_sync_session()
+        try:
+            start = time.time()
+            with self.app.syncio(session=sync_session) as session:
+                for _ in range(5):
+                    session.query(yql="select * from doc where true limit 1")
+            time_with_reuse = time.time() - start
+        finally:
+            sync_session.close()
+
+        print("\nSync query timing:")
+        print(f"  Without reuse (5 queries, 5 sessions): {time_without_reuse:.3f}s")
+        print(f"  With reuse (5 queries, 1 session): {time_with_reuse:.3f}s")
+        print(f"  Speedup: {time_without_reuse / time_with_reuse:.2f}x")
+
+        # Reusing should be faster
+        self.assertLess(time_with_reuse, time_without_reuse)
+
+
 class TestDeployProdWithTests(unittest.TestCase):
     def setUp(self) -> None:
         # Set root to parent directory/testapps/production-deployment-with-tests
