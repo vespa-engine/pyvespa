@@ -989,5 +989,108 @@ class TestVespaSyncStreaming(unittest.TestCase):
                     )
 
 
+class TestConnectionReuse(unittest.TestCase):
+    """Test connection reuse functionality for both sync and async clients"""
+
+    def test_get_sync_session_reuse(self):
+        """Test that an externally provided session is not closed by VespaSync context manager"""
+        app = Vespa(url="http://localhost", port=8080)
+
+        session = app.get_sync_session()
+
+        # Mock the close method to track if it's called
+        session.close = Mock()
+
+        with app.syncio(session=session) as sync_app:
+            self.assertIs(sync_app.http_session, session)
+            # Ensure adapters are installed for both protocols
+            self.assertIn("https://", sync_app.http_session.adapters)
+            self.assertIn("http://", sync_app.http_session.adapters)
+
+        # Session should NOT be closed when exiting the context manager
+        session.close.assert_not_called()
+
+        # User is responsible for closing
+        session.close()
+        session.close.assert_called_once()
+
+    def test_sync_session_ownership(self):
+        """Test that VespaSync closes sessions it creates, but not external ones"""
+        app = Vespa(url="http://localhost", port=8080)
+
+        # When VespaSync creates its own session, it should close it
+        with patch("vespa.application.Session") as mock_session_class:
+            mock_session = Mock()
+            mock_session_class.return_value = mock_session
+
+            with app.syncio() as sync_app:
+                self.assertTrue(sync_app._owns_session)
+
+            # Should have been closed
+            mock_session.close.assert_called_once()
+
+        # When given an external session, it should NOT close it
+        external_session = app.get_sync_session()
+        external_session.close = Mock()
+
+        with app.syncio(session=external_session) as sync_app:
+            self.assertFalse(sync_app._owns_session)
+            self.assertIs(sync_app.http_session, external_session)
+
+        # Should NOT be closed
+        external_session.close.assert_not_called()
+
+
+# Separate test functions for async tests to avoid unittest.TestCase async warnings
+@pytest.mark.asyncio
+async def test_get_async_session_reuse():
+    """Test that an externally provided client is not closed by VespaAsync context manager"""
+    app = Vespa(url="http://localhost", port=8080)
+
+    client = app.get_async_session()
+
+    # Mock the aclose method to track if it's called (use AsyncMock for async methods)
+    client.aclose = AsyncMock()
+
+    async with app.asyncio(client=client) as async_app:
+        assert async_app.httpx_client is client
+
+    # Client should NOT be closed when exiting the context manager
+    client.aclose.assert_not_called()
+
+    # User is responsible for closing
+    await client.aclose()
+    client.aclose.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_async_client_ownership():
+    """Test that VespaAsync closes clients it creates, but not external ones"""
+    app = Vespa(url="http://localhost", port=8080)
+
+    # When VespaAsync creates its own client, it should close it
+    with patch("vespa.application.httpx.AsyncClient") as mock_client_class:
+        mock_client = Mock()
+        mock_client.aclose = AsyncMock()
+        mock_client_class.return_value = mock_client
+
+        async with app.asyncio() as async_app:
+            assert async_app._owns_client is True
+
+        # Should have been closed
+        mock_client.aclose.assert_called_once()
+
+    # When given an external client, it should NOT close it
+    external_client = app.get_async_session()
+    external_client.aclose = AsyncMock()
+
+    async with app.asyncio(client=external_client) as async_app:
+        assert async_app._owns_client is False
+        assert async_app.httpx_client is external_client
+
+    # Should NOT be closed
+    external_client.aclose.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
