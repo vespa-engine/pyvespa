@@ -190,7 +190,6 @@ class Vespa(object):
             total_timeout=total_timeout,
             timeout=timeout,
             client=client,
-            owns_client=client is None,
             **kwargs,
         )
 
@@ -222,7 +221,6 @@ class Vespa(object):
             total_timeout=total_timeout,
             timeout=timeout,
             client=None,
-            owns_client=True,
             **kwargs,
         )
         client = async_layer._open_httpx_client()
@@ -265,7 +263,6 @@ class Vespa(object):
             pool_maxsize=connections,
             compress=compress,
             session=session,
-            owns_session=session is None,
         )
 
     def get_sync_session(
@@ -293,9 +290,10 @@ class Vespa(object):
             pool_maxsize=connections,
             compress=compress,
             session=Session(),
-            owns_session=False,
         )
-        return sync_layer._open_http_session()
+        session = sync_layer._open_http_session()
+        sync_layer._owns_session = False
+        return session
 
     @staticmethod
     def _run_coroutine_new_event_loop(loop, coro):
@@ -1309,7 +1307,6 @@ class VespaSync(object):
         pool_connections: int = 10,
         compress: Union[str, bool] = "auto",
         session: Optional[Session] = None,
-        owns_session: bool = True,
     ) -> None:
         """
         Class to handle synchronous requests to Vespa.
@@ -1352,7 +1349,6 @@ class VespaSync(object):
             pool_connections (int, optional): The number of urllib3 connection pools to cache. Defaults to 10.
             compress (Union[str, bool], optional): Whether to compress the request body. Defaults to "auto", which will compress if the body is larger than 1024 bytes.
             session (requests.Session, optional): An externally managed session to reuse. When provided, the caller is responsible for closing it. Defaults to None.
-            owns_session (bool, optional): Whether this instance owns the session and should close it. Automatically set based on whether `session` is provided. Defaults to True.
         """
 
         if compress not in ["auto", True, False]:
@@ -1372,7 +1368,8 @@ class VespaSync(object):
             )
         self.compress = compress
         self.http_session = session
-        self._owns_session = owns_session
+        # Automatically determine ownership based on whether session was provided
+        self._owns_session = session is None
         self._session_configured = False
         self.adapter = CustomHTTPAdapter(
             pool_maxsize=pool_maxsize,
@@ -1841,7 +1838,6 @@ class VespaAsync(object):
         total_timeout: Optional[int] = None,
         timeout: Union[httpx.Timeout, int] = httpx.Timeout(5),
         client: Optional[httpx.AsyncClient] = None,
-        owns_client: bool = True,
         **kwargs,
     ) -> None:
         """
@@ -1913,7 +1909,6 @@ class VespaAsync(object):
             total_timeout (int, optional): **Deprecated**. Will be ignored and removed in future versions. Use `timeout` to pass an `httpx.Timeout` object instead.
             timeout (httpx.Timeout, optional): Timeout settings for the `httpx.AsyncClient`. Defaults to `httpx.Timeout(5)`.
             client (httpx.AsyncClient, optional): An externally managed async client to reuse. When provided, the caller is responsible for closing it. Defaults to None.
-            owns_client (bool, optional): Whether this instance owns the client and should close it. Automatically set based on whether `client` is provided. Defaults to True.
             **kwargs: Additional arguments to be passed to the `httpx.AsyncClient`. See
                 [HTTPX AsyncClient documentation](https://www.python-httpx.org/api/#asyncclient) for more details.
 
@@ -1924,7 +1919,8 @@ class VespaAsync(object):
         """
         self.app = app
         self.httpx_client = client
-        self._owns_client = owns_client
+        # Automatically determine ownership based on whether client was provided
+        self._owns_client = client is None
         self.connections = connections
         self.total_timeout = total_timeout
         if self.total_timeout is not None:
