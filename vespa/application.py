@@ -5,6 +5,7 @@ import asyncio
 import traceback
 import concurrent.futures
 import warnings
+import ssl
 from typing import Optional, Dict, Generator, List, IO, Iterable, Callable, Tuple, Union
 from concurrent.futures import ThreadPoolExecutor, Future, as_completed
 from queue import Queue, Empty
@@ -1961,7 +1962,10 @@ class VespaAsync(object):
             return self.httpx_client
 
         if self.app.cert is not None:
-            sslcontext = httpx.create_ssl_context(cert=(self.app.cert, self.app.key))
+            sslcontext = ssl.create_default_context()
+            sslcontext.load_cert_chain(
+                certfile=self.app.cert, keyfile=self.app.key
+            )
         else:
             sslcontext = False
         self.httpx_client = httpx.AsyncClient(
