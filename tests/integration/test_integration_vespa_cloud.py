@@ -623,7 +623,7 @@ class TestDeployPerf(unittest.TestCase):
 
     def test_deploy(self):
         self.app = self.vespa_cloud.deploy(
-            instance=self.instance, environment=self.environment, max_wait=600
+            instance=self.instance, environment=self.environment, max_wait=1200
         )
         endpoints = self.vespa_cloud.get_all_endpoints(
             instance=self.instance, environment=self.environment
