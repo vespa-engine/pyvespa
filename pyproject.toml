@@ -1,7 +1,7 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 [build-system]
-requires = ["setuptools>=69", "wheel", "build", "twine", "versioneer[toml]"]
+requires = ["setuptools==78.1.1", "wheel", "build", "twine", "versioneer[toml]"]
 build-backend = "setuptools.build_meta"
 
 [project]
