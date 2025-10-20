@@ -743,12 +743,7 @@ class VespaCloud(VespaDeployment):
         Raises:
             RuntimeError: If deployment fails or if there are issues with the deployment process.
 
-        Note:
-            This feature is still experimental and may not have full stability in production. Future releases will provide better support for this functionality.
         """
-        logging.warning(
-            "Deploying to production is in beta and may fail in unexpected ways. Expect better support in future releases."
-        )
         if application_root is None:
             if self.application_root is None:
                 application_root = os.path.join(os.getcwd(), self.application)
