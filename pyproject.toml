@@ -62,7 +62,7 @@ unittest = [
     "mypy>=1.14.1",
 ]
 docs = [
-    "ipykernel",
+    "ipykernel==6.30.1",
     "nbconvert",
     "jupyter",
     "mkdocs-material",
@@ -87,7 +87,7 @@ feed = [
 notebooks = [
     "notebook",
     "nbconvert<=7.12.0",
-    "ipykernel",
+    "ipykernel==6.30.1",
     "jupytext",
     "numpy",
     "pandas",
