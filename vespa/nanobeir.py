@@ -594,6 +594,8 @@ def create_evaluation_package(
 
     # Track first embedding field type for match-only profile
     first_embedding_type = None
+    # Track all query inputs for match-only profile (needed for multi-model)
+    match_only_inputs = []
 
     for config in resolved_configs:
         # Create unique identifiers for multi-model setup
@@ -617,6 +619,9 @@ def create_evaluation_package(
         # Store first embedding type for match-only profile
         if first_embedding_type is None:
             first_embedding_type = embedding_field.type
+
+        # Add query input for this model to match-only profile
+        match_only_inputs.append((f"query(q{profile_suffix})", embedding_field.type))
 
         # Create base BM25 rank profile
         bm25_profile = RankProfile(
@@ -658,10 +663,10 @@ def create_evaluation_package(
         )
         all_rank_profiles.append(atan_norm_profile)
 
-    # Create a match-only profile (uses first model's embedding type)
+    # Create a match-only profile with inputs for all models
     match_only_profile = RankProfile(
         name="match-only",
-        inputs=[("query(q)", first_embedding_type)],
+        inputs=match_only_inputs,
         first_phase="random",
     )
 
