@@ -33,21 +33,21 @@ def create_evaluation_package(
 ) -> ApplicationPackage:
     """
     Create a Vespa application package configured for NanoBEIR evaluation.
-    
+
     Args:
         model_config: ModelConfig instance defining the embedding model
         app_name: Name of the application (default: "nanobeir_eval")
         schema_name: Name of the schema (default: "doc")
-        
+
     Returns:
         ApplicationPackage: Configured Vespa application package
     """
     # Create the embedder component
     embedder = create_embedder_component(model_config)
-    
+
     # Create the embedding field with correct type and indexing
     embedding_field = create_embedding_field(model_config)
-    
+
     # Create base BM25 rank profile
     bm25_profile = RankProfile(
         name="bm25",
@@ -56,23 +56,23 @@ def create_evaluation_package(
         first_phase="bm25text",
         match_features=["bm25text"],
     )
-    
+
     # Create semantic search rank profile
     semantic_profile = create_semantic_rank_profile(model_config)
-    
+
     # Create hybrid rank profiles
     fusion_profile = create_hybrid_rank_profile(
         model_config,
         profile_name="fusion",
         fusion_method="rrf",
     )
-    
+
     atan_norm_profile = create_hybrid_rank_profile(
         model_config,
         profile_name="atan_norm",
         fusion_method="normalize",
     )
-    
+
     # Build the schema
     schema = Schema(
         name=schema_name,
@@ -106,14 +106,14 @@ def create_evaluation_package(
             atan_norm_profile,
         ],
     )
-    
+
     # Create the application package
     package = ApplicationPackage(
         name=app_name,
         schema=[schema],
         components=[embedder],
     )
-    
+
     return package
 
 
@@ -123,7 +123,7 @@ def main():
     """
     print("NanoBEIR Evaluation Example")
     print("=" * 60)
-    
+
     # Example 1: E5-small-v2 with float embeddings
     print("\n1. Creating package for e5-small-v2 (float embeddings, 384 dim)")
     print("-" * 60)
@@ -139,7 +139,7 @@ def main():
     embedding_field = package_e5_small.schema.document.fields[2]
     print(f"   Schema embedding field type: {embedding_field.type}")
     print(f"   Number of rank profiles: {len(package_e5_small.schema.rank_profiles)}")
-    
+
     # Example 2: E5-base-v2 with larger embeddings
     print("\n2. Creating package for e5-base-v2 (float embeddings, 768 dim)")
     print("-" * 60)
@@ -153,7 +153,7 @@ def main():
     print(f"   Binarized: {config_e5_base.binarized}")
     embedding_field = package_e5_base.schema.document.fields[2]
     print(f"   Schema embedding field type: {embedding_field.type}")
-    
+
     # Example 3: BGE-M3 with binary embeddings
     print("\n3. Creating package for bge-m3-binary (binary embeddings, 1024→128 dim)")
     print("-" * 60)
@@ -170,7 +170,7 @@ def main():
     # Check if pack_bits is in indexing
     print(f"   Uses pack_bits: {'pack_bits' in embedding_field.indexing}")
     print(f"   Distance metric: {embedding_field.ann.distance_metric}")
-    
+
     # Example 4: Custom model configuration
     print("\n4. Creating package with custom model configuration")
     print("-" * 60)
@@ -189,15 +189,16 @@ def main():
     print(f"   Embedding dim: {custom_config.embedding_dim}")
     embedding_field = package_custom.schema.document.fields[2]
     print(f"   Schema embedding field type: {embedding_field.type}")
-    
+
     # Example 5: List all available predefined models
     print("\n5. Available predefined models:")
     print("-" * 60)
     from vespa.nanobeir import COMMON_MODELS
+
     for model_name, config in COMMON_MODELS.items():
         binary_str = " (binary)" if config.binarized else ""
         print(f"   - {model_name}: {config.embedding_dim} dim{binary_str}")
-    
+
     print("\n" + "=" * 60)
     print("Example complete!")
     print("\nNext steps:")
