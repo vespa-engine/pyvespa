@@ -132,15 +132,11 @@ class TestCreateEmbedderComponent:
         assert isinstance(component, Component)
         assert component.id == "e5_small_v2"
         assert component.type == "hugging-face-embedder"
-        assert len(component.parameters) == 2
+        assert len(component.parameters) == 1
 
         # Check transformer-model parameter
         assert component.parameters[0].name == "transformer-model"
         assert component.parameters[0].args == {"model-id": "e5-small-v2"}
-
-        # Check tokenizer-model parameter
-        assert component.parameters[1].name == "tokenizer-model"
-        assert component.parameters[1].args == {"model-id": "e5-base-v2-vocab"}
 
     def test_component_with_paths(self):
         """Test component creation with file paths."""
@@ -184,16 +180,16 @@ class TestCreateEmbedderComponent:
         )
         component = create_embedder_component(config)
 
-        # Should have transformer-model, tokenizer-model, plus 4 explicit parameters
-        assert len(component.parameters) == 6
-        assert component.parameters[2].name == "max-tokens"
-        assert component.parameters[2].children == "8192"
-        assert component.parameters[3].name == "transformer-output"
-        assert component.parameters[3].children == "token_embeddings"
-        assert component.parameters[4].name == "pooling-strategy"
-        assert component.parameters[4].children == "cls"
-        assert component.parameters[5].name == "normalize"
-        assert component.parameters[5].children == "true"
+        # Should have transformer-model, plus 4 explicit parameters
+        assert len(component.parameters) == 5
+        assert component.parameters[1].name == "max-tokens"
+        assert component.parameters[1].children == "8192"
+        assert component.parameters[2].name == "transformer-output"
+        assert component.parameters[2].children == "token_embeddings"
+        assert component.parameters[3].name == "pooling-strategy"
+        assert component.parameters[3].children == "cls"
+        assert component.parameters[4].name == "normalize"
+        assert component.parameters[4].children == "true"
 
     def test_component_with_prepend_parameters(self):
         """Test component creation with prepend parameters."""
@@ -207,7 +203,7 @@ class TestCreateEmbedderComponent:
         )
         component = create_embedder_component(config)
 
-        # Should have transformer-model, tokenizer-model, plus prepend parameter
+        # Should have transformer-model, tokenizer-url plus prepend parameter
         assert len(component.parameters) == 3
         prepend_param = component.parameters[2]
         assert prepend_param.name == "prepend"
@@ -230,9 +226,9 @@ class TestCreateEmbedderComponent:
         )
         component = create_embedder_component(config)
 
-        # Should have transformer-model, tokenizer-model, plus prepend parameter
-        assert len(component.parameters) == 3
-        prepend_param = component.parameters[2]
+        # Should have transformer-model plus prepend parameter
+        assert len(component.parameters) == 2
+        prepend_param = component.parameters[1]
         assert prepend_param.name == "prepend"
         assert len(prepend_param.children) == 1
         assert prepend_param.children[0].name == "query"
@@ -273,9 +269,9 @@ class TestCreateEmbeddingField:
         assert field.type == "tensor<float>(x[384])"
         assert field.is_document_field is False
 
-        # Check indexing statement
+        # Check indexing statement includes embedder ID
         assert "input text" in field.indexing
-        assert "embed" in field.indexing
+        assert "embed e5_small_v2" in field.indexing
         assert "index" in field.indexing
         assert "attribute" in field.indexing
         assert "pack_bits" not in field.indexing
@@ -297,7 +293,8 @@ class TestCreateEmbeddingField:
         # 1024 bits packed into 128 int8 values
         assert field.type == "tensor<int8>(x[128])"
 
-        # Check indexing statement includes pack_bits
+        # Check indexing statement includes pack_bits and embedder ID
+        assert "embed bge_m3" in field.indexing
         assert "pack_bits" in field.indexing
 
         # Check HNSW configuration uses hamming distance
@@ -324,6 +321,13 @@ class TestCreateEmbeddingField:
         field = create_embedding_field(config, indexing=custom_indexing)
 
         assert field.indexing == custom_indexing
+
+    def test_custom_embedder_id(self):
+        """Test field creation with custom embedder ID."""
+        config = ModelConfig(model_id="test", embedding_dim=384)
+        field = create_embedding_field(config, embedder_id="my_embedder")
+
+        assert "embed my_embedder" in field.indexing
 
 
 class TestCreateSemanticRankProfile:
@@ -631,7 +635,6 @@ class TestCommonModelsXMLGeneration:
 
         expected = """<component id="nomic_ai_modernbert" type="hugging-face-embedder">
     <transformer-model model-id="nomic-ai-modernbert"/>
-    <tokenizer-model model-id="nomic-ai-modernbert"/>
     <transformer-output>token_embeddings</transformer-output>
     <max-tokens>8192</max-tokens>
     <prepend>
@@ -652,7 +655,6 @@ class TestCommonModelsXMLGeneration:
 
         expected = """<component id="lightonai_modernbert_large" type="hugging-face-embedder">
     <transformer-model model-id="lightonai-modernbert-large"/>
-    <tokenizer-model model-id="lightonai-modernbert-large"/>
     <max-tokens>8192</max-tokens>
     <prepend>
         <query>search_query:</query>
@@ -672,7 +674,6 @@ class TestCommonModelsXMLGeneration:
 
         expected = """<component id="alibaba_gte_modernbert" type="hugging-face-embedder">
     <transformer-model model-id="alibaba-gte-modernbert"/>
-    <tokenizer-model model-id="alibaba-gte-modernbert"/>
     <max-tokens>8192</max-tokens>
     <pooling-strategy>cls</pooling-strategy>
 </component>"""
@@ -689,7 +690,6 @@ class TestCommonModelsXMLGeneration:
 
         expected = """<component id="e5_small_v2" type="hugging-face-embedder">
     <transformer-model model-id="e5-small-v2"/>
-    <tokenizer-model model-id="e5-small-v2"/>
     <max-tokens>512</max-tokens>
     <prepend>
         <query>query: </query>
@@ -709,7 +709,6 @@ class TestCommonModelsXMLGeneration:
 
         expected = """<component id="e5_base_v2" type="hugging-face-embedder">
     <transformer-model model-id="e5-base-v2"/>
-    <tokenizer-model model-id="e5-base-v2"/>
     <max-tokens>512</max-tokens>
     <prepend>
         <query>query: </query>
@@ -729,7 +728,6 @@ class TestCommonModelsXMLGeneration:
 
         expected = """<component id="e5_large_v2" type="hugging-face-embedder">
     <transformer-model model-id="e5-large-v2"/>
-    <tokenizer-model model-id="e5-large-v2"/>
     <max-tokens>512</max-tokens>
     <prepend>
         <query>query: </query>
@@ -749,7 +747,6 @@ class TestCommonModelsXMLGeneration:
 
         expected = """<component id="multilingual_e5_base" type="hugging-face-embedder">
     <transformer-model model-id="multilingual-e5-base"/>
-    <tokenizer-model model-id="multilingual-e5-base"/>
     <max-tokens>512</max-tokens>
     <prepend>
         <query>query: </query>
