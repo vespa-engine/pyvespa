@@ -199,6 +199,34 @@ def main():
         binary_str = " (binary)" if config.binarized else ""
         print(f"   - {model_name}: {config.embedding_dim} dim{binary_str}")
 
+    # Example 6: Advanced configuration with URL-based models
+    print("\n6. Advanced configuration: URL-based model with custom parameters")
+    print("-" * 60)
+    gte_config = ModelConfig(
+        model_id="gte-multilingual-base",
+        embedding_dim=768,
+        component_id="gte_multilingual",
+        model_url="https://huggingface.co/onnx-community/gte-multilingual-base/resolve/main/onnx/model_quantized.onnx",
+        tokenizer_url="https://huggingface.co/onnx-community/gte-multilingual-base/resolve/main/tokenizer.json",
+        transformer_output="token_embeddings",
+        max_tokens=8192,
+        query_prepend="Represent this sentence for searching relevant passages: ",
+        document_prepend="passage: ",
+    )
+
+    embedder = create_embedder_component(gte_config)
+    embedding_field = create_embedding_field(gte_config)
+
+    print(f"   Model: {gte_config.model_id}")
+    print(f"   Embedding dim: {gte_config.embedding_dim}")
+    print(f"   Component ID: {embedder.id}")
+    print(f"   Max tokens: {gte_config.max_tokens}")
+    print(f"   Transformer output: {gte_config.transformer_output}")
+    print(f"   Query prepend: {gte_config.query_prepend[:50]}...")
+    print(f"   Document prepend: {gte_config.document_prepend}")
+    print(f"   Number of parameters: {len(embedder.parameters)}")
+    print(f"   Schema embedding field type: {embedding_field.type}")
+
     print("\n" + "=" * 60)
     print("Example complete!")
     print("\nNext steps:")
@@ -206,6 +234,12 @@ def main():
     print("2. Load NanoBEIR dataset and feed documents")
     print("3. Run evaluation using VespaEvaluator or VespaMatchEvaluator")
     print("4. Compare results across different models")
+    print("\nAdvanced features demonstrated:")
+    print("- Using predefined model configurations")
+    print("- Creating custom model configurations")
+    print("- Binary vs. float embeddings")
+    print("- URL-based model loading")
+    print("- Additional embedder parameters (transformer-output, max-tokens, prepend)")
 
 
 if __name__ == "__main__":

@@ -59,6 +59,45 @@ class TestModelConfig:
         assert config.model_path == "/path/to/model.onnx"
         assert config.tokenizer_path == "/path/to/tokenizer.json"
 
+    def test_config_with_urls(self):
+        """Test configuration with URLs."""
+        config = ModelConfig(
+            model_id="url-model",
+            embedding_dim=768,
+            model_url="https://example.com/model.onnx",
+            tokenizer_url="https://example.com/tokenizer.json",
+        )
+        assert config.model_url == "https://example.com/model.onnx"
+        assert config.tokenizer_url == "https://example.com/tokenizer.json"
+
+    def test_config_with_explicit_parameters(self):
+        """Test configuration with explicit huggingface embedder parameters."""
+        config = ModelConfig(
+            model_id="custom-model",
+            embedding_dim=768,
+            max_tokens=8192,
+            transformer_output="token_embeddings",
+            pooling_strategy="cls",
+            normalize=True,
+            query_prepend="query: ",
+            document_prepend="passage: ",
+        )
+        assert config.max_tokens == 8192
+        assert config.transformer_output == "token_embeddings"
+        assert config.pooling_strategy == "cls"
+        assert config.normalize is True
+        assert config.query_prepend == "query: "
+        assert config.document_prepend == "passage: "
+
+    def test_config_pooling_strategy_validation(self):
+        """Test that invalid pooling strategy raises error."""
+        with pytest.raises(ValueError, match="pooling_strategy must be one of"):
+            ModelConfig(
+                model_id="test",
+                embedding_dim=384,
+                pooling_strategy="invalid",
+            )
+
     def test_config_invalid_dimension(self):
         """Test that invalid embedding dimension raises error."""
         with pytest.raises(ValueError, match="embedding_dim must be positive"):
@@ -114,6 +153,106 @@ class TestCreateEmbedderComponent:
 
         assert component.parameters[0].args == {"path": "/models/custom.onnx"}
         assert component.parameters[1].args == {"path": "/models/tokenizer.json"}
+
+    def test_component_with_urls(self):
+        """Test component creation with URLs."""
+        config = ModelConfig(
+            model_id="url-model",
+            embedding_dim=768,
+            model_url="https://huggingface.co/model.onnx",
+            tokenizer_url="https://huggingface.co/tokenizer.json",
+        )
+        component = create_embedder_component(config)
+
+        assert component.parameters[0].args == {
+            "url": "https://huggingface.co/model.onnx"
+        }
+        assert component.parameters[1].args == {
+            "url": "https://huggingface.co/tokenizer.json"
+        }
+
+    def test_component_with_explicit_parameters(self):
+        """Test component creation with explicit huggingface embedder parameters."""
+        config = ModelConfig(
+            model_id="advanced-model",
+            embedding_dim=768,
+            max_tokens=8192,
+            transformer_output="token_embeddings",
+            pooling_strategy="cls",
+            normalize=True,
+        )
+        component = create_embedder_component(config)
+
+        # Should have transformer-model, tokenizer-model, plus 4 explicit parameters
+        assert len(component.parameters) == 6
+        assert component.parameters[2].name == "max-tokens"
+        assert component.parameters[2].children == "8192"
+        assert component.parameters[3].name == "transformer-output"
+        assert component.parameters[3].children == "token_embeddings"
+        assert component.parameters[4].name == "pooling-strategy"
+        assert component.parameters[4].children == "cls"
+        assert component.parameters[5].name == "normalize"
+        assert component.parameters[5].children == "true"
+
+    def test_component_with_prepend_parameters(self):
+        """Test component creation with prepend parameters."""
+        config = ModelConfig(
+            model_id="prepend-model",
+            embedding_dim=768,
+            model_url="https://example.com/model.onnx",
+            tokenizer_url="https://example.com/tokenizer.json",
+            query_prepend="Represent this sentence for searching relevant passages: ",
+            document_prepend="passage: ",
+        )
+        component = create_embedder_component(config)
+
+        # Should have transformer-model, tokenizer-model, plus prepend parameter
+        assert len(component.parameters) == 3
+        prepend_param = component.parameters[2]
+        assert prepend_param.name == "prepend"
+        assert isinstance(prepend_param.children, list)
+        assert len(prepend_param.children) == 2
+        assert prepend_param.children[0].name == "query"
+        assert (
+            prepend_param.children[0].children
+            == "Represent this sentence for searching relevant passages: "
+        )
+        assert prepend_param.children[1].name == "document"
+        assert prepend_param.children[1].children == "passage: "
+
+    def test_component_with_only_query_prepend(self):
+        """Test component creation with only query prepend."""
+        config = ModelConfig(
+            model_id="query-prepend-model",
+            embedding_dim=768,
+            query_prepend="query: ",
+        )
+        component = create_embedder_component(config)
+
+        # Should have transformer-model, tokenizer-model, plus prepend parameter
+        assert len(component.parameters) == 3
+        prepend_param = component.parameters[2]
+        assert prepend_param.name == "prepend"
+        assert len(prepend_param.children) == 1
+        assert prepend_param.children[0].name == "query"
+
+    def test_component_url_priority_over_path(self):
+        """Test that URL takes priority over path when both are provided."""
+        config = ModelConfig(
+            model_id="test-model",
+            embedding_dim=384,
+            model_path="/path/to/model.onnx",
+            model_url="https://example.com/model.onnx",
+            tokenizer_path="/path/to/tokenizer.json",
+            tokenizer_url="https://example.com/tokenizer.json",
+        )
+        component = create_embedder_component(config)
+
+        # URLs should take priority
+        assert component.parameters[0].args == {"url": "https://example.com/model.onnx"}
+        assert component.parameters[1].args == {
+            "url": "https://example.com/tokenizer.json"
+        }
 
 
 class TestCreateEmbeddingField:
@@ -429,3 +568,43 @@ class TestIntegration:
         assert hybrid_profile.inputs[0][1] == "tensor<int8>(x[128])"
         # Hamming distance should be handled specially
         assert "1/(1 + " in semantic_profile.functions[0].expression
+
+    def test_complete_advanced_setup(self):
+        """Test complete setup with URL-based model and explicit parameters."""
+        config = ModelConfig(
+            model_id="gte-multilingual",
+            embedding_dim=768,
+            model_url="https://huggingface.co/onnx-community/gte-multilingual-base/resolve/main/onnx/model_quantized.onnx",
+            tokenizer_url="https://huggingface.co/onnx-community/gte-multilingual-base/resolve/main/tokenizer.json",
+            transformer_output="token_embeddings",
+            max_tokens=8192,
+            query_prepend="Represent this sentence for searching relevant passages: ",
+            document_prepend="passage: ",
+        )
+
+        component = create_embedder_component(config)
+        field = create_embedding_field(config)
+        semantic_profile = create_semantic_rank_profile(config)
+        hybrid_profile = create_hybrid_rank_profile(config)
+
+        # Verify component configuration
+        assert component.id == "gte_multilingual"
+        assert (
+            len(component.parameters) == 5
+        )  # transformer, tokenizer, max-tokens, transformer-output, prepend
+        assert component.parameters[0].args["url"] == config.model_url
+        assert component.parameters[1].args["url"] == config.tokenizer_url
+        assert component.parameters[2].name == "max-tokens"
+        assert component.parameters[2].children == "8192"
+        assert component.parameters[3].name == "transformer-output"
+        assert component.parameters[3].children == "token_embeddings"
+        assert component.parameters[4].name == "prepend"
+        assert len(component.parameters[4].children) == 2
+
+        # Verify field configuration
+        assert field.type == "tensor<float>(x[768])"
+        assert field.ann.distance_metric == "angular"
+
+        # Verify profiles
+        assert semantic_profile.inputs[0][1] == "tensor<float>(x[768])"
+        assert hybrid_profile.inputs[0][1] == "tensor<float>(x[768])"

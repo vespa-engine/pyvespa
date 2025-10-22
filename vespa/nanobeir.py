@@ -34,6 +34,18 @@ class ModelConfig:
         component_id: The ID to use for the Vespa component (defaults to sanitized model_id)
         model_path: Optional local path to the model file
         tokenizer_path: Optional local path to the tokenizer file
+        model_url: Optional URL to the ONNX model file (alternative to model_id)
+        tokenizer_url: Optional URL to the tokenizer file (alternative to tokenizer_id)
+        max_tokens: Maximum number of tokens accepted by the transformer model (default: 512)
+        transformer_input_ids: Name/identifier for transformer input IDs (default: "input_ids")
+        transformer_attention_mask: Name/identifier for transformer attention mask (default: "attention_mask")
+        transformer_token_type_ids: Name/identifier for transformer token type IDs (default: "token_type_ids")
+            Set to None to disable token_type_ids
+        transformer_output: Name/identifier for transformer output (default: "last_hidden_state")
+        pooling_strategy: How to pool output vectors ("mean", "cls", or "none") (default: "mean")
+        normalize: Whether to normalize output to unit length (default: False)
+        query_prepend: Optional instruction to prepend to query text
+        document_prepend: Optional instruction to prepend to document text
     """
 
     model_id: str
@@ -43,6 +55,17 @@ class ModelConfig:
     component_id: Optional[str] = None
     model_path: Optional[str] = None
     tokenizer_path: Optional[str] = None
+    model_url: Optional[str] = None
+    tokenizer_url: Optional[str] = None
+    max_tokens: Optional[int] = None
+    transformer_input_ids: Optional[str] = None
+    transformer_attention_mask: Optional[str] = None
+    transformer_token_type_ids: Optional[str] = None
+    transformer_output: Optional[str] = None
+    pooling_strategy: Optional[str] = None
+    normalize: Optional[bool] = None
+    query_prepend: Optional[str] = None
+    document_prepend: Optional[str] = None
 
     def __post_init__(self):
         """Set defaults and validate configuration."""
@@ -60,6 +83,14 @@ class ModelConfig:
                 f"embedding_dim must be positive, got {self.embedding_dim}"
             )
 
+        # Validate pooling strategy
+        if self.pooling_strategy is not None:
+            valid_strategies = ["mean", "cls", "none"]
+            if self.pooling_strategy not in valid_strategies:
+                raise ValueError(
+                    f"pooling_strategy must be one of {valid_strategies}, got {self.pooling_strategy}"
+                )
+
 
 def create_embedder_component(config: ModelConfig) -> Component:
     """
@@ -76,22 +107,106 @@ def create_embedder_component(config: ModelConfig) -> Component:
         >>> component = create_embedder_component(config)
         >>> component.id
         'e5_small_v2'
+
+        >>> # Example with URL-based model and custom parameters
+        >>> config = ModelConfig(
+        ...     model_id="gte-multilingual",
+        ...     embedding_dim=768,
+        ...     model_url="https://huggingface.co/onnx-community/gte-multilingual-base/resolve/main/onnx/model_quantized.onnx",
+        ...     tokenizer_url="https://huggingface.co/onnx-community/gte-multilingual-base/resolve/main/tokenizer.json",
+        ...     transformer_output="token_embeddings",
+        ...     max_tokens=8192,
+        ...     query_prepend="Represent this sentence for searching relevant passages: ",
+        ...     document_prepend="passage: ",
+        ... )
+        >>> component = create_embedder_component(config)
+        >>> component.id
+        'gte_multilingual'
     """
     parameters = []
 
     # Add transformer model parameter
-    if config.model_path:
+    if config.model_url:
+        transformer_config = {"url": config.model_url}
+    elif config.model_path:
         transformer_config = {"path": config.model_path}
     else:
         transformer_config = {"model-id": config.model_id}
     parameters.append(Parameter("transformer-model", transformer_config))
 
     # Add tokenizer model parameter
-    if config.tokenizer_path:
+    if config.tokenizer_url:
+        tokenizer_config = {"url": config.tokenizer_url}
+    elif config.tokenizer_path:
         tokenizer_config = {"path": config.tokenizer_path}
     else:
         tokenizer_config = {"model-id": config.tokenizer_id}
     parameters.append(Parameter("tokenizer-model", tokenizer_config))
+
+    # Add optional huggingface embedder parameters
+    if config.max_tokens is not None:
+        parameters.append(
+            Parameter("max-tokens", args={}, children=str(config.max_tokens))
+        )
+
+    if config.transformer_input_ids is not None:
+        parameters.append(
+            Parameter(
+                "transformer-input-ids", args={}, children=config.transformer_input_ids
+            )
+        )
+
+    if config.transformer_attention_mask is not None:
+        parameters.append(
+            Parameter(
+                "transformer-attention-mask",
+                args={},
+                children=config.transformer_attention_mask,
+            )
+        )
+
+    if config.transformer_token_type_ids is not None:
+        # Empty element to disable token_type_ids
+        if config.transformer_token_type_ids == "":
+            parameters.append(
+                Parameter("transformer-token-type-ids", args={}, children=None)
+            )
+        else:
+            parameters.append(
+                Parameter(
+                    "transformer-token-type-ids",
+                    args={},
+                    children=config.transformer_token_type_ids,
+                )
+            )
+
+    if config.transformer_output is not None:
+        parameters.append(
+            Parameter("transformer-output", args={}, children=config.transformer_output)
+        )
+
+    if config.pooling_strategy is not None:
+        parameters.append(
+            Parameter("pooling-strategy", args={}, children=config.pooling_strategy)
+        )
+
+    if config.normalize is not None:
+        parameters.append(
+            Parameter("normalize", args={}, children=str(config.normalize).lower())
+        )
+
+    # Add prepend instructions if specified
+    if config.query_prepend is not None or config.document_prepend is not None:
+        prepend_children = []
+        if config.query_prepend is not None:
+            prepend_children.append(
+                Parameter("query", args={}, children=config.query_prepend)
+            )
+        if config.document_prepend is not None:
+            prepend_children.append(
+                Parameter("document", args={}, children=config.document_prepend)
+            )
+        parameters.append(Parameter("prepend", args={}, children=prepend_children))
 
     return Component(
         id=config.component_id,
