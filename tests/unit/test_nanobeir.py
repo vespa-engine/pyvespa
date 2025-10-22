@@ -13,6 +13,7 @@ from vespa.nanobeir import (
     COMMON_MODELS,
 )
 from vespa.package import Component, Field, RankProfile
+from vespa.configuration.vt import compare_xml
 
 
 class TestModelConfig:
@@ -483,26 +484,35 @@ class TestPredefinedModels:
     """Test predefined model configurations."""
 
     def test_common_models_exist(self):
-        """Test that common models are defined."""
+        """Test that Vespa Cloud models are defined."""
+        assert "nomic-ai-modernbert" in COMMON_MODELS
+        assert "lightonai-modernbert-large" in COMMON_MODELS
+        assert "alibaba-gte-modernbert" in COMMON_MODELS
         assert "e5-small-v2" in COMMON_MODELS
         assert "e5-base-v2" in COMMON_MODELS
-        assert "snowflake-arctic-embed-xs" in COMMON_MODELS
-        assert "bge-m3-binary" in COMMON_MODELS
+        assert "e5-large-v2" in COMMON_MODELS
+        assert "multilingual-e5-base" in COMMON_MODELS
 
     def test_e5_small_v2_config(self):
         """Test e5-small-v2 configuration."""
         config = COMMON_MODELS["e5-small-v2"]
         assert config.model_id == "e5-small-v2"
         assert config.embedding_dim == 384
-        assert config.tokenizer_id == "e5-base-v2-vocab"
         assert config.binarized is False
+        assert config.max_tokens == 512
+        assert config.query_prepend == "query: "
+        assert config.document_prepend == "passage: "
 
-    def test_bge_m3_binary_config(self):
-        """Test bge-m3-binary configuration."""
-        config = COMMON_MODELS["bge-m3-binary"]
-        assert config.model_id == "bge-m3"
-        assert config.embedding_dim == 1024
-        assert config.binarized is True
+    def test_nomic_ai_modernbert_config(self):
+        """Test nomic-ai-modernbert configuration."""
+        config = COMMON_MODELS["nomic-ai-modernbert"]
+        assert config.model_id == "nomic-ai-modernbert"
+        assert config.embedding_dim == 768
+        assert config.binarized is False
+        assert config.max_tokens == 8192
+        assert config.transformer_output == "token_embeddings"
+        assert config.query_prepend == "search_query:"
+        assert config.document_prepend == "search_document:"
 
     def test_get_model_config_success(self):
         """Test getting a predefined model config."""
@@ -608,3 +618,145 @@ class TestIntegration:
         # Verify profiles
         assert semantic_profile.inputs[0][1] == "tensor<float>(x[768])"
         assert hybrid_profile.inputs[0][1] == "tensor<float>(x[768])"
+
+
+class TestCommonModelsXMLGeneration:
+    """Test that COMMON_MODELS generate XML matching Vespa Cloud documentation."""
+
+    def test_nomic_ai_modernbert_xml(self):
+        """Test nomic-ai-modernbert generates correct XML."""
+        config = get_model_config("nomic-ai-modernbert")
+        component = create_embedder_component(config)
+        xml = component.to_xml_string(indent=1)
+
+        expected = """<component id="nomic_ai_modernbert" type="hugging-face-embedder">
+    <transformer-model model-id="nomic-ai-modernbert"/>
+    <tokenizer-model model-id="nomic-ai-modernbert"/>
+    <transformer-output>token_embeddings</transformer-output>
+    <max-tokens>8192</max-tokens>
+    <prepend>
+        <query>search_query:</query>
+        <document>search_document:</document>
+    </prepend>
+</component>"""
+
+        assert compare_xml(
+            xml, expected
+        ), f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"
+
+    def test_lightonai_modernbert_large_xml(self):
+        """Test lightonai-modernbert-large generates correct XML."""
+        config = get_model_config("lightonai-modernbert-large")
+        component = create_embedder_component(config)
+        xml = component.to_xml_string(indent=1)
+
+        expected = """<component id="lightonai_modernbert_large" type="hugging-face-embedder">
+    <transformer-model model-id="lightonai-modernbert-large"/>
+    <tokenizer-model model-id="lightonai-modernbert-large"/>
+    <max-tokens>8192</max-tokens>
+    <prepend>
+        <query>search_query:</query>
+        <document>search_document:</document>
+    </prepend>
+</component>"""
+
+        assert compare_xml(
+            xml, expected
+        ), f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"
+
+    def test_alibaba_gte_modernbert_xml(self):
+        """Test alibaba-gte-modernbert generates correct XML."""
+        config = get_model_config("alibaba-gte-modernbert")
+        component = create_embedder_component(config)
+        xml = component.to_xml_string(indent=1)
+
+        expected = """<component id="alibaba_gte_modernbert" type="hugging-face-embedder">
+    <transformer-model model-id="alibaba-gte-modernbert"/>
+    <tokenizer-model model-id="alibaba-gte-modernbert"/>
+    <max-tokens>8192</max-tokens>
+    <pooling-strategy>cls</pooling-strategy>
+</component>"""
+
+        assert compare_xml(
+            xml, expected
+        ), f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"
+
+    def test_e5_small_v2_xml(self):
+        """Test e5-small-v2 generates correct XML."""
+        config = get_model_config("e5-small-v2")
+        component = create_embedder_component(config)
+        xml = component.to_xml_string(indent=1)
+
+        expected = """<component id="e5_small_v2" type="hugging-face-embedder">
+    <transformer-model model-id="e5-small-v2"/>
+    <tokenizer-model model-id="e5-small-v2"/>
+    <max-tokens>512</max-tokens>
+    <prepend>
+        <query>query: </query>
+        <document>passage: </document>
+    </prepend>
+</component>"""
+
+        assert compare_xml(
+            xml, expected
+        ), f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"
+
+    def test_e5_base_v2_xml(self):
+        """Test e5-base-v2 generates correct XML."""
+        config = get_model_config("e5-base-v2")
+        component = create_embedder_component(config)
+        xml = component.to_xml_string(indent=1)
+
+        expected = """<component id="e5_base_v2" type="hugging-face-embedder">
+    <transformer-model model-id="e5-base-v2"/>
+    <tokenizer-model model-id="e5-base-v2"/>
+    <max-tokens>512</max-tokens>
+    <prepend>
+        <query>query: </query>
+        <document>passage: </document>
+    </prepend>
+</component>"""
+
+        assert compare_xml(
+            xml, expected
+        ), f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"
+
+    def test_e5_large_v2_xml(self):
+        """Test e5-large-v2 generates correct XML."""
+        config = get_model_config("e5-large-v2")
+        component = create_embedder_component(config)
+        xml = component.to_xml_string(indent=1)
+
+        expected = """<component id="e5_large_v2" type="hugging-face-embedder">
+    <transformer-model model-id="e5-large-v2"/>
+    <tokenizer-model model-id="e5-large-v2"/>
+    <max-tokens>512</max-tokens>
+    <prepend>
+        <query>query: </query>
+        <document>passage: </document>
+    </prepend>
+</component>"""
+
+        assert compare_xml(
+            xml, expected
+        ), f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"
+
+    def test_multilingual_e5_base_xml(self):
+        """Test multilingual-e5-base generates correct XML."""
+        config = get_model_config("multilingual-e5-base")
+        component = create_embedder_component(config)
+        xml = component.to_xml_string(indent=1)
+
+        expected = """<component id="multilingual_e5_base" type="hugging-face-embedder">
+    <transformer-model model-id="multilingual-e5-base"/>
+    <tokenizer-model model-id="multilingual-e5-base"/>
+    <max-tokens>512</max-tokens>
+    <prepend>
+        <query>query: </query>
+        <document>passage: </document>
+    </prepend>
+</component>"""
+
+        assert compare_xml(
+            xml, expected
+        ), f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"

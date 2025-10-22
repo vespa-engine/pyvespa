@@ -409,38 +409,65 @@ def create_hybrid_rank_profile(
     )
 
 
-# Predefined model configurations for common models
+# Predefined model configurations for Vespa Cloud models
+# Based on https://cloud.vespa.ai/en/model-hub
 COMMON_MODELS: Dict[str, ModelConfig] = {
+    # Huggingface Embedder models
+    "nomic-ai-modernbert": ModelConfig(
+        model_id="nomic-ai-modernbert",
+        embedding_dim=768,
+        binarized=False,
+        transformer_output="token_embeddings",
+        max_tokens=8192,
+        query_prepend="search_query:",
+        document_prepend="search_document:",
+    ),
+    "lightonai-modernbert-large": ModelConfig(
+        model_id="lightonai-modernbert-large",
+        embedding_dim=1024,
+        binarized=False,
+        max_tokens=8192,
+        query_prepend="search_query:",
+        document_prepend="search_document:",
+    ),
+    "alibaba-gte-modernbert": ModelConfig(
+        model_id="alibaba-gte-modernbert",
+        embedding_dim=768,
+        binarized=False,
+        max_tokens=8192,
+        pooling_strategy="cls",
+    ),
     "e5-small-v2": ModelConfig(
         model_id="e5-small-v2",
         embedding_dim=384,
-        tokenizer_id="e5-base-v2-vocab",
         binarized=False,
+        max_tokens=512,
+        query_prepend="query: ",
+        document_prepend="passage: ",
     ),
     "e5-base-v2": ModelConfig(
         model_id="e5-base-v2",
         embedding_dim=768,
         binarized=False,
+        max_tokens=512,
+        query_prepend="query: ",
+        document_prepend="passage: ",
     ),
-    "snowflake-arctic-embed-xs": ModelConfig(
-        model_id="snowflake-arctic-embed-xs",
-        embedding_dim=384,
+    "e5-large-v2": ModelConfig(
+        model_id="e5-large-v2",
+        embedding_dim=1024,
         binarized=False,
+        max_tokens=512,
+        query_prepend="query: ",
+        document_prepend="passage: ",
     ),
-    "snowflake-arctic-embed-s": ModelConfig(
-        model_id="snowflake-arctic-embed-s",
-        embedding_dim=384,
-        binarized=False,
-    ),
-    "snowflake-arctic-embed-m": ModelConfig(
-        model_id="snowflake-arctic-embed-m",
+    "multilingual-e5-base": ModelConfig(
+        model_id="multilingual-e5-base",
         embedding_dim=768,
         binarized=False,
-    ),
-    "bge-m3-binary": ModelConfig(
-        model_id="bge-m3",
-        embedding_dim=1024,  # Before packing
-        binarized=True,
+        max_tokens=512,
+        query_prepend="query: ",
+        document_prepend="passage: ",
     ),
 }
 
