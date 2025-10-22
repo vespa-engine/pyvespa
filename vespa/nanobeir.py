@@ -7,14 +7,18 @@ tokenizers, and binary vs. float embeddings.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Union
 from vespa.package import (
+    ApplicationPackage,
     Component,
     Parameter,
     Field,
     HNSW,
     RankProfile,
     Function,
+    Schema,
+    Document,
+    FieldSet,
 )
 
 
@@ -140,9 +144,9 @@ def create_embedder_component(config: ModelConfig) -> Component:
     elif config.tokenizer_path:
         tokenizer_config = {"path": config.tokenizer_path}
     else:
-        tokenizer_config = {"model-id": config.tokenizer_id}
-    parameters.append(Parameter("tokenizer-model", tokenizer_config))
-
+        tokenizer_config = None
+    if tokenizer_config is not None:
+        parameters.append(Parameter("tokenizer-model", tokenizer_config))
     # Add optional huggingface embedder parameters
     if config.max_tokens is not None:
         parameters.append(
@@ -220,6 +224,7 @@ def create_embedding_field(
     field_name: str = "embedding",
     indexing: Optional[List[str]] = None,
     distance_metric: Optional[str] = None,
+    embedder_id: Optional[str] = None,
 ) -> Field:
     """
     Create a Vespa embedding field from a model configuration.
@@ -232,6 +237,7 @@ def create_embedding_field(
         field_name: Name of the embedding field (default: "embedding")
         indexing: Custom indexing statement (default: auto-generated based on config)
         distance_metric: Distance metric for HNSW (default: "hamming" for binarized, "angular" for float)
+        embedder_id: Embedder ID to use in the indexing statement (default: uses config.component_id)
 
     Returns:
         Field: A Vespa Field configured for embeddings
@@ -247,6 +253,9 @@ def create_embedding_field(
         >>> field_binary.type
         'tensor<int8>(x[128])'
     """
+    # Determine embedder ID to use
+    embedder_id = embedder_id or config.component_id
+
     # Determine field type based on binarization
     if config.binarized:
         # For binarized embeddings, we pack 8 bits into each int8
@@ -258,7 +267,7 @@ def create_embedding_field(
         if indexing is None:
             indexing = [
                 "input text",
-                "embed",
+                f"embed {embedder_id}",
                 "pack_bits",
                 "index",
                 "attribute",
@@ -272,7 +281,7 @@ def create_embedding_field(
         if indexing is None:
             indexing = [
                 "input text",
-                "embed",
+                f"embed {embedder_id}",
                 "index",
                 "attribute",
             ]
@@ -494,3 +503,197 @@ def get_model_config(model_name: str) -> ModelConfig:
         available = ", ".join(COMMON_MODELS.keys())
         raise KeyError(f"Unknown model '{model_name}'. Available models: {available}")
     return COMMON_MODELS[model_name]
+
+
+def create_evaluation_package(
+    models: Union[str, ModelConfig, List[Union[str, ModelConfig]]],
+    app_name: str = "nanobeir_eval",
+    schema_name: str = "doc",
+) -> ApplicationPackage:
+    """
+    Create a Vespa application package configured for NanoBEIR evaluation.
+
+    This function creates a complete Vespa application package with all necessary
+    components, fields, and rank profiles for evaluation. It supports single or
+    multiple embedding models, automatically handling naming conflicts by using
+    model-specific field and component names.
+
+    Args:
+        models: Single model or list of models to configure. Each can be:
+            - A string model name (e.g., "e5-small-v2") to use a predefined config
+            - A ModelConfig instance for custom configuration
+        app_name: Name of the application (default: "nanobeir_eval")
+        schema_name: Name of the schema (default: "doc")
+
+    Returns:
+        ApplicationPackage: Configured Vespa application package with:
+            - Components for each embedding model
+            - Embedding fields for each model (named "embedding" for single model,
+              "embedding_{component_id}" for multiple models)
+            - BM25 and semantic rank profiles for each model
+            - Hybrid rank profiles (RRF and normalize fusion) for each model
+            - A match-only rank profile for baseline evaluation
+
+    Raises:
+        ValueError: If models list is empty
+        KeyError: If a model name is not found in COMMON_MODELS
+
+    Example:
+        >>> # Single model by name
+        >>> package = create_evaluation_package("e5-small-v2")
+        >>> len(package.components)
+        1
+        >>> package.schema.document.fields[2].name
+        'embedding'
+
+        >>> # Single model with custom config
+        >>> config = ModelConfig(model_id="my-model", embedding_dim=512)
+        >>> package = create_evaluation_package(config)
+        >>> package.schema.document.fields[2].name
+        'embedding'
+
+        >>> # Multiple models - creates separate fields and profiles for each
+        >>> package = create_evaluation_package(["e5-small-v2", "e5-base-v2"])
+        >>> len(package.components)
+        2
+        >>> # Fields will be named: embedding_e5_small_v2, embedding_e5_base_v2
+        >>> field_names = [f.name for f in package.schema.document.fields if f.name.startswith('embedding')]
+        >>> len(field_names)
+        2
+
+        >>> # Multiple models with mixed configs
+        >>> custom = ModelConfig(model_id="custom-model", embedding_dim=384)
+        >>> package = create_evaluation_package(["e5-small-v2", custom])
+        >>> len(package.components)
+        2
+    """
+    # Normalize input to a list of ModelConfig objects
+    if isinstance(models, (str, ModelConfig)):
+        model_configs = [models]
+    else:
+        model_configs = list(models)
+
+    if not model_configs:
+        raise ValueError("At least one model must be provided")
+
+    # Convert string model names to ModelConfig objects
+    resolved_configs = []
+    for model in model_configs:
+        if isinstance(model, str):
+            resolved_configs.append(get_model_config(model))
+        else:
+            resolved_configs.append(model)
+
+    # Determine if we have multiple models (affects naming)
+    is_multi_model = len(resolved_configs) > 1
+
+    # Collect all components and fields
+    all_components = []
+    all_embedding_fields = []
+    all_rank_profiles = []
+
+    # Track first embedding field type for match-only profile
+    first_embedding_type = None
+
+    for config in resolved_configs:
+        # Create unique identifiers for multi-model setup
+        if is_multi_model:
+            embedding_field_name = f"embedding_{config.component_id}"
+            profile_suffix = f"_{config.component_id}"
+        else:
+            embedding_field_name = "embedding"
+            profile_suffix = ""
+
+        # Create the embedder component
+        embedder = create_embedder_component(config)
+        all_components.append(embedder)
+
+        # Create the embedding field with correct type and indexing
+        embedding_field = create_embedding_field(
+            config, field_name=embedding_field_name, embedder_id=config.component_id
+        )
+        all_embedding_fields.append(embedding_field)
+
+        # Store first embedding type for match-only profile
+        if first_embedding_type is None:
+            first_embedding_type = embedding_field.type
+
+        # Create base BM25 rank profile
+        bm25_profile = RankProfile(
+            name=f"bm25{profile_suffix}",
+            inputs=[(f"query(q{profile_suffix})", embedding_field.type)],
+            functions=[Function(name="bm25text", expression="bm25(text)")],
+            first_phase="bm25text",
+            match_features=["bm25text"],
+        )
+        all_rank_profiles.append(bm25_profile)
+
+        # Create semantic search rank profile
+        semantic_profile = create_semantic_rank_profile(
+            config,
+            profile_name=f"semantic{profile_suffix}",
+            embedding_field=embedding_field_name,
+            query_tensor=f"q{profile_suffix}",
+        )
+        all_rank_profiles.append(semantic_profile)
+
+        # Create hybrid rank profiles
+        fusion_profile = create_hybrid_rank_profile(
+            config,
+            profile_name=f"fusion{profile_suffix}",
+            base_profile=f"bm25{profile_suffix}",
+            embedding_field=embedding_field_name,
+            query_tensor=f"q{profile_suffix}",
+            fusion_method="rrf",
+        )
+        all_rank_profiles.append(fusion_profile)
+
+        atan_norm_profile = create_hybrid_rank_profile(
+            config,
+            profile_name=f"atan_norm{profile_suffix}",
+            base_profile=f"bm25{profile_suffix}",
+            embedding_field=embedding_field_name,
+            query_tensor=f"q{profile_suffix}",
+            fusion_method="normalize",
+        )
+        all_rank_profiles.append(atan_norm_profile)
+
+    # Create a match-only profile (uses first model's embedding type)
+    match_only_profile = RankProfile(
+        name="match-only",
+        inputs=[("query(q)", first_embedding_type)],
+        first_phase="random",
+    )
+
+    # Build the schema with all fields
+    schema = Schema(
+        name=schema_name,
+        document=Document(
+            fields=[
+                Field(
+                    name="id",
+                    type="string",
+                    indexing=["summary", "attribute"],
+                ),
+                Field(
+                    name="text",
+                    type="string",
+                    indexing=["index", "summary"],
+                    index="enable-bm25",
+                    bolding=True,
+                ),
+            ]
+            + all_embedding_fields
+        ),
+        fieldsets=[FieldSet(name="default", fields=["text"])],
+        rank_profiles=[match_only_profile] + all_rank_profiles,
+    )
+
+    # Create the application package
+    package = ApplicationPackage(
+        name=app_name,
+        schema=[schema],
+        components=all_components,
+    )
+
+    return package
