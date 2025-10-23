@@ -515,8 +515,8 @@ class TestPredefinedModels:
         assert config.binarized is False
         assert config.max_tokens == 8192
         assert config.transformer_output == "token_embeddings"
-        assert config.query_prepend == "search_query:"
-        assert config.document_prepend == "search_document:"
+        assert config.query_prepend == "search_query: "
+        assert config.document_prepend == "search_document: "
 
     def test_get_model_config_success(self):
         """Test getting a predefined model config."""
@@ -638,8 +638,8 @@ class TestCommonModelsXMLGeneration:
     <transformer-output>token_embeddings</transformer-output>
     <max-tokens>8192</max-tokens>
     <prepend>
-        <query>search_query:</query>
-        <document>search_document:</document>
+        <query>search_query: </query>
+        <document>search_document: </document>
     </prepend>
 </component>"""
 
