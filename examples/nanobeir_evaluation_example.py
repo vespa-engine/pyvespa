@@ -7,114 +7,13 @@ for evaluation, handling differences in embedding dimensions, tokenizers,
 and binary vs. float embeddings.
 """
 
-from vespa.package import (
-    ApplicationPackage,
-    Field,
-    Schema,
-    Document,
-    RankProfile,
-    Function,
-    FieldSet,
-)
 from vespa.nanobeir import (
     ModelConfig,
     get_model_config,
     create_embedder_component,
     create_embedding_field,
-    create_semantic_rank_profile,
-    create_hybrid_rank_profile,
+    create_evaluation_package,
 )
-
-
-def create_evaluation_package(
-    model_config: ModelConfig,
-    app_name: str = "nanobeir_eval",
-    schema_name: str = "doc",
-) -> ApplicationPackage:
-    """
-    Create a Vespa application package configured for NanoBEIR evaluation.
-
-    Args:
-        model_config: ModelConfig instance defining the embedding model
-        app_name: Name of the application (default: "nanobeir_eval")
-        schema_name: Name of the schema (default: "doc")
-
-    Returns:
-        ApplicationPackage: Configured Vespa application package
-    """
-    # Create the embedder component
-    embedder = create_embedder_component(model_config)
-
-    # Create the embedding field with correct type and indexing
-    embedding_field = create_embedding_field(model_config)
-
-    # Create base BM25 rank profile
-    bm25_profile = RankProfile(
-        name="bm25",
-        inputs=[("query(q)", embedding_field.type)],
-        functions=[Function(name="bm25text", expression="bm25(text)")],
-        first_phase="bm25text",
-        match_features=["bm25text"],
-    )
-
-    # Create semantic search rank profile
-    semantic_profile = create_semantic_rank_profile(model_config)
-
-    # Create hybrid rank profiles
-    fusion_profile = create_hybrid_rank_profile(
-        model_config,
-        profile_name="fusion",
-        fusion_method="rrf",
-    )
-
-    atan_norm_profile = create_hybrid_rank_profile(
-        model_config,
-        profile_name="atan_norm",
-        fusion_method="normalize",
-    )
-
-    # Build the schema
-    schema = Schema(
-        name=schema_name,
-        document=Document(
-            fields=[
-                Field(
-                    name="id",
-                    type="string",
-                    indexing=["summary", "attribute"],
-                ),
-                Field(
-                    name="text",
-                    type="string",
-                    indexing=["index", "summary"],
-                    index="enable-bm25",
-                    bolding=True,
-                ),
-                embedding_field,
-            ]
-        ),
-        fieldsets=[FieldSet(name="default", fields=["text"])],
-        rank_profiles=[
-            RankProfile(
-                name="match-only",
-                inputs=[("query(q)", embedding_field.type)],
-                first_phase="random",
-            ),
-            bm25_profile,
-            semantic_profile,
-            fusion_profile,
-            atan_norm_profile,
-        ],
-    )
-
-    # Create the application package
-    package = ApplicationPackage(
-        name=app_name,
-        schema=[schema],
-        components=[embedder],
-    )
-
-    return package
 
 
 def main():
@@ -124,55 +23,31 @@ def main():
     print("NanoBEIR Evaluation Example")
     print("=" * 60)
 
-    # Example 1: E5-small-v2 with float embeddings
-    print("\n1. Creating package for e5-small-v2 (float embeddings, 384 dim)")
+    # Example 1: Single model by name (e5-small-v2)
+    print("\n1. Single model: e5-small-v2 (float embeddings, 384 dim)")
     print("-" * 60)
-    config_e5_small = get_model_config("e5-small-v2")
     package_e5_small = create_evaluation_package(
-        config_e5_small,
+        "e5-small-v2",
         app_name="nanobeirsmall",
     )
+    config_e5_small = get_model_config("e5-small-v2")
     print(f"   Model: {config_e5_small.model_id}")
     print(f"   Embedding dim: {config_e5_small.embedding_dim}")
     print(f"   Binarized: {config_e5_small.binarized}")
     print(f"   Component ID: {config_e5_small.component_id}")
     embedding_field = package_e5_small.schema.document.fields[2]
+    print(f"   Schema embedding field name: {embedding_field.name}")
     print(f"   Schema embedding field type: {embedding_field.type}")
+    print(f"   Number of components: {len(package_e5_small.components)}")
     print(f"   Number of rank profiles: {len(package_e5_small.schema.rank_profiles)}")
+    profile_names = [
+        p.name if hasattr(p, "name") else str(p)
+        for p in package_e5_small.schema.rank_profiles
+    ]
+    print(f"   Rank profile names: {profile_names}")
 
-    # Example 2: E5-base-v2 with larger embeddings
-    print("\n2. Creating package for e5-base-v2 (float embeddings, 768 dim)")
-    print("-" * 60)
-    config_e5_base = get_model_config("e5-base-v2")
-    package_e5_base = create_evaluation_package(
-        config_e5_base,
-        app_name="nanobeirbase",
-    )
-    print(f"   Model: {config_e5_base.model_id}")
-    print(f"   Embedding dim: {config_e5_base.embedding_dim}")
-    print(f"   Binarized: {config_e5_base.binarized}")
-    embedding_field = package_e5_base.schema.document.fields[2]
-    print(f"   Schema embedding field type: {embedding_field.type}")
-
-    # Example 3: BGE-M3 with binary embeddings
-    print("\n3. Creating package for bge-m3-binary (binary embeddings, 1024→128 dim)")
-    print("-" * 60)
-    config_bge_binary = get_model_config("bge-m3-binary")
-    package_bge_binary = create_evaluation_package(
-        config_bge_binary,
-        app_name="nanobeirbinary",
-    )
-    print(f"   Model: {config_bge_binary.model_id}")
-    print(f"   Embedding dim (before packing): {config_bge_binary.embedding_dim}")
-    print(f"   Binarized: {config_bge_binary.binarized}")
-    embedding_field = package_bge_binary.schema.document.fields[2]
-    print(f"   Schema embedding field type: {embedding_field.type}")
-    # Check if pack_bits is in indexing
-    print(f"   Uses pack_bits: {'pack_bits' in embedding_field.indexing}")
-    print(f"   Distance metric: {embedding_field.ann.distance_metric}")
-
-    # Example 4: Custom model configuration
-    print("\n4. Creating package with custom model configuration")
+    # Example 2: Single model with custom config
+    print("\n2. Single model with custom config (512 dim)")
     print("-" * 60)
     custom_config = ModelConfig(
         model_id="custom-embedding-model",
@@ -188,10 +63,77 @@ def main():
     print(f"   Tokenizer: {custom_config.tokenizer_id}")
     print(f"   Embedding dim: {custom_config.embedding_dim}")
     embedding_field = package_custom.schema.document.fields[2]
+    print(f"   Schema embedding field name: {embedding_field.name}")
     print(f"   Schema embedding field type: {embedding_field.type}")
 
-    # Example 5: List all available predefined models
-    print("\n5. Available predefined models:")
+    # Example 3: Multiple models (e5-small-v2 and e5-base-v2)
+    print("\n3. Multiple models: e5-small-v2 (384 dim) + e5-base-v2 (768 dim)")
+    print("-" * 60)
+    package_multi = create_evaluation_package(
+        ["e5-small-v2", "e5-base-v2"],
+        app_name="nanobeirmulti",
+    )
+    print("   Number of models: 2")
+    print(f"   Number of components: {len(package_multi.components)}")
+    print(f"   Component IDs: {[c.id for c in package_multi.components]}")
+    embedding_fields = [
+        f
+        for f in package_multi.schema.document.fields
+        if f.name.startswith("embedding")
+    ]
+    print(f"   Number of embedding fields: {len(embedding_fields)}")
+    print(f"   Embedding field names: {[f.name for f in embedding_fields]}")
+    print(f"   Embedding field types: {[f.type for f in embedding_fields]}")
+    print(f"   Number of rank profiles: {len(package_multi.schema.rank_profiles)}")
+    profile_names_multi = [
+        p.name if hasattr(p, "name") else str(p)
+        for p in package_multi.schema.rank_profiles
+    ]
+    print(f"   Rank profile names: {profile_names_multi}")
+
+    # Example 4: Multiple models with mixed configs (name + custom config)
+    print("\n4. Multiple models: e5-small-v2 + custom model (mixed configs)")
+    print("-" * 60)
+    custom_mixed = ModelConfig(
+        model_id="my-custom-embedder",
+        embedding_dim=256,
+        binarized=False,
+    )
+    package_mixed = create_evaluation_package(
+        ["e5-small-v2", custom_mixed],
+        app_name="nanobeirmixed",
+    )
+    print(f"   Number of components: {len(package_mixed.components)}")
+    print(f"   Component IDs: {[c.id for c in package_mixed.components]}")
+    embedding_fields_mixed = [
+        f
+        for f in package_mixed.schema.document.fields
+        if f.name.startswith("embedding")
+    ]
+    print(f"   Embedding field names: {[f.name for f in embedding_fields_mixed]}")
+    print(f"   Embedding field types: {[f.type for f in embedding_fields_mixed]}")
+
+    # Example 5: ModernBERT with advanced configuration
+    print("\n5. Single model: nomic-ai-modernbert (ModernBERT-based, 768 dim)")
+    print("-" * 60)
+    config_modernbert = get_model_config("nomic-ai-modernbert")
+    package_modernbert = create_evaluation_package(
+        "nomic-ai-modernbert",
+        app_name="nanobeirmodern",
+    )
+    print(f"   Model: {config_modernbert.model_id}")
+    print(f"   Embedding dim: {config_modernbert.embedding_dim}")
+    print(f"   Max tokens: {config_modernbert.max_tokens}")
+    print(f"   Transformer output: {config_modernbert.transformer_output}")
+    print(f"   Query prepend: {config_modernbert.query_prepend}")
+    print(f"   Document prepend: {config_modernbert.document_prepend}")
+    embedding_field = package_modernbert.schema.document.fields[2]
+    print(f"   Schema embedding field name: {embedding_field.name}")
+    print(f"   Schema embedding field type: {embedding_field.type}")
+    print(f"   Distance metric: {embedding_field.ann.distance_metric}")
+
+    # Example 6: List all available predefined models
+    print("\n6. Available predefined models:")
     print("-" * 60)
     from vespa.nanobeir import COMMON_MODELS
 
@@ -199,8 +141,8 @@ def main():
         binary_str = " (binary)" if config.binarized else ""
         print(f"   - {model_name}: {config.embedding_dim} dim{binary_str}")
 
-    # Example 6: Advanced configuration with URL-based models
-    print("\n6. Advanced configuration: URL-based model with custom parameters")
+    # Example 7: Advanced configuration with URL-based models
+    print("\n7. Advanced configuration: URL-based model with custom parameters")
     print("-" * 60)
     gte_config = ModelConfig(
         model_id="gte-multilingual-base",
@@ -237,9 +179,17 @@ def main():
     print("\nAdvanced features demonstrated:")
     print("- Using predefined model configurations")
     print("- Creating custom model configurations")
+    print("- Single model setup with simple function call")
+    print("- Multiple model setup with automatic field/component naming")
+    print("- Mixed model configurations (predefined + custom)")
     print("- Binary vs. float embeddings")
     print("- URL-based model loading")
     print("- Additional embedder parameters (transformer-output, max-tokens, prepend)")
+    print("\nKey benefits of multi-model support:")
+    print("- Evaluate multiple models in single deployment")
+    print("- Compare model performance side-by-side")
+    print("- Automatic conflict resolution (fields/components named uniquely)")
+    print("- Each model gets its own set of rank profiles")
 
 
 if __name__ == "__main__":
