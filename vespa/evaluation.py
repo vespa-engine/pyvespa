@@ -1698,3 +1698,58 @@ def extract_features_from_hit(
                 continue
 
     return features
+
+
+class NearestNeighborHitratioComputer():
+    """Class for determining hit ratio of ANN queries.
+
+    Determines the hit ratios of queries by querying with profiling and inspecting the profile file.
+    """
+    def __init__(self, queries: List[Dict[str, str]], app: Vespa):
+        self.queries = queries
+        self.app = app
+
+    def run(self):
+        """Compute hit ratio of a query."""
+
+        query_parameters = {
+            'timeout': '20s',
+            'trace.explainLevel': '1',
+            'trace.level': '1',
+            'trace.profileDepth': '100',
+            'ranking.matching.approximateThreshold': '0.00'
+
+        }
+
+        queries_with_parameters = list(map(lambda query: dict(query, **query_parameters), self.queries))
+        responses, response_times = execute_queries(self.app, queries_with_parameters)
+
+        def extract_from_trace(obj: dict, type: str):
+            results = []
+
+            if "[type]" in obj and obj["[type]"] == type:
+                results.append(obj)
+
+            for k, v in obj.items():
+                if isinstance(v, dict):
+                    results += extract_from_trace(v, type)
+
+                elif isinstance(v, list):
+                    for i in v:
+                        if isinstance(i, dict):
+                            results += extract_from_trace(i, type)
+
+            return results
+
+        results = []
+        for response in responses:
+            trace = response.get_json()["trace"]
+            nearest_neighbor_blueprints = extract_from_trace(trace, "search::queryeval::NearestNeighborBlueprint")
+            hit_ratios = []
+            for blueprint in nearest_neighbor_blueprints:
+                if "global_filter" in blueprint and blueprint["global_filter"]["calculated"]:
+                    hit_ratios.append(blueprint["global_filter"]["hit_ratio"])
+
+            results.append(hit_ratios)
+
+        return results
