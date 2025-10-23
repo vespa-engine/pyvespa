@@ -86,7 +86,7 @@ feed = [
 ]
 notebooks = [
     "notebook",
-    "nbconvert<=7.12.0",
+    "nbconvert",
     "ipykernel==6.30.1",
     "jupytext",
     "numpy",
