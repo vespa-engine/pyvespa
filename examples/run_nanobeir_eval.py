@@ -12,10 +12,11 @@ import pandas as pd
 import vespa.querybuilder as qb
 from datasets import load_dataset
 from vespa.application import Vespa
-from vespa.deployment import VespaCloud
+from vespa.deployment import VespaCloud, VespaDocker
 from vespa.evaluation import VespaMatchEvaluator, VespaEvaluator
 from vespa.io import VespaResponse
-from vespa.nanobeir import create_evaluation_package, get_model_config
+from vespa.nanobeir import create_evaluation_package, get_model_config, ModelConfig
+from enum import Enum
 
 # Configuration
 TENANT_NAME = os.getenv("VESPA_TENANT_NAME", "vespa-team")
@@ -23,8 +24,52 @@ APPLICATION = "nanobeireval"
 SCHEMA_NAME = "doc"
 DATASET_ID = "zeta-alpha-ai/NanoMSMARCO"
 
+
+class DeployTarget(Enum):
+    VESPA_CLOUD = "vespa_cloud"
+    LOCAL = "local"
+
+
+TARGET = DeployTarget.LOCAL
+
 # Models to evaluate - you can modify this list
-MODELS = ["e5-small-v2", "nomic-ai-modernbert"]
+# Can be:
+#  - Predefined model names (strings): "e5-small-v2", "nomic-ai-modernbert", etc.
+#  - Custom ModelConfig objects for models not in the predefined list
+# Example with custom config:
+# MODELS = [
+#     "e5-small-v2",
+#     ModelConfig(
+#         model_id="custom-model",
+#         embedding_dim=384,
+#         binarized=False,
+#         query_prepend="query: ",
+#         document_prepend="document: ",
+#     )
+# ]
+kalm_model = ModelConfig(
+    model_id="kalm",
+    model_url="https://huggingface.co/thomasht86/KaLM-embedding-multilingual-mini-instruct-v2.5-ONNX/resolve/main/onnx/model_int8.onnx",
+    tokenizer_url="https://huggingface.co/thomasht86/KaLM-embedding-multilingual-mini-instruct-v2.5-ONNX/resolve/main/tokenizer.json",
+    transformer_output="token_embeddings",
+    embedding_dim=896,
+    binarized=False,
+    query_prepend="Instruct: Given a query, retrieve documents that answer the query \n Query: ",
+)
+# 'https://data.vespa-cloud.com/onnx_models/e5-small-v2/model.onnx'
+# 'https://data.vespa-cloud.com/onnx_models/e5-small-v2/tokenizer.json'
+e5_small_v2 = ModelConfig(
+    model_id="e5_small_v2",
+    model_url="https://data.vespa-cloud.com/onnx_models/e5-small-v2/model.onnx",
+    tokenizer_url="https://data.vespa-cloud.com/onnx_models/e5-small-v2/tokenizer.json",
+    embedding_dim=384,
+    binarized=False,
+    max_tokens=512,
+    query_prepend="query: ",
+    document_prepend="passage: ",
+)
+
+MODELS = [e5_small_v2, kalm_model]
 
 
 def feed_data(app: Vespa, dataset_id: str, schema_name: str):
@@ -487,18 +532,27 @@ def main():
     ]
     print(f"  - {len(embedding_fields)} embedding field(s)")
 
-    # Deploy to Vespa Cloud
-    print("\n" + "=" * 80)
-    print("DEPLOYING TO VESPA CLOUD")
-    print("=" * 80)
-    vespa_cloud = VespaCloud(
-        tenant=TENANT_NAME,
-        application=APPLICATION,
-        key_content=os.getenv("VESPA_TEAM_API_KEY", None),
-        application_package=package,
-    )
-
-    app: Vespa = vespa_cloud.deploy(max_wait=1800)
+    if TARGET == DeployTarget.VESPA_CLOUD:
+        # Deploy to Vespa Cloud
+        print("\n" + "=" * 80)
+        print("DEPLOYING TO VESPA CLOUD")
+        print("=" * 80)
+        vespa_cloud = VespaCloud(
+            tenant=TENANT_NAME,
+            application=APPLICATION,
+            key_content=os.getenv("VESPA_TEAM_API_KEY", None),
+            application_package=package,
+        )
+        app: Vespa = vespa_cloud.deploy(max_wait=1800)
+    elif TARGET == DeployTarget.LOCAL:
+        # Deploy locally using Docker
+        print("\n" + "=" * 80)
+        print("DEPLOYING LOCALLY WITH DOCKER")
+        print("=" * 80)
+        vespa_docker = VespaDocker()
+        app: Vespa = vespa_docker.deploy(
+            application_package=package,
+        )
     print("Deployment successful!")
 
     try:
@@ -542,6 +596,15 @@ def main():
         print("EVALUATION COMPLETE!")
         print("=" * 80)
 
+    except Exception as e:
+        print("\n" + "=" * 80)
+        print("ERROR DURING EVALUATION")
+        print("=" * 80)
+        print(f"Exception: {type(e).__name__}: {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise
     finally:
         # Clean up
         print("\n" + "=" * 80)
