@@ -78,8 +78,11 @@ class ModelConfig:
             self.tokenizer_id = self.model_id
 
         if self.component_id is None:
-            # Create a component ID from model_id by replacing hyphens with underscores
-            self.component_id = self.model_id.replace("-", "_").replace("/", "_")
+            # Create a component ID from model_id by replacing hyphens, slashes, and dots with underscores
+            # This ensures the ID is a valid Vespa field name: [a-zA-Z]\w*
+            self.component_id = (
+                self.model_id.replace("-", "_").replace("/", "_").replace(".", "_")
+            )
 
         # Validate embedding dimension
         if self.embedding_dim <= 0:
