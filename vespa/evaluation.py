@@ -1700,7 +1700,7 @@ def extract_features_from_hit(
     return features
 
 
-class NearestNeighborHitratioComputer():
+class NearestNeighborHitratioComputer:
     """Class for determining hit ratio of ANN queries.
 
     Determines the hit ratios of queries by querying with profiling and inspecting the profile file.
@@ -1753,3 +1753,76 @@ class NearestNeighborHitratioComputer():
             results.append(hit_ratios)
 
         return results
+
+class RelevanceMismatchError(Exception):
+    """Exception raised when the reported relevance between exact and approximate query differs."""
+    pass
+
+class UnsuccessfulQueryError(Exception):
+    """Exception raised when trying to compute the recall of an unsuccessful query."""
+    pass
+
+class NearestNeighborRecallComputer:
+    """Class for determining recalls of ANN queries.
+
+    Determines the recalls of queries by running the query twice, first wth an exact search and then
+    the actual query. The results are then compared, the recall is a number between 0 and 1
+    that specifies the percentage of results from the query that were also present in the exact results.
+    """
+    def __init__(self, queries: List[Dict[str, str]], hits: int, app: Vespa, **kwargs):
+        self.queries = queries
+        self.hits = hits
+        self.app = app
+        self.parameters = kwargs
+
+    def _compute_recall(self, response_exact: VespaQueryResponse, response_approx: VespaQueryResponse) -> float:
+        if not (response_exact.is_successful() and response_approx.is_successful()):
+            raise RelevanceMismatchError()
+
+        try:
+            results_exact = response_exact.get_json()["root"]["children"]
+        except KeyError:
+            results_exact = {}
+
+        try:
+            results_approx = response_approx.get_json()["root"]["children"]
+        except KeyError:
+            results_approx = {}
+
+        size_exact = len(results_exact)
+        size_approx = len(results_approx)
+
+        recall = 0
+        i = 0
+        j = 0
+        while i < size_exact and j < size_approx:
+            exact = results_exact[i]
+            approx = results_approx[j]
+            relevance_exact = float(exact["relevance"])
+            relevance_approx = float(approx["relevance"])
+            if exact["id"] == approx["id"]:
+                if abs(relevance_exact - relevance_approx) > 1e-5:
+                    raise RelevanceMismatchError(f"Results have the same id {exact['id']}, "
+                                                 f"but relevances {relevance_exact} and {relevance_approx} do not match")
+                recall += 1
+                i += 1
+                j += 1
+            elif relevance_exact > relevance_approx:
+                i += 1
+            else:
+                j += 1
+
+        return recall / self.hits
+
+    def run(self):
+        """Compute recalls of queries."""
+        query_parameters = dict(self.parameters, **{"hits": self.hits, 'timeout': '20s'})
+        query_parameters_exact = dict(query_parameters, **{"ranking.matching.approximateThreshold": 1.00})
+
+        queries_with_parameters = list(map(lambda query: dict(query, **query_parameters), self.queries))
+        responses, _ = execute_queries(self.app, queries_with_parameters)
+
+        queries_with_parameters_exact = list(map(lambda query: dict(query, **query_parameters_exact), self.queries))
+        responses_exact, _ = execute_queries(self.app, queries_with_parameters_exact)
+
+        return list(map(lambda pair: self._compute_recall(pair[0], pair[1]), zip(responses, responses_exact)))
