@@ -555,7 +555,7 @@ class TestDeployApplicationRoot(unittest.TestCase):
         # Delete clients.pem if it exists, to test creation on first deployment
         if (self.application_root / "security" / "clients.pem").exists():
             os.remove(self.application_root / "security" / "clients.pem")
-        _app = self.vespa_cloud.deploy(instance="rag-blueprint", max_wait=300)
+        _app = self.vespa_cloud.deploy(instance="rag-blueprint", max_wait=900)
 
     def test_deploy_application_root_with_clients_pem(self):
         """After first deployment, the clients.pem file is created in the application root."""
@@ -566,7 +566,7 @@ class TestDeployApplicationRoot(unittest.TestCase):
         pem_file_modified_time = (
             (self.application_root / "security" / "clients.pem").stat().st_mtime
         )
-        _app = self.vespa_cloud.deploy(instance="rag-blueprint", max_wait=300)
+        _app = self.vespa_cloud.deploy(instance="rag-blueprint", max_wait=900)
         # Verify modified time is not changed after redeployment
         self.assertEqual(
             pem_file_modified_time,
@@ -599,7 +599,7 @@ class TestDeployKeyLocation(unittest.TestCase):
         # Delete clients.pem if it exists, to test creation on first deployment
         if (self.application_root / "security" / "clients.pem").exists():
             os.remove(self.application_root / "security" / "clients.pem")
-        self.app = self.vespa_cloud.deploy(instance=self.instance, max_wait=300)
+        self.app = self.vespa_cloud.deploy(instance=self.instance, max_wait=900)
         self.assertEqual(200, self.app.get_application_status().status_code)
 
     def tearDown(self) -> None:
