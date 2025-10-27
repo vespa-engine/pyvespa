@@ -1826,3 +1826,269 @@ class NearestNeighborRecallComputer:
         responses_exact, _ = execute_queries(self.app, queries_with_parameters_exact)
 
         return list(map(lambda pair: self._compute_recall(pair[0], pair[1]), zip(responses, responses_exact)))
+
+class NearestNeighborBenchmarker:
+    def __init__(self, queries: List[Dict[str, str]], app: Vespa, repetitions: int = 5, **kwargs):
+        self.queries = queries
+        self.app = app
+        self.repetitions = repetitions
+        self.parameters = kwargs
+
+    def run(self):
+        response_times_sum = [0] * len(self.queries)
+
+        for i in range(0, self.repetitions):
+            queries_with_parameters = list(map(lambda query: dict(query, **self.parameters, **{"presentation.timing": True}), self.queries))
+            _, response_times = execute_queries(self.app, queries_with_parameters)
+            response_times_ms = list(map(lambda x: 1000 * x, response_times))
+            response_times_sum = list(map(lambda pair: pair[0] + pair[1], zip(response_times_sum, response_times_ms)))
+
+        return list(map(lambda x: x / self.repetitions, response_times_sum))
+
+def interpolate(x, y, intended_length):
+   interpolated_y = [0] * intended_length
+
+   if len(x) == 0:
+       return interpolated_y
+
+   for i in range(0, x[0] + 1):
+       interpolated_y[i] = y[0]
+
+   for i in range(x[-1], intended_length):
+       interpolated_y[i] = y[-1]
+
+   for i in range(0, len(x) - 1):
+       length = x[i + 1] - x[i]
+
+       for j in range(0, length):
+           interpolated_y[x[i] + j] = j / length * y[i + 1] + (1 - j / length) * y[i]
+
+   return interpolated_y
+
+class NearestNeighborParameterOptimizer:
+    def __init__(self, app: Vespa, hits: int, buckets_per_percent: int = 2, print_progress: bool = False):
+        self.app = app
+        self.hits = hits
+
+        # Every bucket represents an interval of length 1/buckets_per_percent. It contains a list of queries with hit-ratios (or rather 1-hit-ratios) in that interval.
+        self.buckets_per_percent = buckets_per_percent
+        self.buckets = [[] for _ in range(100 * buckets_per_percent)]
+
+        self.print_progress = print_progress
+
+    def get_bucket_interval_width(self):
+        return 0.01 / self.buckets_per_percent
+
+    def get_number_of_buckets(self):
+        return len(self.buckets)
+
+    def get_number_of_nonempty_buckets(self, from_bucket=None, to_bucket=None):
+        if from_bucket is None:
+            from_bucket = 0
+        if to_bucket is None:
+            to_bucket = self.get_number_of_buckets()
+
+        return sum(map(lambda x: 1 if x else 0, self.buckets[from_bucket:to_bucket]))
+
+    def get_number_of_queries(self):
+        return sum(map(len, self.buckets))
+
+    def bucket_to_hitratio(self, bucket_number):
+        return  (len(self.buckets) - bucket_number) / len(self.buckets)
+
+    def bucket_to_filtered_out(self, bucket_number):
+        return bucket_number / len(self.buckets)
+
+    def buckets_to_filtered_out(self, bucket_numbers):
+        return list(map(lambda b: self.bucket_to_filtered_out(b), bucket_numbers))
+
+    def filtered_out_to_bucket(self, percent):
+        return math.floor(percent * 100) * self.buckets_per_percent
+
+    def distribute_to_buckets(self, queries_with_hitratios):
+        for query, hitratio in queries_with_hitratios:
+            if hitratio is not None:
+                filtered_out = 1.0 - hitratio
+                bucket_number = self.filtered_out_to_bucket(filtered_out)
+                self.buckets[bucket_number].append(query)
+            else:
+                print(f"Warning: Query {query} has no hitratio.")
+
+    def get_query_distribution(self):
+        x = []
+        y = []
+        for i in range(0, len(self.buckets)):
+            bucket = self.buckets[i]
+            if bucket: # not empty
+                x.append(self.bucket_to_filtered_out(i))
+                y.append(len(bucket))
+
+        return x, y
+
+    class BenchmarkResults:
+        def __init__(self, x, y):
+            self.x = x
+            self.y = y
+
+    def benchmark(self, from_bucket = None, to_bucket = None, **kwargs):
+        if from_bucket is None:
+            from_bucket = 0
+        if to_bucket is None:
+            to_bucket = self.get_number_of_buckets()
+
+        if self.print_progress:
+            print(f"->Benchmarking", end='')
+        x = []
+        y = []
+        processed_buckets = 0
+        for i in range(from_bucket, to_bucket):
+            bucket = self.buckets[i]
+            if bucket:
+                if self.print_progress:
+                    print(f"\r->Benchmarking: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(from_bucket, to_bucket), 2)}%",
+                          end='')
+                processed_buckets += 1
+                benchmarker = NearestNeighborBenchmarker(bucket, self.app, **kwargs)
+                response_times = benchmarker.run()
+                x.append(i)
+                y.append(mean(response_times))
+
+        print("\r  Benchmarking: 100.0%")
+
+        return NearestNeighborParameterOptimizer.BenchmarkResults(x, y)
+
+    class RecallResults:
+        def __init__(self, x, y):
+            self.x = x
+            self.y = y
+
+    def compute_average_recalls(self, from_bucket = None, to_bucket = None, **kwargs):
+        if from_bucket is None:
+            from_bucket = 0
+        if to_bucket is None:
+            to_bucket = self.get_number_of_buckets()
+
+        if self.print_progress:
+            print(f"=>Computing recall", end='')
+        x = []
+        y = []
+        processed_buckets = 0
+        for i in range(from_bucket, to_bucket):
+            bucket = self.buckets[i]
+            if bucket:
+                if self.print_progress:
+                    print(f"\r->Computing recall: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(from_bucket, to_bucket), 2)}%", end='')
+                recall_computer = NearestNeighborRecallComputer(bucket, self.hits, self.app, **kwargs)
+                recall_list = recall_computer.run()
+                x.append(i)
+                y.append(sum(recall_list) / len(recall_list))
+                processed_buckets += 1
+
+        print("\r  Computing recall: 100.0%")
+
+        return NearestNeighborParameterOptimizer.RecallResults(x, y)
+
+    def determine_filter_first_threshold(self, benchmark_hnsw, benchmark_filter_first):
+        # Interpolate benchmark values for empty buckets
+        interpolated_hnsw_y = interpolate(benchmark_hnsw.x, benchmark_hnsw.y, self.get_number_of_buckets())
+        interpolated_filter_first_y = interpolate(benchmark_filter_first.x, benchmark_filter_first.y, self.get_number_of_buckets())
+
+        # Start at last bucket
+        threshold = self.get_number_of_buckets()
+        threshold_diff = 0
+        for i in range(0, self.get_number_of_buckets()):
+
+            # Check what happens when we use "i" as the threshold
+            # current_diff is the "overhead" of using HNSW instead of HNSW (filter first)
+            current_diff = 0
+            for j in range(i, self.get_number_of_buckets()):
+                current_diff += interpolated_hnsw_y[j] - interpolated_filter_first_y[j]
+
+            # Larger overhead of using HNSW?
+            # We find the sport where the overhead of using HNSW is the largest
+            if current_diff > threshold_diff:
+                threshold = i
+                threshold_diff = current_diff
+
+        return threshold
+
+    def determine_approximate_threshold(self, benchmark_exact, benchmark_hnsw, benchmark_filter_first, filter_first_threshold):
+        # Interpolate benchmark values for empty buckets
+        int_bench_exact = interpolate(benchmark_exact.x, benchmark_exact.y, self.get_number_of_buckets())
+        int_bench_hnsw = interpolate(benchmark_hnsw.x, benchmark_hnsw.y, self.get_number_of_buckets())
+        int_bench_filter_first = interpolate(benchmark_filter_first.x, benchmark_filter_first.y, self.get_number_of_buckets())
+
+        # Start at last bucket
+        approximate_threshold = self.get_number_of_buckets() - 1
+
+        # Fast-foward to last non-empty bucket
+        while approximate_threshold > 0 and not self.buckets[approximate_threshold]:
+            approximate_threshold -= 1
+
+        while approximate_threshold > 0:
+            # Get response time for ANN (either HNSW or HNSW (filter first), depends on filter_first_threshold)
+            ann_time = 0
+            if approximate_threshold > filter_first_threshold:
+                ann_time = int_bench_filter_first[approximate_threshold]
+            else:
+                ann_time = int_bench_hnsw[approximate_threshold]
+
+            # Is response time for an exact search lower than for ANN?
+            # If yes, then use an exact search!
+            if int_bench_exact[approximate_threshold] < ann_time:
+                approximate_threshold -= 1
+            else:
+                break
+
+        return approximate_threshold
+
+    def _test_filter_first_exploration(self, filter_first_threshold, approximate_threshold, filter_first_exploration):
+        parameters_candidate = {
+            "ranking.matching.approximateThreshold": self.bucket_to_hitratio(approximate_threshold),
+            "ranking.matching.filterFirstThreshold": self.bucket_to_hitratio(filter_first_threshold),
+            "ranking.matching.filterFirstExploration": filter_first_exploration
+        }
+
+        # Benchmark candidate
+        benchmark = self.benchmark(from_bucket=filter_first_threshold, **parameters_candidate)
+        int_benchmark = interpolate(benchmark.x, benchmark.y, self.get_number_of_buckets())
+
+        # Recall candidate
+        recall = self.compute_average_recalls(from_bucket=filter_first_threshold, **parameters_candidate)
+        int_recall = interpolate(recall.x, recall.y, self.get_number_of_buckets())
+
+        return int_benchmark, int_recall
+
+    def determine_filter_first_exploration(self, filter_first_threshold, approximate_threshold):
+        benchmark_no_exploration, recall_no_exploration = self._test_filter_first_exploration(filter_first_threshold, approximate_threshold, 0.0)
+        benchmark_full_exploration, recall_full_exploration = self._test_filter_first_exploration(filter_first_threshold, approximate_threshold, 1.0)
+
+        # Find tradeoff between increase in response time and drop in recall by using binary search
+        left = 0.0
+        right = 1.0
+        filter_first_exploration = (right - left) / 2
+        for i in range(0, 7):
+            if self.print_progress:
+                print(f"  Testing {filter_first_exploration}")
+            benchmark_candidate, recall_candidate = self._test_filter_first_exploration(filter_first_threshold, approximate_threshold, filter_first_exploration)
+
+            # TODO Handle division by zero
+
+            # How much does the response time increase compared to no exploration?
+            benchmark_compared_to_no_exploration = [(x - y)/y for x, y in zip(benchmark_candidate, benchmark_no_exploration)]
+            response_time_deviation = max(benchmark_compared_to_no_exploration)
+
+            # How much does the recall drop compared to full exploration?
+            recall_compared_to_full_exploration = [(x - y)/x for x, y in zip(recall_full_exploration, recall_candidate)]
+            recall_deviation = max(recall_compared_to_full_exploration)
+
+            # Check how increase in response time compares to drop in recall
+            # (One could try to use weights here, e.g., make recall matter more)
+            if response_time_deviation > 1 * recall_deviation: # Increase in response time is larger than drop in recall, decrease exploration
+                right = filter_first_exploration
+            else: # Increase in response time is smaller than drop in recall, increase exploration
+                left = filter_first_exploration
+
+            filter_first_exploration = left + (right - left) / 2
+
+        return filter_first_exploration
