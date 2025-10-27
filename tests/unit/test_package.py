@@ -1,5 +1,6 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
+import os
 import unittest
 import platform
 import pytest
@@ -37,7 +38,6 @@ from vespa.package import (
     StructField,
     ServicesConfiguration,
     ApplicationConfiguration,
-    QueryProfileItem,
     Diversity,
     Summary,
 )
@@ -151,19 +151,21 @@ class TestImportField(unittest.TestCase):
 
 
 class TestDocument(unittest.TestCase):
+    document_type: str = "doc"
+
     def test_empty_document(self):
-        document = Document()
+        document = Document(self.document_type)
         self.assertEqual(document.fields, [])
 
     def test_document_one_field(self):
-        document = Document(inherits="context")
+        document = Document(self.document_type, inherits="context")
         field = Field(name="test_name", type="string")
         document.add_fields(field)
         self.assertEqual(document.fields, [field])
-        self.assertEqual(document, Document([field], "context"))
+        self.assertEqual(document, Document(self.document_type, [field], "context"))
 
     def test_document_two_fields(self):
-        document = Document()
+        document = Document(self.document_type)
         field_1 = Field(name="test_name", type="string")
         field_2 = Field(
             name="body",
@@ -173,10 +175,10 @@ class TestDocument(unittest.TestCase):
         )
         document.add_fields(field_1, field_2)
         self.assertEqual(document.fields, [field_1, field_2])
-        self.assertEqual(document, Document([field_1, field_2]))
+        self.assertEqual(document, Document(self.document_type, [field_1, field_2]))
 
     def test_update_field(self):
-        document = Document()
+        document = Document(self.document_type)
         field_1 = Field(name="test_name", type="string")
         document.add_fields(field_1)
         self.assertEqual(document.fields, [field_1])
@@ -370,7 +372,7 @@ class TestRankProfile(unittest.TestCase):
     def test_rank_profile_inputs_schema_rendering(self):
         """Test that rank profile inputs are properly rendered in the schema text output."""
         # Create a simple test document and schema with inputs
-        doc = Document(fields=[Field(name="test", type="string")])
+        doc = Document("test", fields=[Field(name="test", type="string")])
         rank_profile = RankProfile(
             name="test",
             first_phase="bm25(test)",
@@ -468,7 +470,9 @@ class TestSchema(unittest.TestCase):
     def setUp(self) -> None:
         self.schema = Schema(
             name="test_schema",
-            document=Document(fields=[Field(name="test_name", type="string")]),
+            document=Document(
+                "test_schema", fields=[Field(name="test_name", type="string")]
+            ),
             fieldsets=[FieldSet(name="default", fields=["title", "body"])],
             rank_profiles=[
                 RankProfile(name="bm25", first_phase="bm25(title) + bm25(body)")
@@ -617,6 +621,7 @@ class TestApplicationPackage(unittest.TestCase):
         self.test_schema = Schema(
             name="msmarco",
             document=Document(
+                name="msmarco",
                 inherits="context",
                 fields=[
                     Field(name="id", type="string", indexing=["attribute", "summary"]),
@@ -876,6 +881,7 @@ class TestApplicationPackage(unittest.TestCase):
         }
     }
 }"""
+        self.assertIsNotNone(self.app_package.schema)
         self.assertEqual(self.app_package.schema.schema_to_text, expected_result)
 
     def test_services_to_text(self):
@@ -929,33 +935,36 @@ class TestApplicationPackageStreaming(unittest.TestCase):
             name="mail",
             mode="streaming",
             document=Document(
+                "mail",
                 fields=[
                     Field(
                         name="title", type="string", indexing=["attribute", "summary"]
                     )
-                ]
+                ],
             ),
         )
         self.calendar = Schema(
             name="calendar",
             mode="streaming",
             document=Document(
+                "calendar",
                 fields=[
                     Field(
                         name="title", type="string", indexing=["attribute", "summary"]
                     )
-                ]
+                ],
             ),
         )
         self.event = Schema(
             name="event",
             mode="index",
             document=Document(
+                "event",
                 fields=[
                     Field(
                         name="title", type="string", indexing=["attribute", "summary"]
                     )
-                ]
+                ],
             ),
         )
         self.app_package = ApplicationPackage(
@@ -996,17 +1005,19 @@ class TestSchemaInheritance(unittest.TestCase):
         self.news_schema = Schema(
             name="news",
             document=Document(
+                name="news",
                 fields=[
                     Field(
                         name="news_id", type="string", indexing=["attribute", "summary"]
                     )
-                ]
+                ],
             ),
         )
         self.mail = Schema(
             name="mail",
             inherits="news",
             document=Document(
+                name="mail",
                 inherits="news",
                 fields=[
                     Field(
@@ -1042,6 +1053,7 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
         self.news_schema = Schema(
             name="news",
             document=Document(
+                name="news",
                 fields=[
                     Field(
                         name="news_id", type="string", indexing=["attribute", "summary"]
@@ -1051,7 +1063,7 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
                         type="reference<category_ctr>",
                         indexing=["attribute"],
                     ),
-                ]
+                ],
             ),
             imported_fields=[
                 ImportedField(
@@ -1064,17 +1076,30 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
         self.user_schema = Schema(
             name="user",
             document=Document(
+                name="user",
                 fields=[
                     Field(
                         name="user_id", type="string", indexing=["attribute", "summary"]
                     ),
-                ]
+                ],
+            ),
+        )
+        self.other_user_schema = Schema(
+            name="user",
+            document=Document(
+                name="other_user",
+                fields=[
+                    Field(
+                        name="user_id", type="string", indexing=["attribute", "summary"]
+                    ),
+                ],
             ),
         )
         self.category_ctr_schema = Schema(
             name="category_ctr",
             global_document=True,
             document=Document(
+                name="category_ctr",
                 fields=[
                     Field(
                         name="ctrs",
@@ -1082,17 +1107,25 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
                         indexing=["attribute"],
                         attribute=["fast-search"],
                     ),
-                ]
+                ],
             ),
         )
         self.app_package = ApplicationPackage(
             name="testapp",
-            schema=[self.news_schema, self.user_schema, self.category_ctr_schema],
+            schema=[
+                self.news_schema,
+                self.user_schema,
+                self.other_user_schema,
+                self.category_ctr_schema,
+            ],
         )
 
     def test_get_schema(self):
         self.assertEqual(self.app_package.get_schema(name="news"), self.news_schema)
         self.assertEqual(self.app_package.get_schema(name="user"), self.user_schema)
+        self.assertEqual(
+            self.app_package.get_schema(name="other_user"), self.user_schema
+        )
         self.assertEqual(
             self.app_package.get_schema(name="category_ctr"), self.category_ctr_schema
         )
@@ -1122,6 +1155,15 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
             "    }\n"
             "}"
         )
+        expected_other_user_result = (
+            "schema user {\n"
+            "    document other_user {\n"
+            "        field user_id type string {\n"
+            "            indexing: attribute | summary\n"
+            "        }\n"
+            "    }\n"
+            "}"
+        )
         expected_category_ctr_result = (
             "schema category_ctr {\n"
             "    document category_ctr {\n"
@@ -1139,10 +1181,22 @@ class TestApplicationPackageMultipleSchema(unittest.TestCase):
             "news": expected_news_result,
             "user": expected_user_result,
             "category_ctr": expected_category_ctr_result,
+            "other_user": expected_other_user_result,
         }
 
+        assert len(self.app_package.schemas) == len(expected_results)
+
         for schema in self.app_package.schemas:
-            self.assertEqual(schema.schema_to_text, expected_results[schema.name])
+            print(f"Debug: Schema name: {schema.name}")
+            actual_output = schema.schema_to_text
+            print(f"Debug: Actual output for {schema.name}:\n{actual_output}")
+            print(
+                f"Debug: Expected output for {schema.name}:\n{expected_results.get(schema.name, 'No expected result')}"
+            )
+            self.assertEqual(
+                actual_output,
+                expected_results.get(schema.document.name, "No expected result"),
+            )
 
     def test_services_to_text(self):
         expected_result = (
@@ -1361,11 +1415,12 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
         schema = Schema(
             name="test_diversity",
             document=Document(
+                "test_diversity",
                 fields=[
                     Field(name="title", type="string", indexing=["index", "summary"]),
                     Field(name="body", type="string", indexing=["index", "summary"]),
                     Field(name="popularity", type="int", indexing=["attribute"]),
-                ]
+                ],
             ),
             rank_profiles=[
                 RankProfile(
@@ -1419,11 +1474,12 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
         schema = Schema(
             name="test_match_phase",
             document=Document(
+                "test_match_phase",
                 fields=[
                     Field(name="title", type="string", indexing=["index", "summary"]),
                     Field(name="body", type="string", indexing=["index", "summary"]),
                     Field(name="popularity", type="int", indexing=["attribute"]),
-                ]
+                ],
             ),
             rank_profiles=[
                 RankProfile(name="default", first_phase="nativeRank(title, body)"),
@@ -1483,13 +1539,46 @@ class TestSimplifiedApplicationPackageWithMultipleSchemas(unittest.TestCase):
             Schema(
                 name="user",
                 document=Document(
+                    name="user",
                     fields=[
                         Field(
                             name="user_id",
                             type="string",
                             indexing=["attribute", "summary"],
                         )
-                    ]
+                    ],
+                ),
+            )
+        )
+
+        self.app_package.add_schema(
+            Schema(
+                name="news",
+                document=Document(
+                    name="news",
+                    fields=[
+                        Field(
+                            name="news_id",
+                            type="string",
+                            indexing=["attribute", "summary"],
+                        )
+                    ],
+                ),
+            )
+        )
+
+        self.app_package.add_schema(
+            Schema(
+                name="user",
+                document=Document(
+                    name="other_user",
+                    fields=[
+                        Field(
+                            name="user_id",
+                            type="string",
+                            indexing=["attribute", "summary"],
+                        )
+                    ],
                 ),
             )
         )
@@ -1513,10 +1602,27 @@ class TestSimplifiedApplicationPackageWithMultipleSchemas(unittest.TestCase):
             "    }\n"
             "}"
         )
-        expected_results = {"news": expected_news_result, "user": expected_user_result}
+        expected_other_user_result = (
+            "schema user {\n"
+            "    document other_user {\n"
+            "        field user_id type string {\n"
+            "            indexing: attribute | summary\n"
+            "        }\n"
+            "    }\n"
+            "}"
+        )
+        expected_results = {
+            "news": expected_news_result,
+            "user": expected_user_result,
+            "other_user": expected_other_user_result,
+        }
+
+        assert len(self.app_package.schemas) == len(expected_results)
 
         for schema in self.app_package.schemas:
-            self.assertEqual(schema.schema_to_text, expected_results[schema.name])
+            self.assertEqual(
+                schema.schema_to_text, expected_results[schema.document.name]
+            )
 
     def test_services_to_text(self):
         expected_result = (
@@ -1751,6 +1857,7 @@ class TestFieldAlias(unittest.TestCase):
         self.test_schema = Schema(
             name="alias_test_schema",
             document=Document(
+                name="alias_test_schema",
                 fields=[
                     Field(
                         name="single_aliased_field",
@@ -1772,7 +1879,7 @@ class TestFieldAlias(unittest.TestCase):
                             "fourth_component: fourth_alias",
                         ],
                     ),
-                ]
+                ],
             ),
         )
 
@@ -1965,7 +2072,9 @@ class TestSchemaStructField(unittest.TestCase):
             ],
         )
 
-        self.app_package.schema.document = Document([my_array], None, [mystruct])
+        self.app_package.schema.document = Document(
+            "struct", [my_array], None, [mystruct]
+        )
 
     def test_schema_to_text(self):
         expected_result = (
@@ -2016,7 +2125,7 @@ class TestStructField(unittest.TestCase):
                 )
             ],
         )
-        schema = Schema(name="schema", document=Document())
+        schema = Schema(name="schema", document=Document("schema"))
         schema.add_fields(emails_field)
         schema.document.add_structs(email_struct)
         schema_text = schema.schema_to_text
@@ -2069,7 +2178,7 @@ schema schema {
                 )
             ],
         )
-        schema = Schema(name="schema", document=Document())
+        schema = Schema(name="schema", document=Document("schema"))
         schema.add_fields(emails_field)
         schema.document.add_structs(email_struct)
 
@@ -2140,7 +2249,7 @@ schema schema {
                 )
             ],
         )
-        schema = Schema(name="schema", document=Document())
+        schema = Schema(name="schema", document=Document("schema"))
         schema.add_fields(emails_field)
         schema.document.add_structs(email_struct)
 
@@ -2265,6 +2374,7 @@ class TestServiceConfig(unittest.TestCase):
         music_schema = Schema(
             name=application_name,
             document=Document(
+                "music",
                 fields=[
                     Field(
                         name="artist",
@@ -2282,7 +2392,7 @@ class TestServiceConfig(unittest.TestCase):
                         indexing=["attribute", "summary"],
                         attribute=["fast-access"],
                     ),
-                ]
+                ],
             ),
         )
         # Create a ServicesConfiguration with document-expiry set to 1 day (timestamp > now() - 86400)
@@ -2385,7 +2495,9 @@ class TestPredicateField(unittest.TestCase):
 class TestRankProfileCustomSettings(unittest.TestCase):
     def test_rank_profile_with_filter_and_weakand(self):
         # Create a minimal schema with a dummy document to allow rank profile rendering.
-        dummy_document = Document(fields=[Field(name="dummy", type="string")])
+        dummy_document = Document(
+            "test_schema", fields=[Field(name="dummy", type="string")]
+        )
         rank_profile = RankProfile(
             name="optimized",
             first_phase="nativeRank(dummy)",
@@ -2436,7 +2548,7 @@ class TestFieldIndexConfigurations(unittest.TestCase):
         self.assertEqual(field.index_configurations, ["enable-bm25"])
 
         # Test rendering uses simple syntax
-        document = Document(fields=[field])
+        document = Document("test", fields=[field])
         schema = Schema("test", document)
         schema_text = schema.schema_to_text
 
@@ -2458,7 +2570,7 @@ schema test {
         self.assertEqual(field.index_configurations, [index_config])
 
         # Test rendering uses block syntax (since it's a dict)
-        document = Document(fields=[field])
+        document = Document("test", fields=[field])
         schema = Schema("test", document)
         schema_text = schema.schema_to_text
 
@@ -2482,7 +2594,7 @@ schema test {
         self.assertEqual(field.index_configurations, [])
 
         # Test rendering has no index statements
-        document = Document(fields=[field])
+        document = Document("test", fields=[field])
         schema = Schema("test", document)
         schema_text = schema.schema_to_text
 
@@ -2502,7 +2614,7 @@ schema test {
             type="string",
             index=["enable-bm25", "another-setting"],
         )
-        document = Document(fields=[field])
+        document = Document("test", fields=[field])
         schema = Schema("test", document)
         schema_text = schema.schema_to_text
         expected_schema = """\
@@ -2524,7 +2636,7 @@ schema test {
         """Test field with multiple dict index configurations."""
         indices = [{"param1": "value1"}, {"param2": "value2"}]
         field = Field(name="multi_dict", type="string", index=indices)
-        document = Document(fields=[field])
+        document = Document("test", fields=[field])
         schema = Schema("test", document)
         schema_text = schema.schema_to_text
         expected_schema = """\
@@ -2564,7 +2676,7 @@ schema test {
         )
 
         # Create schema and render
-        document = Document(fields=[field])
+        document = Document("test", fields=[field])
         schema = Schema("test", document)
         schema_text = schema.schema_to_text
 
@@ -2594,7 +2706,7 @@ schema test {
         )
 
         # Create schema and render
-        document = Document(fields=[field])
+        document = Document("test", fields=[field])
         schema = Schema("test", document)
         schema_text = schema.schema_to_text
 
@@ -2623,7 +2735,7 @@ schema test {
         )
 
         # Create schema and render
-        document = Document(fields=[field])
+        document = Document("test", fields=[field])
         schema = Schema("test", document)
         schema_text = schema.schema_to_text
 
@@ -2655,7 +2767,7 @@ schema test {
         )
 
         # Create schema and render
-        document = Document(fields=[field])
+        document = Document("test", fields=[field])
         schema = Schema("test", document)
         schema_text = schema.schema_to_text
 

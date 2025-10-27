@@ -2017,7 +2017,7 @@ class VespaCloud(VespaDeployment):
         with zipfile.ZipFile(buffer, "a") as zip_archive:
             for schema in self.application_package.schemas:
                 zip_archive.writestr(
-                    "schemas/{}.sd".format(schema.name),
+                    "schemas/{}.sd".format(schema.document.name),
                     schema.schema_to_text,
                 )
                 for model in schema.models:

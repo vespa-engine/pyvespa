@@ -989,6 +989,7 @@ class DocumentSummary(object):
 class Document(object):
     def __init__(
         self,
+        name: str,
         fields: Optional[List[Field]] = None,
         inherits: Optional[str] = None,
         structs: Optional[List[Struct]] = None,
@@ -1004,16 +1005,17 @@ class Document(object):
 
         Example:
             ```python
-            Document()
-            Document(None, None, None)
+            Document('doc')
+            Document('doc', None, None, None)
 
-            Document(fields=[Field(name="title", type="string")])
-            Document([Field('title', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], None)], None, None)
+            Document('doc', fields=[Field(name="title", type="string")])
+            Document('doc', [Field('title', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], None)], None, None)
 
-            Document(fields=[Field(name="title", type="string")], inherits="context")
-            Document([Field('title', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], None)], context, None)
+            Document('doc', fields=[Field(name="title", type="string")], inherits="context")
+            Document('doc', [Field('title', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], None)], context, None)
             ```
         """
+        self.name = name
         self.inherits = inherits
         self._fields = (
             OrderedDict()
@@ -1070,8 +1072,9 @@ class Document(object):
         )
 
     def __repr__(self) -> str:
-        return "{0}({1}, {2}, {3})".format(
+        return "{0}({1}, {2}, {3}, {4})".format(
             self.__class__.__name__,
+            self.name,
             repr(self.fields) if self.fields else None,
             self.inherits,
             repr(self.structs) if self.structs else None,
@@ -1867,8 +1870,8 @@ class Schema(object):
 
         Example:
             ```python
-            Schema(name="schema_name", document=Document())
-            Schema('schema_name', Document(None, None, None), None, None, [], False, None, [], None)
+            Schema(name="schema_name", document=Document(name="schema_name"))
+            Schema('schema_name', Document("schema_name", None, None, None), None, None, [], False, None, [], None)
             ```
         """
         self.name = name
@@ -1990,7 +1993,7 @@ class Schema(object):
         schema_template = env.get_template("schema.txt")
         return schema_template.render(
             schema_name=self.name,
-            document_name=self.name,
+            document_name=self.document.name,
             schema=self,
             document=self.document,
             fieldsets=self.fieldsets,
@@ -2967,7 +2970,7 @@ class ServicesConfiguration(object):
             ```python
             config = ServicesConfiguration(
                 application_name="myapp",
-                schemas=[Schema(name="myschema", document=Document())],
+                schemas=[Schema(name="myschema", document=Document("myschema"))],
                 configurations=[ApplicationConfiguration(name="container.handler.observability.application-userdata", value={"version": "my-version"})],
                 components=[Component(id="hf-embedder", type="huggingface-embedder")],
                 stateless_model_evaluation=True,
@@ -3139,7 +3142,7 @@ class ApplicationPackage(object):
 
             ```python
             ApplicationPackage(name="testapp")
-            ApplicationPackage('testapp', [Schema('testapp', Document(None, None, None), None, None, [], False, None, [], None)],
+            ApplicationPackage('testapp', [Schema('testapp', Document('testapp', None, None, None), None, None, [], False, None, [], None)],
                             QueryProfile(None), QueryProfileType(None))
             ```
         This creates a default Schema, QueryProfile, and QueryProfileType, which can be populated with your application's specifics.
@@ -3155,11 +3158,11 @@ class ApplicationPackage(object):
         self.name = name
         if not schema:
             schema = (
-                [Schema(name=self.name, document=Document())]
+                [Schema(name=self.name, document=Document(self.name))]
                 if create_schema_by_default
                 else []
             )
-        self._schema = OrderedDict([(x.name, x) for x in schema])
+        self._schema = OrderedDict([(x.document.name, x) for x in schema])
         if query_profile_config:
             if isinstance(query_profile_config, list):
                 self.query_profile_config = [
@@ -3223,16 +3226,16 @@ class ApplicationPackage(object):
 
     @property
     def schema(self):
-        assert (
-            len(self.schemas) <= 1
-        ), "Your application has more than one Schema, use get_schema instead."
+        assert len(self.schemas) <= 1, (
+            "Your application has more than one Schema, use get_schema instead."
+        )
         return self.schemas[0] if self.schemas else None
 
     def get_schema(self, name: Optional[str] = None):
         if not name:
-            assert (
-                len(self.schemas) <= 1
-            ), "Your application has more than one Schema, specify name argument."
+            assert len(self.schemas) <= 1, (
+                "Your application has more than one Schema, specify name argument."
+            )
             return self.schema
         return self._schema[name]
 
@@ -3247,7 +3250,7 @@ class ApplicationPackage(object):
             None
         """
         for schema in schemas:
-            self._schema.update({schema.name: schema})
+            self._schema.update({schema.document.name: schema})
 
     def add_query_profile(self, query_profile_item: Union[VT, List[VT]]) -> None:
         """
@@ -3329,6 +3332,17 @@ class ApplicationPackage(object):
             query_profile_type=self.query_profile_type
         )
 
+    def _deduplicate_schemas_by_name(self):
+        if self.schemas is None:
+            return []
+        schema_names = []
+        deduplicated_schema_by_schema_name = []
+        for schema in self.schemas:
+            if schema.name not in schema_names:
+                deduplicated_schema_by_schema_name.append(schema)
+                schema_names.append(schema.name)
+        return deduplicated_schema_by_schema_name
+
     @property
     def services_to_text_vt(self):
         if self.services_config:
@@ -3336,7 +3350,7 @@ class ApplicationPackage(object):
         else:
             self.services_config = ServicesConfiguration(
                 application_name=self.name,
-                schemas=self.schemas or [],
+                schemas=self._deduplicate_schemas_by_name(),
                 configurations=self.configurations or [],
                 stateless_model_evaluation=self.stateless_model_evaluation,
                 components=self.components or [],
@@ -3362,9 +3376,10 @@ class ApplicationPackage(object):
             env.trim_blocks = True
             env.lstrip_blocks = True
             services_template = env.get_template("services.xml")
+
             return services_template.render(
                 application_name=self.name,
-                schemas=self.schemas,
+                schemas=self._deduplicate_schemas_by_name(),
                 configurations=self.configurations,
                 stateless_model_evaluation=self.stateless_model_evaluation,
                 components=self.components,
@@ -3421,7 +3436,7 @@ class ApplicationPackage(object):
 
             for schema in self.schemas:
                 zip_archive.writestr(
-                    "schemas/{}.sd".format(schema.name),
+                    "schemas/{}.sd".format(schema.document.name),
                     schema.schema_to_text,
                 )
                 for model in schema.models:
@@ -3509,7 +3524,7 @@ class ApplicationPackage(object):
 
         for schema in self.schemas:
             with open(
-                os.path.join(root, "schemas/{}.sd".format(schema.name)), "w"
+                os.path.join(root, "schemas/{}.sd".format(schema.document.name)), "w"
             ) as f:
                 f.write(schema.schema_to_text)
             for model in schema.models:
@@ -3583,6 +3598,7 @@ sample_package = ApplicationPackage(
         Schema(
             name="doc",
             document=Document(
+                name="doc",
                 fields=[
                     Field(name="id", type="string", indexing=["summary"]),
                     Field(
@@ -3598,7 +3614,7 @@ sample_package = ApplicationPackage(
                         index="enable-bm25",
                         bolding=True,
                     ),
-                ]
+                ],
             ),
             fieldsets=[FieldSet(name="default", fields=["title", "body"])],
             rank_profiles=[
