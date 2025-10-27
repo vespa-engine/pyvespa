@@ -42,6 +42,7 @@ class Summary(object):
         name: Optional[str] = None,
         type: Optional[str] = None,
         fields: Optional[List[Union[str, Tuple[str, Union[List[str], str]]]]] = None,
+        select_elements_by: Optional[str] = None,
     ) -> None:
         """
         Configures a summary field.
@@ -50,6 +51,7 @@ class Summary(object):
             name (str, optional): The name of the summary field. Can be `None` if used inside a `Field`, which then uses the name of the `Field`.
             type (str, optional): The type of the summary field. Can be `None` if used inside a `Field`, which then uses the type of the `Field`.
             fields (list): A list of properties used to configure the summary. These can be single properties (like "summary: dynamic", common in `Field`), or composite values (like "source: another_field").
+            select_elements_by (str): The name of a function that determines which elements to include in the summary.
 
         Example:
             ```py
@@ -75,6 +77,7 @@ class Summary(object):
                     type="string",
                 )
                 Summary('artist', 'string', None)
+                Summary(None, None, None, best_chunks)
             ```
         """
 
@@ -87,6 +90,7 @@ class Summary(object):
                 stacklevel=2,
             )
         self.fields = fields
+        self.select_elements_by = select_elements_by
 
     @property
     def as_lines(self) -> List[str]:
@@ -123,48 +127,71 @@ class Summary(object):
             ).as_lines
             ['summary artist type string {', '    bolding: on', '    sources: artist', '}']
             ```
-        """
-        final_list = []
 
-        # Special case of `summary: dynamic` and others.
-        if (
-            not self.name
-            and not self.type
-            and self.fields
-            and len(self.fields) == 1
-            and isinstance(self.fields[0], str)
-        ):
+            ```python
+            Summary(None, None, None, "best_chunks").as_lines
+            ['summary {', '    select-elements-by: best_chunks', '}']
+            ```
+        """
+        if self._is_simple_summary():
             return [f"summary: {self.fields[0]}"]
 
+        if self._is_empty_summary():
+            return [f"{self._build_starting_string()} {{}}"]
+
+        return self._build_multiline_summary()
+
+    def _is_simple_summary(self) -> bool:
+        """
+        Checks if this is a simple summary like 'summary: dynamic'.
+        """
+        return (
+            not self.name
+            and not self.type
+            and not self.select_elements_by
+            and self.fields is not None
+            and len(self.fields) == 1
+            and isinstance(self.fields[0], str)
+        )
+
+    def _is_empty_summary(self) -> bool:
+        return self.fields is None and self.select_elements_by is None
+
+    def _build_starting_string(self) -> str:
         starting_string = "summary"
         if self.name:
             starting_string += f" {self.name}"
         if self.type:
             starting_string += f" type {self.type}"
+        return starting_string
 
-        # Add newline as each field resides in a separate line
-        if self.fields is None:
-            starting_string += " {}"
-            return [starting_string]
+    def _build_multiline_summary(self) -> List[str]:
+        final_list = []
+        final_list.append(f"{self._build_starting_string()} {{")
 
-        starting_string += " {"
-        final_list.append(starting_string)
+        if self.select_elements_by:
+            final_list.append(f"    select-elements-by: {self.select_elements_by}")
 
-        for field in self.fields:
-            if isinstance(field, str):
-                final_list.append(f"    {field}")
-            # We could use else, but that does not narrow down
-            # the type
-            else:
-                tmp_string = f"    {field[0]}: "
-                if isinstance(field[1], str):
-                    tmp_string += f"{field[1]}"
-                else:
-                    tmp_string += f"{', '.join(field[1])}"
-                final_list.append(tmp_string)
+        if self.fields:
+            final_list.extend(self._format_fields())
 
         final_list.append("}")
         return final_list
+
+    def _format_fields(self) -> List[str]:
+        formatted_lines = []
+        for field in self.fields:
+            if isinstance(field, str):
+                formatted_lines.append(f"    {field}")
+            else:
+                field_key, field_value = field
+                if isinstance(field_value, str):
+                    line = f"    {field_key}: {field_value}"
+                else:
+                    line = f"    {field_key}: {', '.join(field_value)}"
+                formatted_lines.append(line)
+
+        return formatted_lines
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Summary):

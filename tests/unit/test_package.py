@@ -2994,3 +2994,56 @@ class TestSummary(unittest.TestCase):
                     ("select-elements-by", "top_chunks_sim_scores"),
                 ],
             )
+
+    def test_simple_dynamic_summary(self):
+        s = Summary(None, None, ["dynamic"]).as_lines
+        self.assertEqual(s, ["summary: dynamic"])
+
+    def test_empty_summary_with_name_and_type(self):
+        s = Summary("artist", "string").as_lines
+        self.assertEqual(s, ["summary artist type string {}"])
+
+    def test_summary_with_fields(self):
+        s = Summary(
+            "artist",
+            "string",
+            [("bolding", "on"), ("sources", "artist")],
+        ).as_lines
+        self.assertEqual(
+            s,
+            [
+                "summary artist type string {",
+                "    bolding: on",
+                "    sources: artist",
+                "}",
+            ],
+        )
+
+    def test_summary_with_select_elements_by(self):
+        s = Summary(None, None, None, "best_chunks").as_lines
+        self.assertEqual(s, ["summary {", "    select-elements-by: best_chunks", "}"])
+
+    def test_summary_with_name_type_and_select_elements_by(self):
+        s = Summary("title", "string", None, "best_chunks").as_lines
+        self.assertEqual(
+            s,
+            ["summary title type string {", "    select-elements-by: best_chunks", "}"],
+        )
+
+    def test_summary_with_fields_and_select_elements_by(self):
+        s = Summary(
+            "artist",
+            "string",
+            [("bolding", "on"), ("sources", "artist")],
+            "best_chunks",
+        ).as_lines
+        self.assertEqual(
+            s,
+            [
+                "summary artist type string {",
+                "    select-elements-by: best_chunks",
+                "    bolding: on",
+                "    sources: artist",
+                "}",
+            ],
+        )
