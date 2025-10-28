@@ -1918,6 +1918,9 @@ class Schema(object):
 
         self.stemming = kwargs.get("stemming", None)
 
+    def get_sd_name(self):
+        return self.document.name or self.name
+
     def add_fields(self, *fields: Field) -> None:
         """
         Add `Field` to the Schema's `Document`.
@@ -1999,7 +2002,7 @@ class Schema(object):
         schema_template = env.get_template("schema.txt")
         return schema_template.render(
             schema_name=self.name,
-            document_name=self.document.name or self.name,
+            document_name=self.get_sd_name(),
             schema=self,
             document=self.document,
             fieldsets=self.fieldsets,
@@ -3168,7 +3171,7 @@ class ApplicationPackage(object):
                 if create_schema_by_default
                 else []
             )
-        self._schema = OrderedDict([(x.document.name or x.name, x) for x in schema])
+        self._schema = OrderedDict([(x.get_sd_name(), x) for x in schema])
         if query_profile_config:
             if isinstance(query_profile_config, list):
                 self.query_profile_config = [
@@ -3256,7 +3259,7 @@ class ApplicationPackage(object):
             None
         """
         for schema in schemas:
-            self._schema.update({schema.document.name: schema})
+            self._schema.update({schema.get_sd_name(): schema})
 
     def add_query_profile(self, query_profile_item: Union[VT, List[VT]]) -> None:
         """
@@ -3442,7 +3445,7 @@ class ApplicationPackage(object):
 
             for schema in self.schemas:
                 zip_archive.writestr(
-                    "schemas/{}.sd".format(schema.document.name),
+                    "schemas/{}.sd".format(schema.get_sd_name()),
                     schema.schema_to_text,
                 )
                 for model in schema.models:
@@ -3530,7 +3533,7 @@ class ApplicationPackage(object):
 
         for schema in self.schemas:
             with open(
-                os.path.join(root, "schemas/{}.sd".format(schema.document.name)), "w"
+                os.path.join(root, "schemas/{}.sd".format(schema.get_sd_name())), "w"
             ) as f:
                 f.write(schema.schema_to_text)
             for model in schema.models:
