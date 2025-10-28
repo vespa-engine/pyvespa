@@ -2050,26 +2050,28 @@ class NearestNeighborParameterOptimizer:
 
         return approximate_threshold
 
-    def _test_filter_first_exploration(self, filter_first_threshold, approximate_threshold, filter_first_exploration):
+    def _test_filter_first_exploration(self, filter_first_exploration):
         parameters_candidate = {
-            "ranking.matching.approximateThreshold": self.bucket_to_hitratio(approximate_threshold),
-            "ranking.matching.filterFirstThreshold": self.bucket_to_hitratio(filter_first_threshold),
+            "ranking.matching.approximateThreshold": 0.00,
+            "ranking.matching.filterFirstThreshold": 1.00,
             "ranking.matching.filterFirstExploration": filter_first_exploration
         }
 
         # Benchmark candidate
-        benchmark = self.benchmark(from_bucket=filter_first_threshold, **parameters_candidate)
+        benchmark = self.benchmark(**parameters_candidate)
         int_benchmark = interpolate(benchmark.x, benchmark.y, self.get_number_of_buckets())
 
         # Recall candidate
-        recall = self.compute_average_recalls(from_bucket=filter_first_threshold, **parameters_candidate)
+        recall = self.compute_average_recalls(**parameters_candidate)
         int_recall = interpolate(recall.x, recall.y, self.get_number_of_buckets())
 
         return int_benchmark, int_recall
 
-    def determine_filter_first_exploration(self, filter_first_threshold, approximate_threshold):
-        benchmark_no_exploration, recall_no_exploration = self._test_filter_first_exploration(filter_first_threshold, approximate_threshold, 0.0)
-        benchmark_full_exploration, recall_full_exploration = self._test_filter_first_exploration(filter_first_threshold, approximate_threshold, 1.0)
+    def determine_filter_first_exploration(self):
+        benchmark_no_exploration, recall_no_exploration = self._test_filter_first_exploration(0.0)
+        benchmark_full_exploration, recall_full_exploration = self._test_filter_first_exploration(1.0)
+        assert mean(benchmark_no_exploration) > 0
+        assert mean(recall_full_exploration) > 0
 
         # Find tradeoff between increase in response time and drop in recall by using binary search
         left = 0.0
@@ -2078,21 +2080,21 @@ class NearestNeighborParameterOptimizer:
         for i in range(0, 7):
             if self.print_progress:
                 print(f"  Testing {filter_first_exploration}")
-            benchmark_candidate, recall_candidate = self._test_filter_first_exploration(filter_first_threshold, approximate_threshold, filter_first_exploration)
-
-            # TODO Handle division by zero
+            benchmark_candidate, recall_candidate = self._test_filter_first_exploration(filter_first_exploration)
 
             # How much does the response time increase compared to no exploration?
-            benchmark_compared_to_no_exploration = [(x - y)/y for x, y in zip(benchmark_candidate, benchmark_no_exploration)]
-            response_time_deviation = max(benchmark_compared_to_no_exploration)
+            # One could also try to compare the values for every bucket, but this might be a bit unstable:
+            # response_time_deviation = max([x/y - 1 for x, y in zip(benchmark_candidate, benchmark_no_exploration)])
+            response_time_deviation = max([x/mean(benchmark_no_exploration) - 1 for x in benchmark_candidate])
 
             # How much does the recall drop compared to full exploration?
-            recall_compared_to_full_exploration = [(x - y)/x for x, y in zip(recall_full_exploration, recall_candidate)]
-            recall_deviation = max(recall_compared_to_full_exploration)
+            # One could also try to compare the values for every bucket, but this might be a bit unstable:
+            # recall_deviation = max([1 - y/x for x, y in zip(recall_full_exploration, recall_candidate)])
+            recall_deviation = max([1 - y/mean(recall_full_exploration) for y in recall_candidate])
 
             # Check how increase in response time compares to drop in recall
             # (One could try to use weights here, e.g., make recall matter more)
-            if response_time_deviation > 1 * recall_deviation: # Increase in response time is larger than drop in recall, decrease exploration
+            if response_time_deviation > 1.5 * recall_deviation: # Increase in response time is larger than drop in recall, decrease exploration
                 right = filter_first_exploration
             else: # Increase in response time is smaller than drop in recall, increase exploration
                 left = filter_first_exploration

@@ -118,18 +118,18 @@ if __name__ == "__main__":
         axs.set_ylim(ymin=0, ymax=1)
         plt.show()
 
-    print("4. Determining suggestion for filterFirstThreshold")
+    print("4. Determining suggestion for filterFirstExploration")
+    # Filter first exploration is not specified in buckets
+    filter_first_exploration = optimizer.determine_filter_first_exploration()
+    print(f"  filterFirstExploration: {round(filter_first_exploration, 3)}")
+
+    print("5. Determining suggestion for filterFirstThreshold")
     filter_first_threshold = optimizer.determine_filter_first_threshold(benchmark_hnsw, benchmark_filter_first)
     print(f"  filterFirstThreshold: {round(optimizer.bucket_to_hitratio(filter_first_threshold), 3)}")
 
-    print("5. Determining suggestion for approximateThreshold")
+    print("6. Determining suggestion for approximateThreshold")
     approximate_threshold = optimizer.determine_approximate_threshold(benchmark_exact, benchmark_hnsw, benchmark_filter_first, filter_first_threshold)
     print(f"  approximateThreshold: {round(optimizer.bucket_to_hitratio(approximate_threshold), 3)}")
-
-    print("6. Determining suggestion for filterFirstExploration")
-    # Filter first exploration is not specified in buckets
-    filter_first_exploration = optimizer.determine_filter_first_exploration(filter_first_threshold, approximate_threshold)
-    print(f"  filterFirstExploration: {round(filter_first_exploration, 3)}")
 
     parameters_optimized = {
         "ranking.matching.approximateThreshold": optimizer.bucket_to_hitratio(approximate_threshold),
