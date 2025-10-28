@@ -32,7 +32,7 @@ if __name__ == "__main__":
     parser.set_defaults(key=None)
     parser.add_argument('--filterFirstExploration', help="Do not suggest filterFirstExploration, but use this value instead.")
     parser.set_defaults(filterFirstExploration=None)
-    parser.add_argument('--filterFirstThreshold', help="Do not suggest filterFirstExploration, but use this value instead.")
+    parser.add_argument('--filterFirstThreshold', help="Do not suggest filterFirstThreshold, but use this value instead.")
     parser.set_defaults(filterFirstThreshold=None)
     parser.add_argument('--approximateThreshold', help="Do not suggest approximateThreshold, but use this value instead.")
     parser.set_defaults(approximateThreshold=None)
