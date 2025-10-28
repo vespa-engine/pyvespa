@@ -2005,7 +2005,6 @@ class NearestNeighborParameterOptimizer:
         threshold = self.get_number_of_buckets()
         threshold_diff = 0
         for i in range(0, self.get_number_of_buckets()):
-
             # Check what happens when we use "i" as the threshold
             # current_diff is the "overhead" of using HNSW instead of HNSW (filter first)
             current_diff = 0
@@ -2044,6 +2043,35 @@ class NearestNeighborParameterOptimizer:
                 break
 
         return self.bucket_to_hitratio(approximate_threshold)
+
+    def suggest_post_filter_threshold(self, benchmark_post_filtering, recall_post_filtering, benchmark_pre_filtering, recall_pre_filtering):
+        # Interpolate benchmark values for empty buckets
+        int_bench_post = interpolate(benchmark_post_filtering.x, benchmark_post_filtering.y, self.get_number_of_buckets())
+        int_bench_pre = interpolate(benchmark_pre_filtering.x, benchmark_pre_filtering.y, self.get_number_of_buckets())
+
+        int_recall_post = interpolate(recall_post_filtering.x, recall_post_filtering.y, self.get_number_of_buckets())
+        int_recall_pre = interpolate(recall_pre_filtering.x, recall_pre_filtering.y, self.get_number_of_buckets())
+
+        threshold = 0
+        response_time_gain = 0
+        for i in range(0, self.get_number_of_buckets()):
+            # Gain we get from using post filtering until i
+            current_gain = 0
+            for j in range(0, i):
+                current_gain += int_bench_pre[j] - int_bench_post[j]
+
+            no_recall_loss = True
+            for j in range(0, i):
+                recall_loss = int_recall_pre[j] - int_recall_post[j]
+                if recall_loss >= 0.01:
+                    no_recall_loss = False
+                    break
+
+            if no_recall_loss and current_gain > response_time_gain:
+                threshold = i
+                response_time_gain = current_gain
+
+        return self.bucket_to_hitratio(threshold)
 
     def _test_filter_first_exploration(self, filter_first_exploration):
         parameters_candidate = {

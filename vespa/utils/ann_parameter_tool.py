@@ -36,6 +36,8 @@ if __name__ == "__main__":
     parser.set_defaults(filterFirstThreshold=None)
     parser.add_argument('--approximateThreshold', help="Do not suggest approximateThreshold, but use this value instead.")
     parser.set_defaults(approximateThreshold=None)
+    parser.add_argument('--postFilterThreshold', help="Do not suggest postFilterThreshold, but use this value instead.")
+    parser.set_defaults(postFilterThreshold=None)
     args = parser.parse_args()
 
     # Import matplotlib
@@ -147,7 +149,7 @@ if __name__ == "__main__":
         filter_first_threshold = optimizer.suggest_filter_first_threshold(benchmark_hnsw, benchmark_filter_first)
         print(f"  filterFirstThreshold: {round(filter_first_threshold, 3)}")
     else:
-        filter_first_threshold = float(args.filterfirstthreshold)
+        filter_first_threshold = float(args.filterFirstThreshold)
         print(f"Using supplied value for filterFirstThreshold: {filter_first_threshold}")
 
     ####################################################################################################################
@@ -189,6 +191,61 @@ if __name__ == "__main__":
         print(f"Using supplied value for approximateThreshold: {approximate_threshold}")
 
     ####################################################################################################################
+    # postFilterThreshold
+    ####################################################################################################################
+    if args.postFilterThreshold is None:
+        print("Determining suggestion for postFilterThreshold")
+        post_filtering_parameters = {
+            'timeout': '20s',
+            "ranking.matching.postFilterThreshold": 0.00,
+            "ranking.matching.approximateThreshold": 0.00
+        }
+        benchmark_post_filtering = optimizer.benchmark(**post_filtering_parameters)
+
+        filter_first_parameters3 = {
+            'timeout': '20s',
+            "ranking.matching.approximateThreshold": approximate_threshold,
+            "ranking.matching.filterFirstThreshold": filter_first_threshold,
+            "ranking.matching.filterFirstExploration": filter_first_exploration
+        }
+        benchmark_filter_first3 = optimizer.benchmark(**filter_first_parameters3)
+
+        if args.plot and args.debug:
+            plt.plot(optimizer.buckets_to_filtered_out(benchmark_post_filtering.x), benchmark_post_filtering.y, label="Post-Filtering")
+            plt.plot(optimizer.buckets_to_filtered_out(benchmark_filter_first3.x), benchmark_filter_first3.y, label="HNSW (Filter First) optimized")
+
+            plt.title("Response time: postFilterThreshold")
+            plt.xlabel('Fraction filtered out')
+            plt.ylabel('Response time')
+            plt.legend()
+            axs = plt.gca()
+            axs.set_xlim(xmin=0, xmax=1)
+            axs.set_ylim(ymin=0)
+            plt.show()
+
+        recall_post_filtering = optimizer.compute_average_recalls(**post_filtering_parameters)
+        recall_filter_first3 = optimizer.compute_average_recalls(**filter_first_parameters3)
+
+        if args.plot and args.debug:
+            plt.plot(optimizer.buckets_to_filtered_out(recall_post_filtering.x), recall_post_filtering.y, label="Post-Filtering")
+            plt.plot(optimizer.buckets_to_filtered_out(recall_filter_first3.x), recall_filter_first3.y, label="HNSW (Filter First) optimized")
+
+            plt.title("Recall: postFilterThreshold")
+            plt.xlabel('Fraction filtered out')
+            plt.ylabel('Recall')
+            plt.legend()
+            axs = plt.gca()
+            axs.set_xlim(xmin=0, xmax=1)
+            axs.set_ylim(ymin=0, ymax=1)
+            plt.show()
+
+        post_filter_threshold = optimizer.suggest_post_filter_threshold(benchmark_post_filtering, recall_post_filtering, benchmark_filter_first3, recall_filter_first3)
+        print(f"  postFilterThreshold: {round(post_filter_threshold, 3)}")
+    else:
+        post_filter_threshold = float(args.postFilterThreshold)
+        print(f"Using supplied value for postFilterThreshold: {post_filter_threshold}")
+
+    ####################################################################################################################
     # Comparison
     ####################################################################################################################
     print("Comparing current to suggested settings")
@@ -197,7 +254,8 @@ if __name__ == "__main__":
         'timeout': '20s',
         "ranking.matching.approximateThreshold": approximate_threshold,
         "ranking.matching.filterFirstThreshold": filter_first_threshold,
-        "ranking.matching.filterFirstExploration": filter_first_exploration
+        "ranking.matching.filterFirstExploration": filter_first_exploration,
+        "ranking.matching.postFilterThreshold": post_filter_threshold
     }
 
     benchmark_current = optimizer.benchmark()
