@@ -1834,12 +1834,20 @@ class NearestNeighborBenchmarker:
         self.repetitions = repetitions
         self.parameters = kwargs
 
-    def run(self):
-        response_times_sum = [0] * len(self.queries)
+    def _run_benchmark(self):
+        queries_with_parameters = list(map(lambda query: dict(query, **self.parameters, **{"presentation.timing": True}), self.queries))
+        _, response_times = execute_queries(self.app, queries_with_parameters)
+        return response_times
 
+    def run(self):
+        # Two warmup runs
+        for i in range(0, 2):
+            self._run_benchmark()
+
+        # Actual benchmark runs
+        response_times_sum = [0] * len(self.queries)
         for i in range(0, self.repetitions):
-            queries_with_parameters = list(map(lambda query: dict(query, **self.parameters, **{"presentation.timing": True}), self.queries))
-            _, response_times = execute_queries(self.app, queries_with_parameters)
+            response_times = self._run_benchmark()
             response_times_ms = list(map(lambda x: 1000 * x, response_times))
             response_times_sum = list(map(lambda pair: pair[0] + pair[1], zip(response_times_sum, response_times_ms)))
 
