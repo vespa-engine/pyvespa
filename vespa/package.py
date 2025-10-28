@@ -989,7 +989,7 @@ class DocumentSummary(object):
 class Document(object):
     def __init__(
         self,
-        name: str,
+        name: Optional[str] = None,
         fields: Optional[List[Field]] = None,
         inherits: Optional[str] = None,
         structs: Optional[List[Struct]] = None,
@@ -1001,18 +1001,24 @@ class Document(object):
         for more detailed information about documents.
 
         Args:
+            name (str): Name of the document type, if not provided, shema name is used.
             fields (list): A list of `Field` objects to include in the document's schema.
+            inherits (str): Name of another document type from which this document type inherits.
+            structs (list): A list of `Struct` objects to include in the document's schema.
 
         Example:
             ```python
-            Document('doc')
+            Document(None)
+            Document(None, None, None, None)
             Document('doc', None, None, None)
 
+            Document(None, fields=[Field(name="title", type="string")])
             Document('doc', fields=[Field(name="title", type="string")])
-            Document('doc', [Field('title', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], None)], None, None)
+            Document(None, [Field('title', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], None)], None, None)
 
-            Document('doc', fields=[Field(name="title", type="string")], inherits="context")
-            Document('doc', [Field('title', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], None)], context, None)
+            Document(None, fields=[Field(name="title", type="string")], inherits="context")
+            Document(None, [Field('title', 'string', None, None, None, None, None, None, None, None, True, None, None, None, [], None)], context, None)
+
             ```
         """
         self.name = name
@@ -1993,7 +1999,7 @@ class Schema(object):
         schema_template = env.get_template("schema.txt")
         return schema_template.render(
             schema_name=self.name,
-            document_name=self.document.name,
+            document_name=self.document.name or self.name,
             schema=self,
             document=self.document,
             fieldsets=self.fieldsets,
@@ -3158,11 +3164,11 @@ class ApplicationPackage(object):
         self.name = name
         if not schema:
             schema = (
-                [Schema(name=self.name, document=Document(self.name))]
+                [Schema(name=self.name, document=Document())]
                 if create_schema_by_default
                 else []
             )
-        self._schema = OrderedDict([(x.document.name, x) for x in schema])
+        self._schema = OrderedDict([(x.document.name or x.name, x) for x in schema])
         if query_profile_config:
             if isinstance(query_profile_config, list):
                 self.query_profile_config = [
