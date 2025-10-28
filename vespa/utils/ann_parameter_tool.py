@@ -16,23 +16,6 @@ def query_from_get_string(get_query):
     assert "yql" in query
     return query
 
-class VespaANNParameters:
-    FORCE_EXACT = {
-        "ranking.matching.approximateThreshold": 1.00
-    }
-    FORCE_HNSW = {
-        "ranking.matching.approximateThreshold": 0.00,
-        "ranking.matching.filterFirstThreshold": 0.00,
-        "ranking.matching.filterFirstExploration": 0.30,
-        "ranking.matching.explorationSlack": 0.00
-    }
-    FORCE_FILTER_FIRST = {
-        "ranking.matching.approximateThreshold": 0.00,
-        "ranking.matching.filterFirstThreshold": 1.00,
-        "ranking.matching.filterFirstExploration": 0.30,
-        "ranking.matching.explorationSlack": 0.00
-    }
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog='Vespa ANN Parameter Tool',
@@ -47,7 +30,17 @@ if __name__ == "__main__":
     parser.set_defaults(cert=None)
     parser.add_argument('--key')
     parser.set_defaults(key=None)
+    parser.add_argument('--filterFirstExploration', help="Do not suggest filterFirstExploration, but use this value instead.")
+    parser.set_defaults(filterFirstExploration=None)
+    parser.add_argument('--filterFirstThreshold', help="Do not suggest filterFirstExploration, but use this value instead.")
+    parser.set_defaults(filterFirstThreshold=None)
+    parser.add_argument('--approximateThreshold', help="Do not suggest approximateThreshold, but use this value instead.")
+    parser.set_defaults(approximateThreshold=None)
     args = parser.parse_args()
+
+    # Import matplotlib
+    if args.plot:
+        import matplotlib.pyplot as plt
 
     app = Vespa(url=args.url, port=args.port, cert=args.cert, key=args.key)
 
@@ -58,7 +51,10 @@ if __name__ == "__main__":
     # Parse get queries
     queries = list(map(query_from_get_string, get_queries))
 
-    print("1. Determining hit ratios of queries")
+    ####################################################################################################################
+    # Hit ratios
+    ####################################################################################################################
+    print("Determining hit ratios of queries")
     hitratio_computer = NearestNeighborHitratioComputer(queries, app)
     hitratios = hitratio_computer.run()
     hitratios = list(map(lambda list: list[0], hitratios))
@@ -66,10 +62,6 @@ if __name__ == "__main__":
     # Sort hit ratios into buckets
     optimizer = NearestNeighborParameterOptimizer(app, int(args.hits), print_progress=True)
     optimizer.distribute_to_buckets(zip(queries, hitratios))
-
-    # Import matplotlib
-    if args.plot:
-        import matplotlib.pyplot as plt
 
     if args.plot:
         x, y = optimizer.get_query_distribution()
@@ -82,70 +74,140 @@ if __name__ == "__main__":
         axs.set_ylim(ymin=0)
         plt.show()
 
-    print("2. Initial benchmarks: Exact, HNSW, HNSW (Filter First)")
-    benchmark_exact = optimizer.benchmark(**VespaANNParameters.FORCE_EXACT)
-    benchmark_hnsw = optimizer.benchmark(**VespaANNParameters.FORCE_HNSW)
-    benchmark_filter_first = optimizer.benchmark(**VespaANNParameters.FORCE_FILTER_FIRST)
+    ####################################################################################################################
+    # filterFirstExploration
+    ####################################################################################################################
+    if args.filterFirstExploration is None:
+        print("Determining suggestion for filterFirstExploration")
+        # Filter first exploration is not specified in buckets
+        filter_first_exploration, benchmarks = optimizer.suggest_filter_first_exploration()
+        print(f"  filterFirstExploration: {round(filter_first_exploration, 3)}")
 
-    if args.plot and args.debug:
-        plt.plot(optimizer.buckets_to_filtered_out(benchmark_exact.x), benchmark_exact.y, label="Exact")
-        plt.plot(optimizer.buckets_to_filtered_out(benchmark_hnsw.x), benchmark_hnsw.y, label="HNSW")
-        plt.plot(optimizer.buckets_to_filtered_out(benchmark_filter_first.x), benchmark_filter_first.y, label="HNSW (Filter First)")
+        if args.plot and args.debug:
+            for ffe, benchmark, _ in benchmarks:
+                plt.plot(optimizer.buckets_to_filtered_out(benchmark.x), benchmark.y, label=f"filterFirstExploration = {ffe}")
 
-        plt.title("Response time: Debug")
-        plt.xlabel('Fraction filtered out')
-        plt.ylabel('Response time')
-        plt.legend()
-        axs = plt.gca()
-        axs.set_xlim(xmin=0, xmax=1)
-        axs.set_ylim(ymin=0)
-        plt.show()
+            plt.title("Response time: filterFirstExploration")
+            plt.xlabel('Fraction filtered out')
+            plt.ylabel('Response time')
+            plt.legend()
+            axs = plt.gca()
+            axs.set_xlim(xmin=0, xmax=1)
+            axs.set_ylim(ymin=0)
+            plt.show()
 
-    print("3. Initial recall measurements: HNSW, HNSW (Filter First)")
-    recall_hnsw = optimizer.compute_average_recalls(**VespaANNParameters.FORCE_HNSW)
-    recall_filter_first = optimizer.compute_average_recalls(**VespaANNParameters.FORCE_FILTER_FIRST)
+            for ffe, _, recall in benchmarks:
+                plt.plot(optimizer.buckets_to_filtered_out(recall.x), recall.y, label=f"filterFirstExploration = {ffe}")
 
-    if args.plot and args.debug:
-        plt.plot(optimizer.buckets_to_filtered_out(recall_hnsw.x), recall_hnsw.y, label="HNSW")
-        plt.plot(optimizer.buckets_to_filtered_out(recall_filter_first.x), recall_filter_first.y, label="HNSW (Filter First)")
+            plt.title("Recall: filterFirstExploration")
+            plt.xlabel('Fraction filtered out')
+            plt.ylabel('Recall')
+            plt.legend()
+            axs = plt.gca()
+            axs.set_xlim(xmin=0, xmax=1)
+            axs.set_ylim(ymin=0, ymax=1)
+            plt.show()
+    else:
+        filter_first_exploration = float(args.filterFirstExploration)
+        print(f"Using supplied value for filterFirstExploration: {filter_first_exploration}")
 
-        plt.title("Recall: Debug")
-        plt.xlabel('Fraction filtered out')
-        plt.ylabel('Recall')
-        plt.legend()
-        axs = plt.gca()
-        axs.set_xlim(xmin=0, xmax=1)
-        axs.set_ylim(ymin=0, ymax=1)
-        plt.show()
+    ####################################################################################################################
+    # filterFirstThreshold
+    ####################################################################################################################
+    if args.filterFirstThreshold is None:
+        print("Determining suggestion for filterFirstThreshold")
+        hnsw_parameters = {
+            'timeout': '20s',
+            "ranking.matching.approximateThreshold": 0.00,
+            "ranking.matching.filterFirstThreshold": 0.00
+        }
+        benchmark_hnsw = optimizer.benchmark(**hnsw_parameters)
 
-    print("4. Determining suggestion for filterFirstExploration")
-    # Filter first exploration is not specified in buckets
-    filter_first_exploration = optimizer.determine_filter_first_exploration()
-    print(f"  filterFirstExploration: {round(filter_first_exploration, 3)}")
+        filter_first_parameters = {
+            'timeout': '20s',
+            "ranking.matching.approximateThreshold": 0.00,
+            "ranking.matching.filterFirstThreshold": 1.00,
+            "ranking.matching.filterFirstExploration": filter_first_exploration
+        }
+        benchmark_filter_first = optimizer.benchmark(**filter_first_parameters)
 
-    print("5. Determining suggestion for filterFirstThreshold")
-    filter_first_threshold = optimizer.determine_filter_first_threshold(benchmark_hnsw, benchmark_filter_first)
-    print(f"  filterFirstThreshold: {round(optimizer.bucket_to_hitratio(filter_first_threshold), 3)}")
+        if args.plot and args.debug:
+            plt.plot(optimizer.buckets_to_filtered_out(benchmark_hnsw.x), benchmark_hnsw.y, label="HNSW")
+            plt.plot(optimizer.buckets_to_filtered_out(benchmark_filter_first.x), benchmark_filter_first.y, label="HNSW (Filter First)")
 
-    print("6. Determining suggestion for approximateThreshold")
-    approximate_threshold = optimizer.determine_approximate_threshold(benchmark_exact, benchmark_hnsw, benchmark_filter_first, filter_first_threshold)
-    print(f"  approximateThreshold: {round(optimizer.bucket_to_hitratio(approximate_threshold), 3)}")
+            plt.title("Response time: filterFirstThreshold")
+            plt.xlabel('Fraction filtered out')
+            plt.ylabel('Response time')
+            plt.legend()
+            axs = plt.gca()
+            axs.set_xlim(xmin=0, xmax=1)
+            axs.set_ylim(ymin=0)
+            plt.show()
 
-    parameters_optimized = {
-        "ranking.matching.approximateThreshold": optimizer.bucket_to_hitratio(approximate_threshold),
-        "ranking.matching.filterFirstThreshold": optimizer.bucket_to_hitratio(filter_first_threshold),
+        filter_first_threshold = optimizer.suggest_filter_first_threshold(benchmark_hnsw, benchmark_filter_first)
+        print(f"  filterFirstThreshold: {round(filter_first_threshold, 3)}")
+    else:
+        filter_first_threshold = float(args.filterfirstthreshold)
+        print(f"Using supplied value for filterFirstThreshold: {filter_first_threshold}")
+
+    ####################################################################################################################
+    # approximateThreshold
+    ####################################################################################################################
+    if args.approximateThreshold is None:
+        print("Determining suggestion for approximateThreshold")
+        exact_parameters = {
+            'timeout': '20s',
+            "ranking.matching.approximateThreshold": 1.00
+        }
+        benchmark_exact = optimizer.benchmark(**exact_parameters)
+
+        filter_first_parameters2 = {
+            'timeout': '20s',
+            "ranking.matching.approximateThreshold": 0.00,
+            "ranking.matching.filterFirstThreshold": filter_first_threshold,
+            "ranking.matching.filterFirstExploration": filter_first_exploration
+        }
+        benchmark_filter_first2 = optimizer.benchmark(**filter_first_parameters2)
+
+        if args.plot and args.debug:
+            plt.plot(optimizer.buckets_to_filtered_out(benchmark_exact.x), benchmark_exact.y, label="Exact")
+            plt.plot(optimizer.buckets_to_filtered_out(benchmark_filter_first2.x), benchmark_filter_first2.y, label="HNSW (Filter First) optimized")
+
+            plt.title("Response time: approximateThreshold")
+            plt.xlabel('Fraction filtered out')
+            plt.ylabel('Response time')
+            plt.legend()
+            axs = plt.gca()
+            axs.set_xlim(xmin=0, xmax=1)
+            axs.set_ylim(ymin=0)
+            plt.show()
+
+        approximate_threshold = optimizer.suggest_approximate_threshold(benchmark_exact, benchmark_filter_first2)
+        print(f"  approximateThreshold: {round(approximate_threshold, 3)}")
+    else:
+        approximate_threshold = float(args.approximateThreshold)
+        print(f"Using supplied value for approximateThreshold: {approximate_threshold}")
+
+    ####################################################################################################################
+    # Comparison
+    ####################################################################################################################
+    print("Comparing current to suggested settings")
+
+    suggested_parameters = {
+        'timeout': '20s',
+        "ranking.matching.approximateThreshold": approximate_threshold,
+        "ranking.matching.filterFirstThreshold": filter_first_threshold,
         "ranking.matching.filterFirstExploration": filter_first_exploration
     }
 
-    print("7. Comparing current to optimized settings")
     benchmark_current = optimizer.benchmark()
-    benchmark_optimized = optimizer.benchmark(**parameters_optimized)
+    benchmark_suggested = optimizer.benchmark(**suggested_parameters)
 
     if args.plot:
         plt.plot(optimizer.buckets_to_filtered_out(benchmark_current.x), benchmark_current.y, label="Current")
-        plt.plot(optimizer.buckets_to_filtered_out(benchmark_optimized.x), benchmark_optimized.y, label="Optimized")
+        plt.plot(optimizer.buckets_to_filtered_out(benchmark_suggested.x), benchmark_suggested.y, label="Suggested")
 
-        plt.title("Response time: Current vs. Optimized")
+        plt.title("Response time: Current vs. Suggested")
         plt.xlabel('Fraction filtered out')
         plt.ylabel('Response time')
         plt.legend()
@@ -155,7 +217,7 @@ if __name__ == "__main__":
         plt.show()
 
     recall_current = optimizer.compute_average_recalls()
-    recall_optimized = optimizer.compute_average_recalls(**parameters_optimized)
+    recall_optimized = optimizer.compute_average_recalls(**suggested_parameters)
 
     if args.plot:
         plt.plot(optimizer.buckets_to_filtered_out(recall_current.x), recall_current.y, label="Current")

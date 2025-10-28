@@ -1996,7 +1996,7 @@ class NearestNeighborParameterOptimizer:
 
         return NearestNeighborParameterOptimizer.RecallResults(x, y)
 
-    def determine_filter_first_threshold(self, benchmark_hnsw, benchmark_filter_first):
+    def suggest_filter_first_threshold(self, benchmark_hnsw, benchmark_filter_first):
         # Interpolate benchmark values for empty buckets
         interpolated_hnsw_y = interpolate(benchmark_hnsw.x, benchmark_hnsw.y, self.get_number_of_buckets())
         interpolated_filter_first_y = interpolate(benchmark_filter_first.x, benchmark_filter_first.y, self.get_number_of_buckets())
@@ -2018,13 +2018,12 @@ class NearestNeighborParameterOptimizer:
                 threshold = i
                 threshold_diff = current_diff
 
-        return threshold
+        return self.bucket_to_hitratio(threshold)
 
-    def determine_approximate_threshold(self, benchmark_exact, benchmark_hnsw, benchmark_filter_first, filter_first_threshold):
+    def suggest_approximate_threshold(self, benchmark_exact, benchmark_ann):
         # Interpolate benchmark values for empty buckets
         int_bench_exact = interpolate(benchmark_exact.x, benchmark_exact.y, self.get_number_of_buckets())
-        int_bench_hnsw = interpolate(benchmark_hnsw.x, benchmark_hnsw.y, self.get_number_of_buckets())
-        int_bench_filter_first = interpolate(benchmark_filter_first.x, benchmark_filter_first.y, self.get_number_of_buckets())
+        int_bench_ann = interpolate(benchmark_ann.x, benchmark_ann.y, self.get_number_of_buckets())
 
         # Start at last bucket
         approximate_threshold = self.get_number_of_buckets() - 1
@@ -2034,12 +2033,8 @@ class NearestNeighborParameterOptimizer:
             approximate_threshold -= 1
 
         while approximate_threshold > 0:
-            # Get response time for ANN (either HNSW or HNSW (filter first), depends on filter_first_threshold)
-            ann_time = 0
-            if approximate_threshold > filter_first_threshold:
-                ann_time = int_bench_filter_first[approximate_threshold]
-            else:
-                ann_time = int_bench_hnsw[approximate_threshold]
+            # Get response time for ANN
+            ann_time = int_bench_ann[approximate_threshold]
 
             # Is response time for an exact search lower than for ANN?
             # If yes, then use an exact search!
@@ -2048,7 +2043,7 @@ class NearestNeighborParameterOptimizer:
             else:
                 break
 
-        return approximate_threshold
+        return self.bucket_to_hitratio(approximate_threshold)
 
     def _test_filter_first_exploration(self, filter_first_exploration):
         parameters_candidate = {
@@ -2057,21 +2052,23 @@ class NearestNeighborParameterOptimizer:
             "ranking.matching.filterFirstExploration": filter_first_exploration
         }
 
-        # Benchmark candidate
         benchmark = self.benchmark(**parameters_candidate)
-        int_benchmark = interpolate(benchmark.x, benchmark.y, self.get_number_of_buckets())
-
-        # Recall candidate
         recall = self.compute_average_recalls(**parameters_candidate)
-        int_recall = interpolate(recall.x, recall.y, self.get_number_of_buckets())
 
-        return int_benchmark, int_recall
+        return benchmark, recall
 
-    def determine_filter_first_exploration(self):
+    def suggest_filter_first_exploration(self):
         benchmark_no_exploration, recall_no_exploration = self._test_filter_first_exploration(0.0)
+        benchmark_no_exploration_int = interpolate(benchmark_no_exploration.x, benchmark_no_exploration.y, self.get_number_of_buckets())
+
         benchmark_full_exploration, recall_full_exploration = self._test_filter_first_exploration(1.0)
-        assert mean(benchmark_no_exploration) > 0
-        assert mean(recall_full_exploration) > 0
+        recall_full_exploration_int = interpolate(recall_full_exploration.x, recall_full_exploration.y, self.get_number_of_buckets())
+        assert mean(benchmark_no_exploration_int) > 0
+        assert mean(recall_full_exploration_int) > 0
+
+        benchmarks = []
+        benchmarks.append((0.0, benchmark_no_exploration, recall_no_exploration))
+        benchmarks.append((1.0, benchmark_full_exploration, recall_full_exploration))
 
         # Find tradeoff between increase in response time and drop in recall by using binary search
         left = 0.0
@@ -2081,16 +2078,19 @@ class NearestNeighborParameterOptimizer:
             if self.print_progress:
                 print(f"  Testing {filter_first_exploration}")
             benchmark_candidate, recall_candidate = self._test_filter_first_exploration(filter_first_exploration)
+            benchmark_candidate_int = interpolate(benchmark_candidate.x, benchmark_candidate.y, self.get_number_of_buckets())
+            recall_candidate_int = interpolate(recall_candidate.x, recall_candidate.y, self.get_number_of_buckets())
+            benchmarks.append((filter_first_exploration, benchmark_candidate, recall_candidate))
 
             # How much does the response time increase compared to no exploration?
             # One could also try to compare the values for every bucket, but this might be a bit unstable:
             # response_time_deviation = max([x/y - 1 for x, y in zip(benchmark_candidate, benchmark_no_exploration)])
-            response_time_deviation = max([x/mean(benchmark_no_exploration) - 1 for x in benchmark_candidate])
+            response_time_deviation = max([x/mean(benchmark_no_exploration_int) - 1 for x in benchmark_candidate_int])
 
             # How much does the recall drop compared to full exploration?
             # One could also try to compare the values for every bucket, but this might be a bit unstable:
             # recall_deviation = max([1 - y/x for x, y in zip(recall_full_exploration, recall_candidate)])
-            recall_deviation = max([1 - y/mean(recall_full_exploration) for y in recall_candidate])
+            recall_deviation = max([1 - y/mean(recall_full_exploration_int) for y in recall_candidate_int])
 
             # Check how increase in response time compares to drop in recall
             # (One could try to use weights here, e.g., make recall matter more)
@@ -2101,4 +2101,4 @@ class NearestNeighborParameterOptimizer:
 
             filter_first_exploration = left + (right - left) / 2
 
-        return filter_first_exploration
+        return filter_first_exploration, benchmarks
