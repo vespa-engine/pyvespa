@@ -1,5 +1,5 @@
 from vespa.application import Vespa
-from vespa.evaluation import NearestNeighborHitratioComputer
+from vespa.evaluation import VespaNNGlobalFilterHitratioEvaluator
 from vespa.evaluation import NearestNeighborParameterOptimizer
 
 import argparse
@@ -57,8 +57,8 @@ if __name__ == "__main__":
     # Hit ratios
     ####################################################################################################################
     print("Determining hit ratios of queries")
-    hitratio_computer = NearestNeighborHitratioComputer(queries, app)
-    hitratios = hitratio_computer.run()
+    hitratio_evaluator = VespaNNGlobalFilterHitratioEvaluator(queries, app)
+    hitratios = hitratio_evaluator.run()
     hitratios = list(map(lambda list: list[0], hitratios))
 
     # Sort hit ratios into buckets

@@ -1700,7 +1700,7 @@ def extract_features_from_hit(
     return features
 
 
-class NearestNeighborHitratioComputer:
+class VespaNNGlobalFilterHitratioEvaluator:
     """Class for determining hit ratio of ANN queries.
 
     Determines the hit ratios of queries by querying with profiling and inspecting the profile file.

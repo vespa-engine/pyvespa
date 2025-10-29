@@ -3,7 +3,7 @@ from vespa.application import Vespa
 import argparse
 import urllib.parse
 
-from vespa.evaluation import NearestNeighborHitratioComputer
+from vespa.evaluation import VespaNNGlobalFilterHitratioEvaluator
 
 def query_from_get_string(get_query):
     url = urllib.parse.urlparse(get_query)
@@ -43,8 +43,8 @@ if __name__ == "__main__":
     # Compute hit ratios
     if not args.silent:
         print("Determining hit ratios")
-    hitratio_computer = NearestNeighborHitratioComputer(queries, app)
-    hitratios = hitratio_computer.run()
+    hitratio_evaluator = VespaNNGlobalFilterHitratioEvaluator(queries, app)
+    hitratios = hitratio_evaluator.run()
 
     # Print hit ratios
     if args.silent:
