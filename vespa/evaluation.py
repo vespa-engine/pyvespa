@@ -1827,7 +1827,7 @@ class VespaNNRecallEvaluator:
 
         return list(map(lambda pair: self._compute_recall(pair[0], pair[1]), zip(responses, responses_exact)))
 
-class NearestNeighborBenchmarker:
+class VespaQueryBenchmarker:
     def __init__(self, queries: List[Dict[str, str]], app: Vespa, repetitions: int = 5, **kwargs):
         self.queries = queries
         self.app = app
@@ -1956,7 +1956,7 @@ class VespaNNParameterOptimizer:
                     print(f"\r->Benchmarking: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(from_bucket, to_bucket), 2)}%",
                           end='')
                 processed_buckets += 1
-                benchmarker = NearestNeighborBenchmarker(bucket, self.app, **kwargs)
+                benchmarker = VespaQueryBenchmarker(bucket, self.app, **kwargs)
                 response_times = benchmarker.run()
                 x.append(i)
                 y.append(mean(response_times))
