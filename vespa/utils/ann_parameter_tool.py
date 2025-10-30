@@ -1,6 +1,6 @@
 from vespa.application import Vespa
 from vespa.evaluation import VespaNNGlobalFilterHitratioEvaluator
-from vespa.evaluation import NearestNeighborParameterOptimizer
+from vespa.evaluation import VespaNNParameterOptimizer
 
 import argparse
 import urllib.parse
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     hitratios = list(map(lambda list: list[0], hitratios))
 
     # Sort hit ratios into buckets
-    optimizer = NearestNeighborParameterOptimizer(app, int(args.hits), print_progress=True)
+    optimizer = VespaNNParameterOptimizer(app, int(args.hits), print_progress=True)
     optimizer.distribute_to_buckets(zip(queries, hitratios))
 
     if args.plot:

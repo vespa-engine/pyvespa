@@ -1873,7 +1873,7 @@ def interpolate(x, y, intended_length):
 
    return interpolated_y
 
-class NearestNeighborParameterOptimizer:
+class VespaNNParameterOptimizer:
     def __init__(self, app: Vespa, hits: int, buckets_per_percent: int = 2, print_progress: bool = False):
         self.app = app
         self.hits = hits
@@ -1963,7 +1963,7 @@ class NearestNeighborParameterOptimizer:
 
         print("\r  Benchmarking: 100.0%")
 
-        return NearestNeighborParameterOptimizer.BenchmarkResults(x, y)
+        return VespaNNParameterOptimizer.BenchmarkResults(x, y)
 
     class RecallResults:
         def __init__(self, x, y):
@@ -1994,7 +1994,7 @@ class NearestNeighborParameterOptimizer:
 
         print("\r  Computing recall: 100.0%")
 
-        return NearestNeighborParameterOptimizer.RecallResults(x, y)
+        return VespaNNParameterOptimizer.RecallResults(x, y)
 
     def suggest_filter_first_threshold(self, benchmark_hnsw, benchmark_filter_first):
         # Interpolate benchmark values for empty buckets
