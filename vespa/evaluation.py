@@ -1762,7 +1762,7 @@ class UnsuccessfulQueryError(Exception):
     """Exception raised when trying to compute the recall of an unsuccessful query."""
     pass
 
-class NearestNeighborRecallComputer:
+class VespaNNRecallEvaluator:
     """Class for determining recalls of ANN queries.
 
     Determines the recalls of queries by running the query twice, first wth an exact search and then
@@ -1986,8 +1986,8 @@ class NearestNeighborParameterOptimizer:
             if bucket:
                 if self.print_progress:
                     print(f"\r->Computing recall: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(from_bucket, to_bucket), 2)}%", end='')
-                recall_computer = NearestNeighborRecallComputer(bucket, self.hits, self.app, **kwargs)
-                recall_list = recall_computer.run()
+                recall_evaluator = VespaNNRecallEvaluator(bucket, self.hits, self.app, **kwargs)
+                recall_list = recall_evaluator.run()
                 x.append(i)
                 y.append(sum(recall_list) / len(recall_list))
                 processed_buckets += 1

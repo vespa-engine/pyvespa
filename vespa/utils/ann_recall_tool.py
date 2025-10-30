@@ -3,7 +3,7 @@ from vespa.application import Vespa
 import argparse
 import urllib.parse
 
-from vespa.evaluation import NearestNeighborRecallComputer
+from vespa.evaluation import VespaNNRecallEvaluator
 
 def query_from_get_string(get_query):
     url = urllib.parse.urlparse(get_query)
@@ -44,8 +44,8 @@ if __name__ == "__main__":
     # Compute hit ratios
     if not args.silent:
         print("Determining recalls")
-    recall_computer = NearestNeighborRecallComputer(queries, int(args.hits), app)
-    recalls = recall_computer.run()
+    recall_evaluator = VespaNNRecallEvaluator(queries, int(args.hits), app)
+    recalls = recall_evaluator.run()
 
     # Print hit ratios
     if args.silent:
