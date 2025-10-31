@@ -3122,7 +3122,6 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
 
     def _assert_post_filter_threshold(
         self,
-        buckets,
         response_times_post_filtering,
         recall_post_filtering,
         response_times_pre_filtering,
@@ -3131,17 +3130,17 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         upper,
     ):
         benchmark_post_filtering = VespaNNParameterOptimizer.BenchmarkResults(
-            buckets, response_times_post_filtering
+            self.buckets, response_times_post_filtering
         )
         recall_post_filtering = VespaNNParameterOptimizer.RecallResults(
-            buckets, recall_post_filtering
+            self.buckets, recall_post_filtering
         )
 
         benchmark_pre_filtering = VespaNNParameterOptimizer.BenchmarkResults(
-            buckets, response_times_pre_filtering
+            self.buckets, response_times_pre_filtering
         )
         recall_pre_filtering = VespaNNParameterOptimizer.RecallResults(
-            buckets, recall_pre_filtering
+            self.buckets, recall_pre_filtering
         )
 
         post_filter_threshold = self.optimizer.suggest_post_filter_threshold(
@@ -3156,7 +3155,6 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
     def test_suggest_post_filter_threshold(self):
         # Should be somewhere between 40 and 50 percent
         self._assert_post_filter_threshold(
-            self.buckets,
             [5.0, 5.0, 5.0, 10.0, 10.0, 10.0, 15.0, 15.0, 15.0, 20.0, 20.0, 20.0, 25.0],
             [0.80] * self.num,
             [13.0] * self.num,
@@ -3167,7 +3165,6 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
 
         # Should switch earlier since recall becomes bad
         self._assert_post_filter_threshold(
-            self.buckets,
             [5.0, 5.0, 5.0, 10.0, 10.0, 10.0, 15.0, 15.0, 15.0, 20.0, 20.0, 20.0, 25.0],
             [
                 0.80,
@@ -3192,7 +3189,6 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
 
         # Should not switch since recall too bad
         self._assert_post_filter_threshold(
-            self.buckets,
             [5.0, 5.0, 5.0, 10.0, 10.0, 10.0, 15.0, 15.0, 15.0, 20.0, 20.0, 20.0, 25.0],
             [0.70] * self.num,
             [13.0] * self.num,
@@ -3203,7 +3199,6 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
 
         # Should not switch since response time bad
         self._assert_post_filter_threshold(
-            self.buckets,
             [25.0] * self.num,
             [0.80] * self.num,
             [13.0] * self.num,
@@ -3214,17 +3209,16 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
 
     def _assert_approximate_threshold(
         self,
-        buckets,
         response_times_exact,
         response_times_approx,
         lower,
         upper,
     ):
         benchmark_exact = VespaNNParameterOptimizer.BenchmarkResults(
-            buckets, response_times_exact
+            self.buckets, response_times_exact
         )
         benchmark_approx = VespaNNParameterOptimizer.BenchmarkResults(
-            buckets, response_times_approx
+            self.buckets, response_times_approx
         )
 
         approximate_threshold = self.optimizer.suggest_approximate_threshold(
@@ -3236,7 +3230,6 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
     def test_suggest_approximate_threshold(self):
         # Exact search cheap. Should be somewhere between 90 and 95 percent
         self._assert_approximate_threshold(
-            self.buckets,
             [
                 50.0,
                 50.0,
@@ -3259,7 +3252,6 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
 
         # Exact search too expensive. Should be at 99 percent, the last point we have any info on.
         self._assert_approximate_threshold(
-            self.buckets,
             [
                 50.0,
                 50.0,
@@ -3282,9 +3274,117 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
 
         # Exact search cheap. Always use it.
         self._assert_approximate_threshold(
-            self.buckets,
             [2.0] * self.num,
             [10.0] * self.num,
             0.0,
             0.001,
+        )
+
+    def _assert_filter_first_threshold(
+        self,
+        response_times_hnsw,
+        response_times_filter_first,
+        lower,
+        upper,
+    ):
+        benchmark_hnsw = VespaNNParameterOptimizer.BenchmarkResults(
+            self.buckets, response_times_hnsw
+        )
+        benchmark_filter_first = VespaNNParameterOptimizer.BenchmarkResults(
+            self.buckets, response_times_filter_first
+        )
+
+        filter_first_threshold = self.optimizer.suggest_filter_first_threshold(
+            benchmark_hnsw, benchmark_filter_first
+        )
+        self.assertGreaterEqual(1 - filter_first_threshold, lower)
+        self.assertLessEqual(1 - filter_first_threshold, upper)
+
+    def test_suggest_filter_first_threshold(self):
+        # Filter first becomes cheaper between 60 and 70 percent
+        self._assert_filter_first_threshold(
+            [
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                5.0,
+            ],
+            [
+                15.0,
+                15.0,
+                15.0,
+                15.0,
+                15.0,
+                15.0,
+                15.0,
+                15.0,
+                5.0,
+                5.0,
+                5.0,
+                5.0,
+                5.0,
+            ],
+            0.60,
+            0.70,
+        )
+
+        # Filter first briefly cheaper at beginning but only really viable between 60 and 70 percent
+        self._assert_filter_first_threshold(
+            [
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                5.0,
+            ],
+            [
+                15.0,
+                5.0,
+                15.0,
+                15.0,
+                15.0,
+                15.0,
+                15.0,
+                15.0,
+                5.0,
+                5.0,
+                5.0,
+                5.0,
+                5.0,
+            ],
+            0.60,
+            0.70,
+        )
+
+        # Filter first always cheaper
+        self._assert_filter_first_threshold(
+            [10.0] * self.num,
+            [5.0] * self.num,
+            0.00,
+            0.001,
+        )
+
+        # Filter first never cheaper
+        self._assert_filter_first_threshold(
+            [5.0] * self.num,
+            [10.0] * self.num,
+            0.999,
+            1.001,
         )
