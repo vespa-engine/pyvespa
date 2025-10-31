@@ -1716,6 +1716,7 @@ class VespaNNGlobalFilterHitratioEvaluator:
         queries (List[Dict[str, str]]): List of ANN queries.
         app (Vespa): An instance of the Vespa application.
     """
+
     def __init__(self, queries: List[Dict[str, str]], app: Vespa):
         self.queries = queries
         self.app = app
@@ -1728,15 +1729,16 @@ class VespaNNGlobalFilterHitratioEvaluator:
             List[List[float]]: List of lists of hit ratios, which are values from the intervall [0.0, 1.0], corresponding to the supplied queries.
         """
         query_parameters = {
-            'timeout': '20s',
-            'trace.explainLevel': '1',
-            'trace.level': '1',
-            'trace.profileDepth': '100',
-            'ranking.matching.approximateThreshold': '0.00'
-
+            "timeout": "20s",
+            "trace.explainLevel": "1",
+            "trace.level": "1",
+            "trace.profileDepth": "100",
+            "ranking.matching.approximateThreshold": "0.00",
         }
 
-        queries_with_parameters = list(map(lambda query: dict(query, **query_parameters), self.queries))
+        queries_with_parameters = list(
+            map(lambda query: dict(query, **query_parameters), self.queries)
+        )
         responses, response_times = execute_queries(self.app, queries_with_parameters)
 
         def extract_from_trace(obj: dict, type: str):
@@ -1759,27 +1761,37 @@ class VespaNNGlobalFilterHitratioEvaluator:
         results = []
         for response in responses:
             trace = response.get_json()["trace"]
-            nearest_neighbor_blueprints = extract_from_trace(trace, "search::queryeval::NearestNeighborBlueprint")
+            nearest_neighbor_blueprints = extract_from_trace(
+                trace, "search::queryeval::NearestNeighborBlueprint"
+            )
             hit_ratios = []
             for blueprint in nearest_neighbor_blueprints:
-                if "global_filter" in blueprint and blueprint["global_filter"]["calculated"]:
+                if (
+                    "global_filter" in blueprint
+                    and blueprint["global_filter"]["calculated"]
+                ):
                     hit_ratios.append(blueprint["global_filter"]["hit_ratio"])
 
             results.append(hit_ratios)
 
         return results
 
+
 class VespaNNRecallRelevanceMismatchError(Exception):
     """
     Exception raised when the reported relevance between exact and approximate query differs.
     """
+
     pass
+
 
 class VespaNNRecallUnsuccessfulQueryError(Exception):
     """
     Exception raised when trying to compute the recall of an unsuccessful query.
     """
+
     pass
+
 
 class VespaNNRecallEvaluator:
     """
@@ -1799,13 +1811,16 @@ class VespaNNRecallEvaluator:
         app (Vespa): An instance of the Vespa application.
         **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
     """
+
     def __init__(self, queries: List[Dict[str, str]], hits: int, app: Vespa, **kwargs):
         self.queries = queries
         self.hits = hits
         self.app = app
         self.parameters = kwargs
 
-    def _compute_recall(self, response_exact: VespaQueryResponse, response_approx: VespaQueryResponse) -> float:
+    def _compute_recall(
+        self, response_exact: VespaQueryResponse, response_approx: VespaQueryResponse
+    ) -> float:
         """
         Computes the recall from the given responses, one from an exact search and one from an approximate search.
 
@@ -1838,8 +1853,10 @@ class VespaNNRecallEvaluator:
             relevance_approx = float(approx["relevance"])
             if exact["id"] == approx["id"]:
                 if abs(relevance_exact - relevance_approx) > 1e-5:
-                    raise VespaNNRecallRelevanceMismatchError(f"Results have the same id {exact['id']}, "
-                                                 f"but relevances {relevance_exact} and {relevance_approx} do not match")
+                    raise VespaNNRecallRelevanceMismatchError(
+                        f"Results have the same id {exact['id']}, "
+                        f"but relevances {relevance_exact} and {relevance_approx} do not match"
+                    )
                 recall += 1
                 i += 1
                 j += 1
@@ -1857,16 +1874,30 @@ class VespaNNRecallEvaluator:
         Returns:
             List[float]: List of recall values from the interval [0.0, 1.0] corresponding to the supplied queries.
         """
-        query_parameters = dict(self.parameters, **{"hits": self.hits, 'timeout': '20s'})
-        query_parameters_exact = dict(query_parameters, **{"ranking.matching.approximateThreshold": 1.00})
+        query_parameters = dict(
+            self.parameters, **{"hits": self.hits, "timeout": "20s"}
+        )
+        query_parameters_exact = dict(
+            query_parameters, **{"ranking.matching.approximateThreshold": 1.00}
+        )
 
-        queries_with_parameters = list(map(lambda query: dict(query, **query_parameters), self.queries))
+        queries_with_parameters = list(
+            map(lambda query: dict(query, **query_parameters), self.queries)
+        )
         responses, _ = execute_queries(self.app, queries_with_parameters)
 
-        queries_with_parameters_exact = list(map(lambda query: dict(query, **query_parameters_exact), self.queries))
+        queries_with_parameters_exact = list(
+            map(lambda query: dict(query, **query_parameters_exact), self.queries)
+        )
         responses_exact, _ = execute_queries(self.app, queries_with_parameters_exact)
 
-        return list(map(lambda pair: self._compute_recall(pair[0], pair[1]), zip(responses, responses_exact)))
+        return list(
+            map(
+                lambda pair: self._compute_recall(pair[0], pair[1]),
+                zip(responses, responses_exact),
+            )
+        )
+
 
 class VespaQueryBenchmarker:
     """
@@ -1885,7 +1916,10 @@ class VespaQueryBenchmarker:
         repetitions (int, optional): Number of times to repeat the queries.
         **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
     """
-    def __init__(self, queries: List[Dict[str, str]], app: Vespa, repetitions: int = 5, **kwargs):
+
+    def __init__(
+        self, queries: List[Dict[str, str]], app: Vespa, repetitions: int = 5, **kwargs
+    ):
         self.queries = queries
         self.app = app
         self.repetitions = repetitions
@@ -1898,7 +1932,14 @@ class VespaQueryBenchmarker:
         Returns:
             List[float]: List of searchtimes, corresponding to the supplied queries.
         """
-        queries_with_parameters = list(map(lambda query: dict(query, **self.parameters, **{"presentation.timing": True}), self.queries))
+        queries_with_parameters = list(
+            map(
+                lambda query: dict(
+                    query, **self.parameters, **{"presentation.timing": True}
+                ),
+                self.queries,
+            )
+        )
         _, response_times = execute_queries(self.app, queries_with_parameters)
         return response_times
 
@@ -1918,29 +1959,36 @@ class VespaQueryBenchmarker:
         for i in range(0, self.repetitions):
             response_times = self._run_benchmark()
             response_times_ms = list(map(lambda x: 1000 * x, response_times))
-            response_times_sum = list(map(lambda pair: pair[0] + pair[1], zip(response_times_sum, response_times_ms)))
+            response_times_sum = list(
+                map(
+                    lambda pair: pair[0] + pair[1],
+                    zip(response_times_sum, response_times_ms),
+                )
+            )
 
         return list(map(lambda x: x / self.repetitions, response_times_sum))
 
+
 def interpolate(x, y, intended_length):
-   interpolated_y = [0] * intended_length
+    interpolated_y = [0] * intended_length
 
-   if len(x) == 0:
-       return interpolated_y
+    if len(x) == 0:
+        return interpolated_y
 
-   for i in range(0, x[0] + 1):
-       interpolated_y[i] = y[0]
+    for i in range(0, x[0] + 1):
+        interpolated_y[i] = y[0]
 
-   for i in range(x[-1], intended_length):
-       interpolated_y[i] = y[-1]
+    for i in range(x[-1], intended_length):
+        interpolated_y[i] = y[-1]
 
-   for i in range(0, len(x) - 1):
-       length = x[i + 1] - x[i]
+    for i in range(0, len(x) - 1):
+        length = x[i + 1] - x[i]
 
-       for j in range(0, length):
-           interpolated_y[x[i] + j] = j / length * y[i + 1] + (1 - j / length) * y[i]
+        for j in range(0, length):
+            interpolated_y[x[i] + j] = j / length * y[i + 1] + (1 - j / length) * y[i]
 
-   return interpolated_y
+    return interpolated_y
+
 
 class VespaNNParameterOptimizer:
     """
@@ -1962,7 +2010,14 @@ class VespaNNParameterOptimizer:
         buckets_per_percent (int, optional): How many buckets are created for every percent point, "resolution" of the suggestions. Defaults to 2.
         print_progress (bool, optional): Whether to print progress information while determining suggestions. Defaults to False.
     """
-    def __init__(self, app: Vespa, hits: int, buckets_per_percent: int = 2, print_progress: bool = False):
+
+    def __init__(
+        self,
+        app: Vespa,
+        hits: int,
+        buckets_per_percent: int = 2,
+        print_progress: bool = False,
+    ):
         self.app = app
         self.hits = hits
 
@@ -1990,7 +2045,9 @@ class VespaNNParameterOptimizer:
         """
         return len(self.buckets)
 
-    def get_number_of_nonempty_buckets(self, from_bucket: int = None, to_bucket: int = None) -> int:
+    def get_number_of_nonempty_buckets(
+        self, from_bucket: int = None, to_bucket: int = None
+    ) -> int:
         """
         Counts the number of buckets that contain at least one query.
 
@@ -2027,7 +2084,7 @@ class VespaNNParameterOptimizer:
         Returns:
             float: Hit ratio corresponding to the given bucket index.
         """
-        return  (len(self.buckets) - bucket) / len(self.buckets)
+        return (len(self.buckets) - bucket) / len(self.buckets)
 
     def bucket_to_filtered_out(self, bucket: int) -> float:
         """
@@ -2092,7 +2149,7 @@ class VespaNNParameterOptimizer:
         y = []
         for i in range(0, len(self.buckets)):
             bucket = self.buckets[i]
-            if bucket: # not empty
+            if bucket:  # not empty
                 x.append(self.bucket_to_filtered_out(i))
                 y.append(len(bucket))
 
@@ -2104,7 +2161,9 @@ class VespaNNParameterOptimizer:
             self.x = x
             self.y = y
 
-    def benchmark(self, from_bucket = None, to_bucket = None, **kwargs) -> VespaNNParameterOptimizer.BenchmarkResults:
+    def benchmark(
+        self, from_bucket=None, to_bucket=None, **kwargs
+    ) -> VespaNNParameterOptimizer.BenchmarkResults:
         """
         For each non-empty bucket, determine the average searchtime.
 
@@ -2122,7 +2181,7 @@ class VespaNNParameterOptimizer:
             to_bucket = self.get_number_of_buckets()
 
         if self.print_progress:
-            print("->Benchmarking", end='')
+            print("->Benchmarking", end="")
         x = []
         y = []
         processed_buckets = 0
@@ -2130,8 +2189,10 @@ class VespaNNParameterOptimizer:
             bucket = self.buckets[i]
             if bucket:
                 if self.print_progress:
-                    print(f"\r->Benchmarking: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(from_bucket, to_bucket), 2)}%",
-                          end='')
+                    print(
+                        f"\r->Benchmarking: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(from_bucket, to_bucket), 2)}%",
+                        end="",
+                    )
                 processed_buckets += 1
                 benchmarker = VespaQueryBenchmarker(bucket, self.app, **kwargs)
                 response_times = benchmarker.run()
@@ -2148,7 +2209,9 @@ class VespaNNParameterOptimizer:
             self.x = x
             self.y = y
 
-    def compute_average_recalls(self, from_bucket = None, to_bucket = None, **kwargs) -> VespaNNParameterOptimizer.RecallResults:
+    def compute_average_recalls(
+        self, from_bucket=None, to_bucket=None, **kwargs
+    ) -> VespaNNParameterOptimizer.RecallResults:
         """
         For each non-empty bucket, determine the average recall.
 
@@ -2166,7 +2229,7 @@ class VespaNNParameterOptimizer:
             to_bucket = self.get_number_of_buckets()
 
         if self.print_progress:
-            print("->Computing recall", end='')
+            print("->Computing recall", end="")
         x = []
         y = []
         processed_buckets = 0
@@ -2174,8 +2237,13 @@ class VespaNNParameterOptimizer:
             bucket = self.buckets[i]
             if bucket:
                 if self.print_progress:
-                    print(f"\r->Computing recall: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(from_bucket, to_bucket), 2)}%", end='')
-                recall_evaluator = VespaNNRecallEvaluator(bucket, self.hits, self.app, **kwargs)
+                    print(
+                        f"\r->Computing recall: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(from_bucket, to_bucket), 2)}%",
+                        end="",
+                    )
+                recall_evaluator = VespaNNRecallEvaluator(
+                    bucket, self.hits, self.app, **kwargs
+                )
                 recall_list = recall_evaluator.run()
                 x.append(i)
                 y.append(sum(recall_list) / len(recall_list))
@@ -2186,10 +2254,10 @@ class VespaNNParameterOptimizer:
         return VespaNNParameterOptimizer.RecallResults(x, y)
 
     def suggest_filter_first_threshold(
-            self,
-            benchmark_hnsw: VespaNNParameterOptimizer.BenchmarkResults,
-            benchmark_filter_first: VespaNNParameterOptimizer.BenchmarkResults
-     ) -> float:
+        self,
+        benchmark_hnsw: VespaNNParameterOptimizer.BenchmarkResults,
+        benchmark_filter_first: VespaNNParameterOptimizer.BenchmarkResults,
+    ) -> float:
         """
         Suggests a value for filterFirstThreshold based on the two given benchmarks (using HNSW only, using HNSW with filter first only).
 
@@ -2201,8 +2269,14 @@ class VespaNNParameterOptimizer:
             float: Suggested value for filterFirstThreshold.
         """
         # Interpolate benchmark values for empty buckets
-        interpolated_hnsw_y = interpolate(benchmark_hnsw.x, benchmark_hnsw.y, self.get_number_of_buckets())
-        interpolated_filter_first_y = interpolate(benchmark_filter_first.x, benchmark_filter_first.y, self.get_number_of_buckets())
+        interpolated_hnsw_y = interpolate(
+            benchmark_hnsw.x, benchmark_hnsw.y, self.get_number_of_buckets()
+        )
+        interpolated_filter_first_y = interpolate(
+            benchmark_filter_first.x,
+            benchmark_filter_first.y,
+            self.get_number_of_buckets(),
+        )
 
         # Start at last bucket
         threshold = self.get_number_of_buckets()
@@ -2223,9 +2297,9 @@ class VespaNNParameterOptimizer:
         return self.bucket_to_hitratio(threshold)
 
     def suggest_approximate_threshold(
-            self,
-            benchmark_exact: VespaNNParameterOptimizer.BenchmarkResults,
-            benchmark_ann: VespaNNParameterOptimizer.BenchmarkResults
+        self,
+        benchmark_exact: VespaNNParameterOptimizer.BenchmarkResults,
+        benchmark_ann: VespaNNParameterOptimizer.BenchmarkResults,
     ) -> float:
         """
         Suggests a value for approximateThreshold based on the two given benchmarks (using exact search only, using HNSW with tuned filter-first parameters).
@@ -2238,8 +2312,12 @@ class VespaNNParameterOptimizer:
             float: Suggested value for approximateThreshold.
         """
         # Interpolate benchmark values for empty buckets
-        int_bench_exact = interpolate(benchmark_exact.x, benchmark_exact.y, self.get_number_of_buckets())
-        int_bench_ann = interpolate(benchmark_ann.x, benchmark_ann.y, self.get_number_of_buckets())
+        int_bench_exact = interpolate(
+            benchmark_exact.x, benchmark_exact.y, self.get_number_of_buckets()
+        )
+        int_bench_ann = interpolate(
+            benchmark_ann.x, benchmark_ann.y, self.get_number_of_buckets()
+        )
 
         # Start at last bucket
         approximate_threshold = self.get_number_of_buckets() - 1
@@ -2262,11 +2340,11 @@ class VespaNNParameterOptimizer:
         return self.bucket_to_hitratio(approximate_threshold)
 
     def suggest_post_filter_threshold(
-            self,
-            benchmark_post_filtering: VespaNNParameterOptimizer.BenchmarkResults,
-            recall_post_filtering: VespaNNParameterOptimizer.RecallResults,
-            benchmark_pre_filtering: VespaNNParameterOptimizer.BenchmarkResults,
-            recall_pre_filtering: VespaNNParameterOptimizer.RecallResults
+        self,
+        benchmark_post_filtering: VespaNNParameterOptimizer.BenchmarkResults,
+        recall_post_filtering: VespaNNParameterOptimizer.RecallResults,
+        benchmark_pre_filtering: VespaNNParameterOptimizer.BenchmarkResults,
+        recall_pre_filtering: VespaNNParameterOptimizer.RecallResults,
     ) -> float:
         """
         Suggests a value for postFilterThreshold based on the two given pairs of a benchmark and a recall measurement (using post-filtering only, using HNSW with tuned parameters only).
@@ -2281,11 +2359,25 @@ class VespaNNParameterOptimizer:
             float: Suggested value for postFilterThreshold.
         """
         # Interpolate benchmark values for empty buckets
-        int_bench_post = interpolate(benchmark_post_filtering.x, benchmark_post_filtering.y, self.get_number_of_buckets())
-        int_bench_pre = interpolate(benchmark_pre_filtering.x, benchmark_pre_filtering.y, self.get_number_of_buckets())
+        int_bench_post = interpolate(
+            benchmark_post_filtering.x,
+            benchmark_post_filtering.y,
+            self.get_number_of_buckets(),
+        )
+        int_bench_pre = interpolate(
+            benchmark_pre_filtering.x,
+            benchmark_pre_filtering.y,
+            self.get_number_of_buckets(),
+        )
 
-        int_recall_post = interpolate(recall_post_filtering.x, recall_post_filtering.y, self.get_number_of_buckets())
-        int_recall_pre = interpolate(recall_pre_filtering.x, recall_pre_filtering.y, self.get_number_of_buckets())
+        int_recall_post = interpolate(
+            recall_post_filtering.x,
+            recall_post_filtering.y,
+            self.get_number_of_buckets(),
+        )
+        int_recall_pre = interpolate(
+            recall_pre_filtering.x, recall_pre_filtering.y, self.get_number_of_buckets()
+        )
 
         threshold = 0
         response_time_gain = 0
@@ -2312,7 +2404,7 @@ class VespaNNParameterOptimizer:
         parameters_candidate = {
             "ranking.matching.approximateThreshold": 0.00,
             "ranking.matching.filterFirstThreshold": 1.00,
-            "ranking.matching.filterFirstExploration": filter_first_exploration
+            "ranking.matching.filterFirstExploration": filter_first_exploration,
         }
 
         benchmark = self.benchmark(**parameters_candidate)
@@ -2320,7 +2412,18 @@ class VespaNNParameterOptimizer:
 
         return benchmark, recall
 
-    def suggest_filter_first_exploration(self) -> (float,List[(float,VespaNNParameterOptimizer.BenchmarkResults,VespaNNParameterOptimizer.RecallResults)]):
+    def suggest_filter_first_exploration(
+        self,
+    ) -> (
+        float,
+        List[
+            (
+                float,
+                VespaNNParameterOptimizer.BenchmarkResults,
+                VespaNNParameterOptimizer.RecallResults,
+            )
+        ],
+    ):
         """
         Suggests a value for filterFirstExploration based on benchmarks and recall measurements performed on the supplied Vespa app.
 
@@ -2328,17 +2431,29 @@ class VespaNNParameterOptimizer:
             float: Suggested value for postFilterThreshold.
             List[(float,VespaNNParameterOptimizer.BenchmarkResults,VespaNNParameterOptimizer.RecallResults)]: List of filterFirstExploration values, benchmarks, and recall measurements performed to get to the suggested value.
         """
-        benchmark_no_exploration, recall_no_exploration = self._test_filter_first_exploration(0.0)
-        benchmark_no_exploration_int = interpolate(benchmark_no_exploration.x, benchmark_no_exploration.y, self.get_number_of_buckets())
+        benchmark_no_exploration, recall_no_exploration = (
+            self._test_filter_first_exploration(0.0)
+        )
+        benchmark_no_exploration_int = interpolate(
+            benchmark_no_exploration.x,
+            benchmark_no_exploration.y,
+            self.get_number_of_buckets(),
+        )
 
-        benchmark_full_exploration, recall_full_exploration = self._test_filter_first_exploration(1.0)
-        recall_full_exploration_int = interpolate(recall_full_exploration.x, recall_full_exploration.y, self.get_number_of_buckets())
+        benchmark_full_exploration, recall_full_exploration = (
+            self._test_filter_first_exploration(1.0)
+        )
+        recall_full_exploration_int = interpolate(
+            recall_full_exploration.x,
+            recall_full_exploration.y,
+            self.get_number_of_buckets(),
+        )
         assert mean(benchmark_no_exploration_int) > 0
         assert mean(recall_full_exploration_int) > 0
 
         benchmarks = [
             (0.0, benchmark_no_exploration, recall_no_exploration),
-            (1.0, benchmark_full_exploration, recall_full_exploration)
+            (1.0, benchmark_full_exploration, recall_full_exploration),
         ]
 
         # Find tradeoff between increase in response time and drop in recall by using binary search
@@ -2348,26 +2463,48 @@ class VespaNNParameterOptimizer:
         for i in range(0, 7):
             if self.print_progress:
                 print(f"  Testing {filter_first_exploration}")
-            benchmark_candidate, recall_candidate = self._test_filter_first_exploration(filter_first_exploration)
-            benchmark_candidate_int = interpolate(benchmark_candidate.x, benchmark_candidate.y, self.get_number_of_buckets())
-            recall_candidate_int = interpolate(recall_candidate.x, recall_candidate.y, self.get_number_of_buckets())
-            benchmarks.append((filter_first_exploration, benchmark_candidate, recall_candidate))
+            benchmark_candidate, recall_candidate = self._test_filter_first_exploration(
+                filter_first_exploration
+            )
+            benchmark_candidate_int = interpolate(
+                benchmark_candidate.x,
+                benchmark_candidate.y,
+                self.get_number_of_buckets(),
+            )
+            recall_candidate_int = interpolate(
+                recall_candidate.x, recall_candidate.y, self.get_number_of_buckets()
+            )
+            benchmarks.append(
+                (filter_first_exploration, benchmark_candidate, recall_candidate)
+            )
 
             # How much does the response time increase compared to no exploration?
             # One could also try to compare the values for every bucket, but this might be a bit unstable:
             # response_time_deviation = max([x/y - 1 for x, y in zip(benchmark_candidate, benchmark_no_exploration)])
-            response_time_deviation = max([x/mean(benchmark_no_exploration_int) - 1 for x in benchmark_candidate_int])
+            response_time_deviation = max(
+                [
+                    x / mean(benchmark_no_exploration_int) - 1
+                    for x in benchmark_candidate_int
+                ]
+            )
 
             # How much does the recall drop compared to full exploration?
             # One could also try to compare the values for every bucket, but this might be a bit unstable:
             # recall_deviation = max([1 - y/x for x, y in zip(recall_full_exploration, recall_candidate)])
-            recall_deviation = max([1 - y/mean(recall_full_exploration_int) for y in recall_candidate_int])
+            recall_deviation = max(
+                [
+                    1 - y / mean(recall_full_exploration_int)
+                    for y in recall_candidate_int
+                ]
+            )
 
             # Check how increase in response time compares to drop in recall
             # (One could try to use weights here, e.g., make recall matter more)
-            if response_time_deviation > 1.5 * recall_deviation: # Increase in response time is larger than drop in recall, decrease exploration
+            if (
+                response_time_deviation > 1.5 * recall_deviation
+            ):  # Increase in response time is larger than drop in recall, decrease exploration
                 right = filter_first_exploration
-            else: # Increase in response time is smaller than drop in recall, increase exploration
+            else:  # Increase in response time is smaller than drop in recall, increase exploration
                 left = filter_first_exploration
 
             filter_first_exploration = left + (right - left) / 2
