@@ -1763,11 +1763,22 @@ class UnsuccessfulQueryError(Exception):
     pass
 
 class VespaNNRecallEvaluator:
-    """Class for determining recalls of ANN queries.
+    """
+    Determine recall of ANN queries. The recall of an ANN query with k hits is the number of hits
+    that actually are among the k nearest neighbors of the query vector.
 
-    Determines the recalls of queries by running the query twice, first wth an exact search and then
-    the actual query. The results are then compared, the recall is a number between 0 and 1
-    that specifies the percentage of results from the query that were also present in the exact results.
+    This class:
+
+    - Takes a list of queries.
+    - First runs the queries as is (with the supplied HTTP parameters).
+    - Then runs the queries with the supplied HTTP parameters and an additional parameter enforcing an exact nearest neighbor search.
+    - Determines the recall by comparing the results.
+
+    Args:
+        queries (List[Dict[str, str]]): List of ANN queries.
+        hits (int): Number of targetHits determined by the ANN queries.
+        app (Vespa): An instance of the Vespa application.
+        **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
     """
     def __init__(self, queries: List[Dict[str, str]], hits: int, app: Vespa, **kwargs):
         self.queries = queries
@@ -1776,6 +1787,12 @@ class VespaNNRecallEvaluator:
         self.parameters = kwargs
 
     def _compute_recall(self, response_exact: VespaQueryResponse, response_approx: VespaQueryResponse) -> float:
+        """
+        Computes the recall from the given responses, one from an exact search and one from an approximate search.
+
+        Returns:
+            float: Recall value from the interval [0.0, 1.0].
+        """
         if not (response_exact.is_successful() and response_approx.is_successful()):
             raise RelevanceMismatchError()
 
@@ -1814,8 +1831,13 @@ class VespaNNRecallEvaluator:
 
         return recall / self.hits
 
-    def run(self):
-        """Compute recalls of queries."""
+    def run(self) -> List[float]:
+        """
+        Computes the recall of the supplied queries.
+
+        Returns:
+            List[float]: List of recall values from the interval [0.0, 1.0] corresponding to the supplied queries.
+        """
         query_parameters = dict(self.parameters, **{"hits": self.hits, 'timeout': '20s'})
         query_parameters_exact = dict(query_parameters, **{"ranking.matching.approximateThreshold": 1.00})
 
