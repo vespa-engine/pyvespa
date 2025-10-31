@@ -1754,12 +1754,16 @@ class VespaNNGlobalFilterHitratioEvaluator:
 
         return results
 
-class RelevanceMismatchError(Exception):
-    """Exception raised when the reported relevance between exact and approximate query differs."""
+class VespaNNRecallRelevanceMismatchError(Exception):
+    """
+    Exception raised when the reported relevance between exact and approximate query differs.
+    """
     pass
 
-class UnsuccessfulQueryError(Exception):
-    """Exception raised when trying to compute the recall of an unsuccessful query."""
+class VespaNNRecallUnsuccessfulQueryError(Exception):
+    """
+    Exception raised when trying to compute the recall of an unsuccessful query.
+    """
     pass
 
 class VespaNNRecallEvaluator:
@@ -1794,7 +1798,7 @@ class VespaNNRecallEvaluator:
             float: Recall value from the interval [0.0, 1.0].
         """
         if not (response_exact.is_successful() and response_approx.is_successful()):
-            raise RelevanceMismatchError()
+            raise VespaNNRecallUnsuccessfulQueryError()
 
         try:
             results_exact = response_exact.get_json()["root"]["children"]
@@ -1819,7 +1823,7 @@ class VespaNNRecallEvaluator:
             relevance_approx = float(approx["relevance"])
             if exact["id"] == approx["id"]:
                 if abs(relevance_exact - relevance_approx) > 1e-5:
-                    raise RelevanceMismatchError(f"Results have the same id {exact['id']}, "
+                    raise VespaNNRecallRelevanceMismatchError(f"Results have the same id {exact['id']}, "
                                                  f"but relevances {relevance_exact} and {relevance_approx} do not match")
                 recall += 1
                 i += 1
