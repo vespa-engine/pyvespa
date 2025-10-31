@@ -3102,23 +3102,22 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         self.num = len(self.buckets)
 
         # Fill in placeholder queries corresponding to buckets
-        self.optimizer.distribute_to_buckets(
-            [
-                ({"yql": "foo"}, 0.9875),
-                ({"yql": "foo"}, 0.9475),
-                ({"yql": "foo"}, 0.8975),
-                ({"yql": "foo"}, 0.7975),
-                ({"yql": "foo"}, 0.6975),
-                ({"yql": "foo"}, 0.5975),
-                ({"yql": "foo"}, 0.4975),
-                ({"yql": "foo"}, 0.3975),
-                ({"yql": "foo"}, 0.2975),
-                ({"yql": "foo"}, 0.1975),
-                ({"yql": "foo"}, 0.0975),
-                ({"yql": "foo"}, 0.0475),
-                ({"yql": "foo"}, 0.0075),
-            ]
-        )
+        self.queries_with_hitratios = [
+            ({"yql": "foo"}, 0.9875),
+            ({"yql": "foo"}, 0.9475),
+            ({"yql": "foo"}, 0.8975),
+            ({"yql": "foo"}, 0.7975),
+            ({"yql": "foo"}, 0.6975),
+            ({"yql": "foo"}, 0.5975),
+            ({"yql": "foo"}, 0.4975),
+            ({"yql": "foo"}, 0.3975),
+            ({"yql": "foo"}, 0.2975),
+            ({"yql": "foo"}, 0.1975),
+            ({"yql": "foo"}, 0.0975),
+            ({"yql": "foo"}, 0.0475),
+            ({"yql": "foo"}, 0.0075),
+        ]
+        self.optimizer.distribute_to_buckets(self.queries_with_hitratios)
 
     def _assert_post_filter_threshold(
         self,
@@ -3388,3 +3387,56 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
             0.999,
             1.001,
         )
+
+    def test_suggest_filter_first_exploration(self):
+        class ModifiedOptimizer(VespaNNParameterOptimizer):
+            def __init__(self, app, test_buckets):
+                super(ModifiedOptimizer, self).__init__(
+                    app, hits=100, buckets_per_percent=2, print_progress=False
+                )
+                self.test_buckets = test_buckets
+
+            def _test_filter_first_exploration(
+                self, filter_first_exploration: float
+            ) -> (
+                VespaNNParameterOptimizer.BenchmarkResults,
+                VespaNNParameterOptimizer.RecallResults,
+            ):
+                constant_one = [1.0] * len(self.test_buckets)
+                response_time_rises = list(
+                    map(
+                        lambda x: 2 + (x / 8) ** 2, range(1, len(self.test_buckets) + 1)
+                    )
+                )
+                interpolation_rising_response_time = [
+                    (1 - filter_first_exploration) * x + filter_first_exploration * y
+                    for x, y in zip(constant_one, response_time_rises)
+                ]
+
+                recall_drops = list(
+                    map(
+                        lambda x: 1 - (x / len(self.test_buckets)) ** 2,
+                        range(len(self.test_buckets)),
+                    )
+                )
+                interpolation_dropping_recall = [
+                    (1 - filter_first_exploration) * x + filter_first_exploration * y
+                    for x, y in zip(recall_drops, constant_one)
+                ]
+
+                benchmark = VespaNNParameterOptimizer.BenchmarkResults(
+                    self.test_buckets, interpolation_rising_response_time
+                )
+                recall = VespaNNParameterOptimizer.BenchmarkResults(
+                    self.test_buckets, interpolation_dropping_recall
+                )
+                return benchmark, recall
+
+        modified_optimizer = ModifiedOptimizer(self.mock_app, self.buckets)
+        modified_optimizer.distribute_to_buckets(self.queries_with_hitratios)
+        filter_first_exploration, _ = (
+            modified_optimizer.suggest_filter_first_exploration()
+        )
+        # Check for reasonable number
+        self.assertGreaterEqual(filter_first_exploration, 0.20)
+        self.assertLessEqual(filter_first_exploration, 0.40)
