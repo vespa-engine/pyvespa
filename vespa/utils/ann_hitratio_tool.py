@@ -5,6 +5,7 @@ import urllib.parse
 
 from vespa.evaluation import VespaNNGlobalFilterHitratioEvaluator
 
+
 def query_from_get_string(get_query):
     url = urllib.parse.urlparse(get_query)
     assert url.path == "/search/"
@@ -16,18 +17,22 @@ def query_from_get_string(get_query):
     assert "yql" in query
     return query
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        prog='Vespa ANN Hit-Ratio Tool',
-        description='Determines hit ratios of ANN queries.')
-    parser.add_argument('url', help="URL.")
-    parser.add_argument('port', help="Port.")
-    parser.add_argument('query_file', help="File containing queries in GET format (one per line).")
-    parser.add_argument('--silent', action='store_true')
+        prog="Vespa ANN Hit-Ratio Tool",
+        description="Determines hit ratios of ANN queries.",
+    )
+    parser.add_argument("url", help="URL.")
+    parser.add_argument("port", help="Port.")
+    parser.add_argument(
+        "query_file", help="File containing queries in GET format (one per line)."
+    )
+    parser.add_argument("--silent", action="store_true")
     parser.set_defaults(silent=False)
-    parser.add_argument('--cert')
+    parser.add_argument("--cert")
     parser.set_defaults(cert=None)
-    parser.add_argument('--key')
+    parser.add_argument("--key")
     parser.set_defaults(key=None)
     args = parser.parse_args()
 
