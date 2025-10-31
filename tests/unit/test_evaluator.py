@@ -4,7 +4,7 @@ from vespa.evaluation import (
     VespaMatchEvaluator,
     VespaCollectorBase,
     VespaFeatureCollector,
-    RandomHitsSamplingStrategy,
+    RandomHitsSamplingStrategy, VespaNNParameterOptimizer,
 )
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
@@ -3077,3 +3077,78 @@ class TestVespaFeatureCollector(unittest.TestCase):
             )
             self.assertEqual(collector.random_hits_ratio, 1.0)
             self.assertIsNone(collector.max_random_hits_per_query)
+
+class TestVespaNNParameterOptimizer(unittest.TestCase):
+    """Test the VespaNNParameterOptimizer class."""
+
+    def setUp(self):
+        class MockVespaApp:
+            def __init__(self, mock_responses):
+                self.mock_responses = mock_responses
+                self.current_query = 0
+
+            def query_many(self, queries):
+                return self.mock_responses
+
+        self.empty_response_mock_app = MockVespaApp([])
+        self.empty_response_optimizer = VespaNNParameterOptimizer(self.empty_response_mock_app, 100, buckets_per_percent=2) # 200 buckets
+
+    def _assert_post_filter_threshold(self, buckets, response_time_post_filtering, recall_post_filtering, response_times_pre_filtering, recall_pre_filtering, lower, upper):
+        benchmark_post_filtering = VespaNNParameterOptimizer.BenchmarkResults(buckets, response_time_post_filtering)
+        recall_post_filtering = VespaNNParameterOptimizer.RecallResults(buckets, recall_post_filtering)
+
+        benchmark_pre_filtering = VespaNNParameterOptimizer.BenchmarkResults(buckets, response_times_pre_filtering)
+        recall_pre_filtering = VespaNNParameterOptimizer.RecallResults(buckets, recall_pre_filtering)
+
+        post_filter_threshold = self.empty_response_optimizer.suggest_post_filter_threshold(benchmark_post_filtering, recall_post_filtering, benchmark_pre_filtering, recall_pre_filtering)
+        self.assertGreaterEqual(1 - post_filter_threshold, lower)
+        self.assertLessEqual(1 - post_filter_threshold, upper)
+
+    def test_suggest_post_filter_threshold(self):
+        # Percentages: 1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 99
+        buckets = [2, 10, 20, 40, 60, 80, 100, 120, 140, 160, 180, 190, 198]
+        num = len(buckets)
+
+        # Should be somewhere between 40 and 50 percent
+        self._assert_post_filter_threshold(
+            buckets,
+            [5, 5, 5, 10, 10, 10, 15, 15, 15, 20, 20, 20, 25],
+            [0.80] * num,
+            [13] * num,
+            [0.80] * num,
+            0.40,
+            0.50
+        )
+
+        # Should switch earlier since recall becomes bad
+        self._assert_post_filter_threshold(
+            buckets,
+            [5, 5, 5, 10, 10, 10, 15, 15, 15, 20, 20, 20, 25],
+            [0.80, 0.80, 0.70, 0.70, 0.70, 0.70, 0.70, 0.70, 0.70, 0.70, 0.70, 0.70, 0.70],
+            [13] * num,
+            [0.80] * num,
+            0.05,
+            0.10
+        )
+
+        # Should not switch since recall too bad
+        self._assert_post_filter_threshold(
+            buckets,
+            [5, 5, 5, 10, 10, 10, 15, 15, 15, 20, 20, 20, 25],
+            [0.70] * num,
+            [13] * num,
+            [0.80] * num,
+            0.00,
+            0.001
+        )
+
+        # Should not switch since response time bad
+        self._assert_post_filter_threshold(
+            buckets,
+            [25] * num,
+            [0.80] * num,
+            [13] * num,
+            [0.80] * num,
+            0.00,
+            0.001
+        )
