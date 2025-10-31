@@ -2122,7 +2122,7 @@ class VespaNNParameterOptimizer:
             to_bucket = self.get_number_of_buckets()
 
         if self.print_progress:
-            print(f"->Benchmarking", end='')
+            print("->Benchmarking", end='')
         x = []
         y = []
         processed_buckets = 0
@@ -2166,7 +2166,7 @@ class VespaNNParameterOptimizer:
             to_bucket = self.get_number_of_buckets()
 
         if self.print_progress:
-            print(f"=>Computing recall", end='')
+            print("->Computing recall", end='')
         x = []
         y = []
         processed_buckets = 0
