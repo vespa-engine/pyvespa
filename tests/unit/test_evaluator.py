@@ -3092,15 +3092,38 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
             def query_many(self, queries):
                 return self.mock_responses
 
-        self.empty_response_mock_app = MockVespaApp([])
-        self.empty_response_optimizer = VespaNNParameterOptimizer(
-            self.empty_response_mock_app, 100, buckets_per_percent=2
+        self.mock_app = MockVespaApp([])
+        self.optimizer = VespaNNParameterOptimizer(
+            self.mock_app, 100, buckets_per_percent=2
         )  # 200 buckets
+
+        # Percentages: 1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 99
+        self.buckets = [2, 10, 20, 40, 60, 80, 100, 120, 140, 160, 180, 190, 198]
+        self.num = len(self.buckets)
+
+        # Fill in placeholder queries corresponding to buckets
+        self.optimizer.distribute_to_buckets(
+            [
+                ({"yql": "foo"}, 0.9875),
+                ({"yql": "foo"}, 0.9475),
+                ({"yql": "foo"}, 0.8975),
+                ({"yql": "foo"}, 0.7975),
+                ({"yql": "foo"}, 0.6975),
+                ({"yql": "foo"}, 0.5975),
+                ({"yql": "foo"}, 0.4975),
+                ({"yql": "foo"}, 0.3975),
+                ({"yql": "foo"}, 0.2975),
+                ({"yql": "foo"}, 0.1975),
+                ({"yql": "foo"}, 0.0975),
+                ({"yql": "foo"}, 0.0475),
+                ({"yql": "foo"}, 0.0075),
+            ]
+        )
 
     def _assert_post_filter_threshold(
         self,
         buckets,
-        response_time_post_filtering,
+        response_times_post_filtering,
         recall_post_filtering,
         response_times_pre_filtering,
         recall_pre_filtering,
@@ -3108,7 +3131,7 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         upper,
     ):
         benchmark_post_filtering = VespaNNParameterOptimizer.BenchmarkResults(
-            buckets, response_time_post_filtering
+            buckets, response_times_post_filtering
         )
         recall_post_filtering = VespaNNParameterOptimizer.RecallResults(
             buckets, recall_post_filtering
@@ -3121,36 +3144,30 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
             buckets, recall_pre_filtering
         )
 
-        post_filter_threshold = (
-            self.empty_response_optimizer.suggest_post_filter_threshold(
-                benchmark_post_filtering,
-                recall_post_filtering,
-                benchmark_pre_filtering,
-                recall_pre_filtering,
-            )
+        post_filter_threshold = self.optimizer.suggest_post_filter_threshold(
+            benchmark_post_filtering,
+            recall_post_filtering,
+            benchmark_pre_filtering,
+            recall_pre_filtering,
         )
         self.assertGreaterEqual(1 - post_filter_threshold, lower)
         self.assertLessEqual(1 - post_filter_threshold, upper)
 
     def test_suggest_post_filter_threshold(self):
-        # Percentages: 1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 99
-        buckets = [2, 10, 20, 40, 60, 80, 100, 120, 140, 160, 180, 190, 198]
-        num = len(buckets)
-
         # Should be somewhere between 40 and 50 percent
         self._assert_post_filter_threshold(
-            buckets,
+            self.buckets,
             [5.0, 5.0, 5.0, 10.0, 10.0, 10.0, 15.0, 15.0, 15.0, 20.0, 20.0, 20.0, 25.0],
-            [0.80] * num,
-            [13.0] * num,
-            [0.80] * num,
+            [0.80] * self.num,
+            [13.0] * self.num,
+            [0.80] * self.num,
             0.40,
             0.50,
         )
 
         # Should switch earlier since recall becomes bad
         self._assert_post_filter_threshold(
-            buckets,
+            self.buckets,
             [5.0, 5.0, 5.0, 10.0, 10.0, 10.0, 15.0, 15.0, 15.0, 20.0, 20.0, 20.0, 25.0],
             [
                 0.80,
@@ -3167,24 +3184,107 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
                 0.70,
                 0.70,
             ],
-            [13] * num,
-            [0.80] * num,
+            [13] * self.num,
+            [0.80] * self.num,
             0.05,
             0.10,
         )
 
         # Should not switch since recall too bad
         self._assert_post_filter_threshold(
-            buckets,
+            self.buckets,
             [5.0, 5.0, 5.0, 10.0, 10.0, 10.0, 15.0, 15.0, 15.0, 20.0, 20.0, 20.0, 25.0],
-            [0.70] * num,
-            [13.0] * num,
-            [0.80] * num,
+            [0.70] * self.num,
+            [13.0] * self.num,
+            [0.80] * self.num,
             0.00,
             0.001,
         )
 
         # Should not switch since response time bad
         self._assert_post_filter_threshold(
-            buckets, [25.0] * num, [0.80] * num, [13.0] * num, [0.80] * num, 0.00, 0.001
+            self.buckets,
+            [25.0] * self.num,
+            [0.80] * self.num,
+            [13.0] * self.num,
+            [0.80] * self.num,
+            0.00,
+            0.001,
+        )
+
+    def _assert_approximate_threshold(
+        self,
+        buckets,
+        response_times_exact,
+        response_times_approx,
+        lower,
+        upper,
+    ):
+        benchmark_exact = VespaNNParameterOptimizer.BenchmarkResults(
+            buckets, response_times_exact
+        )
+        benchmark_approx = VespaNNParameterOptimizer.BenchmarkResults(
+            buckets, response_times_approx
+        )
+
+        approximate_threshold = self.optimizer.suggest_approximate_threshold(
+            benchmark_exact, benchmark_approx
+        )
+        self.assertGreaterEqual(1 - approximate_threshold, lower)
+        self.assertLessEqual(1 - approximate_threshold, upper)
+
+    def test_suggest_approximate_threshold(self):
+        # Exact search cheap. Should be somewhere between 90 and 95 percent
+        self._assert_approximate_threshold(
+            self.buckets,
+            [
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                10.0,
+                5.0,
+            ],
+            [5.0, 5.0, 5.0, 10.0, 10.0, 10.0, 15.0, 15.0, 15.0, 20.0, 20.0, 20.0, 25.0],
+            0.90,
+            0.95,
+        )
+
+        # Exact search too expensive. Should be at 99 percent, the last point we have any info on.
+        self._assert_approximate_threshold(
+            self.buckets,
+            [
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                10.0,
+                5.0,
+            ],
+            [5.0, 5.0, 5.0, 10.0, 10.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0],
+            0.989,
+            0.991,
+        )
+
+        # Exact search cheap. Always use it.
+        self._assert_approximate_threshold(
+            self.buckets,
+            [2.0] * self.num,
+            [10.0] * self.num,
+            0.0,
+            0.001,
         )
