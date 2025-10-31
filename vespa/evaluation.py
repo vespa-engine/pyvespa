@@ -1701,17 +1701,32 @@ def extract_features_from_hit(
 
 
 class VespaNNGlobalFilterHitratioEvaluator:
-    """Class for determining hit ratio of ANN queries.
+    """
+    Determine the hit ratio of the global filter in ANN queries. This hit ratio determines the search strategy
+    used to perform the nearest-neighbor search and is essential to understanding and optimizing the behavior
+    of Vespa on these queries.
 
-    Determines the hit ratios of queries by querying with profiling and inspecting the profile file.
+    This class:
+
+    - Takes a list of queries.
+    - Runs the queries with tracing.
+    - Determines the hit ratio by examining the trace.
+
+    Args:
+        queries (List[Dict[str, str]]): List of ANN queries.
+        app (Vespa): An instance of the Vespa application.
     """
     def __init__(self, queries: List[Dict[str, str]], app: Vespa):
         self.queries = queries
         self.app = app
 
     def run(self):
-        """Compute hit ratio of a query."""
+        """
+        Determines the hit ratios of the global filters in the supplied ANN queries.
 
+        Returns:
+            List[List[float]]: List of lists of hit ratios, which are values from the intervall [0.0, 1.0], corresponding to the supplied queries.
+        """
         query_parameters = {
             'timeout': '20s',
             'trace.explainLevel': '1',
