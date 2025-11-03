@@ -2139,6 +2139,73 @@ class VespaNNParameterOptimizer:
             else:
                 print(f"Warning: Query {query} has no hitratio.")
 
+    def _has_query_with_filtered_out(self, lower: float, upper: float) -> bool:
+        """
+        Checks whether there are queries falling into the buckets specified by the given interval.
+
+        Args:
+            lower (float): Lower end of interval (inclusive).
+            upper (float): Upper end of interval (exclusive).
+
+        Return:
+            bool: Whether there are queries falling into the buckets.
+        """
+        lower_bucket = self.filtered_out_to_bucket(lower)
+        upper_bucket = self.filtered_out_to_bucket(upper)
+
+        for bucket_num in range(lower_bucket, upper_bucket):
+            if self.buckets[bucket_num]:
+                return True
+
+        return False
+
+    def has_sufficient_queries(self) -> bool:
+        """
+        Checks whether the given queries are deemed sufficient to give meaningful suggestions.
+
+        Returns:
+            bool: Whether the given queries are deemed sufficient to give meaningful suggestions.
+        """
+        check_intervals = [
+            (0.00, 0.25),
+            (0.25, 0.50),
+            (0.50, 0.75),
+            (0.75, 0.90),
+            (0.90, 0.95),
+            (0.95, 1.00),
+        ]
+
+        for lower, upper in check_intervals:
+            if not self._has_query_with_filtered_out(lower, upper):
+                if self.print_progress:
+                    print(
+                        f"  No queries found with filtered-out ratio in [{lower},{upper})"
+                    )
+
+                return False
+
+        return True
+
+    def buckets_sufficiently_filled(self) -> bool:
+        """
+        Checks whether all non-empty buckets have at least 10 queries.
+
+        Returns:
+            bool: Whether all non-empty buckets have at least 10 queries.
+        """
+
+        for bucket_num in range(0, len(self.buckets)):
+            bucket = self.buckets[bucket_num]
+
+            if bucket and len(bucket) < 10:
+                if self.print_progress:
+                    print(
+                        f"  Bucket for filtered-out ratios in [{self.bucket_to_filtered_out(bucket_num)},{self.bucket_to_filtered_out(bucket_num + 1)}) only has {len(bucket)} queries."
+                    )
+                return False
+
+        return True
+
     def get_query_distribution(self):
         """
         Gets the distribution of queries across all buckets.
@@ -2402,7 +2469,12 @@ class VespaNNParameterOptimizer:
 
         return self.bucket_to_hitratio(threshold)
 
-    def _test_filter_first_exploration(self, filter_first_exploration: float) -> (VespaNNParameterOptimizer.BenchmarkResults, VespaNNParameterOptimizer.RecallResults):
+    def _test_filter_first_exploration(
+        self, filter_first_exploration: float
+    ) -> (
+        VespaNNParameterOptimizer.BenchmarkResults,
+        VespaNNParameterOptimizer.RecallResults,
+    ):
         parameters_candidate = {
             "ranking.matching.approximateThreshold": 0.00,
             "ranking.matching.filterFirstThreshold": 1.00,
