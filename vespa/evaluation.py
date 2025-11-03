@@ -1775,3 +1775,125 @@ class VespaNNGlobalFilterHitratioEvaluator:
             results.append(hit_ratios)
 
         return results
+
+
+class VespaNNRecallRelevanceMismatchError(Exception):
+    """
+    Exception raised when the reported relevance between exact and approximate query differs.
+    """
+
+    pass
+
+
+class VespaNNRecallUnsuccessfulQueryError(Exception):
+    """
+    Exception raised when trying to compute the recall of an unsuccessful query.
+    """
+
+    pass
+
+
+class VespaNNRecallEvaluator:
+    """
+    Determine recall of ANN queries. The recall of an ANN query with k hits is the number of hits
+    that actually are among the k nearest neighbors of the query vector.
+
+    This class:
+
+    - Takes a list of queries.
+    - First runs the queries as is (with the supplied HTTP parameters).
+    - Then runs the queries with the supplied HTTP parameters and an additional parameter enforcing an exact nearest neighbor search.
+    - Determines the recall by comparing the results.
+
+    Args:
+        queries (List[Dict[str, str]]): List of ANN queries.
+        hits (int): Number of targetHits determined by the ANN queries.
+        app (Vespa): An instance of the Vespa application.
+        **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
+    """
+
+    def __init__(self, queries: List[Dict[str, str]], hits: int, app: Vespa, **kwargs):
+        self.queries = queries
+        self.hits = hits
+        self.app = app
+        self.parameters = kwargs
+
+    def _compute_recall(
+        self, response_exact: VespaQueryResponse, response_approx: VespaQueryResponse
+    ) -> float:
+        """
+        Computes the recall from the given responses, one from an exact search and one from an approximate search.
+
+        Returns:
+            float: Recall value from the interval [0.0, 1.0].
+        """
+        if not (response_exact.is_successful() and response_approx.is_successful()):
+            raise VespaNNRecallUnsuccessfulQueryError()
+
+        try:
+            results_exact = response_exact.get_json()["root"]["children"]
+        except KeyError:
+            results_exact = {}
+
+        try:
+            results_approx = response_approx.get_json()["root"]["children"]
+        except KeyError:
+            results_approx = {}
+
+        size_exact = len(results_exact)
+        size_approx = len(results_approx)
+
+        recall = 0
+        i = 0
+        j = 0
+        while i < size_exact and j < size_approx:
+            exact = results_exact[i]
+            approx = results_approx[j]
+            relevance_exact = float(exact["relevance"])
+            relevance_approx = float(approx["relevance"])
+            if exact["id"] == approx["id"]:
+                if abs(relevance_exact - relevance_approx) > 1e-5:
+                    raise VespaNNRecallRelevanceMismatchError(
+                        f"Results have the same id {exact['id']}, "
+                        f"but relevances {relevance_exact} and {relevance_approx} do not match"
+                    )
+                recall += 1
+                i += 1
+                j += 1
+            elif relevance_exact > relevance_approx:
+                i += 1
+            else:
+                j += 1
+
+        return recall / self.hits
+
+    def run(self) -> List[float]:
+        """
+        Computes the recall of the supplied queries.
+
+        Returns:
+            List[float]: List of recall values from the interval [0.0, 1.0] corresponding to the supplied queries.
+        """
+        query_parameters = dict(
+            self.parameters, **{"hits": self.hits, "timeout": "20s"}
+        )
+        query_parameters_exact = dict(
+            query_parameters, **{"ranking.matching.approximateThreshold": 1.00}
+        )
+
+        queries_with_parameters = list(
+            map(lambda query: dict(query, **query_parameters), self.queries)
+        )
+        responses, _ = execute_queries(self.app, queries_with_parameters)
+
+        queries_with_parameters_exact = list(
+            map(lambda query: dict(query, **query_parameters_exact), self.queries)
+        )
+        responses_exact, _ = execute_queries(self.app, queries_with_parameters_exact)
+
+        return list(
+            map(
+                lambda pair: self._compute_recall(pair[0], pair[1]),
+                zip(responses, responses_exact),
+            )
+        )
