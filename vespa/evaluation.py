@@ -1717,7 +1717,12 @@ class VespaNNGlobalFilterHitratioEvaluator:
         app (Vespa): An instance of the Vespa application.
     """
 
-    def __init__(self, queries: List[Dict[str, str]], app: Vespa, verify_target_hits: int | None = None):
+    def __init__(
+        self,
+        queries: List[Dict[str, str]],
+        app: Vespa,
+        verify_target_hits: int | None = None,
+    ):
         self.queries = queries
         self.app = app
         self.verify_target_hits = verify_target_hits
@@ -1773,8 +1778,13 @@ class VespaNNGlobalFilterHitratioEvaluator:
                 ):
                     hit_ratios.append(blueprint["global_filter"]["hit_ratio"])
 
-                if (self.verify_target_hits is not None and int(blueprint["target_hits"]) != self.verify_target_hits):
-                    print(f"Warning: Number of targetHits of query is not {self.verify_target_hits}")
+                if (
+                    self.verify_target_hits is not None
+                    and int(blueprint["target_hits"]) != self.verify_target_hits
+                ):
+                    print(
+                        f"Warning: Number of targetHits of query is not {self.verify_target_hits}"
+                    )
 
             results.append(hit_ratios)
 
@@ -2069,6 +2079,31 @@ class VespaNNParameterOptimizer:
 
         return sum(map(lambda x: 1 if x else 0, self.buckets[from_bucket:to_bucket]))
 
+    def get_non_empty_buckets(self) -> List[int]:
+        """
+        Gets the indices of the non-empty buckets.
+
+        Returns:
+            List[int]: List of indices of the non-empty buckets.
+        """
+        non_empty_buckets = []
+        for i in range(0, len(self.buckets)):
+            if self.buckets[i]:
+                non_empty_buckets.append(i)
+
+        return non_empty_buckets
+
+    def get_filtered_out_ratios(self) -> List[float]:
+        """
+        Gets the (lower interval ends of the) filtered-out ratios of the non-empty buckets.
+
+        Returns:
+            List[float]: List of the (lower interval ends of the) filtered-out ratios of the non-empty buckets.
+        """
+        return list(
+            map(lambda x: self.bucket_to_filtered_out(x), self.get_non_empty_buckets())
+        )
+
     def get_number_of_queries(self):
         """
         Gets the number of queries contained in the buckets.
@@ -2229,7 +2264,6 @@ class VespaNNParameterOptimizer:
         return x, y
 
     class BenchmarkResults:
-        # TODO Decide what to do
         def __init__(self, x, y):
             self.x = x
             self.y = y
@@ -2277,7 +2311,6 @@ class VespaNNParameterOptimizer:
         return VespaNNParameterOptimizer.BenchmarkResults(x, y)
 
     class RecallResults:
-        # TODO Decide what to do
         def __init__(self, x, y):
             self.x = x
             self.y = y
@@ -2327,6 +2360,50 @@ class VespaNNParameterOptimizer:
         return VespaNNParameterOptimizer.RecallResults(x, y)
 
     def suggest_filter_first_threshold(
+        self, **kwargs
+    ) -> dict[str, float | dict[str, List[float]]]:
+        """
+        Suggests a value for filterFirstThreshold based on performed benchmarks.
+
+        Returns:
+            float: Suggested value for filterFirstThreshold.
+        """
+        hnsw_parameters = dict(
+            kwargs,
+            **{
+                "timeout": "20s",
+                "ranking.matching.approximateThreshold": 0.00,
+                "ranking.matching.filterFirstThreshold": 0.00,
+            },
+        )
+        benchmark_hnsw = self.benchmark(**hnsw_parameters)
+
+        filter_first_parameters = dict(
+            kwargs,
+            **{
+                "timeout": "20s",
+                "ranking.matching.approximateThreshold": 0.00,
+                "ranking.matching.filterFirstThreshold": 1.00,
+                # "ranking.matching.filterFirstExploration": filter_first_exploration,
+            },
+        )
+        benchmark_filter_first = self.benchmark(**filter_first_parameters)
+
+        suggestion = self._suggest_filter_first_threshold(
+            benchmark_hnsw, benchmark_filter_first
+        )
+
+        report = {
+            "suggestion": suggestion,
+            "benchmarks": {
+                "hnsw": benchmark_hnsw.y,
+                "filter_first": benchmark_filter_first.y,
+            },
+        }
+
+        return report
+
+    def _suggest_filter_first_threshold(
         self,
         benchmark_hnsw: VespaNNParameterOptimizer.BenchmarkResults,
         benchmark_filter_first: VespaNNParameterOptimizer.BenchmarkResults,
@@ -2370,6 +2447,49 @@ class VespaNNParameterOptimizer:
         return self.bucket_to_hitratio(threshold)
 
     def suggest_approximate_threshold(
+        self, **kwargs
+    ) -> dict[str, float | dict[str, List[float]]]:
+        """
+        Suggests a value for approximateThreshold based on performed benchmarks.
+
+        Returns:
+            float: Suggested value for approximateThreshold.
+        """
+        exact_parameters = dict(
+            kwargs,
+            **{
+                "timeout": "20s",
+                "ranking.matching.approximateThreshold": 1.00,
+            },
+        )
+        benchmark_exact = self.benchmark(**exact_parameters)
+
+        filter_first_parameters = dict(
+            kwargs,
+            **{
+                "timeout": "20s",
+                "ranking.matching.approximateThreshold": 0.00,
+                # "ranking.matching.filterFirstThreshold": filter_first_threshold,
+                # "ranking.matching.filterFirstExploration": filter_first_exploration,
+            },
+        )
+        benchmark_filter_first = self.benchmark(**filter_first_parameters)
+
+        suggestion = self._suggest_approximate_threshold(
+            benchmark_exact, benchmark_filter_first
+        )
+
+        report = {
+            "suggestion": suggestion,
+            "benchmarks": {
+                "exact": benchmark_exact.y,
+                "filter_first": benchmark_filter_first.y,
+            },
+        }
+
+        return report
+
+    def _suggest_approximate_threshold(
         self,
         benchmark_exact: VespaNNParameterOptimizer.BenchmarkResults,
         benchmark_ann: VespaNNParameterOptimizer.BenchmarkResults,
@@ -2413,6 +2533,59 @@ class VespaNNParameterOptimizer:
         return self.bucket_to_hitratio(approximate_threshold)
 
     def suggest_post_filter_threshold(
+        self, **kwargs
+    ) -> dict[str, float | dict[str, List[float]]]:
+        """
+        Suggests a value for postFilterThreshold based on performed benchmarks and recall measurements.
+
+        Returns:
+            float: Suggested value for postFilterThreshold.
+        """
+        post_filtering_parameters = dict(
+            kwargs,
+            **{
+                "timeout": "20s",
+                "ranking.matching.postFilterThreshold": 0.00,
+                "ranking.matching.approximateThreshold": 0.00,
+            },
+        )
+        benchmark_post_filtering = self.benchmark(**post_filtering_parameters)
+
+        filter_first_parameters = {
+            "timeout": "20s",
+            # "ranking.matching.approximateThreshold": approximate_threshold,
+            # "ranking.matching.filterFirstThreshold": filter_first_threshold,
+            # "ranking.matching.filterFirstExploration": filter_first_exploration,
+        }
+        benchmark_filter_first = self.benchmark(**filter_first_parameters)
+
+        recall_post_filtering = self.compute_average_recalls(
+            **post_filtering_parameters
+        )
+        recall_filter_first = self.compute_average_recalls(**filter_first_parameters)
+
+        suggestion = self._suggest_post_filter_threshold(
+            benchmark_post_filtering,
+            recall_post_filtering,
+            benchmark_filter_first,
+            recall_filter_first,
+        )
+
+        report = {
+            "suggestion": suggestion,
+            "benchmarks": {
+                "post_filtering": benchmark_post_filtering.y,
+                "filter_first": benchmark_filter_first.y,
+            },
+            "recall_measurements": {
+                "post_filtering": recall_post_filtering.y,
+                "filter_first": recall_filter_first.y,
+            },
+        }
+
+        return report
+
+    def _suggest_post_filter_threshold(
         self,
         benchmark_post_filtering: VespaNNParameterOptimizer.BenchmarkResults,
         recall_post_filtering: VespaNNParameterOptimizer.RecallResults,
@@ -2529,10 +2702,15 @@ class VespaNNParameterOptimizer:
         assert mean(benchmark_no_exploration_int) > 0
         assert mean(recall_full_exploration_int) > 0
 
-        benchmarks = [
-            (0.0, benchmark_no_exploration, recall_no_exploration),
-            (1.0, benchmark_full_exploration, recall_full_exploration),
-        ]
+        benchmarks = {
+            0.0: benchmark_no_exploration.y,
+            1.0: benchmark_full_exploration.y,
+        }
+
+        recall_measurements = {
+            0.0: recall_no_exploration.y,
+            1.0: recall_full_exploration.y,
+        }
 
         # Find tradeoff between increase in response time and drop in recall by using binary search
         left = 0.0
@@ -2552,9 +2730,8 @@ class VespaNNParameterOptimizer:
             recall_candidate_int = interpolate(
                 recall_candidate.x, recall_candidate.y, self.get_number_of_buckets()
             )
-            benchmarks.append(
-                (filter_first_exploration, benchmark_candidate, recall_candidate)
-            )
+            benchmarks[filter_first_exploration] = benchmark_candidate.y
+            recall_measurements[filter_first_exploration] = recall_candidate.y
 
             # How much does the response time increase compared to no exploration?
             # One could also try to compare the values for every bucket, but this might be a bit unstable:
@@ -2587,4 +2764,10 @@ class VespaNNParameterOptimizer:
 
             filter_first_exploration = left + (right - left) / 2
 
-        return filter_first_exploration, benchmarks
+        report = {
+            "suggestion": filter_first_exploration,
+            "benchmarks": benchmarks,
+            "recall_measurements": recall_measurements,
+        }
+
+        return report
