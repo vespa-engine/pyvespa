@@ -2402,7 +2402,7 @@ class VespaNNParameterOptimizer:
 
         return self.bucket_to_hitratio(threshold)
 
-    def _test_filter_first_exploration(self, filter_first_exploration):
+    def _test_filter_first_exploration(self, filter_first_exploration: float) -> (VespaNNParameterOptimizer.BenchmarkResults, VespaNNParameterOptimizer.RecallResults):
         parameters_candidate = {
             "ranking.matching.approximateThreshold": 0.00,
             "ranking.matching.filterFirstThreshold": 1.00,
