@@ -1897,3 +1897,73 @@ class VespaNNRecallEvaluator:
                 zip(responses, responses_exact),
             )
         )
+
+
+class VespaQueryBenchmarker:
+    """
+    Determine the searchtime of queries by running them multiple times and taking the average.
+    Using the searchtime has the advantage of not including network latency.
+
+    This class:
+
+    - Takes a list of queries.
+    - Runs the queries multiple times.
+    - Determines the average searchtime of these runs.
+
+    Args:
+        queries (List[Dict[str, str]]): List of queries.
+        app (Vespa): An instance of the Vespa application.
+        repetitions (int, optional): Number of times to repeat the queries.
+        **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
+    """
+
+    def __init__(
+        self, queries: List[Dict[str, str]], app: Vespa, repetitions: int = 5, **kwargs
+    ):
+        self.queries = queries
+        self.app = app
+        self.repetitions = repetitions
+        self.parameters = kwargs
+
+    def _run_benchmark(self) -> List[float]:
+        """
+        Run all queries once and extract the searchtime.
+
+        Returns:
+            List[float]: List of searchtimes, corresponding to the supplied queries.
+        """
+        queries_with_parameters = list(
+            map(
+                lambda query: dict(
+                    query, **self.parameters, **{"presentation.timing": True}
+                ),
+                self.queries,
+            )
+        )
+        _, response_times = execute_queries(self.app, queries_with_parameters)
+        return response_times
+
+    def run(self) -> List[float]:
+        """
+        Runs the benchmark (including a warm-up run not included in the result).
+
+        Returns:
+            List[float]: List of searchtimes, corresponding to the supplied queries.
+        """
+        # Two warmup runs
+        for i in range(0, 2):
+            self._run_benchmark()
+
+        # Actual benchmark runs
+        response_times_sum = [0] * len(self.queries)
+        for i in range(0, self.repetitions):
+            response_times = self._run_benchmark()
+            response_times_ms = list(map(lambda x: 1000 * x, response_times))
+            response_times_sum = list(
+                map(
+                    lambda pair: pair[0] + pair[1],
+                    zip(response_times_sum, response_times_ms),
+                )
+            )
+
+        return list(map(lambda x: x / self.repetitions, response_times_sum))
