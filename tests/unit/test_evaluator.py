@@ -3119,6 +3119,57 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         ]
         self.optimizer.distribute_to_buckets(self.queries_with_hitratios)
 
+    def test_has_sufficient_queries(self):
+        # Fill in placeholder queries corresponding to buckets
+        queries_with_hitratios = [
+            ({"yql": "foo"}, 0.01),
+            ({"yql": "foo"}, 0.05),
+            ({"yql": "foo"}, 0.10),
+            ({"yql": "foo"}, 0.20),
+            ({"yql": "foo"}, 0.40),
+            ({"yql": "foo"}, 0.60),
+            ({"yql": "foo"}, 0.90),
+        ]
+
+        optimizer = VespaNNParameterOptimizer(self.mock_app, 100, buckets_per_percent=2)
+        optimizer.distribute_to_buckets(queries_with_hitratios)
+        self.assertTrue(optimizer.has_sufficient_queries())
+
+        optimizer = VespaNNParameterOptimizer(self.mock_app, 100, buckets_per_percent=2)
+        optimizer.distribute_to_buckets(queries_with_hitratios[0:4])
+        self.assertFalse(optimizer.has_sufficient_queries())
+
+        optimizer = VespaNNParameterOptimizer(self.mock_app, 100, buckets_per_percent=2)
+        optimizer.distribute_to_buckets(list(reversed(queries_with_hitratios))[0:4])
+        self.assertFalse(optimizer.has_sufficient_queries())
+
+    def test_buckets_sufficiently_filled(self):
+        # Fill in placeholder queries corresponding to buckets
+        queries_with_hitratios = [
+            ({"yql": "foo"}, 0.4525),
+        ]
+
+        optimizer = VespaNNParameterOptimizer(self.mock_app, 100, buckets_per_percent=2)
+        optimizer.distribute_to_buckets(queries_with_hitratios)
+        self.assertFalse(optimizer.buckets_sufficiently_filled())
+
+        queries_with_hitratios = [
+            ({"yql": "foo"}, 0.4525),
+            ({"yql": "foo"}, 0.4525),
+            ({"yql": "foo"}, 0.4525),
+            ({"yql": "foo"}, 0.4525),
+            ({"yql": "foo"}, 0.4525),
+            ({"yql": "foo"}, 0.4535),
+            ({"yql": "foo"}, 0.4535),
+            ({"yql": "foo"}, 0.4535),
+            ({"yql": "foo"}, 0.4535),
+            ({"yql": "foo"}, 0.4535),
+        ]
+
+        optimizer = VespaNNParameterOptimizer(self.mock_app, 100, buckets_per_percent=2)
+        optimizer.distribute_to_buckets(queries_with_hitratios)
+        self.assertTrue(optimizer.buckets_sufficiently_filled())
+
     def _assert_post_filter_threshold(
         self,
         response_times_post_filtering,

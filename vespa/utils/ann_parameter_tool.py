@@ -101,6 +101,14 @@ if __name__ == "__main__":
         axs.set_ylim(ymin=0)
         plt.show()
 
+    if not optimizer.has_sufficient_queries():
+        print(
+            "  Warning: Selection of queries does not cover enough hit ratios to get meaningful results."
+        )
+
+    if not optimizer.buckets_sufficiently_filled():
+        print("  Warning: Only few queries for a specific hit ratio.")
+
     ####################################################################################################################
     # filterFirstExploration
     ####################################################################################################################
