@@ -1967,3 +1967,548 @@ class VespaQueryBenchmarker:
             )
 
         return list(map(lambda x: x / self.repetitions, response_times_sum))
+
+
+def interpolate(x, y, intended_length):
+    interpolated_y = [0] * intended_length
+
+    if len(x) == 0:
+        return interpolated_y
+
+    for i in range(0, x[0] + 1):
+        interpolated_y[i] = y[0]
+
+    for i in range(x[-1], intended_length):
+        interpolated_y[i] = y[-1]
+
+    for i in range(0, len(x) - 1):
+        length = x[i + 1] - x[i]
+
+        for j in range(0, length):
+            interpolated_y[x[i] + j] = j / length * y[i + 1] + (1 - j / length) * y[i]
+
+    return interpolated_y
+
+
+class VespaNNParameterOptimizer:
+    """
+    Get suggestions for configuring the nearest-neighbor parameters of a Vespa application.
+
+    This class:
+
+    - Sorts ANN queries into buckets based on the hit-ratio of their global filter.
+    - For every bucket, can determine the average response time of the queries in this bucket.
+    - For every bucket, can determine the average recall of the queries in this bucket.
+    - Can suggest a value for postFilterThreshold.
+    - Can suggest a value for filterFirstThreshold.
+    - Can suggest a value for filterFirstExploration.
+    - Can suggest a value for approximateThreshold.
+
+    Args:
+        app (Vespa): An instance of the Vespa application.
+        hits (int, optional): Number of targetHits determined by the ANN queries that will be supplied to the instance of this class.
+        buckets_per_percent (int, optional): How many buckets are created for every percent point, "resolution" of the suggestions. Defaults to 2.
+        print_progress (bool, optional): Whether to print progress information while determining suggestions. Defaults to False.
+    """
+
+    def __init__(
+        self,
+        app: Vespa,
+        hits: int,
+        buckets_per_percent: int = 2,
+        print_progress: bool = False,
+    ):
+        self.app = app
+        self.hits = hits
+
+        # Every bucket represents an interval of length 1/buckets_per_percent. It contains a list of queries with hit-ratios (or rather 1-hit-ratios) in that interval.
+        self.buckets_per_percent = buckets_per_percent
+        self.buckets = [[] for _ in range(100 * buckets_per_percent)]
+
+        self.print_progress = print_progress
+
+    def get_bucket_interval_width(self) -> float:
+        """
+        Gets the width of the interval represented by a single bucket.
+
+        Returns:
+            float: Width of the interval represented by a single bucket.
+        """
+        return 0.01 / self.buckets_per_percent
+
+    def get_number_of_buckets(self) -> int:
+        """
+        Gets the number of buckets.
+
+        Returns:
+            int: Number of buckets.
+        """
+        return len(self.buckets)
+
+    def get_number_of_nonempty_buckets(
+        self, from_bucket: int = None, to_bucket: int = None
+    ) -> int:
+        """
+        Counts the number of buckets that contain at least one query.
+
+        Args:
+            from_bucket (int, optional): Index of the first bucket to consider.
+            to_bucket (int, optional): Index of the last bucket to consider (exclusive).
+
+        Returns:
+            int: The number of buckets that contain at least one query.
+        """
+        if from_bucket is None:
+            from_bucket = 0
+        if to_bucket is None:
+            to_bucket = self.get_number_of_buckets()
+
+        return sum(map(lambda x: 1 if x else 0, self.buckets[from_bucket:to_bucket]))
+
+    def get_number_of_queries(self):
+        """
+        Gets the number of queries contained in the buckets.
+
+        Returns:
+            int: Number of queries contained in the buckets.
+        """
+        return sum(map(len, self.buckets))
+
+    def bucket_to_hitratio(self, bucket: int) -> float:
+        """
+        Gets the hit ratio (upper endpoint of interval) corresponding to the given bucket index.
+
+        Args:
+            bucket (int): Index of a bucket.
+
+        Returns:
+            float: Hit ratio corresponding to the given bucket index.
+        """
+        return (len(self.buckets) - bucket) / len(self.buckets)
+
+    def bucket_to_filtered_out(self, bucket: int) -> float:
+        """
+        Gets the filtered-out ratio (1 - hit ratio, lower endpoint of interval) corresponding to the given bucket index.
+
+        Args:
+            bucket (int): Index of a bucket.
+
+        Returns:
+            float: Filtered-out ratio corresponding to the given bucket index.
+        """
+        return bucket / len(self.buckets)
+
+    def buckets_to_filtered_out(self, buckets: List[int]) -> List[float]:
+        """
+        Applies bucket_to_filtered_out to list of bucket indices.
+
+        Args:
+            buckets (List[int]): List of bucket indices.
+
+        Returns:
+            List[float]: Filtered-out ratios corresponding to the given bucket indices.
+        """
+        return list(map(lambda b: self.bucket_to_filtered_out(b), buckets))
+
+    def filtered_out_to_bucket(self, percent: float) -> int:
+        """
+        Gets the index of the bucket containing the given filtered-out ratio.
+
+        Args:
+            percent (float): Filtered-out ratio.
+
+        Returns:
+            int: Index of bucket containing the given filtered-out ratio.
+        """
+        return math.floor(percent * 100) * self.buckets_per_percent
+
+    def distribute_to_buckets(
+        self, queries_with_hitratios: List[(Dict[str, str], float)]
+    ):
+        """
+        Distributes the given queries to buckets according to their given hit ratios.
+
+        Args:
+            queries_with_hitratios (List[(Dict[str,str],float)]): Queries with hit ratios.
+        """
+        for query, hitratio in queries_with_hitratios:
+            if hitratio is not None:
+                filtered_out = 1.0 - hitratio
+                bucket_number = self.filtered_out_to_bucket(filtered_out)
+                self.buckets[bucket_number].append(query)
+            else:
+                print(f"Warning: Query {query} has no hitratio.")
+
+    def get_query_distribution(self):
+        """
+        Gets the distribution of queries across all buckets.
+
+        Returns:
+            List[float]: List of filtered-out ratios corresponding to non-empty buckets.
+            List[int]: List of numbers of queries.
+        """
+        x = []
+        y = []
+        for i in range(0, len(self.buckets)):
+            bucket = self.buckets[i]
+            if bucket:  # not empty
+                x.append(self.bucket_to_filtered_out(i))
+                y.append(len(bucket))
+
+        return x, y
+
+    class BenchmarkResults:
+        # TODO Decide what to do
+        def __init__(self, x, y):
+            self.x = x
+            self.y = y
+
+    def benchmark(
+        self, from_bucket=None, to_bucket=None, **kwargs
+    ) -> VespaNNParameterOptimizer.BenchmarkResults:
+        """
+        For each non-empty bucket, determine the average searchtime.
+
+        Args:
+            from_bucket (int, optional): Index of the first bucket to consider.
+            to_bucket (int, optional): Index of the last bucket to consider (exclusive).
+            **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
+
+        Returns:
+            VespaNNParameterOptimizer.BenchmarkResults: The benchmark results.
+        """
+        if from_bucket is None:
+            from_bucket = 0
+        if to_bucket is None:
+            to_bucket = self.get_number_of_buckets()
+
+        if self.print_progress:
+            print("->Benchmarking", end="")
+        x = []
+        y = []
+        processed_buckets = 0
+        for i in range(from_bucket, to_bucket):
+            bucket = self.buckets[i]
+            if bucket:
+                if self.print_progress:
+                    print(
+                        f"\r->Benchmarking: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(from_bucket, to_bucket), 2)}%",
+                        end="",
+                    )
+                processed_buckets += 1
+                benchmarker = VespaQueryBenchmarker(bucket, self.app, **kwargs)
+                response_times = benchmarker.run()
+                x.append(i)
+                y.append(mean(response_times))
+
+        print("\r  Benchmarking: 100.0%")
+
+        return VespaNNParameterOptimizer.BenchmarkResults(x, y)
+
+    class RecallResults:
+        # TODO Decide what to do
+        def __init__(self, x, y):
+            self.x = x
+            self.y = y
+
+    def compute_average_recalls(
+        self, from_bucket=None, to_bucket=None, **kwargs
+    ) -> VespaNNParameterOptimizer.RecallResults:
+        """
+        For each non-empty bucket, determine the average recall.
+
+        Args:
+            from_bucket (int, optional): Index of the first bucket to consider.
+            to_bucket (int, optional): Index of the last bucket to consider (exclusive).
+            **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
+
+        Returns:
+            VespaNNParameterOptimizer.RecallResults: The recallresults.
+        """
+        if from_bucket is None:
+            from_bucket = 0
+        if to_bucket is None:
+            to_bucket = self.get_number_of_buckets()
+
+        if self.print_progress:
+            print("->Computing recall", end="")
+        x = []
+        y = []
+        processed_buckets = 0
+        for i in range(from_bucket, to_bucket):
+            bucket = self.buckets[i]
+            if bucket:
+                if self.print_progress:
+                    print(
+                        f"\r->Computing recall: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(from_bucket, to_bucket), 2)}%",
+                        end="",
+                    )
+                recall_evaluator = VespaNNRecallEvaluator(
+                    bucket, self.hits, self.app, **kwargs
+                )
+                recall_list = recall_evaluator.run()
+                x.append(i)
+                y.append(sum(recall_list) / len(recall_list))
+                processed_buckets += 1
+
+        print("\r  Computing recall: 100.0%")
+
+        return VespaNNParameterOptimizer.RecallResults(x, y)
+
+    def suggest_filter_first_threshold(
+        self,
+        benchmark_hnsw: VespaNNParameterOptimizer.BenchmarkResults,
+        benchmark_filter_first: VespaNNParameterOptimizer.BenchmarkResults,
+    ) -> float:
+        """
+        Suggests a value for filterFirstThreshold based on the two given benchmarks (using HNSW only, using HNSW with filter first only).
+
+        Args:
+            benchmark_hnsw (VespaNNParameterOptimizer.BenchmarkResults): Benchmark using HNSW only obtained from benchmark().
+            benchmark_filter_first (VespaNNParameterOptimizer.BenchmarkResults): Benchmark using HNSW with filter first only obtained from benchmark().
+
+        Returns:
+            float: Suggested value for filterFirstThreshold.
+        """
+        # Interpolate benchmark values for empty buckets
+        interpolated_hnsw_y = interpolate(
+            benchmark_hnsw.x, benchmark_hnsw.y, self.get_number_of_buckets()
+        )
+        interpolated_filter_first_y = interpolate(
+            benchmark_filter_first.x,
+            benchmark_filter_first.y,
+            self.get_number_of_buckets(),
+        )
+
+        # Start at last bucket
+        threshold = self.get_number_of_buckets()
+        threshold_diff = 0
+        for i in range(0, self.get_number_of_buckets()):
+            # Check what happens when we use "i" as the threshold
+            # current_diff is the "overhead" of using HNSW instead of HNSW (filter first)
+            current_diff = 0
+            for j in range(i, self.get_number_of_buckets()):
+                current_diff += interpolated_hnsw_y[j] - interpolated_filter_first_y[j]
+
+            # Larger overhead of using HNSW?
+            # We find the sport where the overhead of using HNSW is the largest
+            if current_diff > threshold_diff:
+                threshold = i
+                threshold_diff = current_diff
+
+        return self.bucket_to_hitratio(threshold)
+
+    def suggest_approximate_threshold(
+        self,
+        benchmark_exact: VespaNNParameterOptimizer.BenchmarkResults,
+        benchmark_ann: VespaNNParameterOptimizer.BenchmarkResults,
+    ) -> float:
+        """
+        Suggests a value for approximateThreshold based on the two given benchmarks (using exact search only, using HNSW with tuned filter-first parameters).
+
+        Args:
+            benchmark_exact (VespaNNParameterOptimizer.BenchmarkResults): Benchmark using exact search only obtained from benchmark().
+            benchmark_ann (VespaNNParameterOptimizer.BenchmarkResults): Benchmark using HNSW with tuned filter-first parameters obtained from benchmark().
+
+        Returns:
+            float: Suggested value for approximateThreshold.
+        """
+        # Interpolate benchmark values for empty buckets
+        int_bench_exact = interpolate(
+            benchmark_exact.x, benchmark_exact.y, self.get_number_of_buckets()
+        )
+        int_bench_ann = interpolate(
+            benchmark_ann.x, benchmark_ann.y, self.get_number_of_buckets()
+        )
+
+        # Start at last bucket
+        approximate_threshold = self.get_number_of_buckets() - 1
+
+        # Fast-foward to last non-empty bucket
+        while approximate_threshold > 0 and not self.buckets[approximate_threshold]:
+            approximate_threshold -= 1
+
+        while approximate_threshold > 0:
+            # Get response time for ANN
+            ann_time = int_bench_ann[approximate_threshold]
+
+            # Is response time for an exact search lower than for ANN?
+            # If yes, then use an exact search!
+            if int_bench_exact[approximate_threshold] < ann_time:
+                approximate_threshold -= 1
+            else:
+                break
+
+        return self.bucket_to_hitratio(approximate_threshold)
+
+    def suggest_post_filter_threshold(
+        self,
+        benchmark_post_filtering: VespaNNParameterOptimizer.BenchmarkResults,
+        recall_post_filtering: VespaNNParameterOptimizer.RecallResults,
+        benchmark_pre_filtering: VespaNNParameterOptimizer.BenchmarkResults,
+        recall_pre_filtering: VespaNNParameterOptimizer.RecallResults,
+    ) -> float:
+        """
+        Suggests a value for postFilterThreshold based on the two given pairs of a benchmark and a recall measurement (using post-filtering only, using HNSW with tuned parameters only).
+
+        Args:
+            benchmark_post_filtering (VespaNNParameterOptimizer.BenchmarkResults): Benchmark using post-filtering only obtained from benchmark().
+            recall_post_filtering (VespaNNParameterOptimizer.RecallResults): Recall measurement using post-filtering only obtained from compute_average_recalls().
+            benchmark_pre_filtering (VespaNNParameterOptimizer.BenchmarkResults): Benchmark using HNSW with tuned parameters only obtained from benchmark().
+            recall_pre_filtering (VespaNNParameterOptimizer.RecallResults): Recall measurement using HNSW with tuned parameters only obtained from compute_average_recalls().
+
+        Returns:
+            float: Suggested value for postFilterThreshold.
+        """
+        # Interpolate benchmark values for empty buckets
+        int_bench_post = interpolate(
+            benchmark_post_filtering.x,
+            benchmark_post_filtering.y,
+            self.get_number_of_buckets(),
+        )
+        int_bench_pre = interpolate(
+            benchmark_pre_filtering.x,
+            benchmark_pre_filtering.y,
+            self.get_number_of_buckets(),
+        )
+
+        int_recall_post = interpolate(
+            recall_post_filtering.x,
+            recall_post_filtering.y,
+            self.get_number_of_buckets(),
+        )
+        int_recall_pre = interpolate(
+            recall_pre_filtering.x, recall_pre_filtering.y, self.get_number_of_buckets()
+        )
+
+        threshold = 0
+        response_time_gain = 0
+        for i in range(0, self.get_number_of_buckets()):
+            # Gain we get from using post filtering until i
+            current_gain = 0
+            for j in range(0, i):
+                current_gain += int_bench_pre[j] - int_bench_post[j]
+
+            no_recall_loss = True
+            for j in range(0, i):
+                recall_loss = int_recall_pre[j] - int_recall_post[j]
+                if recall_loss >= 0.01:
+                    no_recall_loss = False
+                    break
+
+            if no_recall_loss and current_gain > response_time_gain:
+                threshold = i
+                response_time_gain = current_gain
+
+        return self.bucket_to_hitratio(threshold)
+
+    def _test_filter_first_exploration(self, filter_first_exploration: float) -> (VespaNNParameterOptimizer.BenchmarkResults, VespaNNParameterOptimizer.RecallResults):
+        parameters_candidate = {
+            "ranking.matching.approximateThreshold": 0.00,
+            "ranking.matching.filterFirstThreshold": 1.00,
+            "ranking.matching.filterFirstExploration": filter_first_exploration,
+        }
+
+        benchmark = self.benchmark(**parameters_candidate)
+        recall = self.compute_average_recalls(**parameters_candidate)
+
+        return benchmark, recall
+
+    def suggest_filter_first_exploration(
+        self,
+    ) -> (
+        float,
+        List[
+            (
+                float,
+                VespaNNParameterOptimizer.BenchmarkResults,
+                VespaNNParameterOptimizer.RecallResults,
+            )
+        ],
+    ):
+        """
+        Suggests a value for filterFirstExploration based on benchmarks and recall measurements performed on the supplied Vespa app.
+
+        Returns:
+            float: Suggested value for postFilterThreshold.
+            List[(float,VespaNNParameterOptimizer.BenchmarkResults,VespaNNParameterOptimizer.RecallResults)]: List of filterFirstExploration values, benchmarks, and recall measurements performed to get to the suggested value.
+        """
+        benchmark_no_exploration, recall_no_exploration = (
+            self._test_filter_first_exploration(0.0)
+        )
+        benchmark_no_exploration_int = interpolate(
+            benchmark_no_exploration.x,
+            benchmark_no_exploration.y,
+            self.get_number_of_buckets(),
+        )
+
+        benchmark_full_exploration, recall_full_exploration = (
+            self._test_filter_first_exploration(1.0)
+        )
+        recall_full_exploration_int = interpolate(
+            recall_full_exploration.x,
+            recall_full_exploration.y,
+            self.get_number_of_buckets(),
+        )
+        assert mean(benchmark_no_exploration_int) > 0
+        assert mean(recall_full_exploration_int) > 0
+
+        benchmarks = [
+            (0.0, benchmark_no_exploration, recall_no_exploration),
+            (1.0, benchmark_full_exploration, recall_full_exploration),
+        ]
+
+        # Find tradeoff between increase in response time and drop in recall by using binary search
+        left = 0.0
+        right = 1.0
+        filter_first_exploration = (right - left) / 2
+        for i in range(0, 7):
+            if self.print_progress:
+                print(f"  Testing {filter_first_exploration}")
+            benchmark_candidate, recall_candidate = self._test_filter_first_exploration(
+                filter_first_exploration
+            )
+            benchmark_candidate_int = interpolate(
+                benchmark_candidate.x,
+                benchmark_candidate.y,
+                self.get_number_of_buckets(),
+            )
+            recall_candidate_int = interpolate(
+                recall_candidate.x, recall_candidate.y, self.get_number_of_buckets()
+            )
+            benchmarks.append(
+                (filter_first_exploration, benchmark_candidate, recall_candidate)
+            )
+
+            # How much does the response time increase compared to no exploration?
+            # One could also try to compare the values for every bucket, but this might be a bit unstable:
+            # response_time_deviation = max([x/y - 1 for x, y in zip(benchmark_candidate, benchmark_no_exploration)])
+            response_time_deviation = max(
+                [
+                    x / mean(benchmark_no_exploration_int) - 1
+                    for x in benchmark_candidate_int
+                ]
+            )
+
+            # How much does the recall drop compared to full exploration?
+            # One could also try to compare the values for every bucket, but this might be a bit unstable:
+            # recall_deviation = max([1 - y/x for x, y in zip(recall_full_exploration, recall_candidate)])
+            recall_deviation = max(
+                [
+                    1 - y / mean(recall_full_exploration_int)
+                    for y in recall_candidate_int
+                ]
+            )
+
+            # Check how increase in response time compares to drop in recall
+            # (One could try to use weights here, e.g., make recall matter more)
+            if (
+                response_time_deviation > 1.5 * recall_deviation
+            ):  # Increase in response time is larger than drop in recall, decrease exploration
+                right = filter_first_exploration
+            else:  # Increase in response time is smaller than drop in recall, increase exploration
+                left = filter_first_exploration
+
+            filter_first_exploration = left + (right - left) / 2
+
+        return filter_first_exploration, benchmarks
