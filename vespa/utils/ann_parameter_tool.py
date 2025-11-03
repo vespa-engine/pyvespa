@@ -5,6 +5,7 @@ from vespa.evaluation import VespaNNGlobalFilterHitratioEvaluator
 from vespa.evaluation import VespaNNParameterOptimizer
 
 import argparse
+import sys
 import urllib.parse
 
 
@@ -82,9 +83,17 @@ if __name__ == "__main__":
     # Hit ratios
     ####################################################################################################################
     print("Determining hit ratios of queries")
-    hitratio_evaluator = VespaNNGlobalFilterHitratioEvaluator(queries, app)
-    hitratios = hitratio_evaluator.run()
-    hitratios = list(map(lambda list: list[0], hitratios))
+    hitratio_evaluator = VespaNNGlobalFilterHitratioEvaluator(queries, app, verify_target_hits=int(args.hits))
+    hitratio_list = hitratio_evaluator.run()
+
+    for i in range(0, len(hitratio_list)):
+        hitratios = hitratio_list[i]
+        if len(hitratios) == 0:
+            sys.exit(f"Aborting: No hit ratio found for query #{i} (No nearestNeighbor operator?)")
+        if len(hitratios) > 1:
+            sys.exit(f"Aborting: More than one hit ratio found for query #{i} (Multiple nearestNeighbor operators?)")
+
+    hitratios = list(map(lambda list: list[0], hitratio_list))
 
     # Sort hit ratios into buckets
     optimizer = VespaNNParameterOptimizer(app, int(args.hits), print_progress=True)
