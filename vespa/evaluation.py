@@ -1717,9 +1717,10 @@ class VespaNNGlobalFilterHitratioEvaluator:
         app (Vespa): An instance of the Vespa application.
     """
 
-    def __init__(self, queries: List[Dict[str, str]], app: Vespa):
+    def __init__(self, queries: List[Dict[str, str]], app: Vespa, verify_target_hits: int | None = None):
         self.queries = queries
         self.app = app
+        self.verify_target_hits = verify_target_hits
 
     def run(self):
         """
@@ -1771,6 +1772,9 @@ class VespaNNGlobalFilterHitratioEvaluator:
                     and blueprint["global_filter"]["calculated"]
                 ):
                     hit_ratios.append(blueprint["global_filter"]["hit_ratio"])
+
+                if (self.verify_target_hits is not None and int(blueprint["target_hits"]) != self.verify_target_hits):
+                    print(f"Warning: Number of targetHits of query is not {self.verify_target_hits}")
 
             results.append(hit_ratios)
 
