@@ -3119,6 +3119,57 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         ]
         self.optimizer.distribute_to_buckets(self.queries_with_hitratios)
 
+    def test_has_sufficient_queries(self):
+        # Fill in placeholder queries corresponding to buckets
+        queries_with_hitratios = [
+            ({"yql": "foo"}, 0.01),
+            ({"yql": "foo"}, 0.05),
+            ({"yql": "foo"}, 0.10),
+            ({"yql": "foo"}, 0.20),
+            ({"yql": "foo"}, 0.40),
+            ({"yql": "foo"}, 0.60),
+            ({"yql": "foo"}, 0.90),
+        ]
+
+        optimizer = VespaNNParameterOptimizer(self.mock_app, 100, buckets_per_percent=2)
+        optimizer.distribute_to_buckets(queries_with_hitratios)
+        self.assertTrue(optimizer.has_sufficient_queries())
+
+        optimizer = VespaNNParameterOptimizer(self.mock_app, 100, buckets_per_percent=2)
+        optimizer.distribute_to_buckets(queries_with_hitratios[0:4])
+        self.assertFalse(optimizer.has_sufficient_queries())
+
+        optimizer = VespaNNParameterOptimizer(self.mock_app, 100, buckets_per_percent=2)
+        optimizer.distribute_to_buckets(list(reversed(queries_with_hitratios))[0:4])
+        self.assertFalse(optimizer.has_sufficient_queries())
+
+    def test_buckets_sufficiently_filled(self):
+        # Fill in placeholder queries corresponding to buckets
+        queries_with_hitratios = [
+            ({"yql": "foo"}, 0.4525),
+        ]
+
+        optimizer = VespaNNParameterOptimizer(self.mock_app, 100, buckets_per_percent=2)
+        optimizer.distribute_to_buckets(queries_with_hitratios)
+        self.assertFalse(optimizer.buckets_sufficiently_filled())
+
+        queries_with_hitratios = [
+            ({"yql": "foo"}, 0.4525),
+            ({"yql": "foo"}, 0.4525),
+            ({"yql": "foo"}, 0.4525),
+            ({"yql": "foo"}, 0.4525),
+            ({"yql": "foo"}, 0.4525),
+            ({"yql": "foo"}, 0.4535),
+            ({"yql": "foo"}, 0.4535),
+            ({"yql": "foo"}, 0.4535),
+            ({"yql": "foo"}, 0.4535),
+            ({"yql": "foo"}, 0.4535),
+        ]
+
+        optimizer = VespaNNParameterOptimizer(self.mock_app, 100, buckets_per_percent=2)
+        optimizer.distribute_to_buckets(queries_with_hitratios)
+        self.assertTrue(optimizer.buckets_sufficiently_filled())
+
     def _assert_post_filter_threshold(
         self,
         response_times_post_filtering,
@@ -3142,7 +3193,7 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
             self.buckets, recall_pre_filtering
         )
 
-        post_filter_threshold = self.optimizer.suggest_post_filter_threshold(
+        post_filter_threshold = self.optimizer._suggest_post_filter_threshold(
             benchmark_post_filtering,
             recall_post_filtering,
             benchmark_pre_filtering,
@@ -3220,7 +3271,7 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
             self.buckets, response_times_approx
         )
 
-        approximate_threshold = self.optimizer.suggest_approximate_threshold(
+        approximate_threshold = self.optimizer._suggest_approximate_threshold(
             benchmark_exact, benchmark_approx
         )
         self.assertGreaterEqual(1 - approximate_threshold, lower)
@@ -3293,7 +3344,7 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
             self.buckets, response_times_filter_first
         )
 
-        filter_first_threshold = self.optimizer.suggest_filter_first_threshold(
+        filter_first_threshold = self.optimizer._suggest_filter_first_threshold(
             benchmark_hnsw, benchmark_filter_first
         )
         self.assertGreaterEqual(1 - filter_first_threshold, lower)
@@ -3434,9 +3485,10 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
 
         modified_optimizer = ModifiedOptimizer(self.mock_app, self.buckets)
         modified_optimizer.distribute_to_buckets(self.queries_with_hitratios)
-        filter_first_exploration, _ = (
+        filter_first_exploration_report = (
             modified_optimizer.suggest_filter_first_exploration()
         )
+        filter_first_exploration = filter_first_exploration_report["suggestion"]
         # Check for reasonable number
         self.assertGreaterEqual(filter_first_exploration, 0.20)
         self.assertLessEqual(filter_first_exploration, 0.40)
