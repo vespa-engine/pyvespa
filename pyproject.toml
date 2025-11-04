@@ -163,7 +163,7 @@ line-ending = "auto"
 docstring-code-format = false
 docstring-code-line-length = "dynamic"
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "*.ipynb" = [
     "E402",
 ] # Ignore module level import not at top of file for notebooks
