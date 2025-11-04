@@ -2774,3 +2774,50 @@ class VespaNNParameterOptimizer:
         }
 
         return report
+
+    def run(self) -> Dict[str, any]:
+        # Determine filter-first parameters first
+        # filterFirstExploration
+        if self.print_progress:
+            print("Determining suggestion for filterFirstExploration")
+        filter_first_exploration_report = self.suggest_filter_first_exploration()
+        filter_first_exploration = filter_first_exploration_report["suggestion"]
+
+        # filterFirstThreshold
+        if self.print_progress:
+            print("Determining suggestion for filterFirstThreshold")
+        filter_first_threshold_report = self.suggest_filter_first_threshold(
+            **{"ranking.matching.filterFirstExploration": filter_first_exploration}
+        )
+        filter_first_threshold = filter_first_threshold_report["suggestion"]
+
+        # approximateThreshold
+        if self.print_progress:
+            print("Determining suggestion for approximateThreshold")
+        approximate_threshold_report = self.suggest_approximate_threshold(
+            **{
+                "ranking.matching.filterFirstThreshold": filter_first_threshold,
+                "ranking.matching.filterFirstExploration": filter_first_exploration,
+            }
+        )
+        approximate_threshold = approximate_threshold_report["suggestion"]
+
+        # postFilterThreshold
+        if self.print_progress:
+            print("Determining suggestion for postFilterThreshold")
+        post_filter_threshold_report = self.suggest_post_filter_threshold(
+            **{
+                "ranking.matching.approximateThreshold": approximate_threshold,
+                "ranking.matching.filterFirstThreshold": filter_first_threshold,
+                "ranking.matching.filterFirstExploration": filter_first_exploration,
+            }
+        )
+
+        report = {
+            "filterFirstExploration": filter_first_exploration_report,
+            "filterFirstThreshold": filter_first_threshold_report,
+            "approximateThreshold": approximate_threshold_report,
+            "postFilterThreshold": post_filter_threshold_report,
+        }
+
+        return report
