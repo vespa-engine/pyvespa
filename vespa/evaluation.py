@@ -8,6 +8,7 @@ from datetime import datetime
 from enum import Enum
 from abc import ABC, abstractmethod
 import re
+import urllib.parse
 from vespa.application import Vespa
 from vespa.io import VespaQueryResponse
 
@@ -1807,6 +1808,14 @@ class VespaNNRecallUnsuccessfulQueryError(Exception):
     pass
 
 
+class VespaNNGlobalFilterHitRatioError(Exception):
+    """
+    Exception raised when trying to add a query for which we do not get exactly one hit ratio.
+    """
+
+    pass
+
+
 class VespaNNRecallEvaluator:
     """
     Determine recall of ANN queries. The recall of an ANN query with k hits is the number of hits
@@ -2163,12 +2172,15 @@ class VespaNNParameterOptimizer:
 
     def distribute_to_buckets(
         self, queries_with_hitratios: List[(Dict[str, str], float)]
-    ):
+    ) -> List[List[str]]:
         """
         Distributes the given queries to buckets according to their given hit ratios.
 
         Args:
             queries_with_hitratios (List[(Dict[str,str],float)]): Queries with hit ratios.
+
+        Returns:
+            List[List[str]]: List of buckets.
         """
         for query, hitratio in queries_with_hitratios:
             if hitratio is not None:
@@ -2177,6 +2189,82 @@ class VespaNNParameterOptimizer:
                 self.buckets[bucket_number].append(query)
             else:
                 print(f"Warning: Query {query} has no hitratio.")
+
+        return self.buckets
+
+    def determine_hit_ratios_and_distribute_to_buckets(
+        self, queries: List[Dict[str, str]]
+    ) -> List[List[str]]:
+        """
+        Distributes the given queries to buckets by determining their hit ratios.
+
+        Args:
+            queries (List[Dict[str,str]]): Queries.
+
+        Returns:
+            List[List[str]]: List of buckets.
+        """
+        hitratio_evaluator = VespaNNGlobalFilterHitratioEvaluator(
+            queries, self.app, verify_target_hits=self.hits
+        )
+        hitratio_list = hitratio_evaluator.run()
+
+        for i in range(0, len(hitratio_list)):
+            hitratios = hitratio_list[i]
+            if len(hitratios) == 0:
+                raise VespaNNGlobalFilterHitRatioError(
+                    f"Aborting: No hit ratio found for query #{i} (No nearestNeighbor operator?)"
+                )
+            if len(hitratios) > 1:
+                raise VespaNNGlobalFilterHitRatioError(
+                    f"Aborting: More than one hit ratio found for query #{i} (Multiple nearestNeighbor operators?)"
+                )
+
+        hitratios = list(map(lambda l: l[0], hitratio_list))
+        return self.distribute_to_buckets(list(zip(queries, hitratios)))
+
+    @staticmethod
+    def query_from_get_string(get_query: str) -> Dict[str, str]:
+        """
+        Parses a query in GET format.
+
+        Args:
+            get_query (str): Query as a single-line GET string.
+
+        Returns:
+            Dict[str,str]: Query as a dict.
+        """
+        url = urllib.parse.urlparse(get_query)
+        assert url.path == "/search/"
+        parsed_query = urllib.parse.parse_qs(url.query)
+        query = {}
+        for key in parsed_query.keys():
+            query[key] = parsed_query[key][0]
+
+        assert "yql" in query
+        return query
+
+    def distribute_file_to_buckets(self, filename: str) -> List[List[str]]:
+        """
+        Distributes the queries from the given file to buckets according to their given hit ratios.
+
+        Args:
+            filename str: Name of file with GET queries (one per line).
+
+        Returns:
+            List[List[str]]: List of buckets.
+        """
+        if self.print_progress:
+            print("Determining hit ratios of queries")
+
+        # Read query file with get queries
+        with open(filename) as file:
+            get_queries = file.read().splitlines()
+
+        # Parse get queries
+        queries = list(map(self.query_from_get_string, get_queries))
+
+        return self.determine_hit_ratios_and_distribute_to_buckets(queries)
 
     def _has_query_with_filtered_out(self, lower: float, upper: float) -> bool:
         """

@@ -1,25 +1,10 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 from vespa.application import Vespa
-from vespa.evaluation import VespaNNGlobalFilterHitratioEvaluator
 from vespa.evaluation import VespaNNParameterOptimizer
 
 import argparse
 import json
-import sys
-import urllib.parse
-
-
-def query_from_get_string(get_query):
-    url = urllib.parse.urlparse(get_query)
-    assert url.path == "/search/"
-    parsed_query = urllib.parse.parse_qs(url.query)
-    query = {}
-    for key in parsed_query.keys():
-        query[key] = parsed_query[key][0]
-
-    assert "yql" in query
-    return query
 
 
 if __name__ == "__main__":
@@ -51,41 +36,25 @@ if __name__ == "__main__":
     if args.plot:
         import matplotlib.pyplot as plt
 
+    ####################################################################################################################
+    # Create Optimizer
+    ####################################################################################################################
     app = Vespa(url=args.url, port=args.port, cert=args.cert, key=args.key)
-
-    # Read query file with get queries
-    with open(args.query_file) as file:
-        get_queries = file.read().splitlines()
-
-    # Parse get queries
-    queries = list(map(query_from_get_string, get_queries))
-
-    ####################################################################################################################
-    # Hit ratios
-    ####################################################################################################################
-    print("Determining hit ratios of queries")
-    hitratio_evaluator = VespaNNGlobalFilterHitratioEvaluator(
-        queries, app, verify_target_hits=int(args.hits)
-    )
-    hitratio_list = hitratio_evaluator.run()
-
-    for i in range(0, len(hitratio_list)):
-        hitratios = hitratio_list[i]
-        if len(hitratios) == 0:
-            sys.exit(
-                f"Aborting: No hit ratio found for query #{i} (No nearestNeighbor operator?)"
-            )
-        if len(hitratios) > 1:
-            sys.exit(
-                f"Aborting: More than one hit ratio found for query #{i} (Multiple nearestNeighbor operators?)"
-            )
-
-    hitratios = list(map(lambda list: list[0], hitratio_list))
-
-    # Sort hit ratios into buckets
     optimizer = VespaNNParameterOptimizer(app, int(args.hits), print_progress=True)
-    optimizer.distribute_to_buckets(zip(queries, hitratios))
 
+    # Sort queries into buckets
+    optimizer.distribute_file_to_buckets(args.query_file)
+
+    # Check if the queries we have are sufficient
+    if not optimizer.has_sufficient_queries():
+        print(
+            "  Warning: Selection of queries might not cover enough hit ratios to get meaningful results."
+        )
+
+    if not optimizer.buckets_sufficiently_filled():
+        print("  Warning: Only few queries for a specific hit ratio.")
+
+    # Plot distribution of queries
     if args.plot:
         x, y = optimizer.get_query_distribution()
         plt.bar(x, y, width=optimizer.get_bucket_interval_width(), align="edge")
@@ -96,14 +65,6 @@ if __name__ == "__main__":
         axs.set_xlim(xmin=0, xmax=1)
         axs.set_ylim(ymin=0)
         plt.show()
-
-    if not optimizer.has_sufficient_queries():
-        print(
-            "  Warning: Selection of queries does not cover enough hit ratios to get meaningful results."
-        )
-
-    if not optimizer.buckets_sufficiently_filled():
-        print("  Warning: Only few queries for a specific hit ratio.")
 
     ####################################################################################################################
     # Parameter Optimization
