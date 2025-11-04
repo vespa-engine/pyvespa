@@ -2551,12 +2551,15 @@ class VespaNNParameterOptimizer:
         )
         benchmark_post_filtering = self.benchmark(**post_filtering_parameters)
 
-        filter_first_parameters = {
-            "timeout": "20s",
-            # "ranking.matching.approximateThreshold": approximate_threshold,
-            # "ranking.matching.filterFirstThreshold": filter_first_threshold,
-            # "ranking.matching.filterFirstExploration": filter_first_exploration,
-        }
+        filter_first_parameters = dict(
+            kwargs,
+            **{
+                "timeout": "20s",
+                # "ranking.matching.approximateThreshold": approximate_threshold,
+                # "ranking.matching.filterFirstThreshold": filter_first_threshold,
+                # "ranking.matching.filterFirstExploration": filter_first_exploration,
+            },
+        )
         benchmark_filter_first = self.benchmark(**filter_first_parameters)
 
         recall_post_filtering = self.compute_average_recalls(
