@@ -2551,12 +2551,15 @@ class VespaNNParameterOptimizer:
         )
         benchmark_post_filtering = self.benchmark(**post_filtering_parameters)
 
-        filter_first_parameters = {
-            "timeout": "20s",
-            # "ranking.matching.approximateThreshold": approximate_threshold,
-            # "ranking.matching.filterFirstThreshold": filter_first_threshold,
-            # "ranking.matching.filterFirstExploration": filter_first_exploration,
-        }
+        filter_first_parameters = dict(
+            kwargs,
+            **{
+                "timeout": "20s",
+                # "ranking.matching.approximateThreshold": approximate_threshold,
+                # "ranking.matching.filterFirstThreshold": filter_first_threshold,
+                # "ranking.matching.filterFirstExploration": filter_first_exploration,
+            },
+        )
         benchmark_filter_first = self.benchmark(**filter_first_parameters)
 
         recall_post_filtering = self.compute_average_recalls(
@@ -2768,6 +2771,53 @@ class VespaNNParameterOptimizer:
             "suggestion": filter_first_exploration,
             "benchmarks": benchmarks,
             "recall_measurements": recall_measurements,
+        }
+
+        return report
+
+    def run(self) -> Dict[str, any]:
+        # Determine filter-first parameters first
+        # filterFirstExploration
+        if self.print_progress:
+            print("Determining suggestion for filterFirstExploration")
+        filter_first_exploration_report = self.suggest_filter_first_exploration()
+        filter_first_exploration = filter_first_exploration_report["suggestion"]
+
+        # filterFirstThreshold
+        if self.print_progress:
+            print("Determining suggestion for filterFirstThreshold")
+        filter_first_threshold_report = self.suggest_filter_first_threshold(
+            **{"ranking.matching.filterFirstExploration": filter_first_exploration}
+        )
+        filter_first_threshold = filter_first_threshold_report["suggestion"]
+
+        # approximateThreshold
+        if self.print_progress:
+            print("Determining suggestion for approximateThreshold")
+        approximate_threshold_report = self.suggest_approximate_threshold(
+            **{
+                "ranking.matching.filterFirstThreshold": filter_first_threshold,
+                "ranking.matching.filterFirstExploration": filter_first_exploration,
+            }
+        )
+        approximate_threshold = approximate_threshold_report["suggestion"]
+
+        # postFilterThreshold
+        if self.print_progress:
+            print("Determining suggestion for postFilterThreshold")
+        post_filter_threshold_report = self.suggest_post_filter_threshold(
+            **{
+                "ranking.matching.approximateThreshold": approximate_threshold,
+                "ranking.matching.filterFirstThreshold": filter_first_threshold,
+                "ranking.matching.filterFirstExploration": filter_first_exploration,
+            }
+        )
+
+        report = {
+            "filterFirstExploration": filter_first_exploration_report,
+            "filterFirstThreshold": filter_first_threshold_report,
+            "approximateThreshold": approximate_threshold_report,
+            "postFilterThreshold": post_filter_threshold_report,
         }
 
         return report
