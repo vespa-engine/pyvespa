@@ -1957,7 +1957,7 @@ class VespaQueryBenchmarker:
         self,
         queries: Sequence[Mapping[str, Any]],
         app: Vespa,
-        repetitions: int = 5,
+        repetitions: int = 10,
         **kwargs,
     ):
         self.queries = queries
@@ -1991,7 +1991,7 @@ class VespaQueryBenchmarker:
             List[float]: List of searchtimes, corresponding to the supplied queries.
         """
         # Two warmup runs
-        for i in range(0, 2):
+        for i in range(0, self.repetitions):
             self._run_benchmark()
 
         # Actual benchmark runs
