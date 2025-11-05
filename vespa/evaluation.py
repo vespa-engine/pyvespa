@@ -2029,7 +2029,7 @@ class VespaNNParameterOptimizer:
 
     Args:
         app (Vespa): An instance of the Vespa application.
-        hits (int, optional): Number of targetHits determined by the ANN queries that will be supplied to the instance of this class.
+        hits (int): Number of hits to use in recall computations. Has to match the parameter targetHits in the used ANN queries.
         buckets_per_percent (int, optional): How many buckets are created for every percent point, "resolution" of the suggestions. Defaults to 2.
         print_progress (bool, optional): Whether to print progress information while determining suggestions. Defaults to False.
     """
