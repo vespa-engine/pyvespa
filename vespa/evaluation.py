@@ -1765,7 +1765,7 @@ class VespaNNGlobalFilterHitratioEvaluator:
 
             return results
 
-        results = []
+        all_hit_ratios = []
         for response in responses:
             trace = response.get_json()["trace"]
             nearest_neighbor_blueprints = extract_from_trace(
@@ -1787,9 +1787,9 @@ class VespaNNGlobalFilterHitratioEvaluator:
                         f"Warning: Number of targetHits of query is not {self.verify_target_hits}"
                     )
 
-            results.append(hit_ratios)
+            all_hit_ratios.append(hit_ratios)
 
-        return results
+        return all_hit_ratios
 
 
 class VespaNNRecallRelevanceMismatchError(Exception):
