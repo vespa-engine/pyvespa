@@ -2,7 +2,18 @@ from __future__ import annotations
 import os
 import csv
 import logging
-from typing import Dict, Set, Callable, List, Optional, Union, Tuple, Sequence, Mapping, Any
+from typing import (
+    Dict,
+    Set,
+    Callable,
+    List,
+    Optional,
+    Union,
+    Tuple,
+    Sequence,
+    Mapping,
+    Any,
+)
 import math
 from datetime import datetime
 from enum import Enum
@@ -1835,7 +1846,9 @@ class VespaNNRecallEvaluator:
         **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
     """
 
-    def __init__(self, queries: Sequence[Mapping[str, Any]], hits: int, app: Vespa, **kwargs):
+    def __init__(
+        self, queries: Sequence[Mapping[str, Any]], hits: int, app: Vespa, **kwargs
+    ):
         self.queries = queries
         self.hits = hits
         self.app = app
@@ -1941,7 +1954,11 @@ class VespaQueryBenchmarker:
     """
 
     def __init__(
-        self, queries: Sequence[Mapping[str, Any]], app: Vespa, repetitions: int = 5, **kwargs
+        self,
+        queries: Sequence[Mapping[str, Any]],
+        app: Vespa,
+        repetitions: int = 10,
+        **kwargs,
     ):
         self.queries = queries
         self.app = app
@@ -1974,7 +1991,7 @@ class VespaQueryBenchmarker:
             List[float]: List of searchtimes, corresponding to the supplied queries.
         """
         # Two warmup runs
-        for i in range(0, 2):
+        for i in range(0, self.repetitions):
             self._run_benchmark()
 
         # Actual benchmark runs
@@ -2029,6 +2046,7 @@ class VespaNNParameterOptimizer:
 
     Args:
         app (Vespa): An instance of the Vespa application.
+        queries (Sequence[Mapping[str, Any]]): Queries to optimize for.
         hits (int): Number of hits to use in recall computations. Has to match the parameter targetHits in the used ANN queries.
         buckets_per_percent (int, optional): How many buckets are created for every percent point, "resolution" of the suggestions. Defaults to 2.
         print_progress (bool, optional): Whether to print progress information while determining suggestions. Defaults to False.
@@ -2037,11 +2055,13 @@ class VespaNNParameterOptimizer:
     def __init__(
         self,
         app: Vespa,
+        queries: Sequence[Mapping[str, Any]],
         hits: int,
         buckets_per_percent: int = 2,
         print_progress: bool = False,
     ):
         self.app = app
+        self.queries = queries
         self.hits = hits
 
         # Every bucket represents an interval of length 1/buckets_per_percent. It contains a list of queries with hit-ratios (or rather 1-hit-ratios) in that interval.
@@ -2199,7 +2219,7 @@ class VespaNNParameterOptimizer:
         Distributes the given queries to buckets by determining their hit ratios.
 
         Args:
-            queries (List[Dict[str,str]]): Queries.
+            queries (Sequence[Mapping[str, Any]]): Queries.
 
         Returns:
             List[List[str]]: List of buckets.
@@ -2220,7 +2240,9 @@ class VespaNNParameterOptimizer:
                     f"Aborting: More than one hit ratio found for query #{i} (Multiple nearestNeighbor operators?)"
                 )
 
-        hitratios = list(map(lambda l: l[0], hitratio_list))
+        hitratios = list(
+            map(lambda hitratios_of_query: hitratios_of_query[0], hitratio_list)
+        )
         return self.distribute_to_buckets(list(zip(queries, hitratios)))
 
     @staticmethod
@@ -2864,6 +2886,18 @@ class VespaNNParameterOptimizer:
         return report
 
     def run(self) -> Dict[str, Any]:
+        # Distribute queries to buckets
+        self.determine_hit_ratios_and_distribute_to_buckets(self.queries)
+
+        # Check if the queries we have are deemed sufficient
+        if not self.has_sufficient_queries():
+            print(
+                "  Warning: Selection of queries might not cover enough hit ratios to get meaningful results."
+            )
+
+        if not self.buckets_sufficiently_filled():
+            print("  Warning: Only few queries for a specific hit ratio.")
+
         # Determine filter-first parameters first
         # filterFirstExploration
         if self.print_progress:

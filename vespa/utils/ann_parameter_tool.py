@@ -37,34 +37,23 @@ if __name__ == "__main__":
         import matplotlib.pyplot as plt
 
     ####################################################################################################################
+    # Read query file
+    ####################################################################################################################
+    # Read query file with get queries
+    with open(args.query_file) as file:
+        get_queries = file.read().splitlines()
+
+    # Parse get queries
+    queries = list(map(VespaNNParameterOptimizer.query_from_get_string, get_queries))
+
+    ####################################################################################################################
     # Create Optimizer
     ####################################################################################################################
+
     app = Vespa(url=args.url, port=args.port, cert=args.cert, key=args.key)
-    optimizer = VespaNNParameterOptimizer(app, int(args.hits), print_progress=True)
-
-    # Sort queries into buckets
-    optimizer.distribute_file_to_buckets(args.query_file)
-
-    # Check if the queries we have are sufficient
-    if not optimizer.has_sufficient_queries():
-        print(
-            "  Warning: Selection of queries might not cover enough hit ratios to get meaningful results."
-        )
-
-    if not optimizer.buckets_sufficiently_filled():
-        print("  Warning: Only few queries for a specific hit ratio.")
-
-    # Plot distribution of queries
-    if args.plot:
-        x, y = optimizer.get_query_distribution()
-        plt.bar(x, y, width=optimizer.get_bucket_interval_width(), align="edge")
-        plt.title("Number of queries per fraction filtered out")
-        plt.xlabel("Fraction filtered out")
-        plt.ylabel("Number of queries")
-        axs = plt.gca()
-        axs.set_xlim(xmin=0, xmax=1)
-        axs.set_ylim(ymin=0)
-        plt.show()
+    optimizer = VespaNNParameterOptimizer(
+        app, queries, int(args.hits), print_progress=True
+    )
 
     ####################################################################################################################
     # Parameter Optimization
@@ -90,6 +79,22 @@ if __name__ == "__main__":
     if args.debug:
         print("Full report:")
         print(json.dumps(report, sort_keys=True, indent=4))
+
+    ####################################################################################################################
+    # Plot (debug) information
+    ####################################################################################################################
+
+    # Plot distribution of queries
+    if args.plot:
+        x, y = optimizer.get_query_distribution()
+        plt.bar(x, y, width=optimizer.get_bucket_interval_width(), align="edge")
+        plt.title("Number of queries per fraction filtered out")
+        plt.xlabel("Fraction filtered out")
+        plt.ylabel("Number of queries")
+        axs = plt.gca()
+        axs.set_xlim(xmin=0, xmax=1)
+        axs.set_ylim(ymin=0)
+        plt.show()
 
     def plot_benchmarks(title, benchmarks):
         for key, benchmark in benchmarks.items():

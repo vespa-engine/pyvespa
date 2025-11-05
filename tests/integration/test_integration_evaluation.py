@@ -10,6 +10,7 @@ from vespa.package import (
     ApplicationPackage,
     Field,
     Document,
+    DocumentSummary,
     HNSW,
     Schema,
     RankProfile,
@@ -18,18 +19,24 @@ from vespa.package import (
     Function,
     FieldSet,
     SecondPhaseRanking,
+    Summary,
 )
+from vespa.configuration.query_profiles import query_profile, query_profile_type, field
 from vespa.deployment import VespaDocker
 from vespa.evaluation import (
     VespaEvaluator,
     VespaMatchEvaluator,
     VespaFeatureCollector,
+    VespaNNParameterOptimizer,
 )
 from vespa.io import VespaResponse
 import vespa.querybuilder as qb
 from pathlib import Path
+import json
 import os
 import pandas as pd
+import requests
+import tempfile
 
 # Reference metrics from your Sentence Transformers (semantic) runs:
 # Code used to produce these metrics:
@@ -1127,3 +1134,208 @@ class TestVespaMatchEvaluatorWithURLs(unittest.TestCase):
 
         self.assertEqual(results["match_recall"], 1.0)
         self.assertEqual(results["avg_recall_per_query"], 1.0)
+
+
+class TestVespaNNParameterOptimizer(unittest.TestCase):
+    """
+    Integration tests for VespaNNParameterOptimizer.
+
+    Purpose:
+        Verify that VespaNNParameterOptimizer correctly interacts with a Vespa application
+        and yields somewhat stable results.
+
+    Test Coverage:
+        - Construct VespaNNParameterOptimizer object with queries.
+        - Call run() method to get a suggestion for all possible parameters.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        # Download files
+        base_url = (
+            "https://data.vespa-cloud.com/tests/performance/nearest-neighbor/gist-data/"
+        )
+        temp_dir = tempfile.TemporaryDirectory()
+
+        def download_file(url: str):
+            local_filename = os.path.join(temp_dir.name, url.split("/")[-1])
+            with requests.get(url, stream=True) as r:
+                r.raise_for_status()
+                with open(local_filename, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        f.write(chunk)
+            return local_filename
+
+        cls.docs_path = download_file(base_url + "docs.1k.json")
+        cls.query_path = download_file(base_url + "query_vectors.10.txt")
+        print(
+            f'Downloaded document file "{cls.docs_path}" and query file "{cls.query_path}"'
+        )
+
+        # Vespa application
+        doc = Document(
+            fields=[
+                Field(
+                    name="id",
+                    type="int",
+                    indexing=["attribute", "summary"],
+                ),
+                Field(
+                    name="filter",
+                    type="array<int>",
+                    indexing=["attribute", "summary"],
+                    attribute=["fast-search"],
+                ),
+                Field(
+                    name="vec_m16",
+                    type="tensor<float>(x[960])",
+                    indexing=["attribute", "index", "summary"],
+                    ann=HNSW(
+                        distance_metric="euclidean",
+                        max_links_per_node=16,
+                        neighbors_to_explore_at_insert=500,
+                    ),
+                ),
+            ]
+        )
+
+        rank_profile = RankProfile(
+            name="default",
+            inputs=[
+                ("query(q_vec)", "tensor<float>(x[960])"),
+            ],
+            first_phase="closeness(label,nns)",
+        )
+
+        minimal_summary = DocumentSummary(
+            name="minimal", summary_fields=[Summary(name="id")]
+        )
+
+        schema = Schema(
+            name="test",
+            document=doc,
+            rank_profiles=[rank_profile],
+            document_summaries=[minimal_summary],
+        )
+
+        qp = query_profile(
+            id="default",
+            type="root",
+        )
+
+        qpt = query_profile_type(
+            field(
+                name="ranking.features.query(q_vec)",
+                type="tensor<float>(x[960])",
+            ),
+            id="root",
+            inherits="native",
+        )
+
+        # Create the application package
+        cls.package = ApplicationPackage(
+            name="test", schema=[schema], query_profile_config=[qp, qpt]
+        )
+
+        # Deploy to Docker
+        print("Deploying to docker")
+        cls.vespa_docker = VespaDocker(port=8090)
+        cls.app = cls.vespa_docker.deploy(application_package=cls.package)
+
+        with open(cls.docs_path, "r") as f:
+            docs = json.load(f)
+
+        docs_formatted = [
+            {
+                "id": str(doc["fields"]["id"]),
+                "fields": doc["fields"],
+            }
+            for doc in docs
+        ]
+
+        def callback(response: VespaResponse, id: str):
+            if not response.is_successful():
+                print(f"Error feeding doc {id}: {response.json}")
+
+        # Feed documents
+        print(f"Feeding {len(docs_formatted)} documents")
+        cls.app.feed_iterable(docs_formatted, callback=callback)
+        print("Finished feeding")
+
+    @classmethod
+    def tearDownClass(cls):
+        # Clean up container
+        cls.vespa_docker.container.stop(timeout=10)
+        cls.vespa_docker.container.remove()
+
+    def test_suggestions(self):
+        def vector_to_query(vec_str: str, filter_value: int) -> dict:
+            return {
+                "yql": str(
+                    qb.select("*")
+                    .from_("test")
+                    .where(
+                        qb.nearestNeighbor(
+                            "vec_m16",
+                            "q_vec",
+                            annotations={
+                                "targetHits": 100,
+                                "approximate": True,
+                                "label": "nns",
+                            },
+                        )
+                        & (qb.QueryField("filter") == filter_value),
+                    )
+                ),
+                "presentation.summary": "minimal",
+                "timeout": "20s",
+                "ranking.features.query(q_vec)": vec_str.strip(),
+            }
+
+        print("Building queries")
+        with open(self.query_path, "r") as f:
+            query_vectors = f.readlines()
+
+        filter_percentage = [1, 10, 50, 90, 95, 99]
+
+        queries = []
+        for filter_value in filter_percentage:
+            for vec in query_vectors:
+                queries.append(vector_to_query(vec, filter_value))
+
+        print(f"Built {len(queries)} queries")
+
+        print("Constructing optimizer object")
+        optimizer = VespaNNParameterOptimizer(
+            self.app, queries, 100, print_progress=True
+        )
+
+        print("Running optimizer")
+        report = optimizer.run()
+        print(json.dumps(report, sort_keys=True, indent=4))
+
+        # With so few documents, the values we obtain do not really make sense.
+        # We just check if we get numbers in [0.0,1.0]
+        self.assertIn("approximateThreshold", report)
+        self.assertIn("suggestion", report["approximateThreshold"])
+        approximate_threshold = report["approximateThreshold"]["suggestion"]
+        self.assertGreaterEqual(approximate_threshold, 0.0)
+        self.assertLessEqual(approximate_threshold, 1.0)
+
+        self.assertIn("filterFirstThreshold", report)
+        self.assertIn("suggestion", report["filterFirstThreshold"])
+        filter_first_threshold = report["filterFirstThreshold"]["suggestion"]
+        self.assertGreaterEqual(filter_first_threshold, 0.0)
+        self.assertLessEqual(filter_first_threshold, 1.0)
+
+        self.assertIn("filterFirstExploration", report)
+        self.assertIn("suggestion", report["filterFirstExploration"])
+        filter_first_exploration = report["filterFirstExploration"]["suggestion"]
+        self.assertGreaterEqual(filter_first_exploration, 0.0)
+        self.assertLessEqual(filter_first_exploration, 1.0)
+
+        self.assertIn("postFilterThreshold", report)
+        self.assertIn("suggestion", report["postFilterThreshold"])
+        post_filter_threshold = report["postFilterThreshold"]["suggestion"]
+        self.assertGreaterEqual(post_filter_threshold, 0.0)
+        self.assertLessEqual(post_filter_threshold, 1.0)
