@@ -2,7 +2,7 @@ from __future__ import annotations
 import os
 import csv
 import logging
-from typing import Dict, Set, Callable, List, Optional, Union, Tuple
+from typing import Dict, Set, Callable, List, Optional, Union, Tuple, Sequence, Mapping, Any
 import math
 from datetime import datetime
 from enum import Enum
@@ -1714,13 +1714,13 @@ class VespaNNGlobalFilterHitratioEvaluator:
     - Determines the hit ratio by examining the trace.
 
     Args:
-        queries (List[Dict[str, str]]): List of ANN queries.
+        queries (Sequence[Mapping[str, str]]): List of ANN queries.
         app (Vespa): An instance of the Vespa application.
     """
 
     def __init__(
         self,
-        queries: List[Dict[str, str]],
+        queries: Sequence[Mapping[str, Any]],
         app: Vespa,
         verify_target_hits: int | None = None,
     ):
@@ -1733,7 +1733,7 @@ class VespaNNGlobalFilterHitratioEvaluator:
         Determines the hit ratios of the global filters in the supplied ANN queries.
 
         Returns:
-            List[List[float]]: List of lists of hit ratios, which are values from the intervall [0.0, 1.0], corresponding to the supplied queries.
+            List[List[float]]: List of lists of hit ratios, which are values from the interval [0.0, 1.0], corresponding to the supplied queries.
         """
         query_parameters = {
             "timeout": "20s",
@@ -1748,24 +1748,24 @@ class VespaNNGlobalFilterHitratioEvaluator:
         )
         responses, response_times = execute_queries(self.app, queries_with_parameters)
 
-        def extract_from_trace(obj: dict, type: str):
+        def extract_from_trace(obj: dict, type_name: str):
             results = []
 
-            if "[type]" in obj and obj["[type]"] == type:
+            if "[type]" in obj and obj["[type]"] == type_name:
                 results.append(obj)
 
             for k, v in obj.items():
                 if isinstance(v, dict):
-                    results += extract_from_trace(v, type)
+                    results += extract_from_trace(v, type_name)
 
                 elif isinstance(v, list):
                     for i in v:
                         if isinstance(i, dict):
-                            results += extract_from_trace(i, type)
+                            results += extract_from_trace(i, type_name)
 
             return results
 
-        results = []
+        all_hit_ratios = []
         for response in responses:
             trace = response.get_json()["trace"]
             nearest_neighbor_blueprints = extract_from_trace(
@@ -1787,9 +1787,9 @@ class VespaNNGlobalFilterHitratioEvaluator:
                         f"Warning: Number of targetHits of query is not {self.verify_target_hits}"
                     )
 
-            results.append(hit_ratios)
+            all_hit_ratios.append(hit_ratios)
 
-        return results
+        return all_hit_ratios
 
 
 class VespaNNRecallRelevanceMismatchError(Exception):
@@ -1829,13 +1829,13 @@ class VespaNNRecallEvaluator:
     - Determines the recall by comparing the results.
 
     Args:
-        queries (List[Dict[str, str]]): List of ANN queries.
-        hits (int): Number of targetHits determined by the ANN queries.
+        queries (Sequence[Mapping[str, Any]]): List of ANN queries.
+        hits (int): Number of hits to use. Should match the parameter targetHits in the used ANN queries.
         app (Vespa): An instance of the Vespa application.
         **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
     """
 
-    def __init__(self, queries: List[Dict[str, str]], hits: int, app: Vespa, **kwargs):
+    def __init__(self, queries: Sequence[Mapping[str, Any]], hits: int, app: Vespa, **kwargs):
         self.queries = queries
         self.hits = hits
         self.app = app
@@ -1934,14 +1934,14 @@ class VespaQueryBenchmarker:
     - Determines the average searchtime of these runs.
 
     Args:
-        queries (List[Dict[str, str]]): List of queries.
+        queries (Sequence[Mapping[str, Any]]): List of queries.
         app (Vespa): An instance of the Vespa application.
         repetitions (int, optional): Number of times to repeat the queries.
         **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
     """
 
     def __init__(
-        self, queries: List[Dict[str, str]], app: Vespa, repetitions: int = 5, **kwargs
+        self, queries: Sequence[Mapping[str, Any]], app: Vespa, repetitions: int = 5, **kwargs
     ):
         self.queries = queries
         self.app = app
@@ -2029,7 +2029,7 @@ class VespaNNParameterOptimizer:
 
     Args:
         app (Vespa): An instance of the Vespa application.
-        hits (int, optional): Number of targetHits determined by the ANN queries that will be supplied to the instance of this class.
+        hits (int): Number of hits to use in recall computations. Has to match the parameter targetHits in the used ANN queries.
         buckets_per_percent (int, optional): How many buckets are created for every percent point, "resolution" of the suggestions. Defaults to 2.
         print_progress (bool, optional): Whether to print progress information while determining suggestions. Defaults to False.
     """
@@ -2171,7 +2171,7 @@ class VespaNNParameterOptimizer:
         return math.floor(percent * 100) * self.buckets_per_percent
 
     def distribute_to_buckets(
-        self, queries_with_hitratios: List[(Dict[str, str], float)]
+        self, queries_with_hitratios: Sequence[Tuple[Mapping[str, Any], float]]
     ) -> List[List[str]]:
         """
         Distributes the given queries to buckets according to their given hit ratios.
@@ -2193,7 +2193,7 @@ class VespaNNParameterOptimizer:
         return self.buckets
 
     def determine_hit_ratios_and_distribute_to_buckets(
-        self, queries: List[Dict[str, str]]
+        self, queries: Sequence[Mapping[str, Any]]
     ) -> List[List[str]]:
         """
         Distributes the given queries to buckets by determining their hit ratios.
@@ -2863,7 +2863,7 @@ class VespaNNParameterOptimizer:
 
         return report
 
-    def run(self) -> Dict[str, any]:
+    def run(self) -> Dict[str, Any]:
         # Determine filter-first parameters first
         # filterFirstExploration
         if self.print_progress:
