@@ -2171,7 +2171,7 @@ class VespaNNParameterOptimizer:
         return math.floor(percent * 100) * self.buckets_per_percent
 
     def distribute_to_buckets(
-        self, queries_with_hitratios: List[(Dict[str, str], float)]
+        self, queries_with_hitratios: List[Tuple[Dict[str, any], float]]
     ) -> List[List[str]]:
         """
         Distributes the given queries to buckets according to their given hit ratios.
