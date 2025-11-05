@@ -2,7 +2,7 @@ from __future__ import annotations
 import os
 import csv
 import logging
-from typing import Dict, Set, Callable, List, Optional, Union, Tuple
+from typing import Dict, Set, Callable, List, Optional, Union, Tuple, Sequence, Mapping, Any
 import math
 from datetime import datetime
 from enum import Enum
@@ -1714,13 +1714,13 @@ class VespaNNGlobalFilterHitratioEvaluator:
     - Determines the hit ratio by examining the trace.
 
     Args:
-        queries (List[Dict[str, str]]): List of ANN queries.
+        queries (Sequence[Mapping[str, str]]): List of ANN queries.
         app (Vespa): An instance of the Vespa application.
     """
 
     def __init__(
         self,
-        queries: List[Dict[str, str]],
+        queries: Sequence[Mapping[str, Any]],
         app: Vespa,
         verify_target_hits: int | None = None,
     ):
@@ -1829,13 +1829,13 @@ class VespaNNRecallEvaluator:
     - Determines the recall by comparing the results.
 
     Args:
-        queries (List[Dict[str, str]]): List of ANN queries.
+        queries (Sequence[Mapping[str, Any]]): List of ANN queries.
         hits (int): Number of hits to use. Should match the parameter targetHits in the used ANN queries.
         app (Vespa): An instance of the Vespa application.
         **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
     """
 
-    def __init__(self, queries: List[Dict[str, str]], hits: int, app: Vespa, **kwargs):
+    def __init__(self, queries: Sequence[Mapping[str, Any]], hits: int, app: Vespa, **kwargs):
         self.queries = queries
         self.hits = hits
         self.app = app
@@ -1934,14 +1934,14 @@ class VespaQueryBenchmarker:
     - Determines the average searchtime of these runs.
 
     Args:
-        queries (List[Dict[str, str]]): List of queries.
+        queries (Sequence[Mapping[str, Any]]): List of queries.
         app (Vespa): An instance of the Vespa application.
         repetitions (int, optional): Number of times to repeat the queries.
         **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
     """
 
     def __init__(
-        self, queries: List[Dict[str, str]], app: Vespa, repetitions: int = 5, **kwargs
+        self, queries: Sequence[Mapping[str, Any]], app: Vespa, repetitions: int = 5, **kwargs
     ):
         self.queries = queries
         self.app = app
@@ -2171,7 +2171,7 @@ class VespaNNParameterOptimizer:
         return math.floor(percent * 100) * self.buckets_per_percent
 
     def distribute_to_buckets(
-        self, queries_with_hitratios: List[Tuple[Dict[str, any], float]]
+        self, queries_with_hitratios: Sequence[Tuple[Mapping[str, Any], float]]
     ) -> List[List[str]]:
         """
         Distributes the given queries to buckets according to their given hit ratios.
@@ -2193,7 +2193,7 @@ class VespaNNParameterOptimizer:
         return self.buckets
 
     def determine_hit_ratios_and_distribute_to_buckets(
-        self, queries: List[Dict[str, str]]
+        self, queries: Sequence[Mapping[str, Any]]
     ) -> List[List[str]]:
         """
         Distributes the given queries to buckets by determining their hit ratios.
@@ -2863,7 +2863,7 @@ class VespaNNParameterOptimizer:
 
         return report
 
-    def run(self) -> Dict[str, any]:
+    def run(self) -> Dict[str, Any]:
         # Determine filter-first parameters first
         # filterFirstExploration
         if self.print_progress:
