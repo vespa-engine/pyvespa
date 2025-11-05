@@ -1748,20 +1748,20 @@ class VespaNNGlobalFilterHitratioEvaluator:
         )
         responses, response_times = execute_queries(self.app, queries_with_parameters)
 
-        def extract_from_trace(obj: dict, type: str):
+        def extract_from_trace(obj: dict, type_name: str):
             results = []
 
-            if "[type]" in obj and obj["[type]"] == type:
+            if "[type]" in obj and obj["[type]"] == type_name:
                 results.append(obj)
 
             for k, v in obj.items():
                 if isinstance(v, dict):
-                    results += extract_from_trace(v, type)
+                    results += extract_from_trace(v, type_name)
 
                 elif isinstance(v, list):
                     for i in v:
                         if isinstance(i, dict):
-                            results += extract_from_trace(i, type)
+                            results += extract_from_trace(i, type_name)
 
             return results
 
