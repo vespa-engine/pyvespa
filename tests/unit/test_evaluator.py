@@ -3094,7 +3094,7 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
 
         self.mock_app = MockVespaApp([])
         self.optimizer = VespaNNParameterOptimizer(
-            self.mock_app, 100, buckets_per_percent=2
+            self.mock_app, [], 100, buckets_per_percent=2
         )  # 200 buckets
 
         # Percentages: 1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 99
@@ -3131,15 +3131,21 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
             ({"yql": "foo"}, 0.90),
         ]
 
-        optimizer = VespaNNParameterOptimizer(self.mock_app, 100, buckets_per_percent=2)
+        optimizer = VespaNNParameterOptimizer(
+            self.mock_app, [], 100, buckets_per_percent=2
+        )
         optimizer.distribute_to_buckets(queries_with_hitratios)
         self.assertTrue(optimizer.has_sufficient_queries())
 
-        optimizer = VespaNNParameterOptimizer(self.mock_app, 100, buckets_per_percent=2)
+        optimizer = VespaNNParameterOptimizer(
+            self.mock_app, [], 100, buckets_per_percent=2
+        )
         optimizer.distribute_to_buckets(queries_with_hitratios[0:4])
         self.assertFalse(optimizer.has_sufficient_queries())
 
-        optimizer = VespaNNParameterOptimizer(self.mock_app, 100, buckets_per_percent=2)
+        optimizer = VespaNNParameterOptimizer(
+            self.mock_app, [], 100, buckets_per_percent=2
+        )
         optimizer.distribute_to_buckets(list(reversed(queries_with_hitratios))[0:4])
         self.assertFalse(optimizer.has_sufficient_queries())
 
@@ -3149,7 +3155,9 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
             ({"yql": "foo"}, 0.4525),
         ]
 
-        optimizer = VespaNNParameterOptimizer(self.mock_app, 100, buckets_per_percent=2)
+        optimizer = VespaNNParameterOptimizer(
+            self.mock_app, [], 100, buckets_per_percent=2
+        )
         optimizer.distribute_to_buckets(queries_with_hitratios)
         self.assertFalse(optimizer.buckets_sufficiently_filled())
 
@@ -3166,7 +3174,9 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
             ({"yql": "foo"}, 0.4535),
         ]
 
-        optimizer = VespaNNParameterOptimizer(self.mock_app, 100, buckets_per_percent=2)
+        optimizer = VespaNNParameterOptimizer(
+            self.mock_app, [], 100, buckets_per_percent=2
+        )
         optimizer.distribute_to_buckets(queries_with_hitratios)
         self.assertTrue(optimizer.buckets_sufficiently_filled())
 
@@ -3441,9 +3451,9 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
 
     def test_suggest_filter_first_exploration(self):
         class ModifiedOptimizer(VespaNNParameterOptimizer):
-            def __init__(self, app, test_buckets):
+            def __init__(self, app, queries, test_buckets):
                 super(ModifiedOptimizer, self).__init__(
-                    app, hits=100, buckets_per_percent=2, print_progress=False
+                    app, queries, hits=100, buckets_per_percent=2, print_progress=False
                 )
                 self.test_buckets = test_buckets
 
@@ -3483,7 +3493,7 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
                 )
                 return benchmark, recall
 
-        modified_optimizer = ModifiedOptimizer(self.mock_app, self.buckets)
+        modified_optimizer = ModifiedOptimizer(self.mock_app, [], self.buckets)
         modified_optimizer.distribute_to_buckets(self.queries_with_hitratios)
         filter_first_exploration_report = (
             modified_optimizer.suggest_filter_first_exploration()
