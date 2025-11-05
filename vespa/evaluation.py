@@ -1733,7 +1733,7 @@ class VespaNNGlobalFilterHitratioEvaluator:
         Determines the hit ratios of the global filters in the supplied ANN queries.
 
         Returns:
-            List[List[float]]: List of lists of hit ratios, which are values from the intervall [0.0, 1.0], corresponding to the supplied queries.
+            List[List[float]]: List of lists of hit ratios, which are values from the interval [0.0, 1.0], corresponding to the supplied queries.
         """
         query_parameters = {
             "timeout": "20s",
@@ -1830,7 +1830,7 @@ class VespaNNRecallEvaluator:
 
     Args:
         queries (List[Dict[str, str]]): List of ANN queries.
-        hits (int): Number of targetHits determined by the ANN queries.
+        hits (int): Number of hits to use. Should match the parameter targetHits in the used ANN queries.
         app (Vespa): An instance of the Vespa application.
         **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
     """
