@@ -2068,24 +2068,15 @@ class VespaNNParameterOptimizer:
         return len(self.buckets)
 
     def get_number_of_nonempty_buckets(
-        self, from_bucket: int = None, to_bucket: int = None
+        self
     ) -> int:
         """
         Counts the number of buckets that contain at least one query.
 
-        Args:
-            from_bucket (int, optional): Index of the first bucket to consider.
-            to_bucket (int, optional): Index of the last bucket to consider (exclusive).
-
         Returns:
             int: The number of buckets that contain at least one query.
         """
-        if from_bucket is None:
-            from_bucket = 0
-        if to_bucket is None:
-            to_bucket = self.get_number_of_buckets()
-
-        return sum(map(lambda x: 1 if x else 0, self.buckets[from_bucket:to_bucket]))
+        return sum(map(lambda x: 1 if x else 0, self.buckets))
 
     def get_non_empty_buckets(self) -> List[int]:
         """
@@ -2362,34 +2353,27 @@ class VespaNNParameterOptimizer:
             self.p99 = list(map(lambda x: percentile(x, 0.99), benchmark))
 
     def benchmark(
-        self, from_bucket=None, to_bucket=None, **kwargs
+        self, **kwargs
     ) -> VespaNNParameterOptimizer.BenchmarkResults:
         """
         For each non-empty bucket, determine the average searchtime.
 
         Args:
-            from_bucket (int, optional): Index of the first bucket to consider.
-            to_bucket (int, optional): Index of the last bucket to consider (exclusive).
             **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
 
         Returns:
             VespaNNParameterOptimizer.BenchmarkResults: The benchmark results.
         """
-        if from_bucket is None:
-            from_bucket = 0
-        if to_bucket is None:
-            to_bucket = self.get_number_of_buckets()
-
         if self.print_progress:
             print("->Benchmarking", end="")
         results = []
         processed_buckets = 0
-        for i in range(from_bucket, to_bucket):
+        for i in range(0, self.get_number_of_buckets()):
             bucket = self.buckets[i]
             if bucket:
                 if self.print_progress:
                     print(
-                        f"\r->Benchmarking: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(from_bucket, to_bucket), 2)}%",
+                        f"\r->Benchmarking: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(), 2)}%",
                         end="",
                     )
                 processed_buckets += 1
@@ -2416,34 +2400,27 @@ class VespaNNParameterOptimizer:
             self.p99 = list(map(lambda x: percentile(x, 0.99), recall_measurement))
 
     def compute_average_recalls(
-        self, from_bucket=None, to_bucket=None, **kwargs
+        self, **kwargs
     ) -> VespaNNParameterOptimizer.RecallResults:
         """
         For each non-empty bucket, determine the average recall.
 
         Args:
-            from_bucket (int, optional): Index of the first bucket to consider.
-            to_bucket (int, optional): Index of the last bucket to consider (exclusive).
             **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
 
         Returns:
             VespaNNParameterOptimizer.RecallResults: The recall results.
         """
-        if from_bucket is None:
-            from_bucket = 0
-        if to_bucket is None:
-            to_bucket = self.get_number_of_buckets()
-
         if self.print_progress:
             print("->Computing recall", end="")
         results = []
         processed_buckets = 0
-        for i in range(from_bucket, to_bucket):
+        for i in range(0, self.get_number_of_buckets()):
             bucket = self.buckets[i]
             if bucket:
                 if self.print_progress:
                     print(
-                        f"\r->Computing recall: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(from_bucket, to_bucket), 2)}%",
+                        f"\r->Computing recall: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(), 2)}%",
                         end="",
                     )
                 recall_evaluator = VespaNNRecallEvaluator(
