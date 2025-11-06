@@ -2167,7 +2167,8 @@ class VespaNNParameterOptimizer:
         Returns:
             int: Index of bucket containing the given filtered-out ratio.
         """
-        return math.floor(percent * 100) * self.buckets_per_percent
+        bucket = math.floor(percent * 100) * self.buckets_per_percent
+        return max(0, min(bucket, self.get_number_of_buckets() - 1))
 
     def distribute_to_buckets(
         self, queries_with_hitratios: Sequence[Tuple[Mapping[str, Any], float]]
