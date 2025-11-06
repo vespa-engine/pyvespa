@@ -2067,9 +2067,7 @@ class VespaNNParameterOptimizer:
         """
         return len(self.buckets)
 
-    def get_number_of_nonempty_buckets(
-        self
-    ) -> int:
+    def get_number_of_nonempty_buckets(self) -> int:
         """
         Counts the number of buckets that contain at least one query.
 
@@ -2203,10 +2201,14 @@ class VespaNNParameterOptimizer:
         for i in range(0, len(hitratio_list)):
             hitratios = hitratio_list[i]
             if len(hitratios) != 1:
-                print(f"Warning: {len(hitratios)} hit ratios found for query #{i}, skipping query (No nearestNeighbor operator or more than one?)")
+                print(
+                    f"Warning: {len(hitratios)} hit ratios found for query #{i}, skipping query (No nearestNeighbor operator or more than one?)"
+                )
 
         # Only keep queries for which we found exactly one hit ratio
-        queries_with_hitratios = [(q, h[0]) for q, h in zip(queries, hitratio_list) if len(h) == 1]
+        queries_with_hitratios = [
+            (q, h[0]) for q, h in zip(queries, hitratio_list) if len(h) == 1
+        ]
 
         return self.distribute_to_buckets(queries_with_hitratios)
 
@@ -2352,9 +2354,7 @@ class VespaNNParameterOptimizer:
             self.p95 = list(map(lambda x: percentile(x, 0.95), benchmark))
             self.p99 = list(map(lambda x: percentile(x, 0.99), benchmark))
 
-    def benchmark(
-        self, **kwargs
-    ) -> VespaNNParameterOptimizer.BenchmarkResults:
+    def benchmark(self, **kwargs) -> VespaNNParameterOptimizer.BenchmarkResults:
         """
         For each non-empty bucket, determine the average searchtime.
 
