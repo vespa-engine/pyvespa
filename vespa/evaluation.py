@@ -2466,7 +2466,7 @@ class VespaNNParameterOptimizer:
         self, **kwargs
     ) -> dict[str, float | dict[str, List[float]]]:
         """
-        Suggests a value for filterFirstThreshold based on performed benchmarks.
+        Suggests a value for [filterFirstThreshold](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on performed benchmarks.
 
         Returns:
             float: Suggested value for filterFirstThreshold.
@@ -2535,7 +2535,7 @@ class VespaNNParameterOptimizer:
         benchmark_filter_first: VespaNNParameterOptimizer.BenchmarkResults,
     ) -> float:
         """
-        Suggests a value for filterFirstThreshold based on the two given benchmarks (using HNSW only, using HNSW with filter first only).
+        Suggests a value for [filterFirstThreshold](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on the two given benchmarks (using HNSW only, using HNSW with filter first only).
 
         Args:
             benchmark_hnsw (VespaNNParameterOptimizer.BenchmarkResults): Benchmark using HNSW only obtained from benchmark().
@@ -2578,7 +2578,7 @@ class VespaNNParameterOptimizer:
         self, **kwargs
     ) -> dict[str, float | dict[str, List[float]]]:
         """
-        Suggests a value for approximateThreshold based on performed benchmarks.
+        Suggests a value for [approximateThreshold](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on performed benchmarks.
 
         Returns:
             float: Suggested value for approximateThreshold.
@@ -2623,7 +2623,7 @@ class VespaNNParameterOptimizer:
         benchmark_ann: VespaNNParameterOptimizer.BenchmarkResults,
     ) -> float:
         """
-        Suggests a value for approximateThreshold based on the two given benchmarks (using exact search only, using HNSW with tuned filter-first parameters).
+        Suggests a value for [approximateThreshold](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on the two given benchmarks (using exact search only, using HNSW with tuned filter-first parameters).
 
         Args:
             benchmark_exact (VespaNNParameterOptimizer.BenchmarkResults): Benchmark using exact search only obtained from benchmark().
@@ -2668,7 +2668,7 @@ class VespaNNParameterOptimizer:
         self, **kwargs
     ) -> dict[str, float | dict[str, List[float]]]:
         """
-        Suggests a value for postFilterThreshold based on performed benchmarks and recall measurements.
+        Suggests a value for [postFilterThreshold](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on performed benchmarks and recall measurements.
 
         Returns:
             float: Suggested value for postFilterThreshold.
@@ -2728,7 +2728,7 @@ class VespaNNParameterOptimizer:
         recall_pre_filtering: VespaNNParameterOptimizer.RecallResults,
     ) -> float:
         """
-        Suggests a value for postFilterThreshold based on the two given pairs of a benchmark and a recall measurement (using post-filtering only, using HNSW with tuned parameters only).
+        Suggests a value for [postFilterThreshold](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on the two given pairs of a benchmark and a recall measurement (using post-filtering only, using HNSW with tuned parameters only).
 
         Args:
             benchmark_post_filtering (VespaNNParameterOptimizer.BenchmarkResults): Benchmark using post-filtering only obtained from benchmark().
@@ -2813,7 +2813,7 @@ class VespaNNParameterOptimizer:
         ],
     ):
         """
-        Suggests a value for filterFirstExploration based on benchmarks and recall measurements performed on the supplied Vespa app.
+        Suggests a value for [filterFirstExploration](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on benchmarks and recall measurements performed on the supplied Vespa app.
 
         Returns:
             float: Suggested value for postFilterThreshold.
