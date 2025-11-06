@@ -3119,6 +3119,20 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         ]
         self.optimizer.distribute_to_buckets(self.queries_with_hitratios)
 
+    def test_bucket_to_filtered_out(self):
+        self.assertAlmostEqual(
+            self.optimizer.bucket_to_filtered_out(0), 0.00, delta=0.0001
+        )
+        self.assertAlmostEqual(
+            self.optimizer.bucket_to_filtered_out(1), 0.005, delta=0.0001
+        )
+        self.assertAlmostEqual(
+            self.optimizer.bucket_to_filtered_out(2), 0.010, delta=0.0001
+        )
+        self.assertAlmostEqual(
+            self.optimizer.bucket_to_filtered_out(199), 0.995, delta=0.0001
+        )
+
     def test_filtered_out_to_bucket(self):
         self.assertEqual(self.optimizer.filtered_out_to_bucket(-0.1), 0)
         self.assertEqual(self.optimizer.filtered_out_to_bucket(0.00), 0)
