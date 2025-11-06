@@ -2938,6 +2938,16 @@ class VespaNNParameterOptimizer:
         )
 
         report = {
+            "buckets": {
+                "buckets_per_percent": self.buckets_per_percent,
+                "bucket_interval_width": self.get_bucket_interval_width(),
+                "non_empty_buckets": self.get_non_empty_buckets(),
+                "filtered_out_ratios": self.get_filtered_out_ratios(),
+                "hit_ratios": list(
+                    map(lambda x: 1 - x, self.get_filtered_out_ratios())
+                ),
+                "query_distribution": self.get_query_distribution()[1],
+            },
             "filterFirstExploration": filter_first_exploration_report,
             "filterFirstThreshold": filter_first_threshold_report,
             "approximateThreshold": approximate_threshold_report,
