@@ -2353,9 +2353,18 @@ class VespaNNParameterOptimizer:
         return x, y
 
     class BenchmarkResults:
-        def __init__(self, x, y):
-            self.x = x
-            self.y = y
+        """
+        Stores the mean values and various percentiles of a benchmark run.
+
+        Args:
+            benchmark (List[List[float]]): List of benchmark results, one list for every bucket, containing the response times of the queries in that bucket.
+        """
+
+        def __init__(self, benchmark: List[List[float]]):
+            self.mean = list(map(mean, benchmark))
+            self.median = list(map(lambda x: percentile(x, 0.50), benchmark))
+            self.p95 = list(map(lambda x: percentile(x, 0.95), benchmark))
+            self.p99 = list(map(lambda x: percentile(x, 0.99), benchmark))
 
     def benchmark(
         self, from_bucket=None, to_bucket=None, **kwargs
@@ -2378,8 +2387,7 @@ class VespaNNParameterOptimizer:
 
         if self.print_progress:
             print("->Benchmarking", end="")
-        x = []
-        y = []
+        results = []
         processed_buckets = 0
         for i in range(from_bucket, to_bucket):
             bucket = self.buckets[i]
@@ -2392,17 +2400,25 @@ class VespaNNParameterOptimizer:
                 processed_buckets += 1
                 benchmarker = VespaQueryBenchmarker(bucket, self.app, **kwargs)
                 response_times = benchmarker.run()
-                x.append(i)
-                y.append(mean(response_times))
+                results.append(response_times)
 
         print("\r  Benchmarking: 100.0%")
 
-        return VespaNNParameterOptimizer.BenchmarkResults(x, y)
+        return VespaNNParameterOptimizer.BenchmarkResults(results)
 
     class RecallResults:
-        def __init__(self, x, y):
-            self.x = x
-            self.y = y
+        """
+        Stores the mean values and various percentiles of a recall-measurement run.
+
+        Args:
+            recall_measurement (List[List[float]]): List of recall measurements, one list for every bucket, containing the recalls of the queries in that bucket.
+        """
+
+        def __init__(self, recall_measurement: List[List[float]]):
+            self.mean = list(map(mean, recall_measurement))
+            self.median = list(map(lambda x: percentile(x, 0.50), recall_measurement))
+            self.p95 = list(map(lambda x: percentile(x, 0.95), recall_measurement))
+            self.p99 = list(map(lambda x: percentile(x, 0.99), recall_measurement))
 
     def compute_average_recalls(
         self, from_bucket=None, to_bucket=None, **kwargs
@@ -2416,7 +2432,7 @@ class VespaNNParameterOptimizer:
             **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
 
         Returns:
-            VespaNNParameterOptimizer.RecallResults: The recallresults.
+            VespaNNParameterOptimizer.RecallResults: The recall results.
         """
         if from_bucket is None:
             from_bucket = 0
@@ -2425,8 +2441,7 @@ class VespaNNParameterOptimizer:
 
         if self.print_progress:
             print("->Computing recall", end="")
-        x = []
-        y = []
+        results = []
         processed_buckets = 0
         for i in range(from_bucket, to_bucket):
             bucket = self.buckets[i]
@@ -2440,13 +2455,12 @@ class VespaNNParameterOptimizer:
                     bucket, self.hits, self.app, **kwargs
                 )
                 recall_list = recall_evaluator.run()
-                x.append(i)
-                y.append(sum(recall_list) / len(recall_list))
+                results.append(recall_list)
                 processed_buckets += 1
 
         print("\r  Computing recall: 100.0%")
 
-        return VespaNNParameterOptimizer.RecallResults(x, y)
+        return VespaNNParameterOptimizer.RecallResults(results)
 
     def suggest_filter_first_threshold(
         self, **kwargs
@@ -2485,8 +2499,8 @@ class VespaNNParameterOptimizer:
         report = {
             "suggestion": suggestion,
             "benchmarks": {
-                "hnsw": benchmark_hnsw.y,
-                "filter_first": benchmark_filter_first.y,
+                "hnsw": benchmark_hnsw.mean,
+                "filter_first": benchmark_filter_first.mean,
             },
         }
 
@@ -2532,11 +2546,13 @@ class VespaNNParameterOptimizer:
         """
         # Interpolate benchmark values for empty buckets
         interpolated_hnsw_y = self._interpolate(
-            benchmark_hnsw.x, benchmark_hnsw.y, self.get_number_of_buckets()
+            self.get_non_empty_buckets(),
+            benchmark_hnsw.mean,
+            self.get_number_of_buckets(),
         )
         interpolated_filter_first_y = self._interpolate(
-            benchmark_filter_first.x,
-            benchmark_filter_first.y,
+            self.get_non_empty_buckets(),
+            benchmark_filter_first.mean,
             self.get_number_of_buckets(),
         )
 
@@ -2594,8 +2610,8 @@ class VespaNNParameterOptimizer:
         report = {
             "suggestion": suggestion,
             "benchmarks": {
-                "exact": benchmark_exact.y,
-                "filter_first": benchmark_filter_first.y,
+                "exact": benchmark_exact.mean,
+                "filter_first": benchmark_filter_first.mean,
             },
         }
 
@@ -2618,10 +2634,14 @@ class VespaNNParameterOptimizer:
         """
         # Interpolate benchmark values for empty buckets
         int_bench_exact = self._interpolate(
-            benchmark_exact.x, benchmark_exact.y, self.get_number_of_buckets()
+            self.get_non_empty_buckets(),
+            benchmark_exact.mean,
+            self.get_number_of_buckets(),
         )
         int_bench_ann = self._interpolate(
-            benchmark_ann.x, benchmark_ann.y, self.get_number_of_buckets()
+            self.get_non_empty_buckets(),
+            benchmark_ann.mean,
+            self.get_number_of_buckets(),
         )
 
         # Start at last bucket
@@ -2689,12 +2709,12 @@ class VespaNNParameterOptimizer:
         report = {
             "suggestion": suggestion,
             "benchmarks": {
-                "post_filtering": benchmark_post_filtering.y,
-                "filter_first": benchmark_filter_first.y,
+                "post_filtering": benchmark_post_filtering.mean,
+                "filter_first": benchmark_filter_first.mean,
             },
             "recall_measurements": {
-                "post_filtering": recall_post_filtering.y,
-                "filter_first": recall_filter_first.y,
+                "post_filtering": recall_post_filtering.mean,
+                "filter_first": recall_filter_first.mean,
             },
         }
 
@@ -2721,23 +2741,25 @@ class VespaNNParameterOptimizer:
         """
         # Interpolate benchmark values for empty buckets
         int_bench_post = self._interpolate(
-            benchmark_post_filtering.x,
-            benchmark_post_filtering.y,
+            self.get_non_empty_buckets(),
+            benchmark_post_filtering.mean,
             self.get_number_of_buckets(),
         )
         int_bench_pre = self._interpolate(
-            benchmark_pre_filtering.x,
-            benchmark_pre_filtering.y,
+            self.get_non_empty_buckets(),
+            benchmark_pre_filtering.mean,
             self.get_number_of_buckets(),
         )
 
         int_recall_post = self._interpolate(
-            recall_post_filtering.x,
-            recall_post_filtering.y,
+            self.get_non_empty_buckets(),
+            recall_post_filtering.mean,
             self.get_number_of_buckets(),
         )
         int_recall_pre = self._interpolate(
-            recall_pre_filtering.x, recall_pre_filtering.y, self.get_number_of_buckets()
+            self.get_non_empty_buckets(),
+            recall_pre_filtering.mean,
+            self.get_number_of_buckets(),
         )
 
         threshold = 0
@@ -2801,8 +2823,8 @@ class VespaNNParameterOptimizer:
             self._test_filter_first_exploration(0.0)
         )
         benchmark_no_exploration_int = self._interpolate(
-            benchmark_no_exploration.x,
-            benchmark_no_exploration.y,
+            self.get_non_empty_buckets(),
+            benchmark_no_exploration.mean,
             self.get_number_of_buckets(),
         )
 
@@ -2810,21 +2832,21 @@ class VespaNNParameterOptimizer:
             self._test_filter_first_exploration(1.0)
         )
         recall_full_exploration_int = self._interpolate(
-            recall_full_exploration.x,
-            recall_full_exploration.y,
+            self.get_non_empty_buckets(),
+            recall_full_exploration.mean,
             self.get_number_of_buckets(),
         )
         assert mean(benchmark_no_exploration_int) > 0
         assert mean(recall_full_exploration_int) > 0
 
         benchmarks = {
-            0.0: benchmark_no_exploration.y,
-            1.0: benchmark_full_exploration.y,
+            0.0: benchmark_no_exploration.mean,
+            1.0: benchmark_full_exploration.mean,
         }
 
         recall_measurements = {
-            0.0: recall_no_exploration.y,
-            1.0: recall_full_exploration.y,
+            0.0: recall_no_exploration.mean,
+            1.0: recall_full_exploration.mean,
         }
 
         # Find tradeoff between increase in response time and drop in recall by using binary search
@@ -2838,15 +2860,17 @@ class VespaNNParameterOptimizer:
                 filter_first_exploration
             )
             benchmark_candidate_int = self._interpolate(
-                benchmark_candidate.x,
-                benchmark_candidate.y,
+                self.get_non_empty_buckets(),
+                benchmark_candidate.mean,
                 self.get_number_of_buckets(),
             )
             recall_candidate_int = self._interpolate(
-                recall_candidate.x, recall_candidate.y, self.get_number_of_buckets()
+                self.get_non_empty_buckets(),
+                recall_candidate.mean,
+                self.get_number_of_buckets(),
             )
-            benchmarks[filter_first_exploration] = benchmark_candidate.y
-            recall_measurements[filter_first_exploration] = recall_candidate.y
+            benchmarks[filter_first_exploration] = benchmark_candidate.mean
+            recall_measurements[filter_first_exploration] = recall_candidate.mean
 
             # How much does the response time increase compared to no exploration?
             # One could also try to compare the values for every bucket, but this might be a bit unstable:

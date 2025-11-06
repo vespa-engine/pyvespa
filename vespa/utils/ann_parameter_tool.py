@@ -156,14 +156,16 @@ if __name__ == "__main__":
     }
 
     benchmarks = {
-        "Current": optimizer.benchmark(**timeout).y,
-        "Suggestions": optimizer.benchmark(**dict(suggested_parameters, **timeout)).y,
+        "Current": optimizer.benchmark(**timeout).mean,
+        "Suggestions": optimizer.benchmark(
+            **dict(suggested_parameters, **timeout)
+        ).mean,
     }
     recall_measurements = {
-        "Current": optimizer.compute_average_recalls(**timeout).y,
+        "Current": optimizer.compute_average_recalls(**timeout).mean,
         "Suggestions": optimizer.compute_average_recalls(
             **dict(suggested_parameters, **timeout)
-        ).y,
+        ).mean,
     }
 
     print("Benchmarks:")
