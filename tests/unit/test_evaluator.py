@@ -3097,27 +3097,92 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
             self.mock_app, [], 100, buckets_per_percent=2
         )  # 200 buckets
 
+        self.optimizerOneBucket = VespaNNParameterOptimizer(
+            self.mock_app, [], 100, buckets_per_percent=1
+        )  # 100 buckets
+
         # Percentages: 1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 99
         self.buckets = [2, 10, 20, 40, 60, 80, 100, 120, 140, 160, 180, 190, 198]
         self.num = len(self.buckets)
 
         # Fill in placeholder queries corresponding to buckets
         self.queries_with_hitratios = [
-            ({"yql": "foo"}, 0.9875),
-            ({"yql": "foo"}, 0.9475),
-            ({"yql": "foo"}, 0.8975),
-            ({"yql": "foo"}, 0.7975),
-            ({"yql": "foo"}, 0.6975),
-            ({"yql": "foo"}, 0.5975),
-            ({"yql": "foo"}, 0.4975),
-            ({"yql": "foo"}, 0.3975),
-            ({"yql": "foo"}, 0.2975),
-            ({"yql": "foo"}, 0.1975),
-            ({"yql": "foo"}, 0.0975),
-            ({"yql": "foo"}, 0.0475),
-            ({"yql": "foo"}, 0.0075),
+            ({"yql": "foo"}, 0.9875),  # 0.0125
+            ({"yql": "foo"}, 0.9475),  # 0.0525
+            ({"yql": "foo"}, 0.8975),  # 0.1025
+            ({"yql": "foo"}, 0.7975),  # 0.2025
+            ({"yql": "foo"}, 0.6975),  # 0.3025
+            ({"yql": "foo"}, 0.5975),  # 0.4025
+            ({"yql": "foo"}, 0.4975),  # 0.5025
+            ({"yql": "foo"}, 0.3975),  # 0.6025
+            ({"yql": "foo"}, 0.2975),  # 0.7025
+            ({"yql": "foo"}, 0.1975),  # 0.8025
+            ({"yql": "foo"}, 0.0975),  # 0.9025
+            ({"yql": "foo"}, 0.0475),  # 0.9525
+            ({"yql": "foo"}, 0.0075),  # 0.9925
         ]
         self.optimizer.distribute_to_buckets(self.queries_with_hitratios)
+        self.optimizerOneBucket.distribute_to_buckets(self.queries_with_hitratios)
+
+    def test_get_bucket_interval_width(self):
+        self.assertAlmostEqual(
+            self.optimizer.get_bucket_interval_width(), 0.005, delta=0.0001
+        )
+
+        self.assertAlmostEqual(
+            self.optimizerOneBucket.get_bucket_interval_width(), 0.01, delta=0.0001
+        )
+
+    def test_get_number_of_buckets(self):
+        self.assertEqual(self.optimizer.get_number_of_buckets(), 200)
+        self.assertEqual(self.optimizerOneBucket.get_number_of_buckets(), 100)
+
+    def test_get_number_of_nonempty_buckets(self):
+        self.assertEqual(self.optimizer.get_number_of_nonempty_buckets(), 13)
+        self.assertEqual(self.optimizerOneBucket.get_number_of_nonempty_buckets(), 13)
+
+        queries_with_hitratios = [
+            ({"yql": "foo"}, 0.0025),  # New bucket only for optimizerOneBucket
+            ({"yql": "foo"}, 0.1575),  # New bucket for both
+            ({"yql": "foo"}, 0.0070),  # No new bucket
+        ]
+        self.optimizer.distribute_to_buckets(queries_with_hitratios)
+        self.optimizerOneBucket.distribute_to_buckets(queries_with_hitratios)
+
+        self.assertEqual(self.optimizer.get_number_of_nonempty_buckets(), 15)
+        self.assertEqual(self.optimizerOneBucket.get_number_of_nonempty_buckets(), 14)
+
+    def test_get_non_empty_buckets(self):
+        self.assertEqual(
+            self.optimizer.get_non_empty_buckets(),
+            [2, 10, 20, 40, 60, 80, 100, 120, 140, 160, 180, 190, 198],
+        )
+
+    def test_get_filtered_out_ratios(self):
+        ratios = self.optimizer.get_filtered_out_ratios()
+        self.assertAlmostEqual(ratios[0], 0.01, delta=0.0001)
+        self.assertAlmostEqual(ratios[1], 0.05, delta=0.0001)
+        self.assertAlmostEqual(ratios[2], 0.10, delta=0.0001)
+        self.assertAlmostEqual(ratios[3], 0.20, delta=0.0001)
+        self.assertAlmostEqual(ratios[4], 0.30, delta=0.0001)
+        self.assertAlmostEqual(ratios[5], 0.40, delta=0.0001)
+        self.assertAlmostEqual(ratios[6], 0.50, delta=0.0001)
+        self.assertAlmostEqual(ratios[7], 0.60, delta=0.0001)
+        self.assertAlmostEqual(ratios[8], 0.70, delta=0.0001)
+        self.assertAlmostEqual(ratios[9], 0.80, delta=0.0001)
+        self.assertAlmostEqual(ratios[10], 0.90, delta=0.0001)
+        self.assertAlmostEqual(ratios[11], 0.95, delta=0.0001)
+        self.assertAlmostEqual(ratios[12], 0.99, delta=0.0001)
+
+    def test_bucket_to_hitratio(self):
+        self.assertAlmostEqual(self.optimizer.bucket_to_hitratio(0), 1.00, delta=0.0001)
+        self.assertAlmostEqual(
+            self.optimizer.bucket_to_hitratio(1), 0.995, delta=0.0001
+        )
+        self.assertAlmostEqual(self.optimizer.bucket_to_hitratio(2), 0.99, delta=0.0001)
+        self.assertAlmostEqual(
+            self.optimizer.bucket_to_hitratio(199), 0.005, delta=0.0001
+        )
 
     def test_bucket_to_filtered_out(self):
         self.assertAlmostEqual(
@@ -3143,9 +3208,6 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         self.assertEqual(self.optimizer.filtered_out_to_bucket(1.0), 199)
         self.assertEqual(self.optimizer.filtered_out_to_bucket(1.1), 199)
 
-        self.optimizerOneBucket = VespaNNParameterOptimizer(
-            self.mock_app, [], 100, buckets_per_percent=1
-        )  # 200 buckets
         self.assertEqual(self.optimizerOneBucket.filtered_out_to_bucket(0.00), 0)
         self.assertEqual(self.optimizerOneBucket.filtered_out_to_bucket(0.005), 0)
         self.assertEqual(self.optimizerOneBucket.filtered_out_to_bucket(0.015), 1)
