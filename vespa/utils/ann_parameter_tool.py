@@ -74,11 +74,11 @@ if __name__ == "__main__":
         ],
     }
     print("Suggested parameters:")
-    print(json.dumps(suggested_parameters, sort_keys=True, indent=4))
+    print(json.dumps(suggested_parameters, indent=4))
 
     if args.debug:
         print("Full report:")
-        print(json.dumps(report, sort_keys=True, indent=4))
+        print(json.dumps(report, indent=4))
 
     ####################################################################################################################
     # Plot (debug) information
@@ -167,10 +167,10 @@ if __name__ == "__main__":
     }
 
     print("Benchmarks:")
-    print(json.dumps(benchmarks, sort_keys=True, indent=4))
+    print(json.dumps(benchmarks, indent=4))
 
     print("Recall Measurements:")
-    print(json.dumps(benchmarks, sort_keys=True, indent=4))
+    print(json.dumps(benchmarks, indent=4))
 
     if args.plot:
         plot_benchmarks("Current vs Suggestions", benchmarks)
