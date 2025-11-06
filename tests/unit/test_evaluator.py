@@ -3142,7 +3142,7 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         self.assertEqual(self.optimizerOneBucket.get_number_of_nonempty_buckets(), 13)
 
         queries_with_hitratios = [
-            ({"yql": "foo"}, 0.0025),  # New bucket only for optimizerOneBucket
+            ({"yql": "foo"}, 0.0025),  # New bucket only for optimizer
             ({"yql": "foo"}, 0.1575),  # New bucket for both
             ({"yql": "foo"}, 0.0070),  # No new bucket
         ]
@@ -3213,6 +3213,13 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         self.assertEqual(self.optimizerOneBucket.filtered_out_to_bucket(0.015), 1)
         self.assertEqual(self.optimizerOneBucket.filtered_out_to_bucket(1.0), 99)
 
+    def test_determine_hit_ratios_and_distribute_to_buckets(self):
+        # Just test that it does not add queries for which it does not get a hit ratio
+        before = self.optimizer.get_query_distribution()
+        self.optimizer.determine_hit_ratios_and_distribute_to_buckets([{"yql": "foo"}])
+        after = self.optimizer.get_query_distribution()
+        self.assertEqual(before, after)
+
     def test_has_sufficient_queries(self):
         # Fill in placeholder queries corresponding to buckets
         queries_with_hitratios = [
@@ -3273,6 +3280,21 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         )
         optimizer.distribute_to_buckets(queries_with_hitratios)
         self.assertTrue(optimizer.buckets_sufficiently_filled())
+
+    def test_get_query_distribution(self):
+        x, y = self.optimizer.get_query_distribution()
+        self.assertEqual(x, self.optimizer.get_filtered_out_ratios())
+        self.assertEqual(y, [1] * 13)
+
+        queries_with_hitratios = [
+            ({"yql": "foo"}, 0.0025),  # New bucket only for optimizer
+            ({"yql": "foo"}, 0.1575),  # New bucket for both
+            ({"yql": "foo"}, 0.0070),  # No new bucket
+        ]
+        self.optimizer.distribute_to_buckets(queries_with_hitratios)
+        x, y = self.optimizer.get_query_distribution()
+        self.assertEqual(x, self.optimizer.get_filtered_out_ratios())
+        self.assertEqual(y, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1])
 
     def _assert_post_filter_threshold(
         self,
