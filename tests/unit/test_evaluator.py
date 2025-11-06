@@ -3119,6 +3119,24 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         ]
         self.optimizer.distribute_to_buckets(self.queries_with_hitratios)
 
+    def test_filtered_out_to_bucket(self):
+        self.assertEqual(self.optimizer.filtered_out_to_bucket(-0.1), 0)
+        self.assertEqual(self.optimizer.filtered_out_to_bucket(0.00), 0)
+        self.assertEqual(self.optimizer.filtered_out_to_bucket(0.0025), 0)
+        self.assertEqual(self.optimizer.filtered_out_to_bucket(0.0075), 1)
+        self.assertEqual(self.optimizer.filtered_out_to_bucket(0.0125), 2)
+        self.assertEqual(self.optimizer.filtered_out_to_bucket(0.99999), 199)
+        self.assertEqual(self.optimizer.filtered_out_to_bucket(1.0), 199)
+        self.assertEqual(self.optimizer.filtered_out_to_bucket(1.1), 199)
+
+        self.optimizerOneBucket = VespaNNParameterOptimizer(
+            self.mock_app, [], 100, buckets_per_percent=1
+        )  # 200 buckets
+        self.assertEqual(self.optimizerOneBucket.filtered_out_to_bucket(0.00), 0)
+        self.assertEqual(self.optimizerOneBucket.filtered_out_to_bucket(0.005), 0)
+        self.assertEqual(self.optimizerOneBucket.filtered_out_to_bucket(0.015), 1)
+        self.assertEqual(self.optimizerOneBucket.filtered_out_to_bucket(1.0), 99)
+
     def test_has_sufficient_queries(self):
         # Fill in placeholder queries corresponding to buckets
         queries_with_hitratios = [
