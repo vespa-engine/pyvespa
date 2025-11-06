@@ -2009,27 +2009,6 @@ class VespaQueryBenchmarker:
         return list(map(lambda x: x / self.repetitions, response_times_sum))
 
 
-def interpolate(x, y, intended_length):
-    interpolated_y = [0] * intended_length
-
-    if len(x) == 0:
-        return interpolated_y
-
-    for i in range(0, x[0] + 1):
-        interpolated_y[i] = y[0]
-
-    for i in range(x[-1], intended_length):
-        interpolated_y[i] = y[-1]
-
-    for i in range(0, len(x) - 1):
-        length = x[i + 1] - x[i]
-
-        for j in range(0, length):
-            interpolated_y[x[i] + j] = j / length * y[i + 1] + (1 - j / length) * y[i]
-
-    return interpolated_y
-
-
 class VespaNNParameterOptimizer:
     """
     Get suggestions for configuring the nearest-neighbor parameters of a Vespa application.
@@ -2513,6 +2492,29 @@ class VespaNNParameterOptimizer:
 
         return report
 
+    @staticmethod
+    def _interpolate(x, y, intended_length):
+        interpolated_y = [0] * intended_length
+
+        if len(x) == 0:
+            return interpolated_y
+
+        for i in range(0, x[0] + 1):
+            interpolated_y[i] = y[0]
+
+        for i in range(x[-1], intended_length):
+            interpolated_y[i] = y[-1]
+
+        for i in range(0, len(x) - 1):
+            length = x[i + 1] - x[i]
+
+            for j in range(0, length):
+                interpolated_y[x[i] + j] = (
+                    j / length * y[i + 1] + (1 - j / length) * y[i]
+                )
+
+        return interpolated_y
+
     def _suggest_filter_first_threshold(
         self,
         benchmark_hnsw: VespaNNParameterOptimizer.BenchmarkResults,
@@ -2529,10 +2531,10 @@ class VespaNNParameterOptimizer:
             float: Suggested value for filterFirstThreshold.
         """
         # Interpolate benchmark values for empty buckets
-        interpolated_hnsw_y = interpolate(
+        interpolated_hnsw_y = self._interpolate(
             benchmark_hnsw.x, benchmark_hnsw.y, self.get_number_of_buckets()
         )
-        interpolated_filter_first_y = interpolate(
+        interpolated_filter_first_y = self._interpolate(
             benchmark_filter_first.x,
             benchmark_filter_first.y,
             self.get_number_of_buckets(),
@@ -2615,10 +2617,10 @@ class VespaNNParameterOptimizer:
             float: Suggested value for approximateThreshold.
         """
         # Interpolate benchmark values for empty buckets
-        int_bench_exact = interpolate(
+        int_bench_exact = self._interpolate(
             benchmark_exact.x, benchmark_exact.y, self.get_number_of_buckets()
         )
-        int_bench_ann = interpolate(
+        int_bench_ann = self._interpolate(
             benchmark_ann.x, benchmark_ann.y, self.get_number_of_buckets()
         )
 
@@ -2718,23 +2720,23 @@ class VespaNNParameterOptimizer:
             float: Suggested value for postFilterThreshold.
         """
         # Interpolate benchmark values for empty buckets
-        int_bench_post = interpolate(
+        int_bench_post = self._interpolate(
             benchmark_post_filtering.x,
             benchmark_post_filtering.y,
             self.get_number_of_buckets(),
         )
-        int_bench_pre = interpolate(
+        int_bench_pre = self._interpolate(
             benchmark_pre_filtering.x,
             benchmark_pre_filtering.y,
             self.get_number_of_buckets(),
         )
 
-        int_recall_post = interpolate(
+        int_recall_post = self._interpolate(
             recall_post_filtering.x,
             recall_post_filtering.y,
             self.get_number_of_buckets(),
         )
-        int_recall_pre = interpolate(
+        int_recall_pre = self._interpolate(
             recall_pre_filtering.x, recall_pre_filtering.y, self.get_number_of_buckets()
         )
 
@@ -2798,7 +2800,7 @@ class VespaNNParameterOptimizer:
         benchmark_no_exploration, recall_no_exploration = (
             self._test_filter_first_exploration(0.0)
         )
-        benchmark_no_exploration_int = interpolate(
+        benchmark_no_exploration_int = self._interpolate(
             benchmark_no_exploration.x,
             benchmark_no_exploration.y,
             self.get_number_of_buckets(),
@@ -2807,7 +2809,7 @@ class VespaNNParameterOptimizer:
         benchmark_full_exploration, recall_full_exploration = (
             self._test_filter_first_exploration(1.0)
         )
-        recall_full_exploration_int = interpolate(
+        recall_full_exploration_int = self._interpolate(
             recall_full_exploration.x,
             recall_full_exploration.y,
             self.get_number_of_buckets(),
@@ -2835,12 +2837,12 @@ class VespaNNParameterOptimizer:
             benchmark_candidate, recall_candidate = self._test_filter_first_exploration(
                 filter_first_exploration
             )
-            benchmark_candidate_int = interpolate(
+            benchmark_candidate_int = self._interpolate(
                 benchmark_candidate.x,
                 benchmark_candidate.y,
                 self.get_number_of_buckets(),
             )
-            recall_candidate_int = interpolate(
+            recall_candidate_int = self._interpolate(
                 recall_candidate.x, recall_candidate.y, self.get_number_of_buckets()
             )
             benchmarks[filter_first_exploration] = benchmark_candidate.y
@@ -2936,6 +2938,16 @@ class VespaNNParameterOptimizer:
         )
 
         report = {
+            "buckets": {
+                "buckets_per_percent": self.buckets_per_percent,
+                "bucket_interval_width": self.get_bucket_interval_width(),
+                "non_empty_buckets": self.get_non_empty_buckets(),
+                "filtered_out_ratios": self.get_filtered_out_ratios(),
+                "hit_ratios": list(
+                    map(lambda x: 1 - x, self.get_filtered_out_ratios())
+                ),
+                "query_distribution": self.get_query_distribution()[1],
+            },
             "filterFirstExploration": filter_first_exploration_report,
             "filterFirstThreshold": filter_first_threshold_report,
             "approximateThreshold": approximate_threshold_report,
