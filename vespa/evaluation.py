@@ -2211,19 +2211,13 @@ class VespaNNParameterOptimizer:
 
         for i in range(0, len(hitratio_list)):
             hitratios = hitratio_list[i]
-            if len(hitratios) == 0:
-                raise VespaNNGlobalFilterHitRatioError(
-                    f"Aborting: No hit ratio found for query #{i} (No nearestNeighbor operator?)"
-                )
-            if len(hitratios) > 1:
-                raise VespaNNGlobalFilterHitRatioError(
-                    f"Aborting: More than one hit ratio found for query #{i} (Multiple nearestNeighbor operators?)"
-                )
+            if len(hitratios) != 1:
+                print(f"Warning: {len(hitratios)} hit ratios found for query #{i}, skipping query (No nearestNeighbor operator or more than one?)")
 
-        hitratios = list(
-            map(lambda hitratios_of_query: hitratios_of_query[0], hitratio_list)
-        )
-        return self.distribute_to_buckets(list(zip(queries, hitratios)))
+        # Only keep queries for which we found exactly one hit ratio
+        queries_with_hitratios = [(q, h[0]) for q, h in zip(queries, hitratio_list) if len(h) == 1]
+
+        return self.distribute_to_buckets(queries_with_hitratios)
 
     @staticmethod
     def query_from_get_string(get_query: str) -> Dict[str, str]:
