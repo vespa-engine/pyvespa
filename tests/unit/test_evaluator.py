@@ -3190,17 +3190,17 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         upper,
     ):
         benchmark_post_filtering = VespaNNParameterOptimizer.BenchmarkResults(
-            self.buckets, response_times_post_filtering
+            list(map(lambda x: [x], response_times_post_filtering))
         )
         recall_post_filtering = VespaNNParameterOptimizer.RecallResults(
-            self.buckets, recall_post_filtering
+            list(map(lambda x: [x], recall_post_filtering))
         )
 
         benchmark_pre_filtering = VespaNNParameterOptimizer.BenchmarkResults(
-            self.buckets, response_times_pre_filtering
+            list(map(lambda x: [x], response_times_pre_filtering))
         )
         recall_pre_filtering = VespaNNParameterOptimizer.RecallResults(
-            self.buckets, recall_pre_filtering
+            list(map(lambda x: [x], recall_pre_filtering))
         )
 
         post_filter_threshold = self.optimizer._suggest_post_filter_threshold(
@@ -3275,10 +3275,10 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         upper,
     ):
         benchmark_exact = VespaNNParameterOptimizer.BenchmarkResults(
-            self.buckets, response_times_exact
+            list(map(lambda x: [x], response_times_exact))
         )
         benchmark_approx = VespaNNParameterOptimizer.BenchmarkResults(
-            self.buckets, response_times_approx
+            list(map(lambda x: [x], response_times_approx))
         )
 
         approximate_threshold = self.optimizer._suggest_approximate_threshold(
@@ -3348,10 +3348,10 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         upper,
     ):
         benchmark_hnsw = VespaNNParameterOptimizer.BenchmarkResults(
-            self.buckets, response_times_hnsw
+            list(map(lambda x: [x], response_times_hnsw))
         )
         benchmark_filter_first = VespaNNParameterOptimizer.BenchmarkResults(
-            self.buckets, response_times_filter_first
+            list(map(lambda x: [x], response_times_filter_first))
         )
 
         filter_first_threshold = self.optimizer._suggest_filter_first_threshold(
@@ -3486,10 +3486,10 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
                 ]
 
                 benchmark = VespaNNParameterOptimizer.BenchmarkResults(
-                    self.test_buckets, interpolation_rising_response_time
+                    list(map(lambda x: [x], interpolation_rising_response_time))
                 )
                 recall = VespaNNParameterOptimizer.BenchmarkResults(
-                    self.test_buckets, interpolation_dropping_recall
+                    list(map(lambda x: [x], interpolation_dropping_recall))
                 )
                 return benchmark, recall
 
