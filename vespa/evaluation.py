@@ -2229,14 +2229,14 @@ class VespaNNParameterOptimizer:
 
         for i in range(0, len(hitratio_list)):
             hitratios = hitratio_list[i]
-            if len(hitratios) != 1:
+            if len(hitratios) == 0:
                 print(
-                    f"Warning: {len(hitratios)} hit ratios found for query #{i}, skipping query (No nearestNeighbor operator or more than one?)"
+                    f"Warning: No hit ratios found for query #{i}, skipping query (No nearestNeighbor operator?)"
                 )
 
         # Only keep queries for which we found exactly one hit ratio
         queries_with_hitratios = [
-            (q, h[0]) for q, h in zip(queries, hitratio_list) if len(h) == 1
+            (q, mean(h)) for q, h in zip(queries, hitratio_list) if len(h) > 0
         ]
 
         return self.distribute_to_buckets(queries_with_hitratios)
