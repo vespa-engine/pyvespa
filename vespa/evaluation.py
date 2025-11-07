@@ -1902,8 +1902,17 @@ class VespaNNRecallEvaluator:
         ids_exact = list(map(lambda x: x["id"], results_exact))
         ids_approx = list(map(lambda x: x["id"], results_approx))
 
+        if len(ids_exact) != self.hits:
+            print(
+                f"Warning: Exact query did not return {self.hits} hits ({len(ids_exact)} hits)."
+            )
+
         recall = sum(map(lambda x: 1 if x in ids_exact else 0, ids_approx))
-        return recall / self.hits
+
+        if len(ids_exact) > 0:
+            return recall / len(ids_exact)
+        else:
+            return 1.0
 
     def run(self) -> List[float]:
         """
@@ -1917,20 +1926,20 @@ class VespaNNRecallEvaluator:
         )
         query_parameters_exact = dict(query_parameters, **VespaNNParameters.EXACT)
 
-        queries_with_parameters = list(
-            map(lambda query: dict(query, **query_parameters), self.queries)
-        )
-        responses, _ = execute_queries(self.app, queries_with_parameters)
-
         queries_with_parameters_exact = list(
             map(lambda query: dict(query, **query_parameters_exact), self.queries)
         )
         responses_exact, _ = execute_queries(self.app, queries_with_parameters_exact)
 
+        queries_with_parameters = list(
+            map(lambda query: dict(query, **query_parameters), self.queries)
+        )
+        responses, _ = execute_queries(self.app, queries_with_parameters)
+
         return list(
             map(
                 lambda pair: self._compute_recall(pair[0], pair[1]),
-                zip(responses, responses_exact),
+                zip(responses_exact, responses),
             )
         )
 

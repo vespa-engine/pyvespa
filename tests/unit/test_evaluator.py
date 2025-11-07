@@ -5,6 +5,7 @@ from vespa.evaluation import (
     VespaCollectorBase,
     VespaFeatureCollector,
     RandomHitsSamplingStrategy,
+    VespaNNRecallEvaluator,
     VespaNNParameterOptimizer,
 )
 from dataclasses import dataclass
@@ -3078,6 +3079,110 @@ class TestVespaFeatureCollector(unittest.TestCase):
             )
             self.assertEqual(collector.random_hits_ratio, 1.0)
             self.assertIsNone(collector.max_random_hits_per_query)
+
+
+class TestVespaNNRecallEvaluator(unittest.TestCase):
+    """Test the VespaNNRecallEvaluator class."""
+
+    class SuccessfullMockVespaResponse(MockVespaResponse):
+        def __init__(self, hits, _total_count=None, _timing=None, _status_code=200):
+            super().__init__(hits, _total_count, _timing, _status_code)
+
+        def is_successful(self):
+            return True
+
+    def setUp(self):
+        class MockVespaApp:
+            def __init__(self, mock_responses):
+                self.mock_responses = mock_responses
+                self.current_query = 0
+
+            def query_many(self, queries):
+                return self.mock_responses
+
+        self.mock_app = MockVespaApp([])
+        self.recall_evaluator = VespaNNRecallEvaluator([], 100, self.mock_app)
+
+    def test_compute_recall(self):
+        response_exact = self.SuccessfullMockVespaResponse(
+            [{"id": "1"}, {"id": "2"}, {"id": "3"}, {"id": "4"}, {"id": "5"}]
+        )
+        self.assertAlmostEqual(
+            self.recall_evaluator._compute_recall(response_exact, response_exact),
+            1.0,
+            delta=0.0001,
+        )
+
+        response_approx = self.SuccessfullMockVespaResponse(
+            [{"id": "1"}, {"id": "2"}, {"id": "3"}, {"id": "4"}]
+        )
+        self.assertAlmostEqual(
+            self.recall_evaluator._compute_recall(response_exact, response_approx),
+            0.8,
+            delta=0.0001,
+        )
+
+        response_approx = self.SuccessfullMockVespaResponse(
+            [{"id": "1"}, {"id": "3"}, {"id": "4"}]
+        )
+        self.assertAlmostEqual(
+            self.recall_evaluator._compute_recall(response_exact, response_approx),
+            0.6,
+            delta=0.0001,
+        )
+
+        response_approx = self.SuccessfullMockVespaResponse([{"id": "3"}, {"id": "4"}])
+        self.assertAlmostEqual(
+            self.recall_evaluator._compute_recall(response_exact, response_approx),
+            0.4,
+            delta=0.0001,
+        )
+
+        response_approx = self.SuccessfullMockVespaResponse([{"id": "3"}])
+        self.assertAlmostEqual(
+            self.recall_evaluator._compute_recall(response_exact, response_approx),
+            0.2,
+            delta=0.0001,
+        )
+
+        response_approx = self.SuccessfullMockVespaResponse([])
+        self.assertAlmostEqual(
+            self.recall_evaluator._compute_recall(response_exact, response_approx),
+            0.0,
+            delta=0.0001,
+        )
+
+        self.assertAlmostEqual(
+            self.recall_evaluator._compute_recall(response_approx, response_approx),
+            1.0,
+            delta=0.0001,
+        )
+
+    def test_run(self):
+        class MockVespaApp:
+            def __init__(self, first_mock_responses, second_mock_responses):
+                self.first_mock_responses = first_mock_responses
+                self.second_mock_responses = second_mock_responses
+                self.current_query = 0
+                self.first_responses = True
+
+            def query_many(self, queries):
+                if self.first_responses:
+                    self.first_responses = False
+                    return self.first_mock_responses
+                else:
+                    return self.second_mock_responses
+
+        response_exact = self.SuccessfullMockVespaResponse(
+            [{"id": "1"}, {"id": "2"}, {"id": "3"}, {"id": "4"}, {"id": "5"}]
+        )
+        response_approx = self.SuccessfullMockVespaResponse([{"id": "3"}])
+
+        app = MockVespaApp([response_exact], [response_approx])
+        recall_evaluator = VespaNNRecallEvaluator([{"yql": "foo"}], 5, app)
+        recalls = recall_evaluator.run()
+        self.assertEqual(len(recalls), 1)
+        self.assertAlmostEqual(recalls[0], 0.2, delta=0.0001)
 
 
 class TestVespaNNParameterOptimizer(unittest.TestCase):
