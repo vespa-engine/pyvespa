@@ -5,6 +5,7 @@ from vespa.evaluation import (
     VespaCollectorBase,
     VespaFeatureCollector,
     RandomHitsSamplingStrategy,
+    VespaNNGlobalFilterHitratioEvaluator,
     VespaNNRecallEvaluator,
     VespaNNParameterOptimizer,
 )
@@ -3079,6 +3080,156 @@ class TestVespaFeatureCollector(unittest.TestCase):
             )
             self.assertEqual(collector.random_hits_ratio, 1.0)
             self.assertIsNone(collector.max_random_hits_per_query)
+
+
+class TestVespaNNGlobalFilterHitratioEvaluator(unittest.TestCase):
+    """Test the VespaNNGlobalFilterHitratioEvaluator class."""
+
+    def setUp(self):
+        class SuccessfullMockVespaResponse(MockVespaResponse):
+            def __init__(
+                self, hits=[], _total_count=None, _timing=None, _status_code=200
+            ):
+                super().__init__(hits, _total_count, _timing, _status_code)
+
+            def get_json(self):
+                test_trace = {
+                    "trace": {
+                        "children": [
+                            {
+                                "[0]": {
+                                    "[type]": "search::queryeval::NearestNeighborBlueprint",
+                                    "isTermLike": True,
+                                    "estimate": {
+                                        "[type]": "HitEstimate",
+                                        "empty": False,
+                                        "estHits": 100,
+                                        "cost_tier": 1,
+                                        "tree_size": 1,
+                                        "allow_termwise_eval": False,
+                                    },
+                                    "relative_estimate": 0.0003333322222259259,
+                                    "cost": 1.0,
+                                    "strict_cost": 0.0003333322222259259,
+                                    "sourceId": 4294967295,
+                                    "docid_limit": 300001,
+                                    "id": 3,
+                                    "strict": True,
+                                    "attribute_tensor": "tensor<float>(x[960])",
+                                    "query_tensor": "tensor<float>(x[960])",
+                                    "target_hits": 100,
+                                    "adjusted_target_hits": 100,
+                                    "explore_additional_hits": 0,
+                                    "wanted_approximate": True,
+                                    "has_index": True,
+                                    "algorithm": "index top k using filter",
+                                    "top_k_hits": 100,
+                                    "global_filter": {
+                                        "[type]": "GlobalFilter",
+                                        "wanted": True,
+                                        "set": True,
+                                        "calculated": True,
+                                        "lower_limit": 0.0,
+                                        "upper_limit": 1.0,
+                                        "hits": 3000,
+                                        "hit_ratio": 0.009999966666777778,
+                                    },
+                                },
+                                "[1]": {
+                                    "[type]": "search::queryeval::NearestNeighborBlueprint",
+                                    "isTermLike": True,
+                                    "estimate": {
+                                        "[type]": "HitEstimate",
+                                        "empty": False,
+                                        "estHits": 100,
+                                        "cost_tier": 1,
+                                        "tree_size": 1,
+                                        "allow_termwise_eval": False,
+                                    },
+                                    "relative_estimate": 0.0003333322222259259,
+                                    "cost": 1.0,
+                                    "strict_cost": 0.0003333322222259259,
+                                    "sourceId": 4294967295,
+                                    "docid_limit": 300001,
+                                    "id": 3,
+                                    "strict": True,
+                                    "attribute_tensor": "tensor<float>(x[960])",
+                                    "query_tensor": "tensor<float>(x[960])",
+                                    "target_hits": 100,
+                                    "adjusted_target_hits": 100,
+                                    "explore_additional_hits": 0,
+                                    "wanted_approximate": True,
+                                    "has_index": True,
+                                    "algorithm": "index top k using filter",
+                                    "top_k_hits": 100,
+                                    "global_filter": {
+                                        "[type]": "GlobalFilter",
+                                        "wanted": True,
+                                        "set": True,
+                                        "calculated": True,
+                                        "lower_limit": 0.0,
+                                        "upper_limit": 1.0,
+                                        "hits": 3000,
+                                        "hit_ratio": 0.019999966666777778,
+                                    },
+                                },
+                            },
+                            {
+                                "root": {
+                                    "id": "toplevel",
+                                    "relevance": 1.0,
+                                    "fields": {"totalCount": 100},
+                                    "coverage": {
+                                        "coverage": 100,
+                                        "documents": 300000,
+                                        "full": True,
+                                        "nodes": 1,
+                                        "results": 1,
+                                        "resultsFull": 1,
+                                    },
+                                    "children": [
+                                        {
+                                            "id": "id:test:test::235899",
+                                            "relevance": 0.48415254742450914,
+                                            "source": "search",
+                                            "fields": {
+                                                "sddocname": "test",
+                                                "documentid": "id:test:test::235899",
+                                                "id": 235899,
+                                                "filter": [1, 10, 50, 90, 95, 99],
+                                                "vec_m16": {
+                                                    "type": "tensor<float>(x[960])",
+                                                    "values": [],
+                                                },
+                                            },
+                                        }
+                                    ],
+                                }
+                            },
+                        ]
+                    }
+                }
+
+                return test_trace
+
+            def is_successful(self):
+                return True
+
+        class MockVespaApp:
+            def query_many(self, queries):
+                return [SuccessfullMockVespaResponse()]
+
+        self.mock_app = MockVespaApp()
+
+    def test_run(self):
+        hitratio_evaluator = VespaNNGlobalFilterHitratioEvaluator(
+            [{"yql": "foo"}], self.mock_app, verify_target_hits=100
+        )
+        hitratios = hitratio_evaluator.run()
+        self.assertEqual(len(hitratios), 1)
+        self.assertEqual(len(hitratios[0]), 2)
+        self.assertAlmostEqual(hitratios[0][0], 0.01, delta=0.001)
+        self.assertAlmostEqual(hitratios[0][1], 0.02, delta=0.001)
 
 
 class TestVespaNNRecallEvaluator(unittest.TestCase):
