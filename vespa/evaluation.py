@@ -1842,14 +1842,6 @@ class VespaNNRecallUnsuccessfulQueryError(Exception):
     pass
 
 
-class VespaNNGlobalFilterHitRatioError(Exception):
-    """
-    Exception raised when trying to add a query for which we do not get exactly one hit ratio.
-    """
-
-    pass
-
-
 class VespaNNRecallEvaluator:
     """
     Determine recall of ANN queries. The recall of an ANN query with k hits is the number of hits
