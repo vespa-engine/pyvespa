@@ -1712,6 +1712,36 @@ def extract_features_from_hit(
     return features
 
 
+class VespaNNParameters:
+    """
+    Collection of nearest-neighbor query parameters used in nearest-neighbor classes.
+    """
+
+    TIMEOUT = {
+        "timeout": "20s",
+    }
+    HNSW = {
+        "ranking.matching.approximateThreshold": 0.00,
+        "ranking.matching.filterFirstThreshold": 0.00,
+        "ranking.matching.postFilterThreshold": 1.00,
+    }
+    FILTER_FIRST = {
+        "ranking.matching.approximateThreshold": 0.00,
+        "ranking.matching.filterFirstThreshold": 1.00,
+        "ranking.matching.postFilterThreshold": 1.00,
+    }
+    EXACT = {
+        "ranking.matching.approximateThreshold": 1.00,
+        "ranking.matching.filterFirstThreshold": 0.00,
+        "ranking.matching.postFilterThreshold": 1.00,
+    }
+    POST = {
+        "ranking.matching.approximateThreshold": 0.00,
+        "ranking.matching.filterFirstThreshold": 0.00,
+        "ranking.matching.postFilterThreshold": 0.00,
+    }
+
+
 class VespaNNGlobalFilterHitratioEvaluator:
     """
     Determine the hit ratio of the global filter in ANN queries. This hit ratio determines the search strategy
@@ -1746,13 +1776,14 @@ class VespaNNGlobalFilterHitratioEvaluator:
         Returns:
             List[List[float]]: List of lists of hit ratios, which are values from the interval [0.0, 1.0], corresponding to the supplied queries.
         """
-        query_parameters = {
-            "timeout": "20s",
-            "trace.explainLevel": "1",
-            "trace.level": "1",
-            "trace.profileDepth": "100",
-            "ranking.matching.approximateThreshold": "0.00",
-        }
+        query_parameters = dict(
+            dict(VespaNNParameters.TIMEOUT, **VespaNNParameters.HNSW),
+            **{
+                "trace.explainLevel": "1",
+                "trace.level": "1",
+                "trace.profileDepth": "100",
+            },
+        )
 
         queries_with_parameters = list(
             map(lambda query: dict(query, **query_parameters), self.queries)
@@ -1911,11 +1942,9 @@ class VespaNNRecallEvaluator:
             List[float]: List of recall values from the interval [0.0, 1.0] corresponding to the supplied queries.
         """
         query_parameters = dict(
-            self.parameters, **{"hits": self.hits, "timeout": "20s"}
+            dict(self.parameters, **VespaNNParameters.TIMEOUT), **{"hits": self.hits}
         )
-        query_parameters_exact = dict(
-            query_parameters, **{"ranking.matching.approximateThreshold": 1.00}
-        )
+        query_parameters_exact = dict(query_parameters, **VespaNNParameters.EXACT)
 
         queries_with_parameters = list(
             map(lambda query: dict(query, **query_parameters), self.queries)
@@ -2440,27 +2469,19 @@ class VespaNNParameterOptimizer:
         """
         Suggests a value for [filterFirstThreshold](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on performed benchmarks.
 
+        Args:
+            **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>. Should contain ranking.matching.filterFirstExploration!
+
         Returns:
             float: Suggested value for filterFirstThreshold.
         """
         hnsw_parameters = dict(
-            kwargs,
-            **{
-                "timeout": "20s",
-                "ranking.matching.approximateThreshold": 0.00,
-                "ranking.matching.filterFirstThreshold": 0.00,
-            },
+            dict(VespaNNParameters.TIMEOUT, **kwargs), **VespaNNParameters.HNSW
         )
         benchmark_hnsw = self.benchmark(**hnsw_parameters)
 
         filter_first_parameters = dict(
-            kwargs,
-            **{
-                "timeout": "20s",
-                "ranking.matching.approximateThreshold": 0.00,
-                "ranking.matching.filterFirstThreshold": 1.00,
-                # "ranking.matching.filterFirstExploration": filter_first_exploration,
-            },
+            dict(VespaNNParameters.TIMEOUT, **kwargs), **VespaNNParameters.FILTER_FIRST
         )
         benchmark_filter_first = self.benchmark(**filter_first_parameters)
 
@@ -2552,26 +2573,21 @@ class VespaNNParameterOptimizer:
         """
         Suggests a value for [approximateThreshold](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on performed benchmarks.
 
+        Args:
+            **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>. Should contain ranking.matching.filterFirstExploration and ranking.matching.filterFirstThreshold!
+
         Returns:
             float: Suggested value for approximateThreshold.
         """
         exact_parameters = dict(
-            kwargs,
-            **{
-                "timeout": "20s",
-                "ranking.matching.approximateThreshold": 1.00,
-            },
+            dict(VespaNNParameters.TIMEOUT, **kwargs), **VespaNNParameters.EXACT
         )
         benchmark_exact = self.benchmark(**exact_parameters)
 
+        filter_first_copy = VespaNNParameters.FILTER_FIRST.copy()
+        del filter_first_copy["ranking.matching.filterFirstThreshold"]
         filter_first_parameters = dict(
-            kwargs,
-            **{
-                "timeout": "20s",
-                "ranking.matching.approximateThreshold": 0.00,
-                # "ranking.matching.filterFirstThreshold": filter_first_threshold,
-                # "ranking.matching.filterFirstExploration": filter_first_exploration,
-            },
+            dict(VespaNNParameters.TIMEOUT, **kwargs), **filter_first_copy
         )
         benchmark_filter_first = self.benchmark(**filter_first_parameters)
 
@@ -2642,27 +2658,22 @@ class VespaNNParameterOptimizer:
         """
         Suggests a value for [postFilterThreshold](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on performed benchmarks and recall measurements.
 
+        Args:
+            **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>. Should contain ranking.matching.filterFirstExploration, ranking.matching.filterFirstThreshold, and ranking.matching.approximateThreshold!
+
         Returns:
             float: Suggested value for postFilterThreshold.
         """
         post_filtering_parameters = dict(
-            kwargs,
-            **{
-                "timeout": "20s",
-                "ranking.matching.postFilterThreshold": 0.00,
-                "ranking.matching.approximateThreshold": 0.00,
-            },
+            dict(VespaNNParameters.TIMEOUT, **kwargs), **VespaNNParameters.POST
         )
         benchmark_post_filtering = self.benchmark(**post_filtering_parameters)
 
+        filter_first_copy = VespaNNParameters.FILTER_FIRST.copy()
+        del filter_first_copy["ranking.matching.filterFirstThreshold"]
+        del filter_first_copy["ranking.matching.approximateThreshold"]
         filter_first_parameters = dict(
-            kwargs,
-            **{
-                "timeout": "20s",
-                # "ranking.matching.approximateThreshold": approximate_threshold,
-                # "ranking.matching.filterFirstThreshold": filter_first_threshold,
-                # "ranking.matching.filterFirstExploration": filter_first_exploration,
-            },
+            dict(VespaNNParameters.TIMEOUT, **kwargs), **filter_first_copy
         )
         benchmark_filter_first = self.benchmark(**filter_first_parameters)
 
@@ -2761,12 +2772,10 @@ class VespaNNParameterOptimizer:
         VespaNNParameterOptimizer.BenchmarkResults,
         VespaNNParameterOptimizer.RecallResults,
     ):
-        parameters_candidate = {
-            "ranking.matching.approximateThreshold": 0.00,
-            "ranking.matching.filterFirstThreshold": 1.00,
-            "ranking.matching.filterFirstExploration": filter_first_exploration,
-        }
-
+        parameters_candidate = dict(
+            dict(VespaNNParameters.TIMEOUT, **VespaNNParameters.FILTER_FIRST),
+            **{"ranking.matching.filterFirstExploration": filter_first_exploration},
+        )
         benchmark = self.benchmark(**parameters_candidate)
         recall = self.compute_average_recalls(**parameters_candidate)
 
