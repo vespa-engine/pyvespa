@@ -1742,6 +1742,14 @@ class VespaNNParameters:
     }
 
 
+class VespaNNUnsuccessfulQueryError(Exception):
+    """
+    Exception raised when trying to determine the hit ratio or compute the recall of an unsuccessful query.
+    """
+
+    pass
+
+
 class VespaNNGlobalFilterHitratioEvaluator:
     """
     Determine the hit ratio of the global filter in ANN queries. This hit ratio determines the search strategy
@@ -1809,6 +1817,8 @@ class VespaNNGlobalFilterHitratioEvaluator:
 
         all_hit_ratios = []
         for response in responses:
+            if not response.is_successful():
+                raise VespaNNUnsuccessfulQueryError()
             trace = response.get_json()["trace"]
             nearest_neighbor_blueprints = extract_from_trace(
                 trace, "search::queryeval::NearestNeighborBlueprint"
@@ -1832,14 +1842,6 @@ class VespaNNGlobalFilterHitratioEvaluator:
             all_hit_ratios.append(hit_ratios)
 
         return all_hit_ratios
-
-
-class VespaNNRecallUnsuccessfulQueryError(Exception):
-    """
-    Exception raised when trying to compute the recall of an unsuccessful query.
-    """
-
-    pass
 
 
 class VespaNNRecallEvaluator:
@@ -1879,7 +1881,7 @@ class VespaNNRecallEvaluator:
             float: Recall value from the interval [0.0, 1.0].
         """
         if not (response_exact.is_successful() and response_approx.is_successful()):
-            raise VespaNNRecallUnsuccessfulQueryError()
+            raise VespaNNUnsuccessfulQueryError()
 
         try:
             results_exact = response_exact.get_json()["root"]["children"]
