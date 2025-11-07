@@ -3153,6 +3153,7 @@ class VespaNNParameterOptimizer:
             }
             ```
         """
+        print("Distributing queries to buckets")
         # Distribute queries to buckets
         self.determine_hit_ratios_and_distribute_to_buckets(self.queries)
 
@@ -3165,12 +3166,25 @@ class VespaNNParameterOptimizer:
         if not self.buckets_sufficiently_filled():
             print("  Warning: Only few queries for a specific hit ratio.")
 
+        bucket_report = {
+            "buckets_per_percent": self.buckets_per_percent,
+            "bucket_interval_width": self.get_bucket_interval_width(),
+            "non_empty_buckets": self.get_non_empty_buckets(),
+            "filtered_out_ratios": self.get_filtered_out_ratios(),
+            "hit_ratios": list(map(lambda x: 1 - x, self.get_filtered_out_ratios())),
+            "query_distribution": self.get_query_distribution()[1],
+        }
+        if self.print_progress:
+            print(bucket_report)
+
         # Determine filter-first parameters first
         # filterFirstExploration
         if self.print_progress:
             print("Determining suggestion for filterFirstExploration")
         filter_first_exploration_report = self.suggest_filter_first_exploration()
         filter_first_exploration = filter_first_exploration_report["suggestion"]
+        if self.print_progress:
+            print(filter_first_exploration_report)
 
         # filterFirstThreshold
         if self.print_progress:
@@ -3179,6 +3193,8 @@ class VespaNNParameterOptimizer:
             **{"ranking.matching.filterFirstExploration": filter_first_exploration}
         )
         filter_first_threshold = filter_first_threshold_report["suggestion"]
+        if self.print_progress:
+            print(filter_first_threshold_report)
 
         # approximateThreshold
         if self.print_progress:
@@ -3190,6 +3206,8 @@ class VespaNNParameterOptimizer:
             }
         )
         approximate_threshold = approximate_threshold_report["suggestion"]
+        if self.print_progress:
+            print(approximate_threshold_report)
 
         # postFilterThreshold
         if self.print_progress:
@@ -3201,18 +3219,11 @@ class VespaNNParameterOptimizer:
                 "ranking.matching.filterFirstExploration": filter_first_exploration,
             }
         )
+        if self.print_progress:
+            print(post_filter_threshold_report)
 
         report = {
-            "buckets": {
-                "buckets_per_percent": self.buckets_per_percent,
-                "bucket_interval_width": self.get_bucket_interval_width(),
-                "non_empty_buckets": self.get_non_empty_buckets(),
-                "filtered_out_ratios": self.get_filtered_out_ratios(),
-                "hit_ratios": list(
-                    map(lambda x: 1 - x, self.get_filtered_out_ratios())
-                ),
-                "query_distribution": self.get_query_distribution()[1],
-            },
+            "buckets": bucket_report,
             "filterFirstExploration": filter_first_exploration_report,
             "filterFirstThreshold": filter_first_threshold_report,
             "approximateThreshold": approximate_threshold_report,
