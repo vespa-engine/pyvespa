@@ -1834,14 +1834,6 @@ class VespaNNGlobalFilterHitratioEvaluator:
         return all_hit_ratios
 
 
-class VespaNNRecallRelevanceMismatchError(Exception):
-    """
-    Exception raised when the reported relevance between exact and approximate query differs.
-    """
-
-    pass
-
-
 class VespaNNRecallUnsuccessfulQueryError(Exception):
     """
     Exception raised when trying to compute the recall of an unsuccessful query.
@@ -1900,38 +1892,17 @@ class VespaNNRecallEvaluator:
         try:
             results_exact = response_exact.get_json()["root"]["children"]
         except KeyError:
-            results_exact = {}
+            results_exact = []
 
         try:
             results_approx = response_approx.get_json()["root"]["children"]
         except KeyError:
-            results_approx = {}
+            results_approx = []
 
-        size_exact = len(results_exact)
-        size_approx = len(results_approx)
+        ids_exact = list(map(lambda x: x["id"], results_exact))
+        ids_approx = list(map(lambda x: x["id"], results_approx))
 
-        recall = 0
-        i = 0
-        j = 0
-        while i < size_exact and j < size_approx:
-            exact = results_exact[i]
-            approx = results_approx[j]
-            relevance_exact = float(exact["relevance"])
-            relevance_approx = float(approx["relevance"])
-            if exact["id"] == approx["id"]:
-                if abs(relevance_exact - relevance_approx) > 1e-5:
-                    raise VespaNNRecallRelevanceMismatchError(
-                        f"Results have the same id {exact['id']}, "
-                        f"but relevances {relevance_exact} and {relevance_approx} do not match"
-                    )
-                recall += 1
-                i += 1
-                j += 1
-            elif relevance_exact > relevance_approx:
-                i += 1
-            else:
-                j += 1
-
+        recall = sum(map(lambda x: 1 if x in ids_exact else 0, ids_approx))
         return recall / self.hits
 
     def run(self) -> List[float]:
