@@ -5,6 +5,10 @@ from vespa.evaluation import (
     VespaCollectorBase,
     VespaFeatureCollector,
     RandomHitsSamplingStrategy,
+    VespaNNGlobalFilterHitratioEvaluator,
+    VespaNNRecallEvaluator,
+    VespaQueryBenchmarker,
+    VespaNNParameterOptimizer,
 )
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
@@ -3077,3 +3081,832 @@ class TestVespaFeatureCollector(unittest.TestCase):
             )
             self.assertEqual(collector.random_hits_ratio, 1.0)
             self.assertIsNone(collector.max_random_hits_per_query)
+
+
+class TestVespaNNGlobalFilterHitratioEvaluator(unittest.TestCase):
+    """Test the VespaNNGlobalFilterHitratioEvaluator class."""
+
+    def setUp(self):
+        class SuccessfullMockVespaResponse(MockVespaResponse):
+            def __init__(
+                self, hits=[], _total_count=None, _timing=None, _status_code=200
+            ):
+                super().__init__(hits, _total_count, _timing, _status_code)
+
+            def get_json(self):
+                test_trace = {
+                    "trace": {
+                        "children": [
+                            {
+                                "[0]": {
+                                    "[type]": "search::queryeval::NearestNeighborBlueprint",
+                                    "isTermLike": True,
+                                    "estimate": {
+                                        "[type]": "HitEstimate",
+                                        "empty": False,
+                                        "estHits": 100,
+                                        "cost_tier": 1,
+                                        "tree_size": 1,
+                                        "allow_termwise_eval": False,
+                                    },
+                                    "relative_estimate": 0.0003333322222259259,
+                                    "cost": 1.0,
+                                    "strict_cost": 0.0003333322222259259,
+                                    "sourceId": 4294967295,
+                                    "docid_limit": 300001,
+                                    "id": 3,
+                                    "strict": True,
+                                    "attribute_tensor": "tensor<float>(x[960])",
+                                    "query_tensor": "tensor<float>(x[960])",
+                                    "target_hits": 100,
+                                    "adjusted_target_hits": 100,
+                                    "explore_additional_hits": 0,
+                                    "wanted_approximate": True,
+                                    "has_index": True,
+                                    "algorithm": "index top k using filter",
+                                    "top_k_hits": 100,
+                                    "global_filter": {
+                                        "[type]": "GlobalFilter",
+                                        "wanted": True,
+                                        "set": True,
+                                        "calculated": True,
+                                        "lower_limit": 0.0,
+                                        "upper_limit": 1.0,
+                                        "hits": 3000,
+                                        "hit_ratio": 0.009999966666777778,
+                                    },
+                                },
+                                "[1]": {
+                                    "[type]": "search::queryeval::NearestNeighborBlueprint",
+                                    "isTermLike": True,
+                                    "estimate": {
+                                        "[type]": "HitEstimate",
+                                        "empty": False,
+                                        "estHits": 100,
+                                        "cost_tier": 1,
+                                        "tree_size": 1,
+                                        "allow_termwise_eval": False,
+                                    },
+                                    "relative_estimate": 0.0003333322222259259,
+                                    "cost": 1.0,
+                                    "strict_cost": 0.0003333322222259259,
+                                    "sourceId": 4294967295,
+                                    "docid_limit": 300001,
+                                    "id": 3,
+                                    "strict": True,
+                                    "attribute_tensor": "tensor<float>(x[960])",
+                                    "query_tensor": "tensor<float>(x[960])",
+                                    "target_hits": 100,
+                                    "adjusted_target_hits": 100,
+                                    "explore_additional_hits": 0,
+                                    "wanted_approximate": True,
+                                    "has_index": True,
+                                    "algorithm": "index top k using filter",
+                                    "top_k_hits": 100,
+                                    "global_filter": {
+                                        "[type]": "GlobalFilter",
+                                        "wanted": True,
+                                        "set": True,
+                                        "calculated": True,
+                                        "lower_limit": 0.0,
+                                        "upper_limit": 1.0,
+                                        "hits": 3000,
+                                        "hit_ratio": 0.019999966666777778,
+                                    },
+                                },
+                            },
+                            {
+                                "root": {
+                                    "id": "toplevel",
+                                    "relevance": 1.0,
+                                    "fields": {"totalCount": 100},
+                                    "coverage": {
+                                        "coverage": 100,
+                                        "documents": 300000,
+                                        "full": True,
+                                        "nodes": 1,
+                                        "results": 1,
+                                        "resultsFull": 1,
+                                    },
+                                    "children": [
+                                        {
+                                            "id": "id:test:test::235899",
+                                            "relevance": 0.48415254742450914,
+                                            "source": "search",
+                                            "fields": {
+                                                "sddocname": "test",
+                                                "documentid": "id:test:test::235899",
+                                                "id": 235899,
+                                                "filter": [1, 10, 50, 90, 95, 99],
+                                                "vec_m16": {
+                                                    "type": "tensor<float>(x[960])",
+                                                    "values": [],
+                                                },
+                                            },
+                                        }
+                                    ],
+                                }
+                            },
+                        ]
+                    }
+                }
+
+                return test_trace
+
+            def is_successful(self):
+                return True
+
+        class MockVespaApp:
+            def query_many(self, queries):
+                return [SuccessfullMockVespaResponse()]
+
+        self.mock_app = MockVespaApp()
+
+    def test_run(self):
+        hitratio_evaluator = VespaNNGlobalFilterHitratioEvaluator(
+            [{"yql": "foo"}], self.mock_app, verify_target_hits=100
+        )
+        hitratios = hitratio_evaluator.run()
+        self.assertEqual(len(hitratios), 1)
+        self.assertEqual(len(hitratios[0]), 2)
+        self.assertAlmostEqual(hitratios[0][0], 0.01, delta=0.001)
+        self.assertAlmostEqual(hitratios[0][1], 0.02, delta=0.001)
+
+
+class TestVespaNNRecallEvaluator(unittest.TestCase):
+    """Test the VespaNNRecallEvaluator class."""
+
+    class SuccessfullMockVespaResponse(MockVespaResponse):
+        def __init__(self, hits, _total_count=None, _timing=None, _status_code=200):
+            super().__init__(hits, _total_count, _timing, _status_code)
+
+        def is_successful(self):
+            return True
+
+    def setUp(self):
+        class MockVespaApp:
+            def __init__(self, mock_responses):
+                self.mock_responses = mock_responses
+                self.current_query = 0
+
+            def query_many(self, queries):
+                return self.mock_responses
+
+        self.mock_app = MockVespaApp([])
+        self.recall_evaluator = VespaNNRecallEvaluator([], 100, self.mock_app)
+
+    def test_compute_recall(self):
+        response_exact = self.SuccessfullMockVespaResponse(
+            [{"id": "1"}, {"id": "2"}, {"id": "3"}, {"id": "4"}, {"id": "5"}]
+        )
+        self.assertAlmostEqual(
+            self.recall_evaluator._compute_recall(response_exact, response_exact),
+            1.0,
+            delta=0.0001,
+        )
+
+        response_approx = self.SuccessfullMockVespaResponse(
+            [{"id": "1"}, {"id": "2"}, {"id": "3"}, {"id": "4"}]
+        )
+        self.assertAlmostEqual(
+            self.recall_evaluator._compute_recall(response_exact, response_approx),
+            0.8,
+            delta=0.0001,
+        )
+
+        response_approx = self.SuccessfullMockVespaResponse(
+            [{"id": "1"}, {"id": "3"}, {"id": "4"}]
+        )
+        self.assertAlmostEqual(
+            self.recall_evaluator._compute_recall(response_exact, response_approx),
+            0.6,
+            delta=0.0001,
+        )
+
+        response_approx = self.SuccessfullMockVespaResponse([{"id": "3"}, {"id": "4"}])
+        self.assertAlmostEqual(
+            self.recall_evaluator._compute_recall(response_exact, response_approx),
+            0.4,
+            delta=0.0001,
+        )
+
+        response_approx = self.SuccessfullMockVespaResponse([{"id": "3"}])
+        self.assertAlmostEqual(
+            self.recall_evaluator._compute_recall(response_exact, response_approx),
+            0.2,
+            delta=0.0001,
+        )
+
+        response_approx = self.SuccessfullMockVespaResponse([])
+        self.assertAlmostEqual(
+            self.recall_evaluator._compute_recall(response_exact, response_approx),
+            0.0,
+            delta=0.0001,
+        )
+
+        self.assertAlmostEqual(
+            self.recall_evaluator._compute_recall(response_approx, response_approx),
+            1.0,
+            delta=0.0001,
+        )
+
+    def test_run(self):
+        class MockVespaApp:
+            def __init__(self, first_mock_responses, second_mock_responses):
+                self.first_mock_responses = first_mock_responses
+                self.second_mock_responses = second_mock_responses
+                self.current_query = 0
+                self.first_responses = True
+
+            def query_many(self, queries):
+                if self.first_responses:
+                    self.first_responses = False
+                    return self.first_mock_responses
+                else:
+                    return self.second_mock_responses
+
+        response_exact = self.SuccessfullMockVespaResponse(
+            [{"id": "1"}, {"id": "2"}, {"id": "3"}, {"id": "4"}, {"id": "5"}]
+        )
+        response_approx = self.SuccessfullMockVespaResponse([{"id": "3"}])
+
+        app = MockVespaApp([response_exact], [response_approx])
+        recall_evaluator = VespaNNRecallEvaluator([{"yql": "foo"}], 5, app)
+        recalls = recall_evaluator.run()
+        self.assertEqual(len(recalls), 1)
+        self.assertAlmostEqual(recalls[0], 0.2, delta=0.0001)
+
+
+class TestVespaQueryBenchmarker(unittest.TestCase):
+    """Test the VespaQueryBenchmarker class."""
+
+    def test_run(self):
+        class MockVespaApp:
+            def __init__(self):
+                self.searchtimes = [2, 4, 2, 4]
+                self.num_responses = 0
+
+            def query_many(self, queries):
+                responses = []
+                for i in range(0, len(queries)):
+                    responses.append(
+                        MockVespaResponse(
+                            [],
+                            _timing={
+                                "searchtime": self.searchtimes[self.num_responses % 4]
+                            },
+                        )
+                    )
+                    self.num_responses += 1
+
+                return responses
+
+        app = MockVespaApp()
+        benchmarker = VespaQueryBenchmarker(
+            [{"yql": "foo"}, {"yql": "foo"}, {"yql": "foo"}], app
+        )
+        benchmark = benchmarker.run()
+        self.assertEqual(len(benchmark), 3)
+        self.assertAlmostEqual(benchmark[0], 3000, delta=250)
+        self.assertAlmostEqual(benchmark[1], 3000, delta=250)
+        self.assertAlmostEqual(benchmark[2], 3000, delta=250)
+
+
+class TestVespaNNParameterOptimizer(unittest.TestCase):
+    """Test the VespaNNParameterOptimizer class."""
+
+    def setUp(self):
+        class MockVespaApp:
+            def __init__(self, mock_responses):
+                self.mock_responses = mock_responses
+                self.current_query = 0
+
+            def query_many(self, queries):
+                return self.mock_responses
+
+        self.mock_app = MockVespaApp([])
+        self.optimizer = VespaNNParameterOptimizer(
+            self.mock_app, [], 100, buckets_per_percent=2
+        )  # 200 buckets
+
+        self.optimizerOneBucket = VespaNNParameterOptimizer(
+            self.mock_app, [], 100, buckets_per_percent=1
+        )  # 100 buckets
+
+        # Percentages: 1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 99
+        self.buckets = [2, 10, 20, 40, 60, 80, 100, 120, 140, 160, 180, 190, 198]
+        self.num = len(self.buckets)
+
+        # Fill in placeholder queries corresponding to buckets
+        self.queries_with_hitratios = [
+            ({"yql": "foo"}, 0.9875),  # 0.0125
+            ({"yql": "foo"}, 0.9475),  # 0.0525
+            ({"yql": "foo"}, 0.8975),  # 0.1025
+            ({"yql": "foo"}, 0.7975),  # 0.2025
+            ({"yql": "foo"}, 0.6975),  # 0.3025
+            ({"yql": "foo"}, 0.5975),  # 0.4025
+            ({"yql": "foo"}, 0.4975),  # 0.5025
+            ({"yql": "foo"}, 0.3975),  # 0.6025
+            ({"yql": "foo"}, 0.2975),  # 0.7025
+            ({"yql": "foo"}, 0.1975),  # 0.8025
+            ({"yql": "foo"}, 0.0975),  # 0.9025
+            ({"yql": "foo"}, 0.0475),  # 0.9525
+            ({"yql": "foo"}, 0.0075),  # 0.9925
+        ]
+        self.optimizer.distribute_to_buckets(self.queries_with_hitratios)
+        self.optimizerOneBucket.distribute_to_buckets(self.queries_with_hitratios)
+
+    def test_get_bucket_interval_width(self):
+        self.assertAlmostEqual(
+            self.optimizer.get_bucket_interval_width(), 0.005, delta=0.0001
+        )
+
+        self.assertAlmostEqual(
+            self.optimizerOneBucket.get_bucket_interval_width(), 0.01, delta=0.0001
+        )
+
+    def test_get_number_of_buckets(self):
+        self.assertEqual(self.optimizer.get_number_of_buckets(), 200)
+        self.assertEqual(self.optimizerOneBucket.get_number_of_buckets(), 100)
+
+    def test_get_number_of_nonempty_buckets(self):
+        self.assertEqual(self.optimizer.get_number_of_nonempty_buckets(), 13)
+        self.assertEqual(self.optimizerOneBucket.get_number_of_nonempty_buckets(), 13)
+
+        queries_with_hitratios = [
+            ({"yql": "foo"}, 0.0025),  # New bucket only for optimizer
+            ({"yql": "foo"}, 0.1575),  # New bucket for both
+            ({"yql": "foo"}, 0.0070),  # No new bucket
+        ]
+        self.optimizer.distribute_to_buckets(queries_with_hitratios)
+        self.optimizerOneBucket.distribute_to_buckets(queries_with_hitratios)
+
+        self.assertEqual(self.optimizer.get_number_of_nonempty_buckets(), 15)
+        self.assertEqual(self.optimizerOneBucket.get_number_of_nonempty_buckets(), 14)
+
+    def test_get_non_empty_buckets(self):
+        self.assertEqual(
+            self.optimizer.get_non_empty_buckets(),
+            [2, 10, 20, 40, 60, 80, 100, 120, 140, 160, 180, 190, 198],
+        )
+
+    def test_get_filtered_out_ratios(self):
+        ratios = self.optimizer.get_filtered_out_ratios()
+        self.assertAlmostEqual(ratios[0], 0.01, delta=0.0001)
+        self.assertAlmostEqual(ratios[1], 0.05, delta=0.0001)
+        self.assertAlmostEqual(ratios[2], 0.10, delta=0.0001)
+        self.assertAlmostEqual(ratios[3], 0.20, delta=0.0001)
+        self.assertAlmostEqual(ratios[4], 0.30, delta=0.0001)
+        self.assertAlmostEqual(ratios[5], 0.40, delta=0.0001)
+        self.assertAlmostEqual(ratios[6], 0.50, delta=0.0001)
+        self.assertAlmostEqual(ratios[7], 0.60, delta=0.0001)
+        self.assertAlmostEqual(ratios[8], 0.70, delta=0.0001)
+        self.assertAlmostEqual(ratios[9], 0.80, delta=0.0001)
+        self.assertAlmostEqual(ratios[10], 0.90, delta=0.0001)
+        self.assertAlmostEqual(ratios[11], 0.95, delta=0.0001)
+        self.assertAlmostEqual(ratios[12], 0.99, delta=0.0001)
+
+    def test_bucket_to_hitratio(self):
+        self.assertAlmostEqual(self.optimizer.bucket_to_hitratio(0), 1.00, delta=0.0001)
+        self.assertAlmostEqual(
+            self.optimizer.bucket_to_hitratio(1), 0.995, delta=0.0001
+        )
+        self.assertAlmostEqual(self.optimizer.bucket_to_hitratio(2), 0.99, delta=0.0001)
+        self.assertAlmostEqual(
+            self.optimizer.bucket_to_hitratio(199), 0.005, delta=0.0001
+        )
+
+    def test_bucket_to_filtered_out(self):
+        self.assertAlmostEqual(
+            self.optimizer.bucket_to_filtered_out(0), 0.00, delta=0.0001
+        )
+        self.assertAlmostEqual(
+            self.optimizer.bucket_to_filtered_out(1), 0.005, delta=0.0001
+        )
+        self.assertAlmostEqual(
+            self.optimizer.bucket_to_filtered_out(2), 0.010, delta=0.0001
+        )
+        self.assertAlmostEqual(
+            self.optimizer.bucket_to_filtered_out(199), 0.995, delta=0.0001
+        )
+
+    def test_filtered_out_to_bucket(self):
+        self.assertEqual(self.optimizer.filtered_out_to_bucket(-0.1), 0)
+        self.assertEqual(self.optimizer.filtered_out_to_bucket(0.00), 0)
+        self.assertEqual(self.optimizer.filtered_out_to_bucket(0.0025), 0)
+        self.assertEqual(self.optimizer.filtered_out_to_bucket(0.0075), 1)
+        self.assertEqual(self.optimizer.filtered_out_to_bucket(0.0125), 2)
+        self.assertEqual(self.optimizer.filtered_out_to_bucket(0.99999), 199)
+        self.assertEqual(self.optimizer.filtered_out_to_bucket(1.0), 199)
+        self.assertEqual(self.optimizer.filtered_out_to_bucket(1.1), 199)
+
+        self.assertEqual(self.optimizerOneBucket.filtered_out_to_bucket(0.00), 0)
+        self.assertEqual(self.optimizerOneBucket.filtered_out_to_bucket(0.005), 0)
+        self.assertEqual(self.optimizerOneBucket.filtered_out_to_bucket(0.015), 1)
+        self.assertEqual(self.optimizerOneBucket.filtered_out_to_bucket(1.0), 99)
+
+    def test_determine_hit_ratios_and_distribute_to_buckets(self):
+        # Just test that it does not add queries for which it does not get a hit ratio
+        before = self.optimizer.get_query_distribution()
+        self.optimizer.determine_hit_ratios_and_distribute_to_buckets([{"yql": "foo"}])
+        after = self.optimizer.get_query_distribution()
+        self.assertEqual(before, after)
+
+    def test_has_sufficient_queries(self):
+        # Fill in placeholder queries corresponding to buckets
+        queries_with_hitratios = [
+            ({"yql": "foo"}, 0.01),
+            ({"yql": "foo"}, 0.05),
+            ({"yql": "foo"}, 0.10),
+            ({"yql": "foo"}, 0.20),
+            ({"yql": "foo"}, 0.40),
+            ({"yql": "foo"}, 0.60),
+            ({"yql": "foo"}, 0.90),
+        ]
+
+        optimizer = VespaNNParameterOptimizer(
+            self.mock_app, [], 100, buckets_per_percent=2
+        )
+        optimizer.distribute_to_buckets(queries_with_hitratios)
+        self.assertTrue(optimizer.has_sufficient_queries())
+
+        optimizer = VespaNNParameterOptimizer(
+            self.mock_app, [], 100, buckets_per_percent=2
+        )
+        optimizer.distribute_to_buckets(queries_with_hitratios[0:4])
+        self.assertFalse(optimizer.has_sufficient_queries())
+
+        optimizer = VespaNNParameterOptimizer(
+            self.mock_app, [], 100, buckets_per_percent=2
+        )
+        optimizer.distribute_to_buckets(list(reversed(queries_with_hitratios))[0:4])
+        self.assertFalse(optimizer.has_sufficient_queries())
+
+    def test_buckets_sufficiently_filled(self):
+        # Fill in placeholder queries corresponding to buckets
+        queries_with_hitratios = [
+            ({"yql": "foo"}, 0.4525),
+        ]
+
+        optimizer = VespaNNParameterOptimizer(
+            self.mock_app, [], 100, buckets_per_percent=2
+        )
+        optimizer.distribute_to_buckets(queries_with_hitratios)
+        self.assertFalse(optimizer.buckets_sufficiently_filled())
+
+        queries_with_hitratios = [
+            ({"yql": "foo"}, 0.4525),
+            ({"yql": "foo"}, 0.4525),
+            ({"yql": "foo"}, 0.4525),
+            ({"yql": "foo"}, 0.4525),
+            ({"yql": "foo"}, 0.4525),
+            ({"yql": "foo"}, 0.4535),
+            ({"yql": "foo"}, 0.4535),
+            ({"yql": "foo"}, 0.4535),
+            ({"yql": "foo"}, 0.4535),
+            ({"yql": "foo"}, 0.4535),
+        ]
+
+        optimizer = VespaNNParameterOptimizer(
+            self.mock_app, [], 100, buckets_per_percent=2
+        )
+        optimizer.distribute_to_buckets(queries_with_hitratios)
+        self.assertTrue(optimizer.buckets_sufficiently_filled())
+
+    def test_get_query_distribution(self):
+        x, y = self.optimizer.get_query_distribution()
+        self.assertEqual(x, self.optimizer.get_filtered_out_ratios())
+        self.assertEqual(y, [1] * 13)
+
+        queries_with_hitratios = [
+            ({"yql": "foo"}, 0.0025),  # New bucket only for optimizer
+            ({"yql": "foo"}, 0.1575),  # New bucket for both
+            ({"yql": "foo"}, 0.0070),  # No new bucket
+        ]
+        self.optimizer.distribute_to_buckets(queries_with_hitratios)
+        x, y = self.optimizer.get_query_distribution()
+        self.assertEqual(x, self.optimizer.get_filtered_out_ratios())
+        self.assertEqual(y, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1])
+
+    def _assert_post_filter_threshold(
+        self,
+        response_times_post_filtering,
+        recall_post_filtering,
+        response_times_pre_filtering,
+        recall_pre_filtering,
+        lower,
+        upper,
+    ):
+        benchmark_post_filtering = VespaNNParameterOptimizer.BenchmarkResults(
+            list(map(lambda x: [x], response_times_post_filtering))
+        )
+        recall_post_filtering = VespaNNParameterOptimizer.RecallResults(
+            list(map(lambda x: [x], recall_post_filtering))
+        )
+
+        benchmark_pre_filtering = VespaNNParameterOptimizer.BenchmarkResults(
+            list(map(lambda x: [x], response_times_pre_filtering))
+        )
+        recall_pre_filtering = VespaNNParameterOptimizer.RecallResults(
+            list(map(lambda x: [x], recall_pre_filtering))
+        )
+
+        post_filter_threshold = self.optimizer._suggest_post_filter_threshold(
+            benchmark_post_filtering,
+            recall_post_filtering,
+            benchmark_pre_filtering,
+            recall_pre_filtering,
+        )
+        self.assertGreaterEqual(1 - post_filter_threshold, lower)
+        self.assertLessEqual(1 - post_filter_threshold, upper)
+
+    def test_suggest_post_filter_threshold(self):
+        # Should be somewhere between 40 and 50 percent
+        self._assert_post_filter_threshold(
+            [5.0, 5.0, 5.0, 10.0, 10.0, 10.0, 15.0, 15.0, 15.0, 20.0, 20.0, 20.0, 25.0],
+            [0.80] * self.num,
+            [13.0] * self.num,
+            [0.80] * self.num,
+            0.40,
+            0.50,
+        )
+
+        # Should switch earlier since recall becomes bad
+        self._assert_post_filter_threshold(
+            [5.0, 5.0, 5.0, 10.0, 10.0, 10.0, 15.0, 15.0, 15.0, 20.0, 20.0, 20.0, 25.0],
+            [
+                0.80,
+                0.80,
+                0.70,
+                0.70,
+                0.70,
+                0.70,
+                0.70,
+                0.70,
+                0.70,
+                0.70,
+                0.70,
+                0.70,
+                0.70,
+            ],
+            [13] * self.num,
+            [0.80] * self.num,
+            0.05,
+            0.10,
+        )
+
+        # Should not switch since recall too bad
+        self._assert_post_filter_threshold(
+            [5.0, 5.0, 5.0, 10.0, 10.0, 10.0, 15.0, 15.0, 15.0, 20.0, 20.0, 20.0, 25.0],
+            [0.70] * self.num,
+            [13.0] * self.num,
+            [0.80] * self.num,
+            0.00,
+            0.001,
+        )
+
+        # Should not switch since response time bad
+        self._assert_post_filter_threshold(
+            [25.0] * self.num,
+            [0.80] * self.num,
+            [13.0] * self.num,
+            [0.80] * self.num,
+            0.00,
+            0.001,
+        )
+
+    def _assert_approximate_threshold(
+        self,
+        response_times_exact,
+        response_times_approx,
+        lower,
+        upper,
+    ):
+        benchmark_exact = VespaNNParameterOptimizer.BenchmarkResults(
+            list(map(lambda x: [x], response_times_exact))
+        )
+        benchmark_approx = VespaNNParameterOptimizer.BenchmarkResults(
+            list(map(lambda x: [x], response_times_approx))
+        )
+
+        approximate_threshold = self.optimizer._suggest_approximate_threshold(
+            benchmark_exact, benchmark_approx
+        )
+        self.assertGreaterEqual(1 - approximate_threshold, lower)
+        self.assertLessEqual(1 - approximate_threshold, upper)
+
+    def test_suggest_approximate_threshold(self):
+        # Exact search cheap. Should be somewhere between 90 and 95 percent
+        self._assert_approximate_threshold(
+            [
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                10.0,
+                5.0,
+            ],
+            [5.0, 5.0, 5.0, 10.0, 10.0, 10.0, 15.0, 15.0, 15.0, 20.0, 20.0, 20.0, 25.0],
+            0.90,
+            0.95,
+        )
+
+        # Exact search too expensive. Should be at 99 percent, the last point we have any info on.
+        self._assert_approximate_threshold(
+            [
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                10.0,
+                5.0,
+            ],
+            [5.0, 5.0, 5.0, 10.0, 10.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0],
+            0.989,
+            0.991,
+        )
+
+        # Exact search cheap. Always use it.
+        self._assert_approximate_threshold(
+            [2.0] * self.num,
+            [10.0] * self.num,
+            0.0,
+            0.001,
+        )
+
+    def _assert_filter_first_threshold(
+        self,
+        response_times_hnsw,
+        response_times_filter_first,
+        lower,
+        upper,
+    ):
+        benchmark_hnsw = VespaNNParameterOptimizer.BenchmarkResults(
+            list(map(lambda x: [x], response_times_hnsw))
+        )
+        benchmark_filter_first = VespaNNParameterOptimizer.BenchmarkResults(
+            list(map(lambda x: [x], response_times_filter_first))
+        )
+
+        filter_first_threshold = self.optimizer._suggest_filter_first_threshold(
+            benchmark_hnsw, benchmark_filter_first
+        )
+        self.assertGreaterEqual(1 - filter_first_threshold, lower)
+        self.assertLessEqual(1 - filter_first_threshold, upper)
+
+    def test_suggest_filter_first_threshold(self):
+        # Filter first becomes cheaper between 60 and 70 percent
+        self._assert_filter_first_threshold(
+            [
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                5.0,
+            ],
+            [
+                15.0,
+                15.0,
+                15.0,
+                15.0,
+                15.0,
+                15.0,
+                15.0,
+                15.0,
+                5.0,
+                5.0,
+                5.0,
+                5.0,
+                5.0,
+            ],
+            0.60,
+            0.70,
+        )
+
+        # Filter first briefly cheaper at beginning but only really viable between 60 and 70 percent
+        self._assert_filter_first_threshold(
+            [
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+                5.0,
+            ],
+            [
+                15.0,
+                5.0,
+                15.0,
+                15.0,
+                15.0,
+                15.0,
+                15.0,
+                15.0,
+                5.0,
+                5.0,
+                5.0,
+                5.0,
+                5.0,
+            ],
+            0.60,
+            0.70,
+        )
+
+        # Filter first always cheaper
+        self._assert_filter_first_threshold(
+            [10.0] * self.num,
+            [5.0] * self.num,
+            0.00,
+            0.001,
+        )
+
+        # Filter first never cheaper
+        self._assert_filter_first_threshold(
+            [5.0] * self.num,
+            [10.0] * self.num,
+            0.999,
+            1.001,
+        )
+
+    def test_suggest_filter_first_exploration(self):
+        class ModifiedOptimizer(VespaNNParameterOptimizer):
+            def __init__(self, app, queries, test_buckets):
+                super(ModifiedOptimizer, self).__init__(
+                    app, queries, hits=100, buckets_per_percent=2, print_progress=False
+                )
+                self.test_buckets = test_buckets
+
+            def _test_filter_first_exploration(
+                self, filter_first_exploration: float
+            ) -> (
+                VespaNNParameterOptimizer.BenchmarkResults,
+                VespaNNParameterOptimizer.RecallResults,
+            ):
+                constant_one = [1.0] * len(self.test_buckets)
+                response_time_rises = list(
+                    map(
+                        lambda x: 2 + (x / 8) ** 2, range(1, len(self.test_buckets) + 1)
+                    )
+                )
+                interpolation_rising_response_time = [
+                    (1 - filter_first_exploration) * x + filter_first_exploration * y
+                    for x, y in zip(constant_one, response_time_rises)
+                ]
+
+                recall_drops = list(
+                    map(
+                        lambda x: 1 - (x / len(self.test_buckets)) ** 2,
+                        range(len(self.test_buckets)),
+                    )
+                )
+                interpolation_dropping_recall = [
+                    (1 - filter_first_exploration) * x + filter_first_exploration * y
+                    for x, y in zip(recall_drops, constant_one)
+                ]
+
+                benchmark = VespaNNParameterOptimizer.BenchmarkResults(
+                    list(map(lambda x: [x], interpolation_rising_response_time))
+                )
+                recall = VespaNNParameterOptimizer.BenchmarkResults(
+                    list(map(lambda x: [x], interpolation_dropping_recall))
+                )
+                return benchmark, recall
+
+        modified_optimizer = ModifiedOptimizer(self.mock_app, [], self.buckets)
+        modified_optimizer.distribute_to_buckets(self.queries_with_hitratios)
+        filter_first_exploration_report = (
+            modified_optimizer.suggest_filter_first_exploration()
+        )
+        filter_first_exploration = filter_first_exploration_report["suggestion"]
+        # Check for reasonable number
+        self.assertGreaterEqual(filter_first_exploration, 0.20)
+        self.assertLessEqual(filter_first_exploration, 0.40)
