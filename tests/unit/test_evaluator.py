@@ -7,6 +7,7 @@ from vespa.evaluation import (
     RandomHitsSamplingStrategy,
     VespaNNGlobalFilterHitratioEvaluator,
     VespaNNRecallEvaluator,
+    VespaQueryBenchmarker,
     VespaNNParameterOptimizer,
 )
 from dataclasses import dataclass
@@ -3334,6 +3335,41 @@ class TestVespaNNRecallEvaluator(unittest.TestCase):
         recalls = recall_evaluator.run()
         self.assertEqual(len(recalls), 1)
         self.assertAlmostEqual(recalls[0], 0.2, delta=0.0001)
+
+
+class TestVespaQueryBenchmarker(unittest.TestCase):
+    """Test the VespaQueryBenchmarker class."""
+
+    def test_run(self):
+        class MockVespaApp:
+            def __init__(self):
+                self.searchtimes = [2, 4, 2, 4]
+                self.num_responses = 0
+
+            def query_many(self, queries):
+                responses = []
+                for i in range(0, len(queries)):
+                    responses.append(
+                        MockVespaResponse(
+                            [],
+                            _timing={
+                                "searchtime": self.searchtimes[self.num_responses % 4]
+                            },
+                        )
+                    )
+                    self.num_responses += 1
+
+                return responses
+
+        app = MockVespaApp()
+        benchmarker = VespaQueryBenchmarker(
+            [{"yql": "foo"}, {"yql": "foo"}, {"yql": "foo"}], app
+        )
+        benchmark = benchmarker.run()
+        self.assertEqual(len(benchmark), 3)
+        self.assertAlmostEqual(benchmark[0], 3000, delta=250)
+        self.assertAlmostEqual(benchmark[1], 3000, delta=250)
+        self.assertAlmostEqual(benchmark[2], 3000, delta=250)
 
 
 class TestVespaNNParameterOptimizer(unittest.TestCase):
