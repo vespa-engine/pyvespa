@@ -3,6 +3,7 @@
 import sys
 import asyncio
 import traceback
+import certifi
 import concurrent.futures
 import warnings
 import ssl
@@ -1962,10 +1963,8 @@ class VespaAsync(object):
             return self.httpx_client
 
         if self.app.cert is not None:
-            sslcontext = ssl.create_default_context()
-            sslcontext.load_cert_chain(
-                certfile=self.app.cert, keyfile=self.app.key
-            )
+            sslcontext = ssl.create_default_context(cafile=certifi.where())
+            sslcontext.load_cert_chain(certfile=self.app.cert, keyfile=self.app.key)
         else:
             sslcontext = False
         self.httpx_client = httpx.AsyncClient(
