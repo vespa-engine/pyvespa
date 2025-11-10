@@ -247,13 +247,17 @@ def calculate_searchtime_stats(searchtimes: List[float]) -> Dict[str, float]:
 
 
 def execute_queries(
-    app: Vespa, query_bodies: List[dict]
+    app: Vespa,
+    query_bodies: List[dict],
+    max_concurrent: int = 100,
 ) -> Tuple[List[VespaQueryResponse], List[float]]:
     """
     Execute queries and collect timing information.
     Returns the responses and a list of search times.
     """
-    responses: List[VespaQueryResponse] = app.query_many(query_bodies)
+    responses: List[VespaQueryResponse] = app.query_many(
+        query_bodies, max_concurrent=max_concurrent
+    )
     extracted_searchtimes: List[float] = []
 
     for resp in responses:
@@ -1961,11 +1965,13 @@ class VespaQueryBenchmarker:
         queries: Sequence[Mapping[str, Any]],
         app: Vespa,
         repetitions: int = 10,
+        max_concurrent: int = 10,
         **kwargs,
     ):
         self.queries = queries
         self.app = app
         self.repetitions = repetitions
+        self.max_concurrent = max_concurrent
         self.parameters = kwargs
 
     def _run_benchmark(self) -> List[float]:
@@ -1983,7 +1989,9 @@ class VespaQueryBenchmarker:
                 self.queries,
             )
         )
-        _, response_times = execute_queries(self.app, queries_with_parameters)
+        _, response_times = execute_queries(
+            self.app, queries_with_parameters, max_concurrent=self.max_concurrent
+        )
         return response_times
 
     def run(self) -> List[float]:
@@ -2041,6 +2049,7 @@ class VespaNNParameterOptimizer:
         hits: int,
         buckets_per_percent: int = 2,
         print_progress: bool = False,
+        max_concurrent: int = 10,
     ):
         self.app = app
         self.queries = queries
@@ -2051,6 +2060,7 @@ class VespaNNParameterOptimizer:
         self.buckets = [[] for _ in range(100 * buckets_per_percent)]
 
         self.print_progress = print_progress
+        self.max_concurrent = max_concurrent
 
     def get_bucket_interval_width(self) -> float:
         """
@@ -2380,7 +2390,9 @@ class VespaNNParameterOptimizer:
                         end="",
                     )
                 processed_buckets += 1
-                benchmarker = VespaQueryBenchmarker(bucket, self.app, **kwargs)
+                benchmarker = VespaQueryBenchmarker(
+                    bucket, self.app, max_concurrent=self.max_concurrent, **kwargs
+                )
                 response_times = benchmarker.run()
                 results.append(response_times)
 
