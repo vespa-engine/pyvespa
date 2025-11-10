@@ -1712,6 +1712,44 @@ def extract_features_from_hit(
     return features
 
 
+class VespaNNParameters:
+    """
+    Collection of nearest-neighbor query parameters used in nearest-neighbor classes.
+    """
+
+    TIMEOUT = {
+        "timeout": "20s",
+    }
+    HNSW = {
+        "ranking.matching.approximateThreshold": 0.00,
+        "ranking.matching.filterFirstThreshold": 0.00,
+        "ranking.matching.postFilterThreshold": 1.00,
+    }
+    FILTER_FIRST = {
+        "ranking.matching.approximateThreshold": 0.00,
+        "ranking.matching.filterFirstThreshold": 1.00,
+        "ranking.matching.postFilterThreshold": 1.00,
+    }
+    EXACT = {
+        "ranking.matching.approximateThreshold": 1.00,
+        "ranking.matching.filterFirstThreshold": 0.00,
+        "ranking.matching.postFilterThreshold": 1.00,
+    }
+    POST = {
+        "ranking.matching.approximateThreshold": 0.00,
+        "ranking.matching.filterFirstThreshold": 0.00,
+        "ranking.matching.postFilterThreshold": 0.00,
+    }
+
+
+class VespaNNUnsuccessfulQueryError(Exception):
+    """
+    Exception raised when trying to determine the hit ratio or compute the recall of an unsuccessful query.
+    """
+
+    pass
+
+
 class VespaNNGlobalFilterHitratioEvaluator:
     """
     Determine the hit ratio of the global filter in ANN queries. This hit ratio determines the search strategy
@@ -1746,13 +1784,14 @@ class VespaNNGlobalFilterHitratioEvaluator:
         Returns:
             List[List[float]]: List of lists of hit ratios, which are values from the interval [0.0, 1.0], corresponding to the supplied queries.
         """
-        query_parameters = {
-            "timeout": "20s",
-            "trace.explainLevel": "1",
-            "trace.level": "1",
-            "trace.profileDepth": "100",
-            "ranking.matching.approximateThreshold": "0.00",
-        }
+        query_parameters = dict(
+            dict(VespaNNParameters.TIMEOUT, **VespaNNParameters.HNSW),
+            **{
+                "trace.explainLevel": "1",
+                "trace.level": "1",
+                "trace.profileDepth": "100",
+            },
+        )
 
         queries_with_parameters = list(
             map(lambda query: dict(query, **query_parameters), self.queries)
@@ -1778,6 +1817,8 @@ class VespaNNGlobalFilterHitratioEvaluator:
 
         all_hit_ratios = []
         for response in responses:
+            if not response.is_successful():
+                raise VespaNNUnsuccessfulQueryError()
             trace = response.get_json()["trace"]
             nearest_neighbor_blueprints = extract_from_trace(
                 trace, "search::queryeval::NearestNeighborBlueprint"
@@ -1801,30 +1842,6 @@ class VespaNNGlobalFilterHitratioEvaluator:
             all_hit_ratios.append(hit_ratios)
 
         return all_hit_ratios
-
-
-class VespaNNRecallRelevanceMismatchError(Exception):
-    """
-    Exception raised when the reported relevance between exact and approximate query differs.
-    """
-
-    pass
-
-
-class VespaNNRecallUnsuccessfulQueryError(Exception):
-    """
-    Exception raised when trying to compute the recall of an unsuccessful query.
-    """
-
-    pass
-
-
-class VespaNNGlobalFilterHitRatioError(Exception):
-    """
-    Exception raised when trying to add a query for which we do not get exactly one hit ratio.
-    """
-
-    pass
 
 
 class VespaNNRecallEvaluator:
@@ -1864,44 +1881,32 @@ class VespaNNRecallEvaluator:
             float: Recall value from the interval [0.0, 1.0].
         """
         if not (response_exact.is_successful() and response_approx.is_successful()):
-            raise VespaNNRecallUnsuccessfulQueryError()
+            raise VespaNNUnsuccessfulQueryError()
 
         try:
             results_exact = response_exact.get_json()["root"]["children"]
         except KeyError:
-            results_exact = {}
+            results_exact = []
 
         try:
             results_approx = response_approx.get_json()["root"]["children"]
         except KeyError:
-            results_approx = {}
+            results_approx = []
 
-        size_exact = len(results_exact)
-        size_approx = len(results_approx)
+        ids_exact = list(map(lambda x: x["id"], results_exact))
+        ids_approx = list(map(lambda x: x["id"], results_approx))
 
-        recall = 0
-        i = 0
-        j = 0
-        while i < size_exact and j < size_approx:
-            exact = results_exact[i]
-            approx = results_approx[j]
-            relevance_exact = float(exact["relevance"])
-            relevance_approx = float(approx["relevance"])
-            if exact["id"] == approx["id"]:
-                if abs(relevance_exact - relevance_approx) > 1e-5:
-                    raise VespaNNRecallRelevanceMismatchError(
-                        f"Results have the same id {exact['id']}, "
-                        f"but relevances {relevance_exact} and {relevance_approx} do not match"
-                    )
-                recall += 1
-                i += 1
-                j += 1
-            elif relevance_exact > relevance_approx:
-                i += 1
-            else:
-                j += 1
+        if len(ids_exact) != self.hits:
+            print(
+                f"Warning: Exact query did not return {self.hits} hits ({len(ids_exact)} hits)."
+            )
 
-        return recall / self.hits
+        recall = sum(map(lambda x: 1 if x in ids_exact else 0, ids_approx))
+
+        if len(ids_exact) > 0:
+            return recall / len(ids_exact)
+        else:
+            return 1.0
 
     def run(self) -> List[float]:
         """
@@ -1911,26 +1916,24 @@ class VespaNNRecallEvaluator:
             List[float]: List of recall values from the interval [0.0, 1.0] corresponding to the supplied queries.
         """
         query_parameters = dict(
-            self.parameters, **{"hits": self.hits, "timeout": "20s"}
+            dict(self.parameters, **VespaNNParameters.TIMEOUT), **{"hits": self.hits}
         )
-        query_parameters_exact = dict(
-            query_parameters, **{"ranking.matching.approximateThreshold": 1.00}
-        )
-
-        queries_with_parameters = list(
-            map(lambda query: dict(query, **query_parameters), self.queries)
-        )
-        responses, _ = execute_queries(self.app, queries_with_parameters)
+        query_parameters_exact = dict(query_parameters, **VespaNNParameters.EXACT)
 
         queries_with_parameters_exact = list(
             map(lambda query: dict(query, **query_parameters_exact), self.queries)
         )
         responses_exact, _ = execute_queries(self.app, queries_with_parameters_exact)
 
+        queries_with_parameters = list(
+            map(lambda query: dict(query, **query_parameters), self.queries)
+        )
+        responses, _ = execute_queries(self.app, queries_with_parameters)
+
         return list(
             map(
                 lambda pair: self._compute_recall(pair[0], pair[1]),
-                zip(responses, responses_exact),
+                zip(responses_exact, responses),
             )
         )
 
@@ -2067,25 +2070,14 @@ class VespaNNParameterOptimizer:
         """
         return len(self.buckets)
 
-    def get_number_of_nonempty_buckets(
-        self, from_bucket: int = None, to_bucket: int = None
-    ) -> int:
+    def get_number_of_nonempty_buckets(self) -> int:
         """
         Counts the number of buckets that contain at least one query.
-
-        Args:
-            from_bucket (int, optional): Index of the first bucket to consider.
-            to_bucket (int, optional): Index of the last bucket to consider (exclusive).
 
         Returns:
             int: The number of buckets that contain at least one query.
         """
-        if from_bucket is None:
-            from_bucket = 0
-        if to_bucket is None:
-            to_bucket = self.get_number_of_buckets()
-
-        return sum(map(lambda x: 1 if x else 0, self.buckets[from_bucket:to_bucket]))
+        return sum(map(lambda x: 1 if x else 0, self.buckets))
 
     def get_non_empty_buckets(self) -> List[int]:
         """
@@ -2167,7 +2159,8 @@ class VespaNNParameterOptimizer:
         Returns:
             int: Index of bucket containing the given filtered-out ratio.
         """
-        return math.floor(percent * 100) * self.buckets_per_percent
+        bucket = math.floor(percent * 100 * self.buckets_per_percent)
+        return max(0, min(bucket, self.get_number_of_buckets() - 1))
 
     def distribute_to_buckets(
         self, queries_with_hitratios: Sequence[Tuple[Mapping[str, Any], float]]
@@ -2211,18 +2204,16 @@ class VespaNNParameterOptimizer:
         for i in range(0, len(hitratio_list)):
             hitratios = hitratio_list[i]
             if len(hitratios) == 0:
-                raise VespaNNGlobalFilterHitRatioError(
-                    f"Aborting: No hit ratio found for query #{i} (No nearestNeighbor operator?)"
-                )
-            if len(hitratios) > 1:
-                raise VespaNNGlobalFilterHitRatioError(
-                    f"Aborting: More than one hit ratio found for query #{i} (Multiple nearestNeighbor operators?)"
+                print(
+                    f"Warning: No hit ratios found for query #{i}, skipping query (No nearestNeighbor operator?)"
                 )
 
-        hitratios = list(
-            map(lambda hitratios_of_query: hitratios_of_query[0], hitratio_list)
-        )
-        return self.distribute_to_buckets(list(zip(queries, hitratios)))
+        # Only keep queries for which we found exactly one hit ratio
+        queries_with_hitratios = [
+            (q, mean(h)) for q, h in zip(queries, hitratio_list) if len(h) > 0
+        ]
+
+        return self.distribute_to_buckets(queries_with_hitratios)
 
     @staticmethod
     def query_from_get_string(get_query: str) -> Dict[str, str]:
@@ -2353,128 +2344,118 @@ class VespaNNParameterOptimizer:
         return x, y
 
     class BenchmarkResults:
-        def __init__(self, x, y):
-            self.x = x
-            self.y = y
+        """
+        Stores the mean values and various percentiles of a benchmark run.
 
-    def benchmark(
-        self, from_bucket=None, to_bucket=None, **kwargs
-    ) -> VespaNNParameterOptimizer.BenchmarkResults:
+        Args:
+            benchmark (List[List[float]]): List of benchmark results, one list for every bucket, containing the response times of the queries in that bucket.
+        """
+
+        def __init__(self, benchmark: List[List[float]]):
+            self.mean = list(map(mean, benchmark))
+            self.median = list(map(lambda x: percentile(x, 0.50), benchmark))
+            self.p95 = list(map(lambda x: percentile(x, 0.95), benchmark))
+            self.p99 = list(map(lambda x: percentile(x, 0.99), benchmark))
+
+    def benchmark(self, **kwargs) -> VespaNNParameterOptimizer.BenchmarkResults:
         """
         For each non-empty bucket, determine the average searchtime.
 
         Args:
-            from_bucket (int, optional): Index of the first bucket to consider.
-            to_bucket (int, optional): Index of the last bucket to consider (exclusive).
             **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
 
         Returns:
             VespaNNParameterOptimizer.BenchmarkResults: The benchmark results.
         """
-        if from_bucket is None:
-            from_bucket = 0
-        if to_bucket is None:
-            to_bucket = self.get_number_of_buckets()
-
         if self.print_progress:
             print("->Benchmarking", end="")
-        x = []
-        y = []
+        results = []
         processed_buckets = 0
-        for i in range(from_bucket, to_bucket):
+        for i in range(0, self.get_number_of_buckets()):
             bucket = self.buckets[i]
             if bucket:
                 if self.print_progress:
                     print(
-                        f"\r->Benchmarking: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(from_bucket, to_bucket), 2)}%",
+                        f"\r->Benchmarking: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(), 2)}%",
                         end="",
                     )
                 processed_buckets += 1
                 benchmarker = VespaQueryBenchmarker(bucket, self.app, **kwargs)
                 response_times = benchmarker.run()
-                x.append(i)
-                y.append(mean(response_times))
+                results.append(response_times)
 
         print("\r  Benchmarking: 100.0%")
 
-        return VespaNNParameterOptimizer.BenchmarkResults(x, y)
+        return VespaNNParameterOptimizer.BenchmarkResults(results)
 
     class RecallResults:
-        def __init__(self, x, y):
-            self.x = x
-            self.y = y
+        """
+        Stores the mean values and various percentiles of a recall-measurement run.
+
+        Args:
+            recall_measurement (List[List[float]]): List of recall measurements, one list for every bucket, containing the recalls of the queries in that bucket.
+        """
+
+        def __init__(self, recall_measurement: List[List[float]]):
+            self.mean = list(map(mean, recall_measurement))
+            self.median = list(map(lambda x: percentile(x, 0.50), recall_measurement))
+            self.p95 = list(map(lambda x: percentile(x, 0.95), recall_measurement))
+            self.p99 = list(map(lambda x: percentile(x, 0.99), recall_measurement))
 
     def compute_average_recalls(
-        self, from_bucket=None, to_bucket=None, **kwargs
+        self, **kwargs
     ) -> VespaNNParameterOptimizer.RecallResults:
         """
         For each non-empty bucket, determine the average recall.
 
         Args:
-            from_bucket (int, optional): Index of the first bucket to consider.
-            to_bucket (int, optional): Index of the last bucket to consider (exclusive).
             **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
 
         Returns:
-            VespaNNParameterOptimizer.RecallResults: The recallresults.
+            VespaNNParameterOptimizer.RecallResults: The recall results.
         """
-        if from_bucket is None:
-            from_bucket = 0
-        if to_bucket is None:
-            to_bucket = self.get_number_of_buckets()
-
         if self.print_progress:
             print("->Computing recall", end="")
-        x = []
-        y = []
+        results = []
         processed_buckets = 0
-        for i in range(from_bucket, to_bucket):
+        for i in range(0, self.get_number_of_buckets()):
             bucket = self.buckets[i]
             if bucket:
                 if self.print_progress:
                     print(
-                        f"\r->Computing recall: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(from_bucket, to_bucket), 2)}%",
+                        f"\r->Computing recall: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(), 2)}%",
                         end="",
                     )
                 recall_evaluator = VespaNNRecallEvaluator(
                     bucket, self.hits, self.app, **kwargs
                 )
                 recall_list = recall_evaluator.run()
-                x.append(i)
-                y.append(sum(recall_list) / len(recall_list))
+                results.append(recall_list)
                 processed_buckets += 1
 
         print("\r  Computing recall: 100.0%")
 
-        return VespaNNParameterOptimizer.RecallResults(x, y)
+        return VespaNNParameterOptimizer.RecallResults(results)
 
     def suggest_filter_first_threshold(
         self, **kwargs
     ) -> dict[str, float | dict[str, List[float]]]:
         """
-        Suggests a value for filterFirstThreshold based on performed benchmarks.
+        Suggests a value for [filterFirstThreshold](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on performed benchmarks.
+
+        Args:
+            **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>. Should contain ranking.matching.filterFirstExploration!
 
         Returns:
             float: Suggested value for filterFirstThreshold.
         """
         hnsw_parameters = dict(
-            kwargs,
-            **{
-                "timeout": "20s",
-                "ranking.matching.approximateThreshold": 0.00,
-                "ranking.matching.filterFirstThreshold": 0.00,
-            },
+            dict(VespaNNParameters.TIMEOUT, **kwargs), **VespaNNParameters.HNSW
         )
         benchmark_hnsw = self.benchmark(**hnsw_parameters)
 
         filter_first_parameters = dict(
-            kwargs,
-            **{
-                "timeout": "20s",
-                "ranking.matching.approximateThreshold": 0.00,
-                "ranking.matching.filterFirstThreshold": 1.00,
-                # "ranking.matching.filterFirstExploration": filter_first_exploration,
-            },
+            dict(VespaNNParameters.TIMEOUT, **kwargs), **VespaNNParameters.FILTER_FIRST
         )
         benchmark_filter_first = self.benchmark(**filter_first_parameters)
 
@@ -2485,8 +2466,8 @@ class VespaNNParameterOptimizer:
         report = {
             "suggestion": suggestion,
             "benchmarks": {
-                "hnsw": benchmark_hnsw.y,
-                "filter_first": benchmark_filter_first.y,
+                "hnsw": benchmark_hnsw.mean,
+                "filter_first": benchmark_filter_first.mean,
             },
         }
 
@@ -2521,7 +2502,7 @@ class VespaNNParameterOptimizer:
         benchmark_filter_first: VespaNNParameterOptimizer.BenchmarkResults,
     ) -> float:
         """
-        Suggests a value for filterFirstThreshold based on the two given benchmarks (using HNSW only, using HNSW with filter first only).
+        Suggests a value for [filterFirstThreshold](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on the two given benchmarks (using HNSW only, using HNSW with filter first only).
 
         Args:
             benchmark_hnsw (VespaNNParameterOptimizer.BenchmarkResults): Benchmark using HNSW only obtained from benchmark().
@@ -2532,11 +2513,13 @@ class VespaNNParameterOptimizer:
         """
         # Interpolate benchmark values for empty buckets
         interpolated_hnsw_y = self._interpolate(
-            benchmark_hnsw.x, benchmark_hnsw.y, self.get_number_of_buckets()
+            self.get_non_empty_buckets(),
+            benchmark_hnsw.mean,
+            self.get_number_of_buckets(),
         )
         interpolated_filter_first_y = self._interpolate(
-            benchmark_filter_first.x,
-            benchmark_filter_first.y,
+            self.get_non_empty_buckets(),
+            benchmark_filter_first.mean,
             self.get_number_of_buckets(),
         )
 
@@ -2562,28 +2545,23 @@ class VespaNNParameterOptimizer:
         self, **kwargs
     ) -> dict[str, float | dict[str, List[float]]]:
         """
-        Suggests a value for approximateThreshold based on performed benchmarks.
+        Suggests a value for [approximateThreshold](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on performed benchmarks.
+
+        Args:
+            **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>. Should contain ranking.matching.filterFirstExploration and ranking.matching.filterFirstThreshold!
 
         Returns:
             float: Suggested value for approximateThreshold.
         """
         exact_parameters = dict(
-            kwargs,
-            **{
-                "timeout": "20s",
-                "ranking.matching.approximateThreshold": 1.00,
-            },
+            dict(VespaNNParameters.TIMEOUT, **kwargs), **VespaNNParameters.EXACT
         )
         benchmark_exact = self.benchmark(**exact_parameters)
 
+        filter_first_copy = VespaNNParameters.FILTER_FIRST.copy()
+        del filter_first_copy["ranking.matching.filterFirstThreshold"]
         filter_first_parameters = dict(
-            kwargs,
-            **{
-                "timeout": "20s",
-                "ranking.matching.approximateThreshold": 0.00,
-                # "ranking.matching.filterFirstThreshold": filter_first_threshold,
-                # "ranking.matching.filterFirstExploration": filter_first_exploration,
-            },
+            dict(VespaNNParameters.TIMEOUT, **kwargs), **filter_first_copy
         )
         benchmark_filter_first = self.benchmark(**filter_first_parameters)
 
@@ -2594,8 +2572,8 @@ class VespaNNParameterOptimizer:
         report = {
             "suggestion": suggestion,
             "benchmarks": {
-                "exact": benchmark_exact.y,
-                "filter_first": benchmark_filter_first.y,
+                "exact": benchmark_exact.mean,
+                "filter_first": benchmark_filter_first.mean,
             },
         }
 
@@ -2607,7 +2585,7 @@ class VespaNNParameterOptimizer:
         benchmark_ann: VespaNNParameterOptimizer.BenchmarkResults,
     ) -> float:
         """
-        Suggests a value for approximateThreshold based on the two given benchmarks (using exact search only, using HNSW with tuned filter-first parameters).
+        Suggests a value for [approximateThreshold](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on the two given benchmarks (using exact search only, using HNSW with tuned filter-first parameters).
 
         Args:
             benchmark_exact (VespaNNParameterOptimizer.BenchmarkResults): Benchmark using exact search only obtained from benchmark().
@@ -2618,10 +2596,14 @@ class VespaNNParameterOptimizer:
         """
         # Interpolate benchmark values for empty buckets
         int_bench_exact = self._interpolate(
-            benchmark_exact.x, benchmark_exact.y, self.get_number_of_buckets()
+            self.get_non_empty_buckets(),
+            benchmark_exact.mean,
+            self.get_number_of_buckets(),
         )
         int_bench_ann = self._interpolate(
-            benchmark_ann.x, benchmark_ann.y, self.get_number_of_buckets()
+            self.get_non_empty_buckets(),
+            benchmark_ann.mean,
+            self.get_number_of_buckets(),
         )
 
         # Start at last bucket
@@ -2648,29 +2630,24 @@ class VespaNNParameterOptimizer:
         self, **kwargs
     ) -> dict[str, float | dict[str, List[float]]]:
         """
-        Suggests a value for postFilterThreshold based on performed benchmarks and recall measurements.
+        Suggests a value for [postFilterThreshold](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on performed benchmarks and recall measurements.
+
+        Args:
+            **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>. Should contain ranking.matching.filterFirstExploration, ranking.matching.filterFirstThreshold, and ranking.matching.approximateThreshold!
 
         Returns:
             float: Suggested value for postFilterThreshold.
         """
         post_filtering_parameters = dict(
-            kwargs,
-            **{
-                "timeout": "20s",
-                "ranking.matching.postFilterThreshold": 0.00,
-                "ranking.matching.approximateThreshold": 0.00,
-            },
+            dict(VespaNNParameters.TIMEOUT, **kwargs), **VespaNNParameters.POST
         )
         benchmark_post_filtering = self.benchmark(**post_filtering_parameters)
 
+        filter_first_copy = VespaNNParameters.FILTER_FIRST.copy()
+        del filter_first_copy["ranking.matching.filterFirstThreshold"]
+        del filter_first_copy["ranking.matching.approximateThreshold"]
         filter_first_parameters = dict(
-            kwargs,
-            **{
-                "timeout": "20s",
-                # "ranking.matching.approximateThreshold": approximate_threshold,
-                # "ranking.matching.filterFirstThreshold": filter_first_threshold,
-                # "ranking.matching.filterFirstExploration": filter_first_exploration,
-            },
+            dict(VespaNNParameters.TIMEOUT, **kwargs), **filter_first_copy
         )
         benchmark_filter_first = self.benchmark(**filter_first_parameters)
 
@@ -2689,12 +2666,12 @@ class VespaNNParameterOptimizer:
         report = {
             "suggestion": suggestion,
             "benchmarks": {
-                "post_filtering": benchmark_post_filtering.y,
-                "filter_first": benchmark_filter_first.y,
+                "post_filtering": benchmark_post_filtering.mean,
+                "filter_first": benchmark_filter_first.mean,
             },
             "recall_measurements": {
-                "post_filtering": recall_post_filtering.y,
-                "filter_first": recall_filter_first.y,
+                "post_filtering": recall_post_filtering.mean,
+                "filter_first": recall_filter_first.mean,
             },
         }
 
@@ -2708,7 +2685,7 @@ class VespaNNParameterOptimizer:
         recall_pre_filtering: VespaNNParameterOptimizer.RecallResults,
     ) -> float:
         """
-        Suggests a value for postFilterThreshold based on the two given pairs of a benchmark and a recall measurement (using post-filtering only, using HNSW with tuned parameters only).
+        Suggests a value for [postFilterThreshold](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on the two given pairs of a benchmark and a recall measurement (using post-filtering only, using HNSW with tuned parameters only).
 
         Args:
             benchmark_post_filtering (VespaNNParameterOptimizer.BenchmarkResults): Benchmark using post-filtering only obtained from benchmark().
@@ -2721,23 +2698,25 @@ class VespaNNParameterOptimizer:
         """
         # Interpolate benchmark values for empty buckets
         int_bench_post = self._interpolate(
-            benchmark_post_filtering.x,
-            benchmark_post_filtering.y,
+            self.get_non_empty_buckets(),
+            benchmark_post_filtering.mean,
             self.get_number_of_buckets(),
         )
         int_bench_pre = self._interpolate(
-            benchmark_pre_filtering.x,
-            benchmark_pre_filtering.y,
+            self.get_non_empty_buckets(),
+            benchmark_pre_filtering.mean,
             self.get_number_of_buckets(),
         )
 
         int_recall_post = self._interpolate(
-            recall_post_filtering.x,
-            recall_post_filtering.y,
+            self.get_non_empty_buckets(),
+            recall_post_filtering.mean,
             self.get_number_of_buckets(),
         )
         int_recall_pre = self._interpolate(
-            recall_pre_filtering.x, recall_pre_filtering.y, self.get_number_of_buckets()
+            self.get_non_empty_buckets(),
+            recall_pre_filtering.mean,
+            self.get_number_of_buckets(),
         )
 
         threshold = 0
@@ -2767,12 +2746,10 @@ class VespaNNParameterOptimizer:
         VespaNNParameterOptimizer.BenchmarkResults,
         VespaNNParameterOptimizer.RecallResults,
     ):
-        parameters_candidate = {
-            "ranking.matching.approximateThreshold": 0.00,
-            "ranking.matching.filterFirstThreshold": 1.00,
-            "ranking.matching.filterFirstExploration": filter_first_exploration,
-        }
-
+        parameters_candidate = dict(
+            dict(VespaNNParameters.TIMEOUT, **VespaNNParameters.FILTER_FIRST),
+            **{"ranking.matching.filterFirstExploration": filter_first_exploration},
+        )
         benchmark = self.benchmark(**parameters_candidate)
         recall = self.compute_average_recalls(**parameters_candidate)
 
@@ -2791,7 +2768,7 @@ class VespaNNParameterOptimizer:
         ],
     ):
         """
-        Suggests a value for filterFirstExploration based on benchmarks and recall measurements performed on the supplied Vespa app.
+        Suggests a value for [filterFirstExploration](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on benchmarks and recall measurements performed on the supplied Vespa app.
 
         Returns:
             float: Suggested value for postFilterThreshold.
@@ -2801,8 +2778,8 @@ class VespaNNParameterOptimizer:
             self._test_filter_first_exploration(0.0)
         )
         benchmark_no_exploration_int = self._interpolate(
-            benchmark_no_exploration.x,
-            benchmark_no_exploration.y,
+            self.get_non_empty_buckets(),
+            benchmark_no_exploration.mean,
             self.get_number_of_buckets(),
         )
 
@@ -2810,21 +2787,21 @@ class VespaNNParameterOptimizer:
             self._test_filter_first_exploration(1.0)
         )
         recall_full_exploration_int = self._interpolate(
-            recall_full_exploration.x,
-            recall_full_exploration.y,
+            self.get_non_empty_buckets(),
+            recall_full_exploration.mean,
             self.get_number_of_buckets(),
         )
         assert mean(benchmark_no_exploration_int) > 0
         assert mean(recall_full_exploration_int) > 0
 
         benchmarks = {
-            0.0: benchmark_no_exploration.y,
-            1.0: benchmark_full_exploration.y,
+            0.0: benchmark_no_exploration.mean,
+            1.0: benchmark_full_exploration.mean,
         }
 
         recall_measurements = {
-            0.0: recall_no_exploration.y,
-            1.0: recall_full_exploration.y,
+            0.0: recall_no_exploration.mean,
+            1.0: recall_full_exploration.mean,
         }
 
         # Find tradeoff between increase in response time and drop in recall by using binary search
@@ -2838,15 +2815,17 @@ class VespaNNParameterOptimizer:
                 filter_first_exploration
             )
             benchmark_candidate_int = self._interpolate(
-                benchmark_candidate.x,
-                benchmark_candidate.y,
+                self.get_non_empty_buckets(),
+                benchmark_candidate.mean,
                 self.get_number_of_buckets(),
             )
             recall_candidate_int = self._interpolate(
-                recall_candidate.x, recall_candidate.y, self.get_number_of_buckets()
+                self.get_non_empty_buckets(),
+                recall_candidate.mean,
+                self.get_number_of_buckets(),
             )
-            benchmarks[filter_first_exploration] = benchmark_candidate.y
-            recall_measurements[filter_first_exploration] = recall_candidate.y
+            benchmarks[filter_first_exploration] = benchmark_candidate.mean
+            recall_measurements[filter_first_exploration] = recall_candidate.mean
 
             # How much does the response time increase compared to no exploration?
             # One could also try to compare the values for every bucket, but this might be a bit unstable:
@@ -2888,6 +2867,296 @@ class VespaNNParameterOptimizer:
         return report
 
     def run(self) -> Dict[str, Any]:
+        """
+        Determines suggestions for all parameters supported by this class.
+
+        This method:
+        1. Determines the hit-ratios of supplied ANN queries.
+        2. Sorts these queries into buckets based on the determined hit-ratio.
+        3. Determines a suggestion for filterFirstExploration.
+        4. Determines a suggestion for filterFirstThreshold.
+        5. Determines a suggestion for approximateThreshold.
+        6. Determines a suggestion for postFilterThreshold.
+        7. Reports the determined suggestions and all benchmarks and recall measurements performed.
+
+        Returns:
+            dict: A dictionary containing the suggested values, information about the query distribution, performed benchmarks, and recall measurements.
+
+        Example:
+            ```python
+            {
+                "buckets": {
+                    "buckets_per_percent": 2,
+                    "bucket_interval_width": 0.005,
+                    "non_empty_buckets": [
+                        2,
+                        20,
+                        100,
+                        180,
+                        190,
+                        198
+                    ],
+                    "filtered_out_ratios": [
+                        0.01,
+                        0.1,
+                        0.5,
+                        0.9,
+                        0.95,
+                        0.99
+                    ],
+                    "hit_ratios": [
+                        0.99,
+                        0.9,
+                        0.5,
+                        0.09999999999999998,
+                        0.050000000000000044,
+                        0.010000000000000009
+                    ],
+                    "query_distribution": [
+                        100,
+                        100,
+                        100,
+                        100,
+                        100,
+                        100
+                    ]
+                },
+                "filterFirstExploration": {
+                    "suggestion": 0.26953125,
+                    "benchmarks": {
+                        "0.0": [
+                            3.739,
+                            3.771000000000001,
+                            3.4500000000000006,
+                            2.838,
+                            2.3980000000000015,
+                            1.7650000000000008
+                        ],
+                        "1.0": [
+                            3.6299999999999977,
+                            3.6859999999999995,
+                            3.432000000000002,
+                            4.166999999999999,
+                            5.185999999999999,
+                            7.606999999999999
+                        ],
+                        "0.5": [
+                            3.573,
+                            3.543999999999999,
+                            3.535000000000001,
+                            3.8410000000000006,
+                            3.9800000000000004,
+                            5.522999999999999
+                        ],
+                        "0.25": [
+                            3.4939999999999998,
+                            3.345,
+                            3.341,
+                            3.011999999999999,
+                            2.5979999999999994,
+                            2.4250000000000007
+                        ],
+                        "0.375": [
+                            3.5869999999999993,
+                            3.4060000000000006,
+                            3.252999999999999,
+                            3.318,
+                            3.2269999999999994,
+                            3.7120000000000015
+                        ],
+                        "0.3125": [
+                            3.6000000000000005,
+                            3.401,
+                            3.2300000000000004,
+                            3.089,
+                            2.845999999999999,
+                            2.986
+                        ],
+                        "0.28125": [
+                            3.5709999999999993,
+                            3.606000000000001,
+                            3.2519999999999993,
+                            3.005,
+                            2.728000000000001,
+                            2.6400000000000006
+                        ],
+                        "0.265625": [
+                            3.613999999999999,
+                            3.381,
+                            3.3209999999999997,
+                            3.059,
+                            2.7200000000000006,
+                            2.5120000000000005
+                        ],
+                        "0.2734375": [
+                            3.588999999999998,
+                            3.399999999999999,
+                            3.3000000000000016,
+                            3.017,
+                            2.695,
+                            2.5850000000000013
+                        ]
+                    },
+                    "recall_measurements": {
+                        "0.0": [
+                            0.8736999999999999,
+                            0.8717999999999994,
+                            0.8905000000000004,
+                            0.9441999999999999,
+                            0.9026000000000005,
+                            0.6339999999999995
+                        ],
+                        "1.0": [
+                            0.8741999999999999,
+                            0.8717999999999994,
+                            0.8907000000000005,
+                            0.9669999999999997,
+                            0.9856999999999995,
+                            0.9954999999999997
+                        ],
+                        "0.5": [
+                            0.8741999999999999,
+                            0.8717999999999994,
+                            0.8907000000000005,
+                            0.9656999999999997,
+                            0.9764999999999998,
+                            0.9904999999999995
+                        ],
+                        "0.25": [
+                            0.8741999999999999,
+                            0.8717999999999994,
+                            0.8907000000000005,
+                            0.9526999999999994,
+                            0.9297999999999998,
+                            0.8329
+                        ],
+                        "0.375": [
+                            0.8741999999999999,
+                            0.8717999999999994,
+                            0.8907000000000005,
+                            0.9611999999999995,
+                            0.9592999999999998,
+                            0.9623999999999998
+                        ],
+                        "0.3125": [
+                            0.8741999999999999,
+                            0.8717999999999994,
+                            0.8907000000000005,
+                            0.9573999999999995,
+                            0.9425000000000003,
+                            0.9082999999999997
+                        ],
+                        "0.28125": [
+                            0.8741999999999999,
+                            0.8717999999999994,
+                            0.8907000000000005,
+                            0.9555999999999993,
+                            0.9365000000000001,
+                            0.8779000000000002
+                        ],
+                        "0.265625": [
+                            0.8741999999999999,
+                            0.8717999999999994,
+                            0.8907000000000005,
+                            0.9542999999999995,
+                            0.9322999999999999,
+                            0.8537
+                        ],
+                        "0.2734375": [
+                            0.8741999999999999,
+                            0.8717999999999994,
+                            0.8907000000000005,
+                            0.9544999999999995,
+                            0.9342,
+                            0.8662000000000001
+                        ]
+                    }
+                },
+                "filterFirstThreshold": {
+                    "suggestion": 0.46,
+                    "benchmarks": {
+                        "hnsw": [
+                            2.818,
+                            2.6899999999999995,
+                            3.1060000000000008,
+                            7.0150000000000015,
+                            11.572000000000003,
+                            32.068999999999996
+                        ],
+                        "filter_first": [
+                            3.5249999999999995,
+                            3.383,
+                            3.4959999999999973,
+                            3.1700000000000004,
+                            2.7319999999999998,
+                            2.5430000000000006
+                        ]
+                    }
+                },
+                "approximateThreshold": {
+                    "suggestion": 0.015,
+                    "benchmarks": {
+                        "exact": [
+                            33.882999999999996,
+                            32.803999999999995,
+                            24.368000000000002,
+                            9.366000000000001,
+                            6.071999999999998,
+                            2.1279999999999997
+                        ],
+                        "filter_first": [
+                            2.797000000000001,
+                            2.638000000000001,
+                            3.1540000000000017,
+                            2.977,
+                            2.745,
+                            2.56
+                        ]
+                    }
+                },
+                "postFilterThreshold": {
+                    "suggestion": 0.49,
+                    "benchmarks": {
+                        "post_filtering": [
+                            1.9979999999999996,
+                            2.248,
+                            3.0170000000000003,
+                            7.204,
+                            12.673999999999996,
+                            11.397999999999993
+                        ],
+                        "filter_first": [
+                            2.8349999999999995,
+                            3.0579999999999994,
+                            3.105999999999999,
+                            3.375999999999999,
+                            2.8720000000000017,
+                            2.157999999999999
+                        ]
+                    },
+                    "recall_measurements": {
+                        "post_filtering": [
+                            0.828,
+                            0.8335000000000005,
+                            0.8943000000000001,
+                            0.9527999999999994,
+                            0.9508999999999996,
+                            0.1917
+                        ],
+                        "filter_first": [
+                            0.828,
+                            0.8359000000000002,
+                            0.8980999999999998,
+                            0.9543999999999996,
+                            0.9338,
+                            1.0
+                        ]
+                    }
+                }
+            }
+            ```
+        """
+        print("Distributing queries to buckets")
         # Distribute queries to buckets
         self.determine_hit_ratios_and_distribute_to_buckets(self.queries)
 
@@ -2900,12 +3169,25 @@ class VespaNNParameterOptimizer:
         if not self.buckets_sufficiently_filled():
             print("  Warning: Only few queries for a specific hit ratio.")
 
+        bucket_report = {
+            "buckets_per_percent": self.buckets_per_percent,
+            "bucket_interval_width": self.get_bucket_interval_width(),
+            "non_empty_buckets": self.get_non_empty_buckets(),
+            "filtered_out_ratios": self.get_filtered_out_ratios(),
+            "hit_ratios": list(map(lambda x: 1 - x, self.get_filtered_out_ratios())),
+            "query_distribution": self.get_query_distribution()[1],
+        }
+        if self.print_progress:
+            print(bucket_report)
+
         # Determine filter-first parameters first
         # filterFirstExploration
         if self.print_progress:
             print("Determining suggestion for filterFirstExploration")
         filter_first_exploration_report = self.suggest_filter_first_exploration()
         filter_first_exploration = filter_first_exploration_report["suggestion"]
+        if self.print_progress:
+            print(filter_first_exploration_report)
 
         # filterFirstThreshold
         if self.print_progress:
@@ -2914,6 +3196,8 @@ class VespaNNParameterOptimizer:
             **{"ranking.matching.filterFirstExploration": filter_first_exploration}
         )
         filter_first_threshold = filter_first_threshold_report["suggestion"]
+        if self.print_progress:
+            print(filter_first_threshold_report)
 
         # approximateThreshold
         if self.print_progress:
@@ -2925,6 +3209,8 @@ class VespaNNParameterOptimizer:
             }
         )
         approximate_threshold = approximate_threshold_report["suggestion"]
+        if self.print_progress:
+            print(approximate_threshold_report)
 
         # postFilterThreshold
         if self.print_progress:
@@ -2936,18 +3222,11 @@ class VespaNNParameterOptimizer:
                 "ranking.matching.filterFirstExploration": filter_first_exploration,
             }
         )
+        if self.print_progress:
+            print(post_filter_threshold_report)
 
         report = {
-            "buckets": {
-                "buckets_per_percent": self.buckets_per_percent,
-                "bucket_interval_width": self.get_bucket_interval_width(),
-                "non_empty_buckets": self.get_non_empty_buckets(),
-                "filtered_out_ratios": self.get_filtered_out_ratios(),
-                "hit_ratios": list(
-                    map(lambda x: 1 - x, self.get_filtered_out_ratios())
-                ),
-                "query_distribution": self.get_query_distribution()[1],
-            },
+            "buckets": bucket_report,
             "filterFirstExploration": filter_first_exploration_report,
             "filterFirstThreshold": filter_first_threshold_report,
             "approximateThreshold": approximate_threshold_report,

@@ -1166,11 +1166,9 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
                         f.write(chunk)
             return local_filename
 
-        cls.docs_path = download_file(base_url + "docs.1k.json")
-        cls.query_path = download_file(base_url + "query_vectors.10.txt")
-        print(
-            f'Downloaded document file "{cls.docs_path}" and query file "{cls.query_path}"'
-        )
+        docs_path = download_file(base_url + "docs.1k.json")
+        query_path = download_file(base_url + "query_vectors.10.txt")
+        print(f'Downloaded document file "{docs_path}" and query file "{query_path}"')
 
         # Vespa application
         doc = Document(
@@ -1242,7 +1240,7 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         cls.vespa_docker = VespaDocker(port=8090)
         cls.app = cls.vespa_docker.deploy(application_package=cls.package)
 
-        with open(cls.docs_path, "r") as f:
+        with open(docs_path, "r") as f:
             docs = json.load(f)
 
         docs_formatted = [
@@ -1261,6 +1259,10 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         print(f"Feeding {len(docs_formatted)} documents")
         cls.app.feed_iterable(docs_formatted, callback=callback)
         print("Finished feeding")
+
+        # Read vectors
+        with open(query_path, "r") as f:
+            cls.query_vectors = f.readlines()
 
     @classmethod
     def tearDownClass(cls):
@@ -1293,14 +1295,11 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
             }
 
         print("Building queries")
-        with open(self.query_path, "r") as f:
-            query_vectors = f.readlines()
-
         filter_percentage = [1, 10, 50, 90, 95, 99]
 
         queries = []
         for filter_value in filter_percentage:
-            for vec in query_vectors:
+            for vec in self.query_vectors:
                 queries.append(vector_to_query(vec, filter_value))
 
         print(f"Built {len(queries)} queries")
