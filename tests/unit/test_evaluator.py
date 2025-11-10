@@ -93,7 +93,7 @@ class QueryBodyCapturingApp:
         self.responses = responses
         self.captured_query_bodies = None
 
-    def query_many(self, query_bodies):
+    def query_many(self, query_bodies, max_concurrent=100):
         self.captured_query_bodies = query_bodies
         return self.responses
 
@@ -164,7 +164,7 @@ class TestVespaEvaluator(unittest.TestCase):
                 self.mock_responses = mock_responses
                 self.current_query = 0
 
-            def query_many(self, queries):
+            def query_many(self, queries, max_concurrent=100):
                 return self.mock_responses
 
         self.mock_app = MockVespaApp([q1_response, q2_response, q3_response])
@@ -412,7 +412,7 @@ class TestVespaEvaluator(unittest.TestCase):
                 self.mock_responses = mock_responses
                 self.current_query = 0
 
-            def query_many(self, queries):
+            def query_many(self, queries, max_concurrent=100):
                 return self.mock_responses
 
         mock_app = MockVespaApp([q1_response])
@@ -790,7 +790,7 @@ class MockAppForMatchEvaluator:
         self.recall_responses = recall_responses
         self.captured_query_bodies_recall: List[Dict] = []
 
-    def query_many(self, query_bodies: List[Dict]):
+    def query_many(self, query_bodies: List[Dict], max_concurrent=100):
         self.captured_query_bodies_recall = query_bodies
         return self.recall_responses[: len(query_bodies)]
 
@@ -1566,7 +1566,7 @@ class TestUtilityFunctions(unittest.TestCase):
 
         # Mock app
         class MockApp:
-            def query_many(self, query_bodies):
+            def query_many(self, query_bodies, max_concurrent=100):
                 return mock_responses
 
         app = MockApp()
@@ -1585,7 +1585,7 @@ class TestUtilityFunctions(unittest.TestCase):
         mock_response = MockVespaResponse(hits=[], _status_code=500)
 
         class MockApp:
-            def query_many(self, query_bodies):
+            def query_many(self, query_bodies, max_concurrent=100):
                 return [mock_response]
 
         app = MockApp()
@@ -1702,7 +1702,7 @@ class MockAppForDataCollector:
         self.responses = responses
         self.captured_query_bodies: List[Dict] = []
 
-    def query_many(self, query_bodies: List[Dict]):
+    def query_many(self, query_bodies: List[Dict], max_concurrent=100):
         self.captured_query_bodies = query_bodies
         # Convert MockVespaResponse to objects that behave like VespaQueryResponse
         mock_responses = []
@@ -3217,7 +3217,7 @@ class TestVespaNNGlobalFilterHitratioEvaluator(unittest.TestCase):
                 return True
 
         class MockVespaApp:
-            def query_many(self, queries):
+            def query_many(self, queries, max_concurrent=100):
                 return [SuccessfullMockVespaResponse()]
 
         self.mock_app = MockVespaApp()
@@ -3249,7 +3249,7 @@ class TestVespaNNRecallEvaluator(unittest.TestCase):
                 self.mock_responses = mock_responses
                 self.current_query = 0
 
-            def query_many(self, queries):
+            def query_many(self, queries, max_concurrent=100):
                 return self.mock_responses
 
         self.mock_app = MockVespaApp([])
@@ -3318,7 +3318,7 @@ class TestVespaNNRecallEvaluator(unittest.TestCase):
                 self.current_query = 0
                 self.first_responses = True
 
-            def query_many(self, queries):
+            def query_many(self, queries, max_concurrent=100):
                 if self.first_responses:
                     self.first_responses = False
                     return self.first_mock_responses
@@ -3346,7 +3346,7 @@ class TestVespaQueryBenchmarker(unittest.TestCase):
                 self.searchtimes = [2, 4, 2, 4]
                 self.num_responses = 0
 
-            def query_many(self, queries):
+            def query_many(self, queries, max_concurrent=100):
                 responses = []
                 for i in range(0, len(queries)):
                     responses.append(
@@ -3381,7 +3381,7 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
                 self.mock_responses = mock_responses
                 self.current_query = 0
 
-            def query_many(self, queries):
+            def query_many(self, queries, max_concurrent=100):
                 return self.mock_responses
 
         self.mock_app = MockVespaApp([])
