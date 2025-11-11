@@ -6,6 +6,7 @@ Here you can find a wide variety of examples that demonstrate how to use the Ves
 
 To create a free Vespa Cloud account, visit [Vespa Cloud](https://vespa.ai/free-trial/).
 
+- [ANN parameter tuning](ANN-parameter-tuning-vespa-cloud.html)
 - [BGE-M3 - The Mother of all embedding models](mother-of-all-embedding-models-cloud.html)
 - [Billion-scale vector search with Cohere binary embeddings in Vespa](billion-scale-vector-search-with-cohere-embeddings-cloud.html)
 - [Building cost-efficient retrieval-augmented personal AI assistants](scaling-personal-ai-assistants-with-streaming-mode-cloud.html)
