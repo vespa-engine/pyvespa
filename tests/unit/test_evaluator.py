@@ -9,6 +9,7 @@ from vespa.evaluation import (
     VespaNNRecallEvaluator,
     VespaQueryBenchmarker,
     VespaNNParameterOptimizer,
+    BucketedMetricResults,
 )
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
@@ -3597,18 +3598,35 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         lower,
         upper,
     ):
-        benchmark_post_filtering = VespaNNParameterOptimizer.BenchmarkResults(
-            list(map(lambda x: [x], response_times_post_filtering))
+        buckets = self.buckets
+        filtered_out_ratios = [
+            self.optimizer.bucket_to_filtered_out(b) for b in buckets
+        ]
+
+        benchmark_post_filtering = BucketedMetricResults(
+            metric_name="searchtime",
+            buckets=buckets,
+            values=list(map(lambda x: [x], response_times_post_filtering)),
+            filtered_out_ratios=filtered_out_ratios,
         )
-        recall_post_filtering = VespaNNParameterOptimizer.RecallResults(
-            list(map(lambda x: [x], recall_post_filtering))
+        recall_post_filtering = BucketedMetricResults(
+            metric_name="recall",
+            buckets=buckets,
+            values=list(map(lambda x: [x], recall_post_filtering)),
+            filtered_out_ratios=filtered_out_ratios,
         )
 
-        benchmark_pre_filtering = VespaNNParameterOptimizer.BenchmarkResults(
-            list(map(lambda x: [x], response_times_pre_filtering))
+        benchmark_pre_filtering = BucketedMetricResults(
+            metric_name="searchtime",
+            buckets=buckets,
+            values=list(map(lambda x: [x], response_times_pre_filtering)),
+            filtered_out_ratios=filtered_out_ratios,
         )
-        recall_pre_filtering = VespaNNParameterOptimizer.RecallResults(
-            list(map(lambda x: [x], recall_pre_filtering))
+        recall_pre_filtering = BucketedMetricResults(
+            metric_name="recall",
+            buckets=buckets,
+            values=list(map(lambda x: [x], recall_pre_filtering)),
+            filtered_out_ratios=filtered_out_ratios,
         )
 
         post_filter_threshold = self.optimizer._suggest_post_filter_threshold(
@@ -3682,11 +3700,22 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         lower,
         upper,
     ):
-        benchmark_exact = VespaNNParameterOptimizer.BenchmarkResults(
-            list(map(lambda x: [x], response_times_exact))
+        buckets = self.buckets
+        filtered_out_ratios = [
+            self.optimizer.bucket_to_filtered_out(b) for b in buckets
+        ]
+
+        benchmark_exact = BucketedMetricResults(
+            metric_name="searchtime",
+            buckets=buckets,
+            values=list(map(lambda x: [x], response_times_exact)),
+            filtered_out_ratios=filtered_out_ratios,
         )
-        benchmark_approx = VespaNNParameterOptimizer.BenchmarkResults(
-            list(map(lambda x: [x], response_times_approx))
+        benchmark_approx = BucketedMetricResults(
+            metric_name="searchtime",
+            buckets=buckets,
+            values=list(map(lambda x: [x], response_times_approx)),
+            filtered_out_ratios=filtered_out_ratios,
         )
 
         approximate_threshold = self.optimizer._suggest_approximate_threshold(
@@ -3755,11 +3784,22 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         lower,
         upper,
     ):
-        benchmark_hnsw = VespaNNParameterOptimizer.BenchmarkResults(
-            list(map(lambda x: [x], response_times_hnsw))
+        buckets = self.buckets
+        filtered_out_ratios = [
+            self.optimizer.bucket_to_filtered_out(b) for b in buckets
+        ]
+
+        benchmark_hnsw = BucketedMetricResults(
+            metric_name="searchtime",
+            buckets=buckets,
+            values=list(map(lambda x: [x], response_times_hnsw)),
+            filtered_out_ratios=filtered_out_ratios,
         )
-        benchmark_filter_first = VespaNNParameterOptimizer.BenchmarkResults(
-            list(map(lambda x: [x], response_times_filter_first))
+        benchmark_filter_first = BucketedMetricResults(
+            metric_name="searchtime",
+            buckets=buckets,
+            values=list(map(lambda x: [x], response_times_filter_first)),
+            filtered_out_ratios=filtered_out_ratios,
         )
 
         filter_first_threshold = self.optimizer._suggest_filter_first_threshold(
@@ -3865,12 +3905,7 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
                 )
                 self.test_buckets = test_buckets
 
-            def _test_filter_first_exploration(
-                self, filter_first_exploration: float
-            ) -> (
-                VespaNNParameterOptimizer.BenchmarkResults,
-                VespaNNParameterOptimizer.RecallResults,
-            ):
+            def _test_filter_first_exploration(self, filter_first_exploration: float):
                 constant_one = [1.0] * len(self.test_buckets)
                 response_time_rises = list(
                     map(
@@ -3893,11 +3928,20 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
                     for x, y in zip(recall_drops, constant_one)
                 ]
 
-                benchmark = VespaNNParameterOptimizer.BenchmarkResults(
-                    list(map(lambda x: [x], interpolation_rising_response_time))
+                buckets = self.test_buckets
+                filtered_out_ratios = [self.bucket_to_filtered_out(b) for b in buckets]
+
+                benchmark = BucketedMetricResults(
+                    metric_name="searchtime",
+                    buckets=buckets,
+                    values=list(map(lambda x: [x], interpolation_rising_response_time)),
+                    filtered_out_ratios=filtered_out_ratios,
                 )
-                recall = VespaNNParameterOptimizer.BenchmarkResults(
-                    list(map(lambda x: [x], interpolation_dropping_recall))
+                recall = BucketedMetricResults(
+                    metric_name="recall",
+                    buckets=buckets,
+                    values=list(map(lambda x: [x], interpolation_dropping_recall)),
+                    filtered_out_ratios=filtered_out_ratios,
                 )
                 return benchmark, recall
 
@@ -3910,6 +3954,116 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         # Check for reasonable number
         self.assertGreaterEqual(filter_first_exploration, 0.20)
         self.assertLessEqual(filter_first_exploration, 0.40)
+
+
+class TestBucketedMetricResults(unittest.TestCase):
+    """Test the BucketedMetricResults class."""
+
+    def test_to_dict_with_values_0_to_100(self):
+        """Test to_dict method with array values from 0 to 100."""
+        # Create test data with values 0-100
+        num_buckets = 101
+        buckets = list(range(num_buckets))
+
+        # Each bucket contains multiple measurements (simulating multiple queries)
+        # For simplicity, use 5 measurements per bucket
+        values = [[float(i)] * 5 for i in range(num_buckets)]
+
+        # Calculate filtered_out_ratios
+        filtered_out_ratios = [i / num_buckets for i in buckets]
+
+        # Create BucketedMetricResults instance
+        results = BucketedMetricResults(
+            metric_name="test_metric",
+            buckets=buckets,
+            values=values,
+            filtered_out_ratios=filtered_out_ratios,
+        )
+
+        # Convert to dict
+        result_dict = results.to_dict()
+
+        # Verify structure
+        self.assertIn("metric_name", result_dict)
+        self.assertIn("buckets", result_dict)
+        self.assertIn("filtered_out_ratios", result_dict)
+        self.assertIn("statistics", result_dict)
+        self.assertIn("summary", result_dict)
+
+        # Verify metric name
+        self.assertEqual(result_dict["metric_name"], "test_metric")
+
+        # Verify buckets
+        self.assertEqual(result_dict["buckets"], buckets)
+        self.assertEqual(len(result_dict["buckets"]), num_buckets)
+
+        # Verify filtered_out_ratios
+        self.assertEqual(result_dict["filtered_out_ratios"], filtered_out_ratios)
+        self.assertEqual(len(result_dict["filtered_out_ratios"]), num_buckets)
+
+        # Verify statistics structure
+        stats = result_dict["statistics"]
+        self.assertIn("mean", stats)
+        self.assertIn("median", stats)
+        self.assertIn("p95", stats)
+        self.assertIn("p99", stats)
+
+        # Verify statistics lengths
+        self.assertEqual(len(stats["mean"]), num_buckets)
+        self.assertEqual(len(stats["median"]), num_buckets)
+        self.assertEqual(len(stats["p95"]), num_buckets)
+        self.assertEqual(len(stats["p99"]), num_buckets)
+
+        # Verify statistics values (since all values in each bucket are the same)
+        for i in range(num_buckets):
+            self.assertAlmostEqual(stats["mean"][i], float(i), places=4)
+            self.assertAlmostEqual(stats["median"][i], float(i), places=4)
+            self.assertAlmostEqual(stats["p95"][i], float(i), places=4)
+            self.assertAlmostEqual(stats["p99"][i], float(i), places=4)
+
+        # Verify summary
+        summary = result_dict["summary"]
+        self.assertIn("overall_mean", summary)
+        self.assertIn("overall_median", summary)
+
+        # Overall mean should be 50.0 (mean of 0-100)
+        self.assertAlmostEqual(summary["overall_mean"], 50.0, places=4)
+        # Overall median should also be 50.0
+        self.assertAlmostEqual(summary["overall_median"], 50.0, places=4)
+
+    def test_to_dict_with_varying_values(self):
+        """Test to_dict with varying values per bucket."""
+        buckets = [0, 5, 10, 15, 20]
+        values = [
+            [1.0, 2.0, 3.0],  # bucket 0: mean=2.0
+            [10.0, 20.0, 30.0],  # bucket 5: mean=20.0
+            [5.0, 5.0, 5.0],  # bucket 10: mean=5.0
+            [100.0, 200.0],  # bucket 15: mean=150.0
+            [7.5, 12.5],  # bucket 20: mean=10.0
+        ]
+        filtered_out_ratios = [0.0, 0.05, 0.10, 0.15, 0.20]
+
+        results = BucketedMetricResults(
+            metric_name="searchtime",
+            buckets=buckets,
+            values=values,
+            filtered_out_ratios=filtered_out_ratios,
+        )
+
+        result_dict = results.to_dict()
+
+        # Check mean values
+        self.assertAlmostEqual(result_dict["statistics"]["mean"][0], 2.0, places=4)
+        self.assertAlmostEqual(result_dict["statistics"]["mean"][1], 20.0, places=4)
+        self.assertAlmostEqual(result_dict["statistics"]["mean"][2], 5.0, places=4)
+        self.assertAlmostEqual(result_dict["statistics"]["mean"][3], 150.0, places=4)
+        self.assertAlmostEqual(result_dict["statistics"]["mean"][4], 10.0, places=4)
+
+        # Check overall mean (mean of [2.0, 20.0, 5.0, 150.0, 10.0])
+        expected_overall_mean = (2.0 + 20.0 + 5.0 + 150.0 + 10.0) / 5
+        self.assertAlmostEqual(
+            result_dict["summary"]["overall_mean"], expected_overall_mean, places=4
+        )
 
 
 class TestUtilFunctions(unittest.TestCase):

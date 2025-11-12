@@ -2020,6 +2020,66 @@ class VespaQueryBenchmarker:
         return list(map(lambda x: x / self.repetitions, response_times_sum))
 
 
+class BucketedMetricResults:
+    """
+    Stores aggregated statistics for a metric across query buckets.
+
+    Computes mean and various percentiles for values grouped by bucket,
+    where each bucket contains multiple measurements (e.g., response times or recall values).
+
+    Args:
+        metric_name: Name of the metric being measured (e.g., "searchtime", "recall")
+        buckets: List of bucket indices that contain data
+        values: List of lists containing measurements, one list per bucket
+        filtered_out_ratios: Pre-computed filtered-out ratios for each bucket
+    """
+
+    def __init__(
+        self,
+        metric_name: str,
+        buckets: List[int],
+        values: List[List[float]],
+        filtered_out_ratios: List[float],
+    ):
+        if len(buckets) != len(values) or len(buckets) != len(filtered_out_ratios):
+            raise ValueError(
+                "buckets, values, and filtered_out_ratios must have the same length"
+            )
+
+        self.metric_name = metric_name
+        self.buckets = buckets
+        self.filtered_out_ratios = filtered_out_ratios
+
+        # Compute statistics
+        self.mean = list(map(mean, values))
+        self.median = list(map(lambda x: percentile(x, 50), values))
+        self.p95 = list(map(lambda x: percentile(x, 95), values))
+        self.p99 = list(map(lambda x: percentile(x, 99), values))
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Convert results to dictionary format.
+
+        Returns:
+            Dictionary containing bucket information and all statistics
+        """
+        return {
+            "metric_name": self.metric_name,
+            "buckets": self.buckets,
+            "filtered_out_ratios": self.filtered_out_ratios,
+            "statistics": {
+                "mean": self.mean,
+                "median": self.median,
+                "p95": self.p95,
+                "p99": self.p99,
+            },
+            "summary": {
+                "overall_mean": mean(self.mean) if self.mean else 0.0,
+                "overall_median": percentile(self.mean, 50) if self.mean else 0.0,
+            },
+        }
+
+
 class VespaNNParameterOptimizer:
     """
     Get suggestions for configuring the nearest-neighbor parameters of a Vespa application.
@@ -2353,21 +2413,7 @@ class VespaNNParameterOptimizer:
 
         return x, y
 
-    class BenchmarkResults:
-        """
-        Stores the mean values and various percentiles of a benchmark run.
-
-        Args:
-            benchmark (List[List[float]]): List of benchmark results, one list for every bucket, containing the response times of the queries in that bucket.
-        """
-
-        def __init__(self, benchmark: List[List[float]]):
-            self.mean = list(map(mean, benchmark))
-            self.median = list(map(lambda x: percentile(x, 50), benchmark))
-            self.p95 = list(map(lambda x: percentile(x, 95), benchmark))
-            self.p99 = list(map(lambda x: percentile(x, 99), benchmark))
-
-    def benchmark(self, **kwargs) -> VespaNNParameterOptimizer.BenchmarkResults:
+    def benchmark(self, **kwargs) -> BucketedMetricResults:
         """
         For each non-empty bucket, determine the average searchtime.
 
@@ -2375,11 +2421,12 @@ class VespaNNParameterOptimizer:
             **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
 
         Returns:
-            VespaNNParameterOptimizer.BenchmarkResults: The benchmark results.
+            BucketedMetricResults: The benchmark results.
         """
         if self.print_progress:
             print("->Benchmarking", end="")
         results = []
+        non_empty_buckets = []
         processed_buckets = 0
         for i in range(0, self.get_number_of_buckets()):
             bucket = self.buckets[i]
@@ -2395,28 +2442,20 @@ class VespaNNParameterOptimizer:
                 )
                 response_times = benchmarker.run()
                 results.append(response_times)
+                non_empty_buckets.append(i)
 
         print("\r  Benchmarking: 100.0%")
 
-        return VespaNNParameterOptimizer.BenchmarkResults(results)
+        return BucketedMetricResults(
+            metric_name="searchtime",
+            buckets=non_empty_buckets,
+            values=results,
+            filtered_out_ratios=[
+                self.bucket_to_filtered_out(b) for b in non_empty_buckets
+            ],
+        )
 
-    class RecallResults:
-        """
-        Stores the mean values and various percentiles of a recall-measurement run.
-
-        Args:
-            recall_measurement (List[List[float]]): List of recall measurements, one list for every bucket, containing the recalls of the queries in that bucket.
-        """
-
-        def __init__(self, recall_measurement: List[List[float]]):
-            self.mean = list(map(mean, recall_measurement))
-            self.median = list(map(lambda x: percentile(x, 50), recall_measurement))
-            self.p95 = list(map(lambda x: percentile(x, 95), recall_measurement))
-            self.p99 = list(map(lambda x: percentile(x, 99), recall_measurement))
-
-    def compute_average_recalls(
-        self, **kwargs
-    ) -> VespaNNParameterOptimizer.RecallResults:
+    def compute_average_recalls(self, **kwargs) -> BucketedMetricResults:
         """
         For each non-empty bucket, determine the average recall.
 
@@ -2424,11 +2463,12 @@ class VespaNNParameterOptimizer:
             **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
 
         Returns:
-            VespaNNParameterOptimizer.RecallResults: The recall results.
+            BucketedMetricResults: The recall results.
         """
         if self.print_progress:
             print("->Computing recall", end="")
         results = []
+        non_empty_buckets = []
         processed_buckets = 0
         for i in range(0, self.get_number_of_buckets()):
             bucket = self.buckets[i]
@@ -2443,11 +2483,19 @@ class VespaNNParameterOptimizer:
                 )
                 recall_list = recall_evaluator.run()
                 results.append(recall_list)
+                non_empty_buckets.append(i)
                 processed_buckets += 1
 
         print("\r  Computing recall: 100.0%")
 
-        return VespaNNParameterOptimizer.RecallResults(results)
+        return BucketedMetricResults(
+            metric_name="recall",
+            buckets=non_empty_buckets,
+            values=results,
+            filtered_out_ratios=[
+                self.bucket_to_filtered_out(b) for b in non_empty_buckets
+            ],
+        )
 
     def suggest_filter_first_threshold(
         self, **kwargs
@@ -2510,15 +2558,15 @@ class VespaNNParameterOptimizer:
 
     def _suggest_filter_first_threshold(
         self,
-        benchmark_hnsw: VespaNNParameterOptimizer.BenchmarkResults,
-        benchmark_filter_first: VespaNNParameterOptimizer.BenchmarkResults,
+        benchmark_hnsw: BucketedMetricResults,
+        benchmark_filter_first: BucketedMetricResults,
     ) -> float:
         """
         Suggests a value for [filterFirstThreshold](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on the two given benchmarks (using HNSW only, using HNSW with filter first only).
 
         Args:
-            benchmark_hnsw (VespaNNParameterOptimizer.BenchmarkResults): Benchmark using HNSW only obtained from benchmark().
-            benchmark_filter_first (VespaNNParameterOptimizer.BenchmarkResults): Benchmark using HNSW with filter first only obtained from benchmark().
+            benchmark_hnsw (BucketedMetricResults): Benchmark using HNSW only obtained from benchmark().
+            benchmark_filter_first (BucketedMetricResults): Benchmark using HNSW with filter first only obtained from benchmark().
 
         Returns:
             float: Suggested value for filterFirstThreshold.
@@ -2593,15 +2641,15 @@ class VespaNNParameterOptimizer:
 
     def _suggest_approximate_threshold(
         self,
-        benchmark_exact: VespaNNParameterOptimizer.BenchmarkResults,
-        benchmark_ann: VespaNNParameterOptimizer.BenchmarkResults,
+        benchmark_exact: BucketedMetricResults,
+        benchmark_ann: BucketedMetricResults,
     ) -> float:
         """
         Suggests a value for [approximateThreshold](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on the two given benchmarks (using exact search only, using HNSW with tuned filter-first parameters).
 
         Args:
-            benchmark_exact (VespaNNParameterOptimizer.BenchmarkResults): Benchmark using exact search only obtained from benchmark().
-            benchmark_ann (VespaNNParameterOptimizer.BenchmarkResults): Benchmark using HNSW with tuned filter-first parameters obtained from benchmark().
+            benchmark_exact (BucketedMetricResults): Benchmark using exact search only obtained from benchmark().
+            benchmark_ann (BucketedMetricResults): Benchmark using HNSW with tuned filter-first parameters obtained from benchmark().
 
         Returns:
             float: Suggested value for approximateThreshold.
@@ -2691,19 +2739,19 @@ class VespaNNParameterOptimizer:
 
     def _suggest_post_filter_threshold(
         self,
-        benchmark_post_filtering: VespaNNParameterOptimizer.BenchmarkResults,
-        recall_post_filtering: VespaNNParameterOptimizer.RecallResults,
-        benchmark_pre_filtering: VespaNNParameterOptimizer.BenchmarkResults,
-        recall_pre_filtering: VespaNNParameterOptimizer.RecallResults,
+        benchmark_post_filtering: BucketedMetricResults,
+        recall_post_filtering: BucketedMetricResults,
+        benchmark_pre_filtering: BucketedMetricResults,
+        recall_pre_filtering: BucketedMetricResults,
     ) -> float:
         """
         Suggests a value for [postFilterThreshold](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on the two given pairs of a benchmark and a recall measurement (using post-filtering only, using HNSW with tuned parameters only).
 
         Args:
-            benchmark_post_filtering (VespaNNParameterOptimizer.BenchmarkResults): Benchmark using post-filtering only obtained from benchmark().
-            recall_post_filtering (VespaNNParameterOptimizer.RecallResults): Recall measurement using post-filtering only obtained from compute_average_recalls().
-            benchmark_pre_filtering (VespaNNParameterOptimizer.BenchmarkResults): Benchmark using HNSW with tuned parameters only obtained from benchmark().
-            recall_pre_filtering (VespaNNParameterOptimizer.RecallResults): Recall measurement using HNSW with tuned parameters only obtained from compute_average_recalls().
+            benchmark_post_filtering (BucketedMetricResults): Benchmark using post-filtering only obtained from benchmark().
+            recall_post_filtering (BucketedMetricResults): Recall measurement using post-filtering only obtained from compute_average_recalls().
+            benchmark_pre_filtering (BucketedMetricResults): Benchmark using HNSW with tuned parameters only obtained from benchmark().
+            recall_pre_filtering (BucketedMetricResults): Recall measurement using HNSW with tuned parameters only obtained from compute_average_recalls().
 
         Returns:
             float: Suggested value for postFilterThreshold.
@@ -2754,10 +2802,7 @@ class VespaNNParameterOptimizer:
 
     def _test_filter_first_exploration(
         self, filter_first_exploration: float
-    ) -> (
-        VespaNNParameterOptimizer.BenchmarkResults,
-        VespaNNParameterOptimizer.RecallResults,
-    ):
+    ) -> Tuple[BucketedMetricResults, BucketedMetricResults]:
         parameters_candidate = dict(
             dict(VespaNNParameters.TIMEOUT, **VespaNNParameters.FILTER_FIRST),
             **{"ranking.matching.filterFirstExploration": filter_first_exploration},
@@ -2769,22 +2814,12 @@ class VespaNNParameterOptimizer:
 
     def suggest_filter_first_exploration(
         self,
-    ) -> (
-        float,
-        List[
-            (
-                float,
-                VespaNNParameterOptimizer.BenchmarkResults,
-                VespaNNParameterOptimizer.RecallResults,
-            )
-        ],
-    ):
+    ) -> dict[str, float | dict[str, List[float]]]:
         """
         Suggests a value for [filterFirstExploration](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on benchmarks and recall measurements performed on the supplied Vespa app.
 
         Returns:
-            float: Suggested value for postFilterThreshold.
-            List[(float,VespaNNParameterOptimizer.BenchmarkResults,VespaNNParameterOptimizer.RecallResults)]: List of filterFirstExploration values, benchmarks, and recall measurements performed to get to the suggested value.
+            dict: A dictionary containing the suggested value, benchmarks, and recall measurements.
         """
         benchmark_no_exploration, recall_no_exploration = (
             self._test_filter_first_exploration(0.0)
