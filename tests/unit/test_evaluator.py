@@ -9,6 +9,7 @@ from vespa.evaluation import (
     VespaNNRecallEvaluator,
     VespaQueryBenchmarker,
     VespaNNParameterOptimizer,
+    BucketedMetricResults,
 )
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
@@ -3597,18 +3598,35 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         lower,
         upper,
     ):
-        benchmark_post_filtering = VespaNNParameterOptimizer.BenchmarkResults(
-            list(map(lambda x: [x], response_times_post_filtering))
+        buckets = self.buckets
+        filtered_out_ratios = [
+            self.optimizer.bucket_to_filtered_out(b) for b in buckets
+        ]
+
+        benchmark_post_filtering = BucketedMetricResults(
+            metric_name="searchtime",
+            buckets=buckets,
+            values=list(map(lambda x: [x], response_times_post_filtering)),
+            filtered_out_ratios=filtered_out_ratios,
         )
-        recall_post_filtering = VespaNNParameterOptimizer.RecallResults(
-            list(map(lambda x: [x], recall_post_filtering))
+        recall_post_filtering = BucketedMetricResults(
+            metric_name="recall",
+            buckets=buckets,
+            values=list(map(lambda x: [x], recall_post_filtering)),
+            filtered_out_ratios=filtered_out_ratios,
         )
 
-        benchmark_pre_filtering = VespaNNParameterOptimizer.BenchmarkResults(
-            list(map(lambda x: [x], response_times_pre_filtering))
+        benchmark_pre_filtering = BucketedMetricResults(
+            metric_name="searchtime",
+            buckets=buckets,
+            values=list(map(lambda x: [x], response_times_pre_filtering)),
+            filtered_out_ratios=filtered_out_ratios,
         )
-        recall_pre_filtering = VespaNNParameterOptimizer.RecallResults(
-            list(map(lambda x: [x], recall_pre_filtering))
+        recall_pre_filtering = BucketedMetricResults(
+            metric_name="recall",
+            buckets=buckets,
+            values=list(map(lambda x: [x], recall_pre_filtering)),
+            filtered_out_ratios=filtered_out_ratios,
         )
 
         post_filter_threshold = self.optimizer._suggest_post_filter_threshold(
@@ -3682,11 +3700,22 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         lower,
         upper,
     ):
-        benchmark_exact = VespaNNParameterOptimizer.BenchmarkResults(
-            list(map(lambda x: [x], response_times_exact))
+        buckets = self.buckets
+        filtered_out_ratios = [
+            self.optimizer.bucket_to_filtered_out(b) for b in buckets
+        ]
+
+        benchmark_exact = BucketedMetricResults(
+            metric_name="searchtime",
+            buckets=buckets,
+            values=list(map(lambda x: [x], response_times_exact)),
+            filtered_out_ratios=filtered_out_ratios,
         )
-        benchmark_approx = VespaNNParameterOptimizer.BenchmarkResults(
-            list(map(lambda x: [x], response_times_approx))
+        benchmark_approx = BucketedMetricResults(
+            metric_name="searchtime",
+            buckets=buckets,
+            values=list(map(lambda x: [x], response_times_approx)),
+            filtered_out_ratios=filtered_out_ratios,
         )
 
         approximate_threshold = self.optimizer._suggest_approximate_threshold(
@@ -3755,11 +3784,22 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         lower,
         upper,
     ):
-        benchmark_hnsw = VespaNNParameterOptimizer.BenchmarkResults(
-            list(map(lambda x: [x], response_times_hnsw))
+        buckets = self.buckets
+        filtered_out_ratios = [
+            self.optimizer.bucket_to_filtered_out(b) for b in buckets
+        ]
+
+        benchmark_hnsw = BucketedMetricResults(
+            metric_name="searchtime",
+            buckets=buckets,
+            values=list(map(lambda x: [x], response_times_hnsw)),
+            filtered_out_ratios=filtered_out_ratios,
         )
-        benchmark_filter_first = VespaNNParameterOptimizer.BenchmarkResults(
-            list(map(lambda x: [x], response_times_filter_first))
+        benchmark_filter_first = BucketedMetricResults(
+            metric_name="searchtime",
+            buckets=buckets,
+            values=list(map(lambda x: [x], response_times_filter_first)),
+            filtered_out_ratios=filtered_out_ratios,
         )
 
         filter_first_threshold = self.optimizer._suggest_filter_first_threshold(
@@ -3865,12 +3905,7 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
                 )
                 self.test_buckets = test_buckets
 
-            def _test_filter_first_exploration(
-                self, filter_first_exploration: float
-            ) -> (
-                VespaNNParameterOptimizer.BenchmarkResults,
-                VespaNNParameterOptimizer.RecallResults,
-            ):
+            def _test_filter_first_exploration(self, filter_first_exploration: float):
                 constant_one = [1.0] * len(self.test_buckets)
                 response_time_rises = list(
                     map(
@@ -3893,11 +3928,20 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
                     for x, y in zip(recall_drops, constant_one)
                 ]
 
-                benchmark = VespaNNParameterOptimizer.BenchmarkResults(
-                    list(map(lambda x: [x], interpolation_rising_response_time))
+                buckets = self.test_buckets
+                filtered_out_ratios = [self.bucket_to_filtered_out(b) for b in buckets]
+
+                benchmark = BucketedMetricResults(
+                    metric_name="searchtime",
+                    buckets=buckets,
+                    values=list(map(lambda x: [x], interpolation_rising_response_time)),
+                    filtered_out_ratios=filtered_out_ratios,
                 )
-                recall = VespaNNParameterOptimizer.BenchmarkResults(
-                    list(map(lambda x: [x], interpolation_dropping_recall))
+                recall = BucketedMetricResults(
+                    metric_name="recall",
+                    buckets=buckets,
+                    values=list(map(lambda x: [x], interpolation_dropping_recall)),
+                    filtered_out_ratios=filtered_out_ratios,
                 )
                 return benchmark, recall
 
