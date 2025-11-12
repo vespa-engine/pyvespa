@@ -3910,3 +3910,24 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         # Check for reasonable number
         self.assertGreaterEqual(filter_first_exploration, 0.20)
         self.assertLessEqual(filter_first_exploration, 0.40)
+
+
+class TestUtilFunctions(unittest.TestCase):
+    """Test utility functions."""
+
+    def test_mean(self):
+        from vespa.evaluation import mean
+
+        self.assertAlmostEqual(mean([1, 2, 3, 4, 5]), 3.0, delta=0.0001)
+        self.assertAlmostEqual(mean([10, 20, 30]), 20.0, delta=0.0001)
+        self.assertAlmostEqual(mean([0.5, 1.5, 2.5]), 1.5, delta=0.0001)
+
+    def test_percentile(self):
+        from vespa.evaluation import percentile
+
+        array_100 = list(range(0, 101))  # 0 to 100
+
+        self.assertAlmostEqual(percentile(array_100, 20), 20, delta=0.0001)
+        self.assertAlmostEqual(percentile(array_100, 50), 50, delta=0.0001)
+        self.assertAlmostEqual(percentile(array_100, 90), 90, delta=0.0001)
+        self.assertAlmostEqual(percentile(array_100, 95), 95, delta=0.0001)

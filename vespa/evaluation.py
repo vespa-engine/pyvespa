@@ -2363,9 +2363,9 @@ class VespaNNParameterOptimizer:
 
         def __init__(self, benchmark: List[List[float]]):
             self.mean = list(map(mean, benchmark))
-            self.median = list(map(lambda x: percentile(x, 0.50), benchmark))
-            self.p95 = list(map(lambda x: percentile(x, 0.95), benchmark))
-            self.p99 = list(map(lambda x: percentile(x, 0.99), benchmark))
+            self.median = list(map(lambda x: percentile(x, 50), benchmark))
+            self.p95 = list(map(lambda x: percentile(x, 95), benchmark))
+            self.p99 = list(map(lambda x: percentile(x, 99), benchmark))
 
     def benchmark(self, **kwargs) -> VespaNNParameterOptimizer.BenchmarkResults:
         """
@@ -2410,9 +2410,9 @@ class VespaNNParameterOptimizer:
 
         def __init__(self, recall_measurement: List[List[float]]):
             self.mean = list(map(mean, recall_measurement))
-            self.median = list(map(lambda x: percentile(x, 0.50), recall_measurement))
-            self.p95 = list(map(lambda x: percentile(x, 0.95), recall_measurement))
-            self.p99 = list(map(lambda x: percentile(x, 0.99), recall_measurement))
+            self.median = list(map(lambda x: percentile(x, 50), recall_measurement))
+            self.p95 = list(map(lambda x: percentile(x, 95), recall_measurement))
+            self.p99 = list(map(lambda x: percentile(x, 99), recall_measurement))
 
     def compute_average_recalls(
         self, **kwargs
