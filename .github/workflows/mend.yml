@@ -1,25 +1,35 @@
-# ******** Mend Unified CLI Template for Github Actions ********
-#
-# You may wish to alter this file to override the build tool and Mend scanning technologies.
-#
-# For more configuration options, please check the technical documentation portal:
-# 📚 https://docs.mend.io/bundle/integrations/page/scan_with_the_mend_cli.html
-#
-# ******** Description ********
-# mend dep will automatically use package managers and file system scanning to detect open source components.
-# mend code will automatically detect languages and frameworks used in your projects to scan for code weaknesses.
-
-# If you are NOT using a service user, and have multiple organizations, don't forget to call the scope -s parameter to set the organization
-
-name: Mend CLI Scan
+name: Mend Scan
 
 on:
   workflow_dispatch:
-  # push:
-  #   branches: [ master ]
+  schedule: [ cron: "0 0 * * 0" ] # Weekly on Sundays at midnight
+  pull_request:
+    branches: [ master ]
+
+env:
+  MEND_APP_NAME: "vespa-engine"
+  MEND_PROJECT_NAME: "pyvespa"
 
 jobs:
-  mend:
+  sast:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+    - name: Mend SAST
+      uses: vespa-engine/gh-actions/mend-sast@marlon/feat/add-mend-scan-workflow
+      with:
+        mend-user: ${{ secrets.MEND_EMAIL }}
+        mend-api-key: ${{ secrets.MEND_USER_KEY }}
+
+        mend-app-name: ${{ env.MEND_APP_NAME }}
+        mend-project-name: ${{ env.MEND_PROJECT_NAME }}
+        # update: ${{ contains(fromJson('["workflow_dispatch","schedule"]'), github.event_name) }}
+        update: true # Temporarily always send SAST updates
+        enabled-engines: "104" # Python
+
+  sca:
     runs-on: ubuntu-latest
 
     steps:
@@ -31,15 +41,15 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -e .
-    - name: Mend CLI Scan
-      env:
-        MEND_EMAIL: ${{secrets.MEND_EMAIL}}
-        MEND_USER_KEY: ${{secrets.MEND_USER_KEY}}
-        MEND_URL: https://saas-eu.mend.io
-      run: |
-        echo Downloading Mend CLI
-        curl https://downloads.mend.io/cli/linux_amd64/mend -o /usr/local/bin/mend && chmod +x /usr/local/bin/mend
-        echo run Mend dependencies scan
-        mend dep -u --non-interactive --scope "$GITHUB_REPOSITORY_OWNER//${{github.event.repository.name}}"
-        echo Run Mend code scan
-        mend code --non-interactive --scope "$GITHUB_REPOSITORY_OWNER//${{github.event.repository.name}}"
+    - name: Mend SCA
+      uses: vespa-engine/gh-actions/mend-sca@marlon/feat/add-mend-scan-workflow
+      with:
+        mend-user: ${{ secrets.MEND_EMAIL }}
+        mend-api-key: ${{ secrets.MEND_USER_KEY }}
+
+        mend-app-name: ${{ env.MEND_APP_NAME }}
+        mend-project-name: ${{ env.MEND_PROJECT_NAME }}
+
+        # Do not send SCA updates on PRs
+        # update: ${{ contains(fromJson('["workflow_dispatch","schedule"]'), github.event_name) }}
+        update: true # Temporarily always send SAST updates
