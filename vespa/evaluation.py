@@ -2513,14 +2513,16 @@ class VespaNNParameterOptimizer:
             dict(VespaNNParameters.TIMEOUT, **kwargs), **VespaNNParameters.HNSW
         )
         benchmark_hnsw = self.benchmark(**hnsw_parameters)
+        recall_hnsw = self.compute_average_recalls(**hnsw_parameters)
 
         filter_first_parameters = dict(
             dict(VespaNNParameters.TIMEOUT, **kwargs), **VespaNNParameters.FILTER_FIRST
         )
         benchmark_filter_first = self.benchmark(**filter_first_parameters)
+        recall_filter_first = self.compute_average_recalls(**filter_first_parameters)
 
         suggestion = self._suggest_filter_first_threshold(
-            benchmark_hnsw, benchmark_filter_first
+            benchmark_hnsw, recall_hnsw, benchmark_filter_first, recall_filter_first
         )
 
         report = {
@@ -2528,6 +2530,10 @@ class VespaNNParameterOptimizer:
             "benchmarks": {
                 "hnsw": benchmark_hnsw.mean,
                 "filter_first": benchmark_filter_first.mean,
+            },
+            "recall_measurements": {
+                "hnsw": recall_hnsw.mean,
+                "filter_first": recall_filter_first.mean,
             },
         }
 
@@ -2559,14 +2565,18 @@ class VespaNNParameterOptimizer:
     def _suggest_filter_first_threshold(
         self,
         benchmark_hnsw: BucketedMetricResults,
+        recall_hnsw: BucketedMetricResults,
         benchmark_filter_first: BucketedMetricResults,
+        recall_filter_first: BucketedMetricResults,
     ) -> float:
         """
         Suggests a value for [filterFirstThreshold](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on the two given benchmarks (using HNSW only, using HNSW with filter first only).
 
         Args:
             benchmark_hnsw (BucketedMetricResults): Benchmark using HNSW only obtained from benchmark().
+            recall_hnsw (BucketedMetricResults): Recall measurement using HNSW only obtained from compute_average_recalls().
             benchmark_filter_first (BucketedMetricResults): Benchmark using HNSW with filter first only obtained from benchmark().
+            recall_filter_first (BucketedMetricResults): Recall measurement using HNSW with filter first only obtained from compute_average_recalls().
 
         Returns:
             float: Suggested value for filterFirstThreshold.
@@ -2624,9 +2634,10 @@ class VespaNNParameterOptimizer:
             dict(VespaNNParameters.TIMEOUT, **kwargs), **filter_first_copy
         )
         benchmark_filter_first = self.benchmark(**filter_first_parameters)
+        recall_filter_first = self.compute_average_recalls(**filter_first_parameters)
 
         suggestion = self._suggest_approximate_threshold(
-            benchmark_exact, benchmark_filter_first
+            benchmark_exact, benchmark_filter_first, recall_filter_first
         )
 
         report = {
@@ -2634,6 +2645,10 @@ class VespaNNParameterOptimizer:
             "benchmarks": {
                 "exact": benchmark_exact.mean,
                 "filter_first": benchmark_filter_first.mean,
+            },
+            "recall_measurements": {
+                "exact": [1.0] * self.get_number_of_nonempty_buckets(),
+                "filter_first": recall_filter_first.mean,
             },
         }
 
@@ -2643,6 +2658,7 @@ class VespaNNParameterOptimizer:
         self,
         benchmark_exact: BucketedMetricResults,
         benchmark_ann: BucketedMetricResults,
+        recall_ann: BucketedMetricResults,
     ) -> float:
         """
         Suggests a value for [approximateThreshold](https://docs.vespa.ai/en/reference/query-api-reference.html#ranking.matching) based on the two given benchmarks (using exact search only, using HNSW with tuned filter-first parameters).
@@ -2650,6 +2666,7 @@ class VespaNNParameterOptimizer:
         Args:
             benchmark_exact (BucketedMetricResults): Benchmark using exact search only obtained from benchmark().
             benchmark_ann (BucketedMetricResults): Benchmark using HNSW with tuned filter-first parameters obtained from benchmark().
+            recall_ann (BucketedMetricResults): Recall measurements using HNSW with tuned filter-first parameters obtained from compute_average_recalls().
 
         Returns:
             float: Suggested value for approximateThreshold.
@@ -2969,195 +2986,231 @@ class VespaNNParameterOptimizer:
                     ]
                 },
                 "filterFirstExploration": {
-                    "suggestion": 0.26953125,
+                    "suggestion": 0.39453125,
                     "benchmarks": {
                         "0.0": [
-                            3.739,
-                            3.771000000000001,
-                            3.4500000000000006,
-                            2.838,
-                            2.3980000000000015,
-                            1.7650000000000008
+                            4.265999999999999,
+                            4.256000000000001,
+                            3.9430000000000005,
+                            3.246999999999998,
+                            2.4610000000000003,
+                            1.768
                         ],
                         "1.0": [
-                            3.6299999999999977,
-                            3.6859999999999995,
-                            3.432000000000002,
-                            4.166999999999999,
-                            5.185999999999999,
-                            7.606999999999999
+                            3.9259999999999984,
+                            3.6010000000000004,
+                            3.290999999999999,
+                            3.78,
+                            4.927000000000002,
+                            8.415000000000001
                         ],
                         "0.5": [
-                            3.573,
-                            3.543999999999999,
-                            3.535000000000001,
-                            3.8410000000000006,
-                            3.9800000000000004,
-                            5.522999999999999
+                            3.6299999999999977,
+                            3.417,
+                            3.4490000000000007,
+                            3.752,
+                            4.257,
+                            5.99
                         ],
                         "0.25": [
-                            3.4939999999999998,
-                            3.345,
-                            3.341,
-                            3.011999999999999,
-                            2.5979999999999994,
-                            2.4250000000000007
+                            3.5830000000000006,
+                            3.616,
+                            3.3239999999999985,
+                            3.3200000000000016,
+                            2.654999999999999,
+                            2.3789999999999996
                         ],
                         "0.375": [
-                            3.5869999999999993,
-                            3.4060000000000006,
-                            3.252999999999999,
-                            3.318,
-                            3.2269999999999994,
-                            3.7120000000000015
+                            3.465,
+                            3.4289999999999994,
+                            3.196999999999997,
+                            3.228999999999999,
+                            3.167,
+                            3.700999999999999
                         ],
-                        "0.3125": [
-                            3.6000000000000005,
-                            3.401,
-                            3.2300000000000004,
-                            3.089,
-                            2.845999999999999,
-                            2.986
+                        "0.4375": [
+                            3.9880000000000013,
+                            3.463000000000002,
+                            3.4650000000000007,
+                            3.5000000000000013,
+                            3.7499999999999982,
+                            4.724000000000001
                         ],
-                        "0.28125": [
-                            3.5709999999999993,
-                            3.606000000000001,
-                            3.2519999999999993,
-                            3.005,
-                            2.728000000000001,
-                            2.6400000000000006
-                        ],
-                        "0.265625": [
-                            3.613999999999999,
+                        "0.40625": [
+                            3.4990000000000006,
+                            3.3680000000000003,
+                            3.147000000000001,
+                            3.33,
                             3.381,
-                            3.3209999999999997,
-                            3.059,
-                            2.7200000000000006,
-                            2.5120000000000005
+                            4.083999999999998
                         ],
-                        "0.2734375": [
-                            3.588999999999998,
-                            3.399999999999999,
-                            3.3000000000000016,
-                            3.017,
-                            2.695,
-                            2.5850000000000013
+                        "0.390625": [
+                            3.6060000000000008,
+                            3.5269999999999992,
+                            3.2820000000000005,
+                            3.433999999999998,
+                            3.2880000000000007,
+                            3.8609999999999984
+                        ],
+                        "0.3984375": [
+                            3.6870000000000016,
+                            3.386000000000001,
+                            3.336000000000001,
+                            3.316999999999999,
+                            3.5329999999999973,
+                            4.719000000000002
                         ]
                     },
                     "recall_measurements": {
                         "0.0": [
-                            0.8736999999999999,
-                            0.8717999999999994,
-                            0.8905000000000004,
-                            0.9441999999999999,
-                            0.9026000000000005,
-                            0.6339999999999995
+                            0.8758,
+                            0.8768999999999997,
+                            0.8915,
+                            0.9489999999999994,
+                            0.9045999999999998,
+                            0.64
                         ],
                         "1.0": [
-                            0.8741999999999999,
-                            0.8717999999999994,
-                            0.8907000000000005,
-                            0.9669999999999997,
-                            0.9856999999999995,
-                            0.9954999999999997
+                            0.8757,
+                            0.8768999999999997,
+                            0.8909999999999999,
+                            0.9675999999999998,
+                            0.9852999999999996,
+                            0.9957999999999998
                         ],
                         "0.5": [
-                            0.8741999999999999,
-                            0.8717999999999994,
-                            0.8907000000000005,
-                            0.9656999999999997,
-                            0.9764999999999998,
-                            0.9904999999999995
+                            0.8757,
+                            0.8768999999999997,
+                            0.8909999999999999,
+                            0.9660999999999998,
+                            0.9759999999999996,
+                            0.9903
                         ],
                         "0.25": [
-                            0.8741999999999999,
-                            0.8717999999999994,
-                            0.8907000000000005,
-                            0.9526999999999994,
-                            0.9297999999999998,
-                            0.8329
+                            0.8757,
+                            0.8768999999999997,
+                            0.8909999999999999,
+                            0.9553999999999995,
+                            0.9323999999999996,
+                            0.8123000000000004
                         ],
                         "0.375": [
-                            0.8741999999999999,
-                            0.8717999999999994,
-                            0.8907000000000005,
-                            0.9611999999999995,
-                            0.9592999999999998,
-                            0.9623999999999998
+                            0.8757,
+                            0.8768999999999997,
+                            0.8909999999999999,
+                            0.9615999999999997,
+                            0.9599999999999999,
+                            0.9626000000000002
                         ],
-                        "0.3125": [
-                            0.8741999999999999,
-                            0.8717999999999994,
-                            0.8907000000000005,
-                            0.9573999999999995,
-                            0.9425000000000003,
-                            0.9082999999999997
+                        "0.4375": [
+                            0.8757,
+                            0.8768999999999997,
+                            0.8909999999999999,
+                            0.9642999999999999,
+                            0.9697999999999999,
+                            0.9832
                         ],
-                        "0.28125": [
-                            0.8741999999999999,
-                            0.8717999999999994,
-                            0.8907000000000005,
-                            0.9555999999999993,
-                            0.9365000000000001,
-                            0.8779000000000002
+                        "0.40625": [
+                            0.8757,
+                            0.8768999999999997,
+                            0.8909999999999999,
+                            0.9632,
+                            0.9642999999999999,
+                            0.9763999999999997
                         ],
-                        "0.265625": [
-                            0.8741999999999999,
-                            0.8717999999999994,
-                            0.8907000000000005,
-                            0.9542999999999995,
-                            0.9322999999999999,
-                            0.8537
+                        "0.390625": [
+                            0.8757,
+                            0.8768999999999997,
+                            0.8909999999999999,
+                            0.9625999999999999,
+                            0.9617999999999999,
+                            0.9688999999999998
                         ],
-                        "0.2734375": [
-                            0.8741999999999999,
-                            0.8717999999999994,
-                            0.8907000000000005,
-                            0.9544999999999995,
-                            0.9342,
-                            0.8662000000000001
+                        "0.3984375": [
+                            0.8757,
+                            0.8768999999999997,
+                            0.8909999999999999,
+                            0.963,
+                            0.9635000000000001,
+                            0.9738999999999999
                         ]
                     }
                 },
                 "filterFirstThreshold": {
-                    "suggestion": 0.46,
+                    "suggestion": 0.47,
                     "benchmarks": {
                         "hnsw": [
-                            2.818,
-                            2.6899999999999995,
-                            3.1060000000000008,
-                            7.0150000000000015,
-                            11.572000000000003,
-                            32.068999999999996
+                            2.779,
+                            2.725000000000001,
+                            3.151999999999999,
+                            7.138999999999998,
+                            11.362,
+                            32.599999999999994
                         ],
                         "filter_first": [
-                            3.5249999999999995,
-                            3.383,
-                            3.4959999999999973,
-                            3.1700000000000004,
-                            2.7319999999999998,
-                            2.5430000000000006
+                            3.543999999999999,
+                            3.454,
+                            3.443999999999999,
+                            3.4129999999999994,
+                            3.4090000000000003,
+                            4.602999999999998
+                        ]
+                    },
+                    "recall_measurements": {
+                        "hnsw": [
+                            0.8284999999999996,
+                            0.8368999999999996,
+                            0.9007999999999996,
+                            0.9740999999999996,
+                            0.9852999999999993,
+                            0.9937999999999992
+                        ],
+                        "filter_first": [
+                            0.8757,
+                            0.8768999999999997,
+                            0.8909999999999999,
+                            0.9627999999999999,
+                            0.9630000000000001,
+                            0.9718999999999994
                         ]
                     }
                 },
                 "approximateThreshold": {
-                    "suggestion": 0.015,
+                    "suggestion": 0.03,
                     "benchmarks": {
                         "exact": [
-                            33.882999999999996,
-                            32.803999999999995,
-                            24.368000000000002,
-                            9.366000000000001,
-                            6.071999999999998,
-                            2.1279999999999997
+                            33.072,
+                            31.99600000000001,
+                            23.256,
+                            9.155,
+                            6.069000000000001,
+                            2.0949999999999984
                         ],
                         "filter_first": [
-                            2.797000000000001,
-                            2.638000000000001,
-                            3.1540000000000017,
-                            2.977,
-                            2.745,
-                            2.56
+                            2.9570000000000003,
+                            2.91,
+                            3.165000000000001,
+                            3.396999999999998,
+                            3.3310000000000004,
+                            4.046
+                        ]
+                    },
+                    "recall_measurements": {
+                        "exact": [
+                            1.0,
+                            1.0,
+                            1.0,
+                            1.0,
+                            1.0,
+                            1.0
+                        ],
+                        "filter_first": [
+                            0.8284999999999996,
+                            0.8368999999999996,
+                            0.9007999999999996,
+                            0.9627999999999999,
+                            0.9630000000000001,
+                            0.9718999999999994
                         ]
                     }
                 },
@@ -3165,37 +3218,37 @@ class VespaNNParameterOptimizer:
                     "suggestion": 0.49,
                     "benchmarks": {
                         "post_filtering": [
-                            1.9979999999999996,
-                            2.248,
-                            3.0170000000000003,
-                            7.204,
-                            12.673999999999996,
-                            11.397999999999993
+                            2.0609999999999995,
+                            2.448,
+                            3.097999999999999,
+                            7.200999999999999,
+                            11.463000000000006,
+                            11.622999999999996
                         ],
                         "filter_first": [
-                            2.8349999999999995,
-                            3.0579999999999994,
-                            3.105999999999999,
-                            3.375999999999999,
-                            2.8720000000000017,
-                            2.157999999999999
+                            3.177999999999999,
+                            2.717000000000001,
+                            3.177,
+                            3.5000000000000004,
+                            3.455,
+                            2.1159999999999997
                         ]
                     },
                     "recall_measurements": {
                         "post_filtering": [
-                            0.828,
-                            0.8335000000000005,
-                            0.8943000000000001,
-                            0.9527999999999994,
-                            0.9508999999999996,
-                            0.1917
+                            0.8288999999999995,
+                            0.8355,
+                            0.8967999999999998,
+                            0.9519999999999997,
+                            0.9512999999999994,
+                            0.19180000000000003
                         ],
                         "filter_first": [
-                            0.828,
-                            0.8359000000000002,
-                            0.8980999999999998,
-                            0.9543999999999996,
-                            0.9338,
+                            0.8284999999999996,
+                            0.8368999999999996,
+                            0.9007999999999996,
+                            0.9627999999999999,
+                            0.9630000000000001,
                             1.0
                         ]
                     }
