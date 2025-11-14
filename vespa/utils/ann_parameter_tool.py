@@ -92,7 +92,7 @@ if __name__ == "__main__":
         plt.xlabel("Fraction filtered out")
         plt.ylabel("Number of queries")
         axs = plt.gca()
-        axs.set_xlim(xmin=0, xmax=1)
+        axs.set_xlim(xmin=-0.01, xmax=1.01)
         axs.set_ylim(ymin=0)
         plt.show()
 
@@ -127,7 +127,7 @@ if __name__ == "__main__":
         plt.legend()
         axs = plt.gca()
         axs.set_xlim(xmin=0, xmax=1)
-        axs.set_ylim(ymin=0, ymax=1)
+        axs.set_ylim(ymin=0, ymax=1.01)
         plt.show()
 
     # Plot debug information that led to suggestions

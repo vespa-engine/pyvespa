@@ -3717,9 +3717,15 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
             values=list(map(lambda x: [x], response_times_approx)),
             filtered_out_ratios=filtered_out_ratios,
         )
+        recall_approx = BucketedMetricResults(
+            metric_name="recall",
+            buckets=buckets,
+            values=[[0.90]] * self.num,
+            filtered_out_ratios=filtered_out_ratios,
+        )
 
         approximate_threshold = self.optimizer._suggest_approximate_threshold(
-            benchmark_exact, benchmark_approx
+            benchmark_exact, benchmark_approx, recall_approx
         )
         self.assertGreaterEqual(1 - approximate_threshold, lower)
         self.assertLessEqual(1 - approximate_threshold, upper)
@@ -3795,15 +3801,27 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
             values=list(map(lambda x: [x], response_times_hnsw)),
             filtered_out_ratios=filtered_out_ratios,
         )
+        recall_hnsw = BucketedMetricResults(
+            metric_name="recall",
+            buckets=buckets,
+            values=[[0.90]] * self.num,
+            filtered_out_ratios=filtered_out_ratios,
+        )
         benchmark_filter_first = BucketedMetricResults(
             metric_name="searchtime",
             buckets=buckets,
             values=list(map(lambda x: [x], response_times_filter_first)),
             filtered_out_ratios=filtered_out_ratios,
         )
+        recall_filter_first = BucketedMetricResults(
+            metric_name="recall",
+            buckets=buckets,
+            values=[[0.85]] * self.num,
+            filtered_out_ratios=filtered_out_ratios,
+        )
 
         filter_first_threshold = self.optimizer._suggest_filter_first_threshold(
-            benchmark_hnsw, benchmark_filter_first
+            benchmark_hnsw, recall_hnsw, benchmark_filter_first, recall_filter_first
         )
         self.assertGreaterEqual(1 - filter_first_threshold, lower)
         self.assertLessEqual(1 - filter_first_threshold, upper)
