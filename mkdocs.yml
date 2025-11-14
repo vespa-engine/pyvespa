@@ -70,6 +70,10 @@ plugins:
     - autorefs
     - mkdocs-jupyter:
         ignore_h1_titles: True
+        remove_tag_config:
+          # Hide code input cells that have the 'hide-input' tag
+          remove_input_tags:
+            - hide-input
     - mkdocstrings:
         handlers:
             python:
