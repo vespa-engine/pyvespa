@@ -249,7 +249,7 @@ def calculate_searchtime_stats(searchtimes: List[float]) -> Dict[str, float]:
 def execute_queries(
     app: Vespa,
     query_bodies: List[dict],
-    max_concurrent: int = 100,
+    max_concurrent: int = 10,
 ) -> Tuple[List[VespaQueryResponse], List[float]]:
     """
     Execute queries and collect timing information.
