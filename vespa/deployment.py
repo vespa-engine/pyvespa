@@ -103,7 +103,7 @@ class VespaDocker(VespaDeployment):
             cfgsrv_port (int): The Vespa Config Server port. Default is 19071.
             debug_port (int): The port to connect to for debugging the Vespa container. Default is 5005.
             output_file (str): The file to write output messages to.
-            container_memory (int): Container memory limit in bytes. Default is 0 (unlimited).
+            container_memory (int): Container maximum memory usage limit, in bytes. Default is 0 (unlimited).
                 Processes will be killed if memory usage exceeds this limit.
                 Set to 0 for no limit, or specify a limit like 8 * 1024**3 for 8GB.
                 Vespa requires at least 4GB to run.
