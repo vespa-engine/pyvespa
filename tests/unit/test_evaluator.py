@@ -16,6 +16,8 @@ from typing import List, Dict, Any, Optional
 import tempfile
 import os
 import csv
+import shutil
+import json
 
 
 @dataclass
@@ -3972,6 +3974,157 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         # Check for reasonable number
         self.assertGreaterEqual(filter_first_exploration, 0.20)
         self.assertLessEqual(filter_first_exploration, 0.40)
+
+    def test_checkpoint_and_resume(self):
+        """Test that VespaNNParameterOptimizer can save and resume progress."""
+        # Create a temporary directory for state files
+        temp_dir = tempfile.mkdtemp()
+        run_name = "test_checkpoint_run"
+
+        # Extract just the query dictionaries from queries_with_hitratios
+        queries = [q for q, _ in self.queries_with_hitratios]
+
+        try:
+            # Create first optimizer instance with a specific run_name
+            optimizer1 = VespaNNParameterOptimizer(
+                app=self.mock_app,
+                queries=queries,
+                hits=100,
+                buckets_per_percent=2,
+                run_name=run_name,
+                resume=False,  # Don't resume on first run
+            )
+
+            # Override state_dir to use temp directory
+            optimizer1.state_dir = temp_dir
+            optimizer1.run_state_file = os.path.join(temp_dir, f"{run_name}_state.json")
+
+            # Manually distribute queries to buckets and save state
+            optimizer1.determine_hit_ratios_and_distribute_to_buckets(
+                optimizer1.queries
+            )
+            bucket_report = {
+                "buckets_per_percent": optimizer1.buckets_per_percent,
+                "bucket_interval_width": optimizer1.get_bucket_interval_width(),
+                "non_empty_buckets": optimizer1.get_non_empty_buckets(),
+                "filtered_out_ratios": optimizer1.get_filtered_out_ratios(),
+                "hit_ratios": list(
+                    map(lambda x: 1 - x, optimizer1.get_filtered_out_ratios())
+                ),
+                "query_distribution": optimizer1.get_query_distribution()[1],
+            }
+            optimizer1._save_stage(
+                "bucket_distribution",
+                {"buckets": optimizer1.buckets, "bucket_report": bucket_report},
+            )
+
+            # Verify state file was created
+            self.assertTrue(os.path.exists(optimizer1.run_state_file))
+
+            # Verify state contains expected data
+            import json
+
+            with open(optimizer1.run_state_file, "r") as f:
+                state = json.load(f)
+
+            self.assertIn("completed_stages", state)
+            self.assertIn("bucket_distribution", state["completed_stages"])
+            self.assertIn("data", state["completed_stages"]["bucket_distribution"])
+
+            # Create second optimizer instance with same run_name to resume
+            optimizer2 = VespaNNParameterOptimizer(
+                app=self.mock_app,
+                queries=queries,
+                hits=100,
+                buckets_per_percent=2,
+                run_name=run_name,
+                resume=True,  # Resume from saved state
+            )
+
+            # Override state_dir to use temp directory
+            optimizer2.state_dir = temp_dir
+            optimizer2.run_state_file = os.path.join(temp_dir, f"{run_name}_state.json")
+            optimizer2.load_state_if_exists()
+
+            # Verify that bucket_distribution stage is marked as complete
+            self.assertTrue(optimizer2._is_stage_complete("bucket_distribution"))
+
+            # Verify that we can retrieve the saved data
+            saved_data = optimizer2._get_stage_data("bucket_distribution")
+            self.assertIsNotNone(saved_data)
+            self.assertIn("buckets", saved_data)
+            self.assertIn("bucket_report", saved_data)
+
+            # Verify buckets were loaded correctly
+            self.assertEqual(len(optimizer2.buckets), len(optimizer1.buckets))
+
+            # Test that other stages are not yet complete
+            self.assertFalse(optimizer2._is_stage_complete("filter_first_exploration"))
+            self.assertFalse(optimizer2._is_stage_complete("filter_first_threshold"))
+            self.assertFalse(optimizer2._is_stage_complete("approximate_threshold"))
+            self.assertFalse(optimizer2._is_stage_complete("post_filter_threshold"))
+
+            # Test saving additional stages
+            test_report = {
+                "suggestion": 0.5,
+                "benchmarks": {},
+                "recall_measurements": {},
+            }
+            optimizer2._save_stage("filter_first_exploration", test_report)
+
+            # Verify the stage was saved
+            self.assertTrue(optimizer2._is_stage_complete("filter_first_exploration"))
+            retrieved_report = optimizer2._get_stage_data("filter_first_exploration")
+            self.assertEqual(retrieved_report["suggestion"], 0.5)
+
+        finally:
+            # Clean up temp directory
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+
+    def test_checkpoint_resume_false(self):
+        """Test that resume=False creates a new run even if state file exists."""
+        temp_dir = tempfile.mkdtemp()
+        run_name = "test_no_resume_run"
+
+        try:
+            # Create a state file manually
+            state_file = os.path.join(temp_dir, f"{run_name}_state.json")
+            initial_state = {
+                "run_name": run_name,
+                "created_at": "2024-01-01T00:00:00",
+                "completed_stages": {
+                    "bucket_distribution": {
+                        "completed_at": "2024-01-01T00:00:00",
+                        "data": {"buckets": [], "bucket_report": {}},
+                    }
+                },
+                "metadata": {},
+            }
+            with open(state_file, "w") as f:
+                json.dump(initial_state, f)
+
+            # Create optimizer with resume=False
+            queries = [q for q, _ in self.queries_with_hitratios]
+            optimizer = VespaNNParameterOptimizer(
+                app=self.mock_app,
+                queries=queries,
+                hits=100,
+                run_name=run_name,
+                resume=False,
+            )
+
+            # Override state_dir
+            optimizer.state_dir = temp_dir
+            optimizer.run_state_file = state_file
+            optimizer.load_state_if_exists()
+
+            # Verify that the stage is NOT marked as complete (fresh start)
+            self.assertFalse(optimizer._is_stage_complete("bucket_distribution"))
+
+        finally:
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
 
 
 class TestBucketedMetricResults(unittest.TestCase):
