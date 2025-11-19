@@ -19,6 +19,7 @@ from datetime import datetime
 from enum import Enum
 from abc import ABC, abstractmethod
 import re
+import json
 import urllib.parse
 from vespa.application import Vespa
 from vespa.io import VespaQueryResponse
@@ -1839,8 +1840,8 @@ class VespaNNGlobalFilterHitratioEvaluator:
                     self.verify_target_hits is not None
                     and int(blueprint["target_hits"]) != self.verify_target_hits
                 ):
-                    print(
-                        f"Warning: Number of targetHits of query is not {self.verify_target_hits}"
+                    logger.warning(
+                        f"Number of targetHits of query is not {self.verify_target_hits}"
                     )
 
             all_hit_ratios.append(hit_ratios)
@@ -1901,8 +1902,8 @@ class VespaNNRecallEvaluator:
         ids_approx = list(map(lambda x: x["id"], results_approx))
 
         if len(ids_exact) != self.hits:
-            print(
-                f"Warning: Exact query did not return {self.hits} hits ({len(ids_exact)} hits)."
+            logger.warning(
+                f"Exact query did not return {self.hits} hits ({len(ids_exact)} hits)."
             )
 
         recall = sum(map(lambda x: 1 if x in ids_exact else 0, ids_approx))
@@ -2100,6 +2101,9 @@ class VespaNNParameterOptimizer:
         hits (int): Number of hits to use in recall computations. Has to match the parameter targetHits in the used ANN queries.
         buckets_per_percent (int, optional): How many buckets are created for every percent point, "resolution" of the suggestions. Defaults to 2.
         print_progress (bool, optional): Whether to print progress information while determining suggestions. Defaults to False.
+        max_concurrent (int, optional): Maximum number of concurrent requests when issuing queries. Defaults to 10.
+        run_name (Optional[str], optional): Name of this optimization run. Defaults to None.
+        resume (bool, optional): Whether to resume a previous optimization run with the same name. Defaults to True.
     """
 
     def __init__(
@@ -2110,6 +2114,8 @@ class VespaNNParameterOptimizer:
         buckets_per_percent: int = 2,
         print_progress: bool = False,
         max_concurrent: int = 10,
+        run_name: Optional[str] = None,
+        resume: bool = True,
     ):
         self.app = app
         self.queries = queries
@@ -2121,6 +2127,60 @@ class VespaNNParameterOptimizer:
 
         self.print_progress = print_progress
         self.max_concurrent = max_concurrent
+
+        self.run_name = (
+            run_name or f"vespa_nn_opt{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        )
+        self.resume = resume
+        # Should create a .pyvespa directory in the user's home directory
+        self.state_dir = os.path.join(os.path.expanduser("~"), ".pyvespa")
+        os.makedirs(self.state_dir, exist_ok=True)
+        self.run_state_file = os.path.join(
+            self.state_dir, f"{self.run_name}_state.json"
+        )
+        self.load_state_if_exists()
+
+    def load_state_if_exists(self):
+        """
+        Loads the state from a previous run if the state file exists and resume is True.
+        """
+        if self.resume and os.path.exists(self.run_state_file):
+            with open(self.run_state_file, "r") as f:
+                self._state = json.load(f)
+                self.buckets = self._state.get("buckets", self.buckets)
+            if self.print_progress:
+                logger.info(f"Resumed optimization run from {self.run_state_file}")
+        else:
+            self._state = {
+                "run_name": self.run_name,
+                "created_at": datetime.now().isoformat(),
+                "completed_stages": {},
+                "metadata": {
+                    "num_queries": len(self.queries),
+                    "hits": self.hits,
+                    "buckets_per_percent": self.buckets_per_percent,
+                },
+            }
+
+    def _save_stage(self, stage_name: str, data: dict):
+        """Save completion of a stage."""
+        self._state["completed_stages"][stage_name] = {
+            "completed_at": datetime.now().isoformat(),
+            "data": data,
+        }
+        with open(self.run_state_file, "w") as f:
+            json.dump(self._state, f, indent=2, default=str)
+        logger.info(f"Saved stage: {stage_name}")
+
+    def _is_stage_complete(self, stage_name: str) -> bool:
+        """Check if a stage is already complete."""
+        return stage_name in self._state.get("completed_stages", {})
+
+    def _get_stage_data(self, stage_name: str) -> Optional[dict]:
+        """Get data from a completed stage."""
+        if self._is_stage_complete(stage_name):
+            return self._state["completed_stages"][stage_name]["data"]
+        return None
 
     def get_bucket_interval_width(self) -> float:
         """
@@ -2250,7 +2310,7 @@ class VespaNNParameterOptimizer:
                 bucket_number = self.filtered_out_to_bucket(filtered_out)
                 self.buckets[bucket_number].append(query)
             else:
-                print(f"Warning: Query {query} has no hitratio.")
+                logger.warning(f"Query {query} has no hitratio.")
 
         return self.buckets
 
@@ -2274,8 +2334,8 @@ class VespaNNParameterOptimizer:
         for i in range(0, len(hitratio_list)):
             hitratios = hitratio_list[i]
             if len(hitratios) == 0:
-                print(
-                    f"Warning: No hit ratios found for query #{i}, skipping query (No nearestNeighbor operator?)"
+                logger.warning(
+                    f"No hit ratios found for query #{i}, skipping query (No nearestNeighbor operator?)"
                 )
 
         # Only keep queries for which we found exactly one hit ratio
@@ -2317,7 +2377,7 @@ class VespaNNParameterOptimizer:
             List[List[str]]: List of buckets.
         """
         if self.print_progress:
-            print("Determining hit ratios of queries")
+            logger.info("Determining hit ratios of queries")
 
         # Read query file with get queries
         with open(filename) as file:
@@ -2367,8 +2427,8 @@ class VespaNNParameterOptimizer:
         for lower, upper in check_intervals:
             if not self._has_query_with_filtered_out(lower, upper):
                 if self.print_progress:
-                    print(
-                        f"  No queries found with filtered-out ratio in [{lower},{upper})"
+                    logger.warning(
+                        f"No queries found with filtered-out ratio in [{lower},{upper})"
                     )
 
                 return False
@@ -2388,8 +2448,8 @@ class VespaNNParameterOptimizer:
 
             if bucket and len(bucket) < 10:
                 if self.print_progress:
-                    print(
-                        f"  Bucket for filtered-out ratios in [{self.bucket_to_filtered_out(bucket_num)},{self.bucket_to_filtered_out(bucket_num + 1)}) only has {len(bucket)} queries."
+                    logger.info(
+                        f"Bucket for filtered-out ratios in [{self.bucket_to_filtered_out(bucket_num)},{self.bucket_to_filtered_out(bucket_num + 1)}) only has {len(bucket)} queries."
                     )
                 return False
 
@@ -2424,7 +2484,7 @@ class VespaNNParameterOptimizer:
             BucketedMetricResults: The benchmark results.
         """
         if self.print_progress:
-            print("->Benchmarking", end="")
+            logger.info("Benchmarking")
         results = []
         non_empty_buckets = []
         processed_buckets = 0
@@ -2432,9 +2492,8 @@ class VespaNNParameterOptimizer:
             bucket = self.buckets[i]
             if bucket:
                 if self.print_progress:
-                    print(
-                        f"\r->Benchmarking: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(), 2)}%",
-                        end="",
+                    logger.info(
+                        f"Benchmarking: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(), 2)}%"
                     )
                 processed_buckets += 1
                 benchmarker = VespaQueryBenchmarker(
@@ -2444,7 +2503,8 @@ class VespaNNParameterOptimizer:
                 results.append(response_times)
                 non_empty_buckets.append(i)
 
-        print("\r  Benchmarking: 100.0%")
+        if self.print_progress:
+            logger.info("Benchmarking: 100.0%")
 
         return BucketedMetricResults(
             metric_name="searchtime",
@@ -2466,7 +2526,7 @@ class VespaNNParameterOptimizer:
             BucketedMetricResults: The recall results.
         """
         if self.print_progress:
-            print("->Computing recall", end="")
+            logger.info("Computing recall")
         results = []
         non_empty_buckets = []
         processed_buckets = 0
@@ -2474,9 +2534,8 @@ class VespaNNParameterOptimizer:
             bucket = self.buckets[i]
             if bucket:
                 if self.print_progress:
-                    print(
-                        f"\r->Computing recall: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(), 2)}%",
-                        end="",
+                    logger.info(
+                        f"Computing recall: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(), 2)}%"
                     )
                 recall_evaluator = VespaNNRecallEvaluator(
                     bucket, self.hits, self.app, **kwargs
@@ -2486,7 +2545,8 @@ class VespaNNParameterOptimizer:
                 non_empty_buckets.append(i)
                 processed_buckets += 1
 
-        print("\r  Computing recall: 100.0%")
+        if self.print_progress:
+            logger.info("Computing recall: 100.0%")
 
         return BucketedMetricResults(
             metric_name="recall",
@@ -2874,7 +2934,9 @@ class VespaNNParameterOptimizer:
         filter_first_exploration = (right - left) / 2
         for i in range(0, 7):
             if self.print_progress:
-                print(f"  Testing {filter_first_exploration}")
+                logger.info(
+                    f"Testing filterFirstExploration: {filter_first_exploration}"
+                )
             benchmark_candidate, recall_candidate = self._test_filter_first_exploration(
                 filter_first_exploration
             )
@@ -3256,74 +3318,125 @@ class VespaNNParameterOptimizer:
             }
             ```
         """
-        print("Distributing queries to buckets")
-        # Distribute queries to buckets
-        self.determine_hit_ratios_and_distribute_to_buckets(self.queries)
+        # Stage 1: Bucket distribution
+        if not self._is_stage_complete("bucket_distribution"):
+            if self.print_progress:
+                logger.info("Distributing queries to buckets")
+            self.determine_hit_ratios_and_distribute_to_buckets(self.queries)
 
-        # Check if the queries we have are deemed sufficient
-        if not self.has_sufficient_queries():
-            print(
-                "  Warning: Selection of queries might not cover enough hit ratios to get meaningful results."
+            if not self.has_sufficient_queries():
+                if self.print_progress:
+                    logger.warning(
+                        "Selection of queries might not cover enough hit ratios to get meaningful results."
+                    )
+
+            if not self.buckets_sufficiently_filled():
+                if self.print_progress:
+                    logger.warning("Only few queries for a specific hit ratio.")
+
+            bucket_report = {
+                "buckets_per_percent": self.buckets_per_percent,
+                "bucket_interval_width": self.get_bucket_interval_width(),
+                "non_empty_buckets": self.get_non_empty_buckets(),
+                "filtered_out_ratios": self.get_filtered_out_ratios(),
+                "hit_ratios": list(
+                    map(lambda x: 1 - x, self.get_filtered_out_ratios())
+                ),
+                "query_distribution": self.get_query_distribution()[1],
+            }
+            self._save_stage(
+                "bucket_distribution",
+                {"buckets": self.buckets, "bucket_report": bucket_report},
             )
+        else:
+            stage_data = self._get_stage_data("bucket_distribution")
+            self.buckets = stage_data["buckets"]
+            bucket_report = stage_data["bucket_report"]
+            if self.print_progress:
+                logger.info("Resumed: Loaded bucket distribution from saved state")
 
-        if not self.buckets_sufficiently_filled():
-            print("  Warning: Only few queries for a specific hit ratio.")
-
-        bucket_report = {
-            "buckets_per_percent": self.buckets_per_percent,
-            "bucket_interval_width": self.get_bucket_interval_width(),
-            "non_empty_buckets": self.get_non_empty_buckets(),
-            "filtered_out_ratios": self.get_filtered_out_ratios(),
-            "hit_ratios": list(map(lambda x: 1 - x, self.get_filtered_out_ratios())),
-            "query_distribution": self.get_query_distribution()[1],
-        }
         if self.print_progress:
-            print(bucket_report)
+            logger.info(f"Bucket report: {bucket_report}")
 
-        # Determine filter-first parameters first
-        # filterFirstExploration
-        if self.print_progress:
-            print("Determining suggestion for filterFirstExploration")
-        filter_first_exploration_report = self.suggest_filter_first_exploration()
+        # Stage 2: filterFirstExploration
+        if not self._is_stage_complete("filter_first_exploration"):
+            if self.print_progress:
+                logger.info("Determining suggestion for filterFirstExploration")
+            filter_first_exploration_report = self.suggest_filter_first_exploration()
+            self._save_stage(
+                "filter_first_exploration", filter_first_exploration_report
+            )
+        else:
+            filter_first_exploration_report = self._get_stage_data(
+                "filter_first_exploration"
+            )
+            if self.print_progress:
+                logger.info("Resumed: Loaded filterFirstExploration from saved state")
+
         filter_first_exploration = filter_first_exploration_report["suggestion"]
         if self.print_progress:
-            print(filter_first_exploration_report)
+            logger.info(
+                f"filterFirstExploration report: {filter_first_exploration_report}"
+            )
 
-        # filterFirstThreshold
-        if self.print_progress:
-            print("Determining suggestion for filterFirstThreshold")
-        filter_first_threshold_report = self.suggest_filter_first_threshold(
-            **{"ranking.matching.filterFirstExploration": filter_first_exploration}
-        )
+        # Stage 3: filterFirstThreshold
+        if not self._is_stage_complete("filter_first_threshold"):
+            if self.print_progress:
+                logger.info("Determining suggestion for filterFirstThreshold")
+            filter_first_threshold_report = self.suggest_filter_first_threshold(
+                **{"ranking.matching.filterFirstExploration": filter_first_exploration}
+            )
+            self._save_stage("filter_first_threshold", filter_first_threshold_report)
+        else:
+            filter_first_threshold_report = self._get_stage_data(
+                "filter_first_threshold"
+            )
+            if self.print_progress:
+                logger.info("Resumed: Loaded filterFirstThreshold from saved state")
+
         filter_first_threshold = filter_first_threshold_report["suggestion"]
         if self.print_progress:
-            print(filter_first_threshold_report)
+            logger.info(f"filterFirstThreshold report: {filter_first_threshold_report}")
 
-        # approximateThreshold
-        if self.print_progress:
-            print("Determining suggestion for approximateThreshold")
-        approximate_threshold_report = self.suggest_approximate_threshold(
-            **{
-                "ranking.matching.filterFirstThreshold": filter_first_threshold,
-                "ranking.matching.filterFirstExploration": filter_first_exploration,
-            }
-        )
+        # Stage 4: approximateThreshold
+        if not self._is_stage_complete("approximate_threshold"):
+            if self.print_progress:
+                logger.info("Determining suggestion for approximateThreshold")
+            approximate_threshold_report = self.suggest_approximate_threshold(
+                **{
+                    "ranking.matching.filterFirstThreshold": filter_first_threshold,
+                    "ranking.matching.filterFirstExploration": filter_first_exploration,
+                }
+            )
+            self._save_stage("approximate_threshold", approximate_threshold_report)
+        else:
+            approximate_threshold_report = self._get_stage_data("approximate_threshold")
+            if self.print_progress:
+                logger.info("Resumed: Loaded approximateThreshold from saved state")
+
         approximate_threshold = approximate_threshold_report["suggestion"]
         if self.print_progress:
-            print(approximate_threshold_report)
+            logger.info(f"approximateThreshold report: {approximate_threshold_report}")
 
-        # postFilterThreshold
+        # Stage 5: postFilterThreshold
+        if not self._is_stage_complete("post_filter_threshold"):
+            if self.print_progress:
+                logger.info("Determining suggestion for postFilterThreshold")
+            post_filter_threshold_report = self.suggest_post_filter_threshold(
+                **{
+                    "ranking.matching.approximateThreshold": approximate_threshold,
+                    "ranking.matching.filterFirstThreshold": filter_first_threshold,
+                    "ranking.matching.filterFirstExploration": filter_first_exploration,
+                }
+            )
+            self._save_stage("post_filter_threshold", post_filter_threshold_report)
+        else:
+            post_filter_threshold_report = self._get_stage_data("post_filter_threshold")
+            if self.print_progress:
+                logger.info("Resumed: Loaded postFilterThreshold from saved state")
+
         if self.print_progress:
-            print("Determining suggestion for postFilterThreshold")
-        post_filter_threshold_report = self.suggest_post_filter_threshold(
-            **{
-                "ranking.matching.approximateThreshold": approximate_threshold,
-                "ranking.matching.filterFirstThreshold": filter_first_threshold,
-                "ranking.matching.filterFirstExploration": filter_first_exploration,
-            }
-        )
-        if self.print_progress:
-            print(post_filter_threshold_report)
+            logger.info(f"postFilterThreshold report: {post_filter_threshold_report}")
 
         report = {
             "buckets": bucket_report,
