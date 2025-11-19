@@ -36,6 +36,7 @@ if not logger.hasHandlers():
     )
     handler.setFormatter(formatter)
     logger.addHandler(handler)
+    logger.setLevel(logging.INFO)  # Set logger level, not just handler level
 
 
 class RandomHitsSamplingStrategy(Enum):
