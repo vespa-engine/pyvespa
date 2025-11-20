@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 from vespa.evaluation import (
     VespaEvaluator,
     VespaMatchEvaluator,
@@ -3983,7 +3984,7 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
 
         try:
             # Mock expanduser to use temp directory instead of home directory
-            with unittest.mock.patch("os.path.expanduser", return_value=temp_dir):
+            with patch("os.path.expanduser", return_value=temp_dir):
                 # Create and distribute queries to buckets
                 optimizer1 = VespaNNParameterOptimizer(
                     app=self.mock_app,
@@ -4059,7 +4060,7 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
             )
 
             # Test resuming from saved state
-            with unittest.mock.patch("os.path.expanduser", return_value=temp_dir):
+            with patch("os.path.expanduser", return_value=temp_dir):
                 optimizer2 = VespaNNParameterOptimizer(
                     app=self.mock_app,
                     queries=queries,
