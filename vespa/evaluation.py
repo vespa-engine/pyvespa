@@ -2196,6 +2196,7 @@ class VespaNNParameterOptimizer:
                     "buckets_per_percent": self.buckets_per_percent,
                 },
             }
+            logger.info(f"Saving intermediate results to {self.run_state_file}")
 
     def _save_stage(self, stage_name: str, data: dict):
         """Save completion of a stage."""
