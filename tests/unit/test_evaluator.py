@@ -4281,7 +4281,7 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         # Should raise ValueError
         with self.assertRaises(ValueError) as context:
             optimizer._validate_state_metadata(saved_metadata)
-        self.assertIn("num_queries", str(context.exception))
+        self.assertIn("different number of queries", str(context.exception))
 
     def test_validate_state_metadata_missing_fields(self):
         """Test that validation handles missing metadata fields gracefully."""
