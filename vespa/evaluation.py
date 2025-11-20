@@ -2103,8 +2103,41 @@ class VespaNNParameterOptimizer:
         buckets_per_percent (int, optional): How many buckets are created for every percent point, "resolution" of the suggestions. Defaults to 2.
         print_progress (bool, optional): Whether to print progress information while determining suggestions. Defaults to False.
         max_concurrent (int, optional): Maximum number of concurrent requests when issuing queries. Defaults to 10.
-        run_name (Optional[str], optional): Name of this optimization run. Defaults to None.
-        resume (bool, optional): Whether to resume a previous optimization run with the same name. Defaults to True.
+        run_name (Optional[str], optional): Name of this optimization run. Defaults to None. If None, a name on the format vespa_nn_opt_YYYYMMDD_HHMMSS is generated automatically.
+        resume (bool, optional): Whether to resume a previous optimization run. Requires a saved run with the same name to have effect. Defaults to True.
+
+    Example usage:
+        ```python
+        from vespa.application import Vespa
+        from vespa.evaluation import VespaNNParameterOptimizer
+
+        app = Vespa(url="http://localhost", port=8080)
+
+        queries = [
+            {
+                "yql": "select * from sources * where my_filter > 100 AND ({targetHits:100}nearestNeighbor(embedding,q))",
+                "query": "your query text",
+                "ranking": "my_ann_ranking_profile",
+                "input.query(q)": "embed(your query text)"
+            },
+            {
+                "yql": "select * from sources * where my_filter > 200 AND ({targetHits:100}nearestNeighbor(embedding,q))",
+                "query": "another query text",
+                "ranking": "my_ann_ranking_profile",
+                "input.query(q)": "embed(another query text)"
+            },
+        ]
+        optimizer = VespaNNParameterOptimizer(
+            app=app,
+            queries=queries,
+            hits=100, # Should match targetHits in the ANN-queries
+            buckets_per_percent=2,
+            print_progress=True,
+            max_concurrent=10, # Number of concurrent requests, reduce if you have expensive queries relative to your Vespa application resources
+            run_name="my_optimization_run", # Optional name for this optimization run - will save intermediate results to disk in ~/.pyvespa/{run_name}_state.json
+            resume=True, # Whether to resume a previous run with the same name if it exists
+        )
+        ```
     """
 
     def __init__(
@@ -2130,7 +2163,7 @@ class VespaNNParameterOptimizer:
         self.max_concurrent = max_concurrent
 
         self.run_name = (
-            run_name or f"vespa_nn_opt{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            run_name or f"vespa_nn_opt_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         )
         self.resume = resume
         # Should create a .pyvespa directory in the user's home directory
