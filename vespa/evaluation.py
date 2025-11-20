@@ -2175,28 +2175,98 @@ class VespaNNParameterOptimizer:
         )
         self.load_state_if_exists()
 
+    def _create_fresh_state(self) -> dict:
+        """
+        Creates a fresh state dictionary for a new optimization run.
+
+        Returns:
+            dict: Fresh state dictionary with metadata
+        """
+        return {
+            "run_name": self.run_name,
+            "created_at": datetime.now().isoformat(),
+            "completed_stages": {},
+            "metadata": {
+                "num_queries": len(self.queries),
+                "hits": self.hits,
+                "buckets_per_percent": self.buckets_per_percent,
+            },
+        }
+
+    def _validate_state_metadata(self, saved_metadata: dict) -> bool:
+        """
+        Validates that saved state metadata matches current configuration.
+
+        Args:
+            saved_metadata: Metadata dictionary from saved state
+
+        Returns:
+            bool: True if metadata matches, False otherwise
+
+        Raises:
+            ValueError: If there's a configuration mismatch
+        """
+        if saved_metadata.get("buckets_per_percent") != self.buckets_per_percent:
+            logger.warning(
+                f"Saved state has different buckets_per_percent "
+                f"({saved_metadata.get('buckets_per_percent')} vs {self.buckets_per_percent}). "
+                f"Starting fresh run."
+            )
+            raise ValueError(
+                "Saved state has different `buckets_per_percent` than current configuration."
+            )
+
+        if saved_metadata.get("hits") != self.hits:
+            logger.warning(
+                f"Saved state has different hits "
+                f"({saved_metadata.get('hits')} vs {self.hits}). "
+                f"Starting fresh run."
+            )
+            raise ValueError(
+                "Saved state has different `hits` than current configuration."
+            )
+
+        if saved_metadata.get("num_queries") != len(self.queries):
+            logger.warning(
+                f"Saved state has different number of queries "
+                f"({saved_metadata.get('num_queries')} vs {len(self.queries)}). "
+                f"Starting fresh run."
+            )
+            raise ValueError(
+                "Saved state has different number of queries than current configuration."
+            )
+
+        return True
+
     def load_state_if_exists(self) -> None:
         """
         Loads the state from a previous run if the state file exists and resume is True.
+        Validates that the saved configuration matches the current parameters.
+        Falls back to creating a fresh state if validation fails or file is corrupted.
         """
         if self.resume and os.path.exists(self.run_state_file):
-            with open(self.run_state_file, "r") as f:
-                self._state = json.load(f)
+            try:
+                with open(self.run_state_file, "r") as f:
+                    self._state = json.load(f)
+
+                # Validate that saved state matches current configuration
+                saved_metadata = self._state.get("metadata", {})
+                self._validate_state_metadata(saved_metadata)
+
                 # Load bucket indices
                 self.buckets = self._state.get("bucket_indices", self.buckets)
-            if self.print_progress:
-                logger.info(f"Resumed optimization run from {self.run_state_file}")
+
+                if self.print_progress:
+                    logger.info(f"Resumed optimization run from {self.run_state_file}")
+            except (json.JSONDecodeError, IOError, KeyError, ValueError) as e:
+                # Fall through to create fresh state
+                logger.warning(
+                    f"Failed to load or validate saved state: {e}. Starting fresh run."
+                )
+                self._state = self._create_fresh_state()
+                logger.info(f"Saving intermediate results to {self.run_state_file}")
         else:
-            self._state = {
-                "run_name": self.run_name,
-                "created_at": datetime.now().isoformat(),
-                "completed_stages": {},
-                "metadata": {
-                    "num_queries": len(self.queries),
-                    "hits": self.hits,
-                    "buckets_per_percent": self.buckets_per_percent,
-                },
-            }
+            self._state = self._create_fresh_state()
             logger.info(f"Saving intermediate results to {self.run_state_file}")
 
     def _save_stage(self, stage_name: str, data: dict) -> None:
