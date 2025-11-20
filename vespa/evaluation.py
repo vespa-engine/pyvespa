@@ -2175,7 +2175,7 @@ class VespaNNParameterOptimizer:
         )
         self.load_state_if_exists()
 
-    def load_state_if_exists(self):
+    def load_state_if_exists(self) -> None:
         """
         Loads the state from a previous run if the state file exists and resume is True.
         """
@@ -2199,17 +2199,27 @@ class VespaNNParameterOptimizer:
             }
             logger.info(f"Saving intermediate results to {self.run_state_file}")
 
-    def _save_stage(self, stage_name: str, data: dict):
-        """Save completion of a stage."""
+    def _save_stage(self, stage_name: str, data: dict) -> None:
+        """
+        Save the state of a completed stage.
+        Args:
+            stage_name (str): Name of the completed stage.
+            data (dict): Data to save for the completed stage.
+        """
         self._state["completed_stages"][stage_name] = {
             "completed_at": datetime.now().isoformat(),
             "data": data,
         }
         # Always save bucket indices (lightweight) separately from stage data
         self._state["bucket_indices"] = self.buckets
-        with open(self.run_state_file, "w") as f:
-            json.dump(self._state, f, indent=2, default=str)
-        logger.info(f"Saved stage: {stage_name}")
+        try:
+            with open(self.run_state_file, "w") as f:
+                json.dump(self._state, f, indent=2, default=str)
+            logger.info(f"Saved stage: {stage_name}")
+        except IOError as e:
+            logger.error(
+                f"Failed to save stage {stage_name} to {self.run_state_file}: {e}"
+            )
 
     def _is_stage_complete(self, stage_name: str) -> bool:
         """Check if a stage is already complete."""
