@@ -2148,7 +2148,8 @@ class VespaNNParameterOptimizer:
         if self.resume and os.path.exists(self.run_state_file):
             with open(self.run_state_file, "r") as f:
                 self._state = json.load(f)
-                self.buckets = self._state.get("buckets", self.buckets)
+                # Load bucket indices
+                self.buckets = self._state.get("bucket_indices", self.buckets)
             if self.print_progress:
                 logger.info(f"Resumed optimization run from {self.run_state_file}")
         else:
@@ -2169,6 +2170,8 @@ class VespaNNParameterOptimizer:
             "completed_at": datetime.now().isoformat(),
             "data": data,
         }
+        # Always save bucket indices (lightweight) separately from stage data
+        self._state["bucket_indices"] = self.buckets
         with open(self.run_state_file, "w") as f:
             json.dump(self._state, f, indent=2, default=str)
         logger.info(f"Saved stage: {stage_name}")
@@ -2295,37 +2298,39 @@ class VespaNNParameterOptimizer:
 
     def distribute_to_buckets(
         self, queries_with_hitratios: Sequence[Tuple[Mapping[str, Any], float]]
-    ) -> List[List[str]]:
+    ) -> List[List[int]]:
         """
         Distributes the given queries to buckets according to their given hit ratios.
+        Now stores query INDICES instead of full query objects.
 
         Args:
             queries_with_hitratios (List[(Dict[str,str],float)]): Queries with hit ratios.
 
         Returns:
-            List[List[str]]: List of buckets.
+            List[List[int]]: List of buckets containing query indices.
         """
-        for query, hitratio in queries_with_hitratios:
+        for idx, (query, hitratio) in enumerate(queries_with_hitratios):
             if hitratio is not None:
                 filtered_out = 1.0 - hitratio
                 bucket_number = self.filtered_out_to_bucket(filtered_out)
-                self.buckets[bucket_number].append(query)
+                self.buckets[bucket_number].append(idx)  # Store index, not query
             else:
-                logger.warning(f"Query {query} has no hitratio.")
+                logger.warning(f"Query at index {idx} has no hitratio.")
 
         return self.buckets
 
     def determine_hit_ratios_and_distribute_to_buckets(
         self, queries: Sequence[Mapping[str, Any]]
-    ) -> List[List[str]]:
+    ) -> List[List[int]]:
         """
         Distributes the given queries to buckets by determining their hit ratios.
+        Now returns bucket indices instead of full queries.
 
         Args:
             queries (Sequence[Mapping[str, Any]]): Queries.
 
         Returns:
-            List[List[str]]: List of buckets.
+            List[List[int]]: List of buckets containing query indices.
         """
         hitratio_evaluator = VespaNNGlobalFilterHitratioEvaluator(
             queries, self.app, verify_target_hits=self.hits
@@ -2339,7 +2344,7 @@ class VespaNNParameterOptimizer:
                     f"No hit ratios found for query #{i}, skipping query (No nearestNeighbor operator?)"
                 )
 
-        # Only keep queries for which we found exactly one hit ratio
+        # Create list of (query, hitratio) pairs for queries with hit ratios
         queries_with_hitratios = [
             (q, mean(h)) for q, h in zip(queries, hitratio_list) if len(h) > 0
         ]
@@ -2474,6 +2479,19 @@ class VespaNNParameterOptimizer:
 
         return x, y
 
+    def _get_queries_for_bucket(self, bucket_idx: int) -> List[Mapping[str, Any]]:
+        """
+        Get the actual query objects for a given bucket.
+
+        Args:
+            bucket_idx: Index of the bucket
+
+        Returns:
+            List of query dictionaries
+        """
+        query_indices = self.buckets[bucket_idx]
+        return [self.queries[idx] for idx in query_indices]
+
     def benchmark(self, **kwargs) -> BucketedMetricResults:
         """
         For each non-empty bucket, determine the average searchtime.
@@ -2497,8 +2515,13 @@ class VespaNNParameterOptimizer:
                         f"Benchmarking: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(), 2)}%"
                     )
                 processed_buckets += 1
+                # Get actual queries for this bucket
+                bucket_queries = self._get_queries_for_bucket(i)
                 benchmarker = VespaQueryBenchmarker(
-                    bucket, self.app, max_concurrent=self.max_concurrent, **kwargs
+                    bucket_queries,
+                    self.app,
+                    max_concurrent=self.max_concurrent,
+                    **kwargs,
                 )
                 response_times = benchmarker.run()
                 results.append(response_times)
@@ -2538,8 +2561,10 @@ class VespaNNParameterOptimizer:
                     logger.info(
                         f"Computing recall: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(), 2)}%"
                     )
+                # Get actual queries for this bucket
+                bucket_queries = self._get_queries_for_bucket(i)
                 recall_evaluator = VespaNNRecallEvaluator(
-                    bucket, self.hits, self.app, **kwargs
+                    bucket_queries, self.hits, self.app, **kwargs
                 )
                 recall_list = recall_evaluator.run()
                 results.append(recall_list)
@@ -3345,14 +3370,12 @@ class VespaNNParameterOptimizer:
                 ),
                 "query_distribution": self.get_query_distribution()[1],
             }
-            self._save_stage(
-                "bucket_distribution",
-                {"buckets": self.buckets, "bucket_report": bucket_report},
-            )
+            # Only save the bucket_report (not the buckets themselves)
+            # Bucket indices are saved separately in _save_stage
+            self._save_stage("bucket_distribution", bucket_report)
         else:
-            stage_data = self._get_stage_data("bucket_distribution")
-            self.buckets = stage_data["buckets"]
-            bucket_report = stage_data["bucket_report"]
+            bucket_report = self._get_stage_data("bucket_distribution")
+            # Buckets are already loaded in load_state_if_exists()
             if self.print_progress:
                 logger.info("Resumed: Loaded bucket distribution from saved state")
 
