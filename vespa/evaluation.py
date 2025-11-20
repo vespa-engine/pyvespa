@@ -2583,6 +2583,23 @@ class VespaNNParameterOptimizer:
             ],
         )
 
+    def get_bucket_report(self) -> dict[str, Any]:
+        """
+        Gets a report of the buckets and their query counts.
+
+        Returns:
+            dict: Report of the buckets and their query counts.
+        """
+        bucket_report = {
+            "buckets_per_percent": self.buckets_per_percent,
+            "bucket_interval_width": self.get_bucket_interval_width(),
+            "non_empty_buckets": self.get_non_empty_buckets(),
+            "filtered_out_ratios": self.get_filtered_out_ratios(),
+            "hit_ratios": list(map(lambda x: 1 - x, self.get_filtered_out_ratios())),
+            "query_distribution": self.get_query_distribution()[1],
+        }
+        return bucket_report
+
     def suggest_filter_first_threshold(
         self, **kwargs
     ) -> dict[str, float | dict[str, List[float]]]:
@@ -3360,16 +3377,8 @@ class VespaNNParameterOptimizer:
                 if self.print_progress:
                     logger.warning("Only few queries for a specific hit ratio.")
 
-            bucket_report = {
-                "buckets_per_percent": self.buckets_per_percent,
-                "bucket_interval_width": self.get_bucket_interval_width(),
-                "non_empty_buckets": self.get_non_empty_buckets(),
-                "filtered_out_ratios": self.get_filtered_out_ratios(),
-                "hit_ratios": list(
-                    map(lambda x: 1 - x, self.get_filtered_out_ratios())
-                ),
-                "query_distribution": self.get_query_distribution()[1],
-            }
+            bucket_report = self.get_bucket_report()
+
             # Only save the bucket_report (not the buckets themselves)
             # Bucket indices are saved separately in _save_stage
             self._save_stage("bucket_distribution", bucket_report)
