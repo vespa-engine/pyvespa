@@ -4192,6 +4192,115 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
             if os.path.exists(temp_dir):
                 shutil.rmtree(temp_dir)
 
+    def test_validate_state_metadata_matching_config(self):
+        """Test that validation passes when saved metadata matches current config."""
+        queries = [q for q, _ in self.queries_with_hitratios]
+        optimizer = VespaNNParameterOptimizer(
+            app=self.mock_app,
+            queries=queries,
+            hits=100,
+            buckets_per_percent=2,
+            resume=False,
+        )
+
+        # Create matching metadata
+        saved_metadata = {
+            "num_queries": len(queries),
+            "hits": 100,
+            "buckets_per_percent": 2,
+        }
+
+        # Should return True without raising exception
+        result = optimizer._validate_state_metadata(saved_metadata)
+        self.assertTrue(result)
+
+    def test_validate_state_metadata_mismatched_buckets_per_percent(self):
+        """Test that validation fails when buckets_per_percent doesn't match."""
+        queries = [q for q, _ in self.queries_with_hitratios]
+        optimizer = VespaNNParameterOptimizer(
+            app=self.mock_app,
+            queries=queries,
+            hits=100,
+            buckets_per_percent=2,
+            resume=False,
+        )
+
+        # Create mismatched metadata
+        saved_metadata = {
+            "num_queries": len(queries),
+            "hits": 100,
+            "buckets_per_percent": 4,  # Different!
+        }
+
+        # Should raise ValueError
+        with self.assertRaises(ValueError) as context:
+            optimizer._validate_state_metadata(saved_metadata)
+        self.assertIn("buckets_per_percent", str(context.exception))
+
+    def test_validate_state_metadata_mismatched_hits(self):
+        """Test that validation fails when hits doesn't match."""
+        queries = [q for q, _ in self.queries_with_hitratios]
+        optimizer = VespaNNParameterOptimizer(
+            app=self.mock_app,
+            queries=queries,
+            hits=100,
+            buckets_per_percent=2,
+            resume=False,
+        )
+
+        # Create mismatched metadata
+        saved_metadata = {
+            "num_queries": len(queries),
+            "hits": 50,  # Different!
+            "buckets_per_percent": 2,
+        }
+
+        # Should raise ValueError
+        with self.assertRaises(ValueError) as context:
+            optimizer._validate_state_metadata(saved_metadata)
+        self.assertIn("hits", str(context.exception))
+
+    def test_validate_state_metadata_mismatched_num_queries(self):
+        """Test that validation fails when num_queries doesn't match."""
+        queries = [q for q, _ in self.queries_with_hitratios]
+        optimizer = VespaNNParameterOptimizer(
+            app=self.mock_app,
+            queries=queries,
+            hits=100,
+            buckets_per_percent=2,
+            resume=False,
+        )
+
+        # Create mismatched metadata
+        saved_metadata = {
+            "num_queries": len(queries) + 10,  # Different!
+            "hits": 100,
+            "buckets_per_percent": 2,
+        }
+
+        # Should raise ValueError
+        with self.assertRaises(ValueError) as context:
+            optimizer._validate_state_metadata(saved_metadata)
+        self.assertIn("num_queries", str(context.exception))
+
+    def test_validate_state_metadata_missing_fields(self):
+        """Test that validation handles missing metadata fields gracefully."""
+        queries = [q for q, _ in self.queries_with_hitratios]
+        optimizer = VespaNNParameterOptimizer(
+            app=self.mock_app,
+            queries=queries,
+            hits=100,
+            buckets_per_percent=2,
+            resume=False,
+        )
+
+        # Create metadata with missing fields (None values returned by .get())
+        saved_metadata = {}
+
+        # Should raise ValueError because None != expected value
+        with self.assertRaises(ValueError):
+            optimizer._validate_state_metadata(saved_metadata)
+
 
 class TestBucketedMetricResults(unittest.TestCase):
     """Test the BucketedMetricResults class."""
