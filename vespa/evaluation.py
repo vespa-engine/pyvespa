@@ -2165,6 +2165,7 @@ class VespaNNParameterOptimizer:
         self.run_name = (
             run_name or f"vespa_nn_opt_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         )
+        logger.info(f"Starting optimization run with name: {self.run_name}")
         self.resume = resume
         # Should create a .pyvespa directory in the user's home directory
         self.state_dir = os.path.join(os.path.expanduser("~"), ".pyvespa")
