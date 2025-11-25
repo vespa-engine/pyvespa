@@ -3976,6 +3976,104 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         self.assertGreaterEqual(filter_first_exploration, 0.20)
         self.assertLessEqual(filter_first_exploration, 0.40)
 
+    def test_sample_queries_from_buckets(self):
+        """Test that query sampling from buckets works correctly."""
+        # Create optimizer with many queries in buckets
+        optimizer = VespaNNParameterOptimizer(
+            self.mock_app,
+            [{"yql": f"query_{i}"} for i in range(1000)],  # 1000 queries
+            hits=100,
+            buckets_per_percent=2,
+            max_queries_per_benchmark=100,
+        )
+
+        # Distribute 1000 queries to various buckets
+        queries_with_hitratios = []
+        for i in range(100):  # 100 queries per bucket x 10 buckets = 1000 queries
+            for bucket_idx in [2, 10, 20, 40, 60, 80, 100, 120, 140, 160]:
+                hitratio = 1.0 - (bucket_idx / 200.0)
+                queries_with_hitratios.append(
+                    ({"yql": f"query_{i * 10 + bucket_idx}"}, hitratio)
+                )
+
+        optimizer.distribute_to_buckets(queries_with_hitratios)
+
+        # Sample queries
+        non_empty_buckets, sampled_buckets = optimizer._sample_queries_from_buckets(100)
+
+        # Check that we got the right number of buckets
+        self.assertEqual(len(non_empty_buckets), 10)
+        self.assertEqual(len(sampled_buckets), 10)
+
+        # Check that total sampled queries is <= max
+        total_sampled = sum(len(bucket) for bucket in sampled_buckets)
+        self.assertLessEqual(total_sampled, 100)
+
+        # Check that each bucket has at least 1 query
+        for bucket in sampled_buckets:
+            self.assertGreaterEqual(len(bucket), 1)
+
+        # Check that sampled queries are indices from the original buckets
+        for bucket_idx, sampled_indices in zip(non_empty_buckets, sampled_buckets):
+            for idx in sampled_indices:
+                self.assertIn(idx, optimizer.buckets[bucket_idx])
+
+    def test_sample_queries_when_total_less_than_max(self):
+        """Test that all queries are used when total is less than max."""
+        optimizer = VespaNNParameterOptimizer(
+            self.mock_app,
+            [{"yql": f"query_{i}"} for i in range(50)],  # Only 50 queries
+            hits=100,
+            buckets_per_percent=2,
+            max_queries_per_benchmark=100,
+        )
+
+        # Distribute 50 queries
+        queries_with_hitratios = [
+            ({"yql": f"query_{i}"}, 0.9 - i * 0.01) for i in range(50)
+        ]
+        optimizer.distribute_to_buckets(queries_with_hitratios)
+
+        # Sample queries
+        non_empty_buckets, sampled_buckets = optimizer._sample_queries_from_buckets(100)
+
+        # Should use all queries since total < max
+        total_sampled = sum(len(bucket) for bucket in sampled_buckets)
+        self.assertEqual(total_sampled, 50)
+
+    def test_sample_queries_proportional_distribution(self):
+        """Test that query sampling maintains proportional distribution."""
+        optimizer = VespaNNParameterOptimizer(
+            self.mock_app,
+            [{"yql": f"query_{i}"} for i in range(500)],
+            hits=100,
+            buckets_per_percent=2,
+            max_queries_per_benchmark=50,
+        )
+
+        # Create uneven distribution: bucket 1 has 400 queries, bucket 2 has 100 queries
+        queries_with_hitratios = []
+        for i in range(400):
+            queries_with_hitratios.append(({"yql": f"query_{i}"}, 0.99))  # Bucket 2
+        for i in range(400, 500):
+            queries_with_hitratios.append(({"yql": f"query_{i}"}, 0.89))  # Bucket 22
+
+        optimizer.distribute_to_buckets(queries_with_hitratios)
+
+        # Sample queries
+        non_empty_buckets, sampled_buckets = optimizer._sample_queries_from_buckets(50)
+
+        # Check that larger bucket got proportionally more samples
+        # Bucket 0 should have ~40 queries, bucket 1 should have ~10 queries
+        bucket_0_samples = len(sampled_buckets[0])
+        bucket_1_samples = len(sampled_buckets[1])
+
+        # Verify proportionality (allowing some variance due to rounding)
+        self.assertGreater(
+            bucket_0_samples, bucket_1_samples * 2
+        )  # Should be roughly 4x
+        self.assertLessEqual(bucket_0_samples + bucket_1_samples, 50)
+
     def test_checkpoint_and_resume(self):
         """Test that VespaNNParameterOptimizer can save and resume progress."""
         temp_dir = tempfile.mkdtemp()
