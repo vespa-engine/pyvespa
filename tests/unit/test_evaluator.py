@@ -3448,6 +3448,46 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         self.assertEqual(self.optimizer.get_number_of_nonempty_buckets(), 15)
         self.assertEqual(self.optimizerOneBucket.get_number_of_nonempty_buckets(), 14)
 
+    def test_max_queries_per_benchmark_defaults_to_all_when_zero_or_negative(self):
+        """Test that max_queries_per_benchmark defaults to len(queries) when set to 0 or negative."""
+        queries = [
+            {"yql": "query1"},
+            {"yql": "query2"},
+            {"yql": "query3"},
+            {"yql": "query4"},
+            {"yql": "query5"},
+        ]
+
+        # Test with 0
+        optimizer_zero = VespaNNParameterOptimizer(
+            self.mock_app,
+            queries,
+            100,
+            buckets_per_percent=2,
+            max_queries_per_benchmark=0,
+        )
+        self.assertEqual(optimizer_zero.max_queries_per_benchmark, len(queries))
+
+        # Test with negative value
+        optimizer_negative = VespaNNParameterOptimizer(
+            self.mock_app,
+            queries,
+            100,
+            buckets_per_percent=2,
+            max_queries_per_benchmark=-10,
+        )
+        self.assertEqual(optimizer_negative.max_queries_per_benchmark, len(queries))
+
+        # Test with positive value (should remain unchanged)
+        optimizer_positive = VespaNNParameterOptimizer(
+            self.mock_app,
+            queries,
+            100,
+            buckets_per_percent=2,
+            max_queries_per_benchmark=50,
+        )
+        self.assertEqual(optimizer_positive.max_queries_per_benchmark, 50)
+
     def test_get_non_empty_buckets(self):
         self.assertEqual(
             self.optimizer.get_non_empty_buckets(),
