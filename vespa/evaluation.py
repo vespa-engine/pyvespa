@@ -2106,7 +2106,7 @@ class VespaNNParameterOptimizer:
         max_concurrent (int, optional): Maximum number of concurrent requests when issuing queries. Defaults to 10.
         run_name (Optional[str], optional): Name of this optimization run. Defaults to None. If None, a name on the format vespa_nn_opt_YYYYMMDD_HHMMSS is generated automatically.
         resume (bool, optional): Whether to resume a previous optimization run. Requires a saved run with the same name to have effect. Defaults to True.
-        max_queries_per_benchmark (int, optional): Maximum total number of queries to use in each benchmark/recall computation. Queries are sampled proportionally from buckets to maintain distribution representativeness. Defaults to 100.
+        max_queries_per_benchmark (int, optional): Maximum total number of queries to use in each benchmark/recall computation. Queries are sampled proportionally from buckets to maintain distribution representativeness. Defaults to 100. Setting this higher increases runtime significantly, but may give more accurate results if you have many queries.
 
     Example usage:
         ```python
