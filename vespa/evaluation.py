@@ -2138,7 +2138,7 @@ class VespaNNParameterOptimizer:
             max_concurrent=10, # Number of concurrent requests, reduce if you have expensive queries relative to your Vespa application resources
             run_name="my_optimization_run", # Optional name for this optimization run - will save intermediate results to disk in ~/.pyvespa/{run_name}_state.json
             resume=True, # Whether to resume a previous run with the same name if it exists
-            max_queries_per_benchmark=100, # Maximum queries used per benchmark/recall computation (sampled proportionally from buckets)
+            max_queries_per_benchmark=100, # Maximum queries used per benchmark/recall computation (sampled proportionally from buckets). Increase for more accurate results at the cost of runtime. Setting to 0 disables the limit and uses all queries.
         )
         ```
     """
@@ -2165,6 +2165,8 @@ class VespaNNParameterOptimizer:
 
         self.print_progress = print_progress
         self.max_concurrent = max_concurrent
+        if max_queries_per_benchmark <= 0:
+            max_queries_per_benchmark = len(queries)
         self.max_queries_per_benchmark = max_queries_per_benchmark
 
         self.run_name = (
