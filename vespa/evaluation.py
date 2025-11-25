@@ -15,6 +15,7 @@ from typing import (
     Any,
 )
 import math
+import random
 from datetime import datetime
 from enum import Enum
 from abc import ABC, abstractmethod
@@ -2630,8 +2631,6 @@ class VespaNNParameterOptimizer:
                 - List of non-empty bucket indices
                 - List of lists containing sampled query indices for each bucket
         """
-        import random
-
         non_empty_buckets = []
         bucket_sizes = []
 
