@@ -2105,6 +2105,7 @@ class VespaNNParameterOptimizer:
         max_concurrent (int, optional): Maximum number of concurrent requests when issuing queries. Defaults to 10.
         run_name (Optional[str], optional): Name of this optimization run. Defaults to None. If None, a name on the format vespa_nn_opt_YYYYMMDD_HHMMSS is generated automatically.
         resume (bool, optional): Whether to resume a previous optimization run. Requires a saved run with the same name to have effect. Defaults to True.
+        max_queries_per_benchmark (int, optional): Maximum total number of queries to use in each benchmark/recall computation. Queries are sampled proportionally from buckets to maintain distribution representativeness. Defaults to 100.
 
     Example usage:
         ```python
@@ -2136,6 +2137,7 @@ class VespaNNParameterOptimizer:
             max_concurrent=10, # Number of concurrent requests, reduce if you have expensive queries relative to your Vespa application resources
             run_name="my_optimization_run", # Optional name for this optimization run - will save intermediate results to disk in ~/.pyvespa/{run_name}_state.json
             resume=True, # Whether to resume a previous run with the same name if it exists
+            max_queries_per_benchmark=100, # Maximum queries used per benchmark/recall computation (sampled proportionally from buckets)
         )
         ```
     """
@@ -2150,6 +2152,7 @@ class VespaNNParameterOptimizer:
         max_concurrent: int = 10,
         run_name: Optional[str] = None,
         resume: bool = True,
+        max_queries_per_benchmark: int = 100,
     ):
         self.app = app
         self.queries = queries
@@ -2161,6 +2164,7 @@ class VespaNNParameterOptimizer:
 
         self.print_progress = print_progress
         self.max_concurrent = max_concurrent
+        self.max_queries_per_benchmark = max_queries_per_benchmark
 
         self.run_name = (
             run_name or f"vespa_nn_opt_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -2607,9 +2611,77 @@ class VespaNNParameterOptimizer:
         query_indices = self.buckets[bucket_idx]
         return [self.queries[idx] for idx in query_indices]
 
+    def _sample_queries_from_buckets(
+        self, max_queries: int
+    ) -> Tuple[List[int], List[List[int]]]:
+        """
+        Sample queries from buckets proportionally to maintain distribution representativeness.
+
+        This method ensures that:
+        1. Each non-empty bucket gets at least 1 query (if possible)
+        2. Remaining queries are distributed proportionally to bucket sizes
+        3. Total sampled queries <= max_queries
+
+        Args:
+            max_queries: Maximum total number of queries to sample
+
+        Returns:
+            Tuple of:
+                - List of non-empty bucket indices
+                - List of lists containing sampled query indices for each bucket
+        """
+        import random
+
+        non_empty_buckets = []
+        bucket_sizes = []
+
+        # Identify non-empty buckets
+        for i in range(len(self.buckets)):
+            if self.buckets[i]:
+                non_empty_buckets.append(i)
+                bucket_sizes.append(len(self.buckets[i]))
+
+        if not non_empty_buckets:
+            return [], []
+
+        total_queries = sum(bucket_sizes)
+        num_buckets = len(non_empty_buckets)
+
+        # If we have fewer queries than max, use all
+        if total_queries <= max_queries:
+            return non_empty_buckets, [self.buckets[i] for i in non_empty_buckets]
+
+        # Allocate at least 1 query per bucket if possible
+        min_per_bucket = min(1, max_queries // num_buckets)
+        remaining_queries = max_queries - (min_per_bucket * num_buckets)
+
+        sampled_buckets = []
+        for bucket_idx, size in zip(non_empty_buckets, bucket_sizes):
+            # Start with minimum allocation
+            num_to_sample = min_per_bucket
+
+            # Add proportional share of remaining queries
+            if remaining_queries > 0:
+                proportion = size / total_queries
+                additional = int(remaining_queries * proportion)
+                num_to_sample += additional
+
+            # Don't sample more than available
+            num_to_sample = min(num_to_sample, size)
+
+            # Sample indices from this bucket
+            if num_to_sample >= size:
+                sampled_buckets.append(self.buckets[bucket_idx])
+            else:
+                sampled_indices = random.sample(self.buckets[bucket_idx], num_to_sample)
+                sampled_buckets.append(sampled_indices)
+
+        return non_empty_buckets, sampled_buckets
+
     def benchmark(self, **kwargs) -> BucketedMetricResults:
         """
         For each non-empty bucket, determine the average searchtime.
+        Uses sampled queries to limit benchmark time while maintaining representativeness.
 
         Args:
             **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
@@ -2619,28 +2691,37 @@ class VespaNNParameterOptimizer:
         """
         if self.print_progress:
             logger.info("Benchmarking")
+
+        # Sample queries from buckets
+        non_empty_buckets, sampled_buckets = self._sample_queries_from_buckets(
+            self.max_queries_per_benchmark
+        )
+
+        if self.print_progress:
+            total_sampled = sum(len(bucket) for bucket in sampled_buckets)
+            logger.info(
+                f"Using {total_sampled} sampled queries (out of {self.get_number_of_queries()} total) for benchmark"
+            )
+
         results = []
-        non_empty_buckets = []
-        processed_buckets = 0
-        for i in range(0, self.get_number_of_buckets()):
-            bucket = self.buckets[i]
-            if bucket:
-                if self.print_progress:
-                    logger.info(
-                        f"Benchmarking: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(), 2)}%"
-                    )
-                processed_buckets += 1
-                # Get actual queries for this bucket
-                bucket_queries = self._get_queries_for_bucket(i)
-                benchmarker = VespaQueryBenchmarker(
-                    bucket_queries,
-                    self.app,
-                    max_concurrent=self.max_concurrent,
-                    **kwargs,
+        for idx, (bucket_idx, sampled_indices) in enumerate(
+            zip(non_empty_buckets, sampled_buckets)
+        ):
+            if self.print_progress:
+                logger.info(
+                    f"Benchmarking: {round(idx * 100 / len(non_empty_buckets), 2)}%"
                 )
-                response_times = benchmarker.run()
-                results.append(response_times)
-                non_empty_buckets.append(i)
+
+            # Get actual queries for sampled indices
+            bucket_queries = [self.queries[q_idx] for q_idx in sampled_indices]
+            benchmarker = VespaQueryBenchmarker(
+                bucket_queries,
+                self.app,
+                max_concurrent=self.max_concurrent,
+                **kwargs,
+            )
+            response_times = benchmarker.run()
+            results.append(response_times)
 
         if self.print_progress:
             logger.info("Benchmarking: 100.0%")
@@ -2657,6 +2738,7 @@ class VespaNNParameterOptimizer:
     def compute_average_recalls(self, **kwargs) -> BucketedMetricResults:
         """
         For each non-empty bucket, determine the average recall.
+        Uses sampled queries to limit computation time while maintaining representativeness.
 
         Args:
             **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
@@ -2666,25 +2748,34 @@ class VespaNNParameterOptimizer:
         """
         if self.print_progress:
             logger.info("Computing recall")
+
+        # Sample queries from buckets
+        non_empty_buckets, sampled_buckets = self._sample_queries_from_buckets(
+            self.max_queries_per_benchmark
+        )
+
+        if self.print_progress:
+            total_sampled = sum(len(bucket) for bucket in sampled_buckets)
+            logger.info(
+                f"Using {total_sampled} sampled queries (out of {self.get_number_of_queries()} total) for recall computation"
+            )
+
         results = []
-        non_empty_buckets = []
-        processed_buckets = 0
-        for i in range(0, self.get_number_of_buckets()):
-            bucket = self.buckets[i]
-            if bucket:
-                if self.print_progress:
-                    logger.info(
-                        f"Computing recall: {round(processed_buckets * 100 / self.get_number_of_nonempty_buckets(), 2)}%"
-                    )
-                # Get actual queries for this bucket
-                bucket_queries = self._get_queries_for_bucket(i)
-                recall_evaluator = VespaNNRecallEvaluator(
-                    bucket_queries, self.hits, self.app, **kwargs
+        for idx, (bucket_idx, sampled_indices) in enumerate(
+            zip(non_empty_buckets, sampled_buckets)
+        ):
+            if self.print_progress:
+                logger.info(
+                    f"Computing recall: {round(idx * 100 / len(non_empty_buckets), 2)}%"
                 )
-                recall_list = recall_evaluator.run()
-                results.append(recall_list)
-                non_empty_buckets.append(i)
-                processed_buckets += 1
+
+            # Get actual queries for sampled indices
+            bucket_queries = [self.queries[q_idx] for q_idx in sampled_indices]
+            recall_evaluator = VespaNNRecallEvaluator(
+                bucket_queries, self.hits, self.app, **kwargs
+            )
+            recall_list = recall_evaluator.run()
+            results.append(recall_list)
 
         if self.print_progress:
             logger.info("Computing recall: 100.0%")
