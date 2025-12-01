@@ -1317,13 +1317,11 @@ class TestQaApplication(TestApplicationCommon):
         self.assertIn("timestamp_ms", resp_raw_string)
 
     def test_profile_query_async(self):
-        async def profile_query():
-            resp = await self.app.async_query(
+        with self.app.asyncio() as async_app:
+            resp = await async_app.query(
                 yql="select * from sources * where id contains '1' limit 1;",
                 profile=True,
             )
-            return resp
-
         resp = asyncio.run(profile_query())
         # assert that json response contains timing information
         self.assertIn("timing", resp.json.keys())
