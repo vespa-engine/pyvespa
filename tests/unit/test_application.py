@@ -1104,7 +1104,7 @@ class TestQueryProfiling(unittest.TestCase):
             r: VespaQueryResponse = app.query(
                 body={"yql": "select * from sources * where true"}, profile=True
             )
-
+            print(r.url)
             # Verify profiling params are in the URL
             self.assertIn("trace.level=1", r.url)
             self.assertIn("trace.explainLevel=1", r.url)
