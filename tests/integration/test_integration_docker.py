@@ -1301,10 +1301,30 @@ class TestQaApplication(TestApplicationCommon):
     def test_async_client_accept_encoding(self):
         asyncio.run(self.async_client_accept_encoding_gzip(app=self.app))
 
-    def test_profile_query_option(self):
+    def test_profile_query_sync(self):
         resp = self.app.query(
             yql="select * from sources * where id contains '1' limit 1;", profile=True
         )
+        # assert that json response contains timing information
+        self.assertIn("timing", resp.json.keys())
+        # assert that summaryfetchtime, searchtime and querytime is in timing
+        self.assertIn("summaryfetchtime", resp.json["timing"].keys())
+        self.assertIn("searchtime", resp.json["timing"].keys())
+        self.assertIn("querytime", resp.json["timing"].keys())
+        # Assert that json response as string contains profile information
+        resp_raw_string = json.dumps(resp.json)
+        self.assertIn('depth": 100,', resp_raw_string)
+        self.assertIn("timestamp_ms", resp_raw_string)
+
+    def test_profile_query_async(self):
+        async def profile_query():
+            resp = await self.app.async_query(
+                yql="select * from sources * where id contains '1' limit 1;",
+                profile=True,
+            )
+            return resp
+
+        resp = asyncio.run(profile_query())
         # assert that json response contains timing information
         self.assertIn("timing", resp.json.keys())
         # assert that summaryfetchtime, searchtime and querytime is in timing
