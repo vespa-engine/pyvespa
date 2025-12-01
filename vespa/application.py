@@ -47,6 +47,26 @@ logging.getLogger("urllib3").setLevel(logging.ERROR)
 VESPA_CLOUD_SECRET_TOKEN: str = "VESPA_CLOUD_SECRET_TOKEN"
 
 
+def get_profiling_params() -> Dict[str, str]:
+    """
+    Get the profiling parameters to add to a query.
+
+    When profiling is enabled, these parameters add detailed trace and timing
+    information to the query response. Note that the response may be significantly
+    larger when profiling is enabled.
+
+    Returns:
+        Dict[str, str]: Dictionary of profiling parameters to merge with query params.
+    """
+    return {
+        "trace.level": "1",
+        "trace.explainLevel": "1",
+        "trace.profileDepth": "100",
+        "trace.timestamps": "true",
+        "presentation.timing": "true",
+    }
+
+
 def raise_for_status(
     response: Response, raise_on_not_found: Optional[bool] = False
 ) -> None:
@@ -406,6 +426,7 @@ class Vespa(object):
         body: Optional[Dict] = None,
         groupname: str = None,
         streaming: bool = False,
+        profile: bool = False,
         **kwargs,
     ) -> Union[VespaQueryResponse, Generator[str, None, None]]:
         """
@@ -417,6 +438,7 @@ class Vespa(object):
             body (dict): Dictionary containing request parameters.
             groupname (str, optional): The groupname used with streaming search.
             streaming (bool, optional): Whether to use streaming mode (SSE). Defaults to False.
+            profile (bool, optional): Add profiling parameters to the query (response may be large). Defaults to False.
             **kwargs (dict, optional): Extra Vespa Query API parameters.
 
         Returns:
@@ -426,7 +448,11 @@ class Vespa(object):
         # Use one connection as this is a single query
         with VespaSync(self, pool_maxsize=1, pool_connections=1) as sync_app:
             return sync_app.query(
-                body=body, groupname=groupname, streaming=streaming, **kwargs
+                body=body,
+                groupname=groupname,
+                streaming=streaming,
+                profile=profile,
+                **kwargs,
             )
 
     def feed_data_point(
@@ -1504,6 +1530,7 @@ class VespaSync(object):
         body: Optional[Dict] = None,
         groupname: str = None,
         streaming: bool = False,
+        profile: bool = False,
         **kwargs,
     ) -> Union[VespaQueryResponse, Generator[str, None, None]]:
         """
@@ -1513,6 +1540,7 @@ class VespaSync(object):
             body (dict): Dict containing all the request parameters.
             groupname (str, optional): The groupname used in streaming search.
             streaming (bool, optional): Whether to use streaming mode (SSE). Defaults to False.
+            profile (bool, optional): Add profiling parameters to the query (response may be large). Defaults to False.
             **kwargs (dict, optional): Additional valid Vespa HTTP Query API parameters. See: <https://docs.vespa.ai/en/reference/query-api-reference.html>.
 
         Returns:
@@ -1524,6 +1552,8 @@ class VespaSync(object):
 
         if groupname:
             kwargs["streaming.groupname"] = groupname
+        if profile:
+            kwargs.update(get_profiling_params())
         if streaming:
             return self._query_streaming(body, **kwargs)
         else:
@@ -1998,10 +2028,28 @@ class VespaAsync(object):
         wait=wait_random_exponential(multiplier=1.5, max=60), stop=stop_after_attempt(5)
     )
     async def query(
-        self, body: Optional[Dict] = None, groupname: str = None, **kwargs
+        self,
+        body: Optional[Dict] = None,
+        groupname: str = None,
+        profile: bool = False,
+        **kwargs,
     ) -> VespaQueryResponse:
+        """
+        Send a query request to the Vespa application.
+
+        Args:
+            body (dict): Dict containing all the request parameters.
+            groupname (str, optional): The groupname used in streaming search.
+            profile (bool, optional): Add profiling parameters to the query (response may be large). Defaults to False.
+            **kwargs (dict, optional): Additional valid Vespa HTTP Query API parameters.
+
+        Returns:
+            VespaQueryResponse: The response from the query.
+        """
         if groupname:
             kwargs["streaming.groupname"] = groupname
+        if profile:
+            kwargs.update(get_profiling_params())
         r = await self.httpx_client.post(
             self.app.search_end_point, json=body, params=kwargs
         )
