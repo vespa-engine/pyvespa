@@ -1317,7 +1317,7 @@ class TestQaApplication(TestApplicationCommon):
         self.assertIn("timestamp_ms", resp_raw_string)
 
     def test_profile_query_async(self):
-        def async_wrapper():
+        async def async_wrapper():
             with self.app.asyncio() as async_app:
                 resp = await async_app.query(
                     yql="select * from sources * where id contains '1' limit 1;",
