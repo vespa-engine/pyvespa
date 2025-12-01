@@ -1093,5 +1093,25 @@ async def test_async_client_ownership():
     external_client.aclose.assert_not_called()
 
 
+class TestQueryProfiling(unittest.TestCase):
+    def test_query_with_profiling(self):
+        """Test that profile=True adds the correct profiling parameters"""
+        app = Vespa(url="http://localhost", port=8080)
+        with requests_mock.Mocker() as m:
+            m.get("http://localhost:8080/ApplicationStatus", status_code=200)
+            m.post("http://localhost:8080/search/", status_code=200, text="{}")
+
+            r: VespaQueryResponse = app.query(
+                body={"yql": "select * from sources * where true"}, profile=True
+            )
+
+            # Verify profiling params are in the URL
+            self.assertIn("trace.level=1", r.url)
+            self.assertIn("trace.explainLevel=1", r.url)
+            self.assertIn("trace.profileDepth=100", r.url)
+            self.assertIn("trace.timestamps=true", r.url)
+            self.assertIn("presentation.timing=true", r.url)
+
+
 if __name__ == "__main__":
     unittest.main()
