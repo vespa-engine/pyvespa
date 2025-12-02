@@ -162,7 +162,8 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
         {% if value.rank_properties %}
         rank-properties {
             {% for rank_property in value.rank_properties %}
-            {{ rank_property.0 }}: "{{ rank_property.1 }}"
+            {{ rank_property.0 }}: {% if rank_property.1 is number %}{{ rank_property.1 }}{% else %}"{{ rank_property.1 }}"{% endif %}{% raw %}
+{% endraw %}
             {% endfor %}
         }
         {% endif %}

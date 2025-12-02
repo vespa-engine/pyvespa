@@ -463,6 +463,81 @@ class TestRankProfile(unittest.TestCase):
         self.assertEqual(rank_profile.inherits, "default")
         self.assertEqual(rank_profile.constants, {"TEST": 1})
 
+    def test_rank_profile_properties_numeric_values(self):
+        """Test that rank_properties with numeric values are not wrapped in quotes."""
+        doc = Document(fields=[Field(name="text", type="string")])
+        rank_profile = RankProfile(
+            name="default",
+            first_phase="closeness(label,nns)",
+            rank_properties=[
+                ("approximate-threshold", 0.05),
+                ("filter-first-threshold", 0.0),
+                ("filter-first-exploration", 0.3),
+                ("exploration-slack", 0.0),
+                ("num-threads-per-search", 1),
+            ],
+        )
+        schema = Schema(name="test", document=doc, rank_profiles=[rank_profile])
+
+        schema_text = schema.schema_to_text
+        
+        # Check that numeric values are NOT quoted
+        self.assertIn("approximate-threshold: 0.05", schema_text)
+        self.assertIn("filter-first-threshold: 0.0", schema_text)
+        self.assertIn("filter-first-exploration: 0.3", schema_text)
+        self.assertIn("exploration-slack: 0.0", schema_text)
+        self.assertIn("num-threads-per-search: 1", schema_text)
+        
+        # Check that numeric values are not wrapped with quotes
+        self.assertNotIn('"0.05"', schema_text)
+        self.assertNotIn('"0.0"', schema_text)
+        self.assertNotIn('"0.3"', schema_text)
+        self.assertNotIn('"1"', schema_text)
+
+    def test_rank_profile_properties_string_values(self):
+        """Test that rank_properties with string values are still wrapped in quotes."""
+        doc = Document(fields=[Field(name="text", type="string")])
+        rank_profile = RankProfile(
+            name="default",
+            first_phase="bm25(text)",
+            rank_properties=[
+                ("fieldMatch(title).maxAlternativeSegmentations", "10"),
+                ("some-string-property", "value"),
+            ],
+        )
+        schema = Schema(name="test", document=doc, rank_profiles=[rank_profile])
+
+        schema_text = schema.schema_to_text
+        
+        # Check that string values ARE quoted
+        self.assertIn('fieldMatch(title).maxAlternativeSegmentations: "10"', schema_text)
+        self.assertIn('some-string-property: "value"', schema_text)
+
+    def test_rank_profile_properties_mixed_types(self):
+        """Test rank_properties with both numeric and string values."""
+        doc = Document(fields=[Field(name="text", type="string")])
+        rank_profile = RankProfile(
+            name="default",
+            first_phase="bm25(text)",
+            rank_properties=[
+                ("bm25(text).k1", 0.9),
+                ("bm25(text).b", 0.4),
+                ("fieldMatch(title).maxAlternativeSegmentations", "10"),
+                ("num-threads-per-search", 1),
+            ],
+        )
+        schema = Schema(name="test", document=doc, rank_profiles=[rank_profile])
+
+        schema_text = schema.schema_to_text
+        
+        # Check numeric values are NOT quoted
+        self.assertIn("bm25(text).k1: 0.9", schema_text)
+        self.assertIn("bm25(text).b: 0.4", schema_text)
+        self.assertIn("num-threads-per-search: 1", schema_text)
+        
+        # Check string values ARE quoted
+        self.assertIn('fieldMatch(title).maxAlternativeSegmentations: "10"', schema_text)
+
 
 class TestSchema(unittest.TestCase):
     def setUp(self) -> None:
@@ -2994,3 +3069,56 @@ class TestSummary(unittest.TestCase):
                     ("select-elements-by", "top_chunks_sim_scores"),
                 ],
             )
+
+    def test_simple_dynamic_summary(self):
+        s = Summary(None, None, ["dynamic"]).as_lines
+        self.assertEqual(s, ["summary: dynamic"])
+
+    def test_empty_summary_with_name_and_type(self):
+        s = Summary("artist", "string").as_lines
+        self.assertEqual(s, ["summary artist type string {}"])
+
+    def test_summary_with_fields(self):
+        s = Summary(
+            "artist",
+            "string",
+            [("bolding", "on"), ("sources", "artist")],
+        ).as_lines
+        self.assertEqual(
+            s,
+            [
+                "summary artist type string {",
+                "    bolding: on",
+                "    sources: artist",
+                "}",
+            ],
+        )
+
+    def test_summary_with_select_elements_by(self):
+        s = Summary(None, None, None, "best_chunks").as_lines
+        self.assertEqual(s, ["summary {", "    select-elements-by: best_chunks", "}"])
+
+    def test_summary_with_name_type_and_select_elements_by(self):
+        s = Summary("title", "string", None, "best_chunks").as_lines
+        self.assertEqual(
+            s,
+            ["summary title type string {", "    select-elements-by: best_chunks", "}"],
+        )
+
+    def test_summary_with_fields_and_select_elements_by(self):
+        s = Summary(
+            "artist",
+            "string",
+            [("bolding", "on"), ("sources", "artist")],
+            "best_chunks",
+        ).as_lines
+        self.assertEqual(
+            s,
+            [
+                "summary artist type string {",
+                "    select-elements-by: best_chunks",
+                "    bolding: on",
+                "    sources: artist",
+                "}",
+            ],
+        )

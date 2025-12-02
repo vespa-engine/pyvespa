@@ -24,9 +24,10 @@ dependencies = [
     "python-dateutil",
     "fastcore>=1.7.8",
     "lxml",
+    "certifi",
 ]
 
-requires-python = ">=3.9"
+requires-python = ">=3.9,<3.14"
 
 [[project.authors]]
 name = "Thiago G. Martins"
@@ -62,7 +63,7 @@ unittest = [
     "mypy>=1.14.1",
 ]
 docs = [
-    "ipykernel",
+    "ipykernel==6.30.1",
     "nbconvert",
     "jupyter",
     "mkdocs-material",
@@ -86,8 +87,8 @@ feed = [
 ]
 notebooks = [
     "notebook",
-    "nbconvert<=7.12.0",
-    "ipykernel",
+    "nbconvert",
+    "ipykernel==6.30.1",
     "jupytext",
     "numpy",
     "pandas",
@@ -162,3 +163,8 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = false
 docstring-code-line-length = "dynamic"
+
+[tool.ruff.lint.per-file-ignores]
+"*.ipynb" = [
+    "E402",
+] # Ignore module level import not at top of file for notebooks

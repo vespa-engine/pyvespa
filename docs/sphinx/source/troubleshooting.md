@@ -14,7 +14,13 @@ python3 -m pip show pyvespa
 
 ## Docker Memory
 
-pyvespa will start a Docker container with 4G memory by default - make sure Docker settings have at least this. Use the Docker Desktop settings or `docker info | grep "Total Memory"` or `podman info | grep "memTotal"` to validate.
+Vespa requires at least 4GB to run - make sure Docker settings have at least this available. Use the Docker Desktop settings or `docker info | grep "Total Memory"` or `podman info | grep "memTotal"` to validate.
+
+pyvespa will by default start a container without any memory limit. To set an explicit memory limit (e.g., 8GB):
+```python
+from vespa.deployment import VespaDocker
+vespa_docker = VespaDocker(port=8080, container_memory=8 * 1024**3)
+```
 
 ## Port conflicts / Docker
 
