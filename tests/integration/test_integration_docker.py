@@ -1318,7 +1318,7 @@ class TestQaApplication(TestApplicationCommon):
 
     def test_profile_query_async(self):
         async def async_wrapper():
-            with self.app.asyncio() as async_app:
+            async with self.app.asyncio() as async_app:
                 resp = await async_app.query(
                     yql="select * from sources * where id contains '1' limit 1;",
                     profile=True,
