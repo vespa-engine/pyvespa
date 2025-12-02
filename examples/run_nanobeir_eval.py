@@ -15,7 +15,7 @@ from vespa.application import Vespa
 from vespa.deployment import VespaCloud, VespaDocker
 from vespa.evaluation import VespaMatchEvaluator, VespaEvaluator
 from vespa.io import VespaResponse
-from vespa.nanobeir import create_evaluation_package, get_model_config, ModelConfig
+from vespa.evaluation import create_evaluation_package, get_model_config, ModelConfig
 from enum import Enum
 
 # Configuration

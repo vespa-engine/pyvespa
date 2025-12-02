@@ -7,7 +7,7 @@ for evaluation, handling differences in embedding dimensions, tokenizers,
 and binary vs. float embeddings.
 """
 
-from vespa.nanobeir import (
+from vespa.evaluation import (
     ModelConfig,
     get_model_config,
     create_embedder_component,
