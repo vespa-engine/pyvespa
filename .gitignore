@@ -157,3 +157,5 @@ markdown_notebooks/
 vespa/resources/*.md
 
 .aider*
+
+eval_output/*
