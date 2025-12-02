@@ -69,7 +69,7 @@ e5_small_v2 = ModelConfig(
     document_prepend="passage: ",
 )
 
-MODELS = [e5_small_v2, kalm_model]
+MODELS = [e5_small_v2]
 
 
 def feed_data(app: Vespa, dataset_id: str, schema_name: str):
