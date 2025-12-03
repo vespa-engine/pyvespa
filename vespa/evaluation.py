@@ -3705,7 +3705,7 @@ def create_hybrid_rank_profile(
         base_profile: Name of the BM25 profile to inherit from (default: "bm25")
         embedding_field: Name of the embedding field (default: "embedding")
         query_tensor: Name of the query tensor (default: "q")
-        fusion_method: Fusion method - "rrf" for reciprocal rank fusion or "normalize" for linear normalization
+        fusion_method: Fusion method - "rrf" for reciprocal rank fusion, "atan_norm" for atan-normalized sum in first phase, or "norm_linear" for linear normalization in global phase.
 
     Returns:
         RankProfile: A Vespa RankProfile configured for hybrid search
@@ -3733,27 +3733,52 @@ def create_hybrid_rank_profile(
         global_expr = (
             f"reciprocal_rank_fusion(bm25text, closeness(field, {embedding_field}))"
         )
-    elif fusion_method == "normalize":
-        # Use linear normalization
-        global_expr = (
-            f"normalize_linear(bm25text) + normalize_linear({similarity_expr})"
+        functions = [Function(name="similarity", expression=similarity_expr)]
+        first_phase_expr = "similarity"
+        match_features_list = ["similarity", "bm25text"]
+        global_phase = GlobalPhaseRanking(
+            expression=global_expr,
+            rerank_count=1000,
+        )
+    elif fusion_method == "atan_norm":
+        # Use atan normalization in first phase only (no global phase)
+        functions = [
+            Function(
+                name="scale",
+                args=["val"],
+                expression="2*atan(val)/(3.14159)",
+            ),
+            Function(name="normalized_bm25", expression="scale(bm25(text))"),
+            Function(name="cos_sim", expression=f"closeness(field, {embedding_field})"),
+        ]
+        first_phase_expr = "normalized_bm25 + cos_sim"
+        match_features_list = ["cos_sim", "normalized_bm25"]
+        global_phase = None
+    elif fusion_method == "norm_linear":
+        # Use linear normalization in global phase (no atan)
+        global_expr = f"normalize_linear(bm25(text)) + normalize_linear(closeness(field, {embedding_field}))"
+        functions = [
+            Function(name="cos_sim", expression=f"closeness(field, {embedding_field})"),
+        ]
+        first_phase_expr = "cos_sim"
+        match_features_list = ["cos_sim", "bm25(text)"]
+        global_phase = GlobalPhaseRanking(
+            expression=global_expr,
+            rerank_count=1000,
         )
     else:
         raise ValueError(
-            f"Unknown fusion_method: {fusion_method}. Use 'rrf' or 'normalize'"
+            f"Unknown fusion_method: {fusion_method}. Use 'rrf', 'atan_norm', or 'norm_linear'."
         )
 
     return RankProfile(
         name=profile_name,
         inherits=base_profile,
         inputs=[(f"query({query_tensor})", tensor_type)],
-        functions=[Function(name="similarity", expression=similarity_expr)],
-        first_phase="similarity",
-        global_phase=GlobalPhaseRanking(
-            expression=global_expr,
-            rerank_count=1000,
-        ),
-        match_features=["similarity", "bm25text"],
+        functions=functions,
+        first_phase=first_phase_expr,
+        global_phase=global_phase,
+        match_features=match_features_list,
     )
 
 
@@ -3998,9 +4023,19 @@ def create_evaluation_package(
             base_profile=f"bm25{profile_suffix}",
             embedding_field=embedding_field_name,
             query_tensor=f"q{profile_suffix}",
-            fusion_method="normalize",
+            fusion_method="atan_norm",
         )
         all_rank_profiles.append(atan_norm_profile)
+
+        norm_linear_profile = create_hybrid_rank_profile(
+            config,
+            profile_name=f"norm_linear{profile_suffix}",
+            base_profile=f"bm25{profile_suffix}",
+            embedding_field=embedding_field_name,
+            query_tensor=f"q{profile_suffix}",
+            fusion_method="norm_linear",
+        )
+        all_rank_profiles.append(norm_linear_profile)
 
     # Create a match-only profile with inputs for all models
     match_only_profile = RankProfile(

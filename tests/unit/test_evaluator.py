@@ -4584,18 +4584,44 @@ class TestCreateHybridRankProfile:
         assert "similarity" in profile.match_features
         assert "bm25text" in profile.match_features
 
-    def test_hybrid_profile_normalize(self):
+    def test_hybrid_profile_atan_norm(self):
+        """Test hybrid profile with atan normalization."""
+        from vespa.evaluation import ModelConfig, create_hybrid_rank_profile
+
+        config = ModelConfig(model_id="test", embedding_dim=384)
+        profile = create_hybrid_rank_profile(
+            config,
+            fusion_method="atan_norm",
+        )
+
+        # atan_norm should not have global phase
+        assert profile.global_phase is None
+        # Should use atan-normalized sum in first phase
+        assert "normalized_bm25 + cos_sim" in profile.first_phase
+        # Should have scale, normalized_bm25, and cos_sim functions
+        func_names = [f.name for f in profile.functions]
+        assert "scale" in func_names
+        assert "normalized_bm25" in func_names
+        assert "cos_sim" in func_names
+        # Check match features
+        assert "cos_sim" in profile.match_features
+        assert "normalized_bm25" in profile.match_features
+
+    def test_hybrid_profile_norm_linear(self):
         """Test hybrid profile with linear normalization."""
         from vespa.evaluation import ModelConfig, create_hybrid_rank_profile
 
         config = ModelConfig(model_id="test", embedding_dim=384)
         profile = create_hybrid_rank_profile(
             config,
-            fusion_method="normalize",
+            fusion_method="norm_linear",
         )
 
+        # norm_linear should have global phase with normalize_linear
+        assert profile.global_phase is not None
         assert "normalize_linear" in profile.global_phase.expression
-        assert "bm25text" in profile.global_phase.expression
+        assert "bm25(text)" in profile.global_phase.expression
+        assert "closeness" in profile.global_phase.expression
 
     def test_hybrid_profile_binarized(self):
         """Test hybrid profile for binarized embeddings."""
@@ -4623,6 +4649,10 @@ class TestCreateHybridRankProfile:
 
         with pytest.raises(ValueError, match="Unknown fusion_method"):
             create_hybrid_rank_profile(config, fusion_method="invalid")
+
+        # Test that old 'normalize' method is not valid
+        with pytest.raises(ValueError, match="Unknown fusion_method"):
+            create_hybrid_rank_profile(config, fusion_method="normalize")
 
     def test_custom_profile_name(self):
         """Test hybrid profile with custom name."""
