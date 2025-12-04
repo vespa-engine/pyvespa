@@ -5,8 +5,8 @@ import { Trend, Rate, Counter } from "k6/metrics";
 const maxVus = 200;
 const duration = "3m";
 const startRate = 100;
-const rampStep = 200;
-const holdTime = "30s";
+const rampStep = 400;
+const holdTime = "20s";
 
 const schema = "msmarco";
 
