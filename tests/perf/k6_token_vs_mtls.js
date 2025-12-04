@@ -2,45 +2,86 @@ import http from "k6/http";
 import { check, sleep } from "k6";
 import { Trend, Rate, Counter } from "k6/metrics";
 
-const vus = Number(__ENV.VUS || 50);
-const duration = __ENV.DURATION || "120s";
-const sleepDuration = Number(__ENV.K6_SLEEP ?? 0);
+const maxVus = 200;
+const duration = "3m";
+const startRate = 100;
+const rampStep = 200;
+const holdTime = "30s";
+
+const schema = "msmarco";
+
 const tokenUrl = __ENV.TOKEN_URL;
 const mtlsUrl = __ENV.MTLS_URL;
-const schema = __ENV.SCHEMA || "msmarco";
 const tokenAuthHeader = __ENV.TOKEN_AUTH_HEADER;
 
-function hostnameFromUrl(url) {
-  if (!url) {
-    throw new Error("Missing URL for TLS auth configuration.");
-  }
-  if (!url) return undefined;
-  const match = url.match(/^https?:\/\/([^/]+)/);
-  return match ? match[1] : undefined;
-}
-
 const tlsAuth = [];
-if (__ENV.MTLS_CERT_PATH && __ENV.MTLS_KEY_PATH && mtlsUrl) {
-  const domain = __ENV.MTLS_DOMAIN || hostnameFromUrl(mtlsUrl);
+if (__ENV.MTLS_CERT_PATH && __ENV.MTLS_KEY_PATH) {
   tlsAuth.push({
-    domains: [domain],
     cert: open(__ENV.MTLS_CERT_PATH),
     key: open(__ENV.MTLS_KEY_PATH),
   });
 }
 
+// Build stages: ramp up by RAMP_STEP, then hold, repeat until duration
+function buildStages(totalDuration, holdDuration, step, start) {
+  const stages = [];
+  const holdMs = parseDuration(holdDuration);
+  const totalMs = parseDuration(totalDuration);
+  const rampTime = "20s"; // Quick ramp between steps
+
+  let elapsed = 0;
+  let currentRate = start;
+
+  while (elapsed < totalMs) {
+    // Ramp to next level
+    currentRate += step;
+    stages.push({ target: currentRate, duration: rampTime });
+    elapsed += parseDuration(rampTime);
+
+    if (elapsed >= totalMs) break;
+
+    // Hold at this level
+    const remainingTime = totalMs - elapsed;
+    const actualHold = Math.min(holdMs, remainingTime);
+    stages.push({ target: currentRate, duration: `${actualHold}ms` });
+    elapsed += actualHold;
+  }
+
+  return stages;
+}
+
+function parseDuration(d) {
+  if (typeof d === "number") return d;
+  const match = d.match(/^(\d+)(ms|s|m|h)$/);
+  if (!match) return 60000;
+  const value = Number(match[1]);
+  const unit = match[2];
+  const multipliers = { ms: 1, s: 1000, m: 60000, h: 3600000 };
+  return value * multipliers[unit];
+}
+
+const stages = buildStages(duration, holdTime, rampStep, startRate);
+
 export const options = {
   scenarios: {
     mtls: {
-      executor: "constant-vus",
-      vus,
-      duration,
+      executor: "ramping-arrival-rate",
+      startRate,
+      timeUnit: "1s",
+      preAllocatedVUs: maxVus,
+      maxVUs: maxVus,
+      stages,
+      startTime: "0s",
       exec: "mtlsScenario",
     },
     token: {
-      executor: "constant-vus",
-      vus,
-      duration,
+      executor: "ramping-arrival-rate",
+      startRate,
+      timeUnit: "1s",
+      preAllocatedVUs: maxVus,
+      maxVUs: maxVus,
+      stages,
+      startTime: "0s",
       exec: "tokenScenario",
     },
   },
@@ -75,7 +116,10 @@ function feedDoc(url, authHeader, kindTag) {
       "Content-Type": "application/json",
       ...(authHeader ? { Authorization: authHeader } : {}),
     },
-    tags: { kind: kindTag },
+    tags: {
+      kind: kindTag,
+      name: `feed_doc_${kindTag}`,
+    },
   };
 
   return http.post(endpoint, payload, params);
@@ -88,7 +132,6 @@ export function mtlsScenario() {
   mtlsFailRate.add(!mtlsOk);
   mtlsReqs.add(1);
   check(mtlsRes, { "mtls status 2xx": () => mtlsOk });
-  sleep(sleepDuration);
 }
 
 export function tokenScenario() {
@@ -98,7 +141,6 @@ export function tokenScenario() {
   tokenFailRate.add(!tokenOk);
   tokenReqs.add(1);
   check(tokenRes, { "token status 2xx": () => tokenOk });
-  sleep(sleepDuration);
 }
 
 export function handleSummary(data) {
