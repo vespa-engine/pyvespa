@@ -27,10 +27,11 @@ def test_token_vs_mtls_perf(vespa_cloud_token_endpoints, tmp_path):
         "TOKEN_AUTH_HEADER": f"Bearer {vespa_cloud_token_endpoints['token']}",
         "MTLS_CERT_PATH": vespa_cloud_token_endpoints["cert_path"],
         "MTLS_KEY_PATH": vespa_cloud_token_endpoints["key_path"],
-        "VUS": os.getenv("K6_VUS", "50"),
-        "DURATION": os.getenv("K6_DURATION", "60s"),
     }
-    min_token_rps_ratio = float(os.getenv("K6_TOKEN_RPS_RATIO", "0.7"))
+    min_token_rps = 750
+    min_mtls_rps = 1000
+    min_token_rps_ratio = 0.75
+    max_error_rate = 0.02
 
     try:
         result = subprocess.run(
@@ -117,15 +118,31 @@ def test_token_vs_mtls_perf(vespa_cloud_token_endpoints, tmp_path):
     token_req_rate = req_rate(token_reqs, "token")
     mtls_req_rate = req_rate(mtls_reqs, "mtls")
 
-    assert token_fail_rate <= 0.01 and mtls_fail_rate <= 0.01, (
-        "Error rate too high "
-        f"(token fail rate={token_fail_rate}, mtls fail rate={mtls_fail_rate})"
+    print("\n=== Results ===")
+    print(
+        f"Token: {token_req_rate:.2f} req/s, p95={token_p95:.2f}ms, error_rate={token_fail_rate:.4f}"
     )
-    assert mtls_req_rate > 0, "mTLS request rate is zero; throughput comparison invalid"
+    print(
+        f"mTLS:  {mtls_req_rate:.2f} req/s, p95={mtls_p95:.2f}ms, error_rate={mtls_fail_rate:.4f}"
+    )
+    print(
+        f"Token/mTLS ratio: {token_req_rate / mtls_req_rate if mtls_req_rate > 0 else 0:.2f}"
+    )
+
+    assert token_fail_rate <= max_error_rate and mtls_fail_rate <= max_error_rate, (
+        "Error rate too high "
+        f"(token fail rate={token_fail_rate:.4f}, mtls fail rate={mtls_fail_rate:.4f}, max={max_error_rate})"
+    )
+    assert (
+        token_req_rate >= min_token_rps
+    ), f"Token throughput too low (got {token_req_rate:.2f} req/s, expected >={min_token_rps} req/s)"
+    assert (
+        mtls_req_rate >= min_mtls_rps
+    ), f"mTLS throughput too low (got {mtls_req_rate:.2f} req/s, expected >={min_mtls_rps} req/s)"
     assert token_req_rate >= min_token_rps_ratio * mtls_req_rate, (
         "Token throughput too low relative to mTLS "
-        f"(token rps={token_req_rate}, mTLS rps={mtls_req_rate}, "
-        f"min ratio={min_token_rps_ratio})"
+        f"(token rps={token_req_rate:.2f}, mTLS rps={mtls_req_rate:.2f}, "
+        f"ratio={token_req_rate / mtls_req_rate:.2f}, min ratio={min_token_rps_ratio})"
     )
     assert token_p95 <= 3 * mtls_p95, (
         "Token endpoint too slow relative to mTLS"
