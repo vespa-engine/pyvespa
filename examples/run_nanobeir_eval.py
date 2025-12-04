@@ -296,6 +296,31 @@ def create_query_functions(model_configs, schema_name: str):
 
             return atan_norm_query_fn
 
+        def make_norm_linear_fn(
+            embedding_field, query_tensor, profile_suffix, embedder_id
+        ):
+            def norm_linear_query_fn(query_text: str, top_k: int) -> dict:
+                return {
+                    "yql": str(
+                        qb.select("*")
+                        .from_(schema_name)
+                        .where(
+                            qb.nearestNeighbor(
+                                field=embedding_field,
+                                query_vector=query_tensor,
+                                annotations={"targetHits": 100},
+                            )
+                            | qb.userQuery(query_text)
+                        )
+                    ),
+                    "query": query_text,
+                    "ranking": f"norm_linear{profile_suffix}",
+                    f"input.query({query_tensor})": f"embed({embedder_id}, '{query_text}')",
+                    "hits": top_k,
+                }
+
+            return norm_linear_query_fn
+
         # Add match strategies
         query_functions[f"match_semantic{model_label}"] = make_semantic_match_fn(
             embedding_field, query_tensor, config.component_id
@@ -313,6 +338,9 @@ def create_query_functions(model_configs, schema_name: str):
             embedding_field, query_tensor, profile_suffix, config.component_id
         )
         query_functions[f"atan_norm{model_label}"] = make_atan_norm_fn(
+            embedding_field, query_tensor, profile_suffix, config.component_id
+        )
+        query_functions[f"norm_linear{model_label}"] = make_norm_linear_fn(
             embedding_field, query_tensor, profile_suffix, config.component_id
         )
 
