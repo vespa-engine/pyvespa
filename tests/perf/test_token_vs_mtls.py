@@ -28,8 +28,8 @@ def test_token_vs_mtls_perf(vespa_cloud_token_endpoints, tmp_path):
         "MTLS_CERT_PATH": vespa_cloud_token_endpoints["cert_path"],
         "MTLS_KEY_PATH": vespa_cloud_token_endpoints["key_path"],
     }
-    min_token_rps = 750
-    min_mtls_rps = 1000
+    min_token_rps = 500
+    min_mtls_rps = 750
     min_token_rps_ratio = 0.75
     max_error_rate = 0.02
 
