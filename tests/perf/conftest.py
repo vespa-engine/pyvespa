@@ -31,10 +31,11 @@ def vespa_cloud_token_endpoints(
 
     api_key = _require_env_var("VESPA_TEAM_API_KEY")
     secret_token = _require_env_var("VESPA_CLOUD_SECRET_TOKEN")
-    tenant = _require_env_var("TENANT_NAME")
+    client_token_id = _require_env_var("VESPA_CLIENT_TOKEN_ID")
+
+    tenant = "vespa-team"
     application = "pyvespa-integration"
     instance_name = "perf-test"
-    client_token_id = _require_env_var("VESPA_CLIENT_TOKEN_ID")
 
     disk_folder = tmp_path_factory.mktemp("vespa-perf-app")
     clients = [
@@ -60,21 +61,19 @@ def vespa_cloud_token_endpoints(
     )
 
     vespa_cloud.deploy(instance=instance_name, disk_folder=str(disk_folder))
-    token_app = vespa_cloud.get_application(
-        instance=instance_name,
-        environment="dev",
-        endpoint_type="token",
-        vespa_cloud_secret_token=secret_token,
-    )
 
     mtls_url = vespa_cloud.get_mtls_endpoint(instance=instance_name, environment="dev")
-    token_url = vespa_cloud.get_token_endpoint(instance=instance_name, environment="dev")
+    token_url = vespa_cloud.get_token_endpoint(
+        instance=instance_name, environment="dev"
+    )
 
     cert_path = vespa_cloud.data_cert_path
     key_path = vespa_cloud.data_key_path
     if not cert_path or not key_path:
         vespa_cloud.delete(instance=instance_name)
-        pytest.skip("mTLS certificate/key were not found; ensure vespa auth cert has been run.")
+        pytest.skip(
+            "mTLS certificate/key were not found; ensure vespa auth cert has been run."
+        )
 
     try:
         yield {
@@ -85,8 +84,5 @@ def vespa_cloud_token_endpoints(
             "key_path": key_path,
         }
     finally:
-        token_app.delete_all_docs(
-            content_cluster_name="msmarco_content", schema=app_package.name
-        )
         shutil.rmtree(disk_folder, ignore_errors=True)
         vespa_cloud.delete(instance=instance_name)
