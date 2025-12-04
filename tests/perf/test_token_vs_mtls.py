@@ -43,21 +43,13 @@ def test_token_vs_mtls_perf(vespa_cloud_token_endpoints, tmp_path):
                 str(script),
             ],
             env=env,
-            capture_output=True,
+            capture_output=False,
             text=True,
         )
     except FileNotFoundError:
         pytest.skip("k6 binary not found in PATH")
 
-    if result.stdout:
-        print("\n=== k6 stdout ===\n", result.stdout)
-    if result.stderr:
-        print("\n=== k6 stderr ===\n", result.stderr)
-
-    assert result.returncode == 0, (
-        "k6 thresholds failed\n"
-        f"stdout:\n{result.stdout}\n\nstderr:\n{result.stderr}"
-    )
+    assert result.returncode == 0, "k6 run failed (see output above)"
 
     summary = json.loads(summary_file.read_text())
     metrics = summary.get("metrics", {})
