@@ -856,7 +856,7 @@ class TestVespaAsync:
         assert vespa_async.httpx_client is None
         assert vespa_async.connections == 1
         assert vespa_async.total_timeout is None
-        assert vespa_async.timeout == httpx.Timeout(5)
+        assert vespa_async.timeout == httpx.Timeout(5.0, read=30.0)
         assert vespa_async.kwargs == {}
         assert vespa_async.headers == app.base_headers
         assert vespa_async.limits == httpx.Limits(max_keepalive_connections=1)
