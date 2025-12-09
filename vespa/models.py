@@ -1,5 +1,6 @@
 from __future__ import annotations
 import re
+import warnings
 from difflib import get_close_matches
 from typing import Dict, List, Optional, Union, Literal
 from dataclasses import dataclass
@@ -9,6 +10,7 @@ from vespa.package import (
     Parameter,
     Field,
     HNSW,
+    DistanceMetric,
     RankProfile,
     Function,
     Schema,
@@ -17,9 +19,7 @@ from vespa.package import (
 )
 
 PoolingStrategy = Literal["mean", "cls", "none"]
-DistanceMetric = Literal[
-    "angular", "euclidean", "dotproduct", "hamming", "prenormalized-angular"
-]
+
 FusionMethod = Literal["rrf", "atan_norm", "norm_linear"]
 EmbeddingFieldType = Literal["double", "float", "bfloat16", "int8"]
 
@@ -94,6 +94,10 @@ class ModelConfig:
             - "float": 32-bit float (good balance)
             - "bfloat16": 16-bit brain float (reduced memory, good for large scale) - DEFAULT
             - "int8": 8-bit integer (quantized, or used automatically when binarized=True)
+        distance_metric: Distance metric for HNSW index. Options:
+            - "angular": Cosine similarity (default for non-binarized)
+            - "hamming": Hamming distance (required for binarized embeddings)
+            - "euclidean", "dotproduct", "prenormalized-angular", "geodegrees"
         component_id: The ID to use for the Vespa component (defaults to sanitized model_id)
         model_path: Optional local path to the model file
         tokenizer_path: Optional local path to the tokenizer file
@@ -116,6 +120,7 @@ class ModelConfig:
     tokenizer_id: Optional[str] = None
     binarized: bool = False
     embedding_field_type: EmbeddingFieldType = "bfloat16"
+    distance_metric: Optional[DistanceMetric] = None
     component_id: Optional[str] = None
     model_path: Optional[str] = None
     tokenizer_path: Optional[str] = None
@@ -156,6 +161,18 @@ class ModelConfig:
                     f"binarized embeddings require embedding_dim divisible by 8, "
                     f"got {self.embedding_dim} which would be truncated to {self.embedding_dim // 8} bytes"
                 )
+            # Set distance_metric to hamming for binarized embeddings
+            if self.distance_metric is not None and self.distance_metric != "hamming":
+                warnings.warn(
+                    f"binarized embeddings require 'hamming' distance metric, "
+                    f"but got '{self.distance_metric}'. Setting to 'hamming'.",
+                    UserWarning,
+                )
+            object.__setattr__(self, "distance_metric", "hamming")
+        else:
+            # Default to angular for non-binarized embeddings
+            if self.distance_metric is None:
+                object.__setattr__(self, "distance_metric", "angular")
 
         # Validate embedding_field_type
         valid_field_types = ["double", "float", "bfloat16", "int8"]
@@ -343,7 +360,6 @@ def create_embedding_field(
         # For binarized embeddings, we pack 8 bits into each int8
         packed_dim = config.embedding_dim // 8
         field_type = f"tensor<int8>(x[{packed_dim}])"
-        default_distance_metric = "hamming"
 
         # Default indexing for binarized: pack bits and index
         if indexing is None:
@@ -357,7 +373,6 @@ def create_embedding_field(
     else:
         # Regular embeddings using specified embedding field type
         field_type = f"tensor<{config.embedding_field_type}>(x[{config.embedding_dim}])"
-        default_distance_metric = "angular"
 
         # Default indexing for embeddings
         if indexing is None:
@@ -368,8 +383,8 @@ def create_embedding_field(
                 "attribute",
             ]
 
-    # Use provided distance metric or default
-    distance_metric = distance_metric or default_distance_metric
+    # Use provided distance metric or config's distance metric
+    distance_metric = distance_metric or config.distance_metric
 
     return Field(
         name=field_name,
@@ -441,8 +456,7 @@ def create_hybrid_rank_profile(
     query_tensor: str = "q",
     fusion_method: FusionMethod = "rrf",
     global_rerank_count: int = 1000,
-    second_phase_rerank_count: Optional[int] = None,
-    first_phase_rerank_count: Optional[int] = None,
+    first_phase_keep_rank_count: Optional[int] = None,
 ) -> RankProfile:
     """
     Create a hybrid ranking profile combining BM25 and semantic search.
@@ -455,8 +469,7 @@ def create_hybrid_rank_profile(
         query_tensor: Name of the query tensor (default: "q")
         fusion_method: Fusion method - "rrf" for reciprocal rank fusion, "atan_norm" for atan-normalized sum in first phase, or "norm_linear" for linear normalization in global phase.
         global_rerank_count: Number of hits to rerank in global phase (default: 1000)
-        second_phase_rerank_count: Number of hits to rerank in second phase (default: None, only used with fusion methods that have second phase)
-        first_phase_rerank_count: Number of hits to rerank in first phase (default: None)
+        first_phase_keep_rank_count: How many documents to keep the first phase top rank values for (default: None, uses Vespa default of 10000)
 
     Returns:
         RankProfile: A Vespa RankProfile configured for hybrid search
@@ -470,7 +483,6 @@ def create_hybrid_rank_profile(
     # Import necessary classes here to avoid circular dependency
     from vespa.package import (
         GlobalPhaseRanking,
-        SecondPhaseRanking,
         FirstPhaseRanking,
     )
 
@@ -529,16 +541,8 @@ def create_hybrid_rank_profile(
         )
 
     first_phase_obj = FirstPhaseRanking(
-        expression=first_phase_expr, keep_rank_count=first_phase_rerank_count
+        expression=first_phase_expr, keep_rank_count=first_phase_keep_rank_count
     )
-
-    second_phase = None
-    if second_phase_rerank_count is not None:
-        # For second phase, we can rerank with a more expensive expression
-        # For now, use the same expression as first phase
-        second_phase = SecondPhaseRanking(
-            expression=first_phase_expr, rerank_count=second_phase_rerank_count
-        )
 
     return RankProfile(
         name=profile_name,
@@ -546,7 +550,6 @@ def create_hybrid_rank_profile(
         inputs=[(f"query({query_tensor})", tensor_type)],
         functions=functions,
         first_phase=first_phase_obj,
-        second_phase=second_phase,
         global_phase=global_phase,
         match_features=match_features_list,
     )
@@ -675,6 +678,7 @@ def _create_model_profiles(
     embedding_field_name: str,
     profile_suffix: str,
     query_tensor: str,
+    global_rerank_count: int = 1000,
 ) -> List[RankProfile]:
     """
     Helper function to create all rank profiles for a single model.
@@ -684,6 +688,7 @@ def _create_model_profiles(
         embedding_field_name: Name of the embedding field
         profile_suffix: Suffix to add to profile names (empty string for single model)
         query_tensor: Name of the query tensor
+        global_rerank_count: Number of hits to rerank in global phase (default: 1000)
 
     Returns:
         List of RankProfile objects for this model
@@ -729,6 +734,7 @@ def _create_model_profiles(
             embedding_field=embedding_field_name,
             query_tensor=query_tensor,
             fusion_method=method,
+            global_rerank_count=global_rerank_count,
         )
         profiles.append(hybrid_profile)
 
@@ -739,6 +745,7 @@ def create_hybrid_package(
     models: Union[str, ModelConfig, List[Union[str, ModelConfig]]],
     app_name: str = "hybridapp",
     schema_name: str = "doc",
+    global_rerank_count: int = 1000,
 ) -> ApplicationPackage:
     """
     Create a Vespa application package configured for hybrid search evaluation.
@@ -754,6 +761,7 @@ def create_hybrid_package(
             - A ModelConfig instance for custom configuration
         app_name: Name of the application (default: "hybridapp")
         schema_name: Name of the schema (default: "doc")
+        global_rerank_count: Number of hits to rerank in global phase (default: 1000)
 
     Returns:
         ApplicationPackage: Configured Vespa application package with:
@@ -846,7 +854,11 @@ def create_hybrid_package(
         # Create and collect all rank profiles for this model
         all_rank_profiles.extend(
             _create_model_profiles(
-                config, embedding_field_name, profile_suffix, query_tensor
+                config,
+                embedding_field_name,
+                profile_suffix,
+                query_tensor,
+                global_rerank_count,
             )
         )
 
