@@ -11,7 +11,7 @@ Vespa applications with expensive operations (e.g., large embedding models).
 import asyncio
 import time
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 
 @dataclass
@@ -57,18 +57,20 @@ class AdaptiveThrottler:
 
     # Internal state (not part of __init__ signature)
     _current_concurrent: int = field(init=False, repr=False)
-    _semaphore: asyncio.Semaphore = field(init=False, repr=False)
+    _semaphore: Optional[asyncio.Semaphore] = field(init=False, repr=False, default=None)
     _window: List[bool] = field(init=False, repr=False, default_factory=list)
     _last_reduction: float = field(init=False, repr=False, default=0.0)
-    _lock: asyncio.Lock = field(init=False, repr=False)
+    _lock: Optional[asyncio.Lock] = field(init=False, repr=False, default=None)
 
     def __post_init__(self):
         """Initialize internal state after dataclass construction."""
         self._current_concurrent = min(self.initial_concurrent, self.max_concurrent)
-        self._semaphore = asyncio.Semaphore(self._current_concurrent)
+        # Note: _semaphore and _lock are lazily initialized to support Python 3.9
+        # which requires a running event loop when creating asyncio primitives
+        self._semaphore = None
+        self._lock = None
         self._window = []
         self._last_reduction = 0.0
-        self._lock = asyncio.Lock()
 
     @property
     def current_concurrent(self) -> int:
@@ -77,8 +79,20 @@ class AdaptiveThrottler:
 
     @property
     def semaphore(self) -> asyncio.Semaphore:
-        """Async semaphore for rate limiting requests."""
+        """Async semaphore for rate limiting requests.
+        
+        Note: This property lazily creates the semaphore on first access
+        to maintain compatibility with Python 3.9.
+        """
+        if self._semaphore is None:
+            self._semaphore = asyncio.Semaphore(self._current_concurrent)
         return self._semaphore
+
+    def _get_lock(self) -> asyncio.Lock:
+        """Get the async lock, creating it lazily if needed."""
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
 
     def _is_error_status(self, status_code: int) -> bool:
         """Check if status code indicates server overload."""
@@ -91,7 +105,7 @@ class AdaptiveThrottler:
         Args:
             status_code: HTTP status code from the response
         """
-        async with self._lock:
+        async with self._get_lock():
             is_success = not self._is_error_status(status_code)
             self._window.append(is_success)
 
@@ -143,6 +157,7 @@ class AdaptiveThrottler:
     def reset(self) -> None:
         """Reset throttler to initial state."""
         self._current_concurrent = min(self.initial_concurrent, self.max_concurrent)
-        self._semaphore = asyncio.Semaphore(self._current_concurrent)
+        self._semaphore = None  # Will be lazily recreated
+        self._lock = None  # Will be lazily recreated
         self._window.clear()
         self._last_reduction = 0.0

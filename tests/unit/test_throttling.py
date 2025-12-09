@@ -150,20 +150,31 @@ class TestAdaptiveThrottler(unittest.TestCase):
 
     def test_semaphore_property(self):
         """Test that semaphore property returns valid semaphore."""
-        throttler = AdaptiveThrottler(initial_concurrent=5)
-        self.assertIsInstance(throttler.semaphore, asyncio.Semaphore)
+
+        async def run_test():
+            throttler = AdaptiveThrottler(initial_concurrent=5)
+            return throttler.semaphore
+
+        sem = asyncio.run(run_test())
+        self.assertIsInstance(sem, asyncio.Semaphore)
 
     def test_reset(self):
         """Test that reset returns throttler to initial state."""
-        throttler = AdaptiveThrottler(initial_concurrent=10, max_concurrent=50)
 
-        # Manually modify state
-        throttler._current_concurrent = 5
-        throttler._window = [True, False, True]
-        throttler._last_reduction = 12345.0
+        async def run_test():
+            throttler = AdaptiveThrottler(initial_concurrent=10, max_concurrent=50)
+            # Access semaphore to ensure it's created
+            _ = throttler.semaphore
 
-        throttler.reset()
+            # Manually modify state
+            throttler._current_concurrent = 5
+            throttler._window = [True, False, True]
+            throttler._last_reduction = 12345.0
 
+            throttler.reset()
+            return throttler
+
+        throttler = asyncio.run(run_test())
         self.assertEqual(throttler.current_concurrent, 10)
         self.assertEqual(len(throttler._window), 0)
         self.assertEqual(throttler._last_reduction, 0.0)
