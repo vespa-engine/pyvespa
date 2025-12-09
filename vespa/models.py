@@ -640,13 +640,78 @@ def list_models() -> List[str]:
     return sorted(COMMON_MODELS.keys())
 
 
+def _create_model_profiles(
+    config: ModelConfig,
+    embedding_field_name: str,
+    profile_suffix: str,
+    query_tensor: str,
+) -> List[RankProfile]:
+    """
+    Helper function to create all rank profiles for a single model.
+
+    Args:
+        config: ModelConfig instance
+        embedding_field_name: Name of the embedding field
+        profile_suffix: Suffix to add to profile names (empty string for single model)
+        query_tensor: Name of the query tensor
+
+    Returns:
+        List of RankProfile objects for this model
+    """
+    profiles = []
+
+    # Base BM25 rank profile
+    embedding_type = (
+        f"tensor<int8>(x[{config.embedding_dim // 8}])"
+        if config.binarized
+        else f"tensor<float>(x[{config.embedding_dim}])"
+    )
+    bm25_profile = RankProfile(
+        name=f"bm25{profile_suffix}",
+        inputs=[(f"query({query_tensor})", embedding_type)],
+        functions=[Function(name="bm25text", expression="bm25(text)")],
+        first_phase="bm25text",
+        match_features=["bm25text"],
+    )
+    profiles.append(bm25_profile)
+
+    # Semantic search rank profile
+    semantic_profile = create_semantic_rank_profile(
+        config,
+        profile_name=f"semantic{profile_suffix}",
+        embedding_field=embedding_field_name,
+        query_tensor=query_tensor,
+    )
+    profiles.append(semantic_profile)
+
+    # Hybrid rank profiles with different fusion methods
+    fusion_methods: List[FusionMethod] = ["rrf", "atan_norm", "norm_linear"]
+    for method in fusion_methods:
+        profile_name = (
+            f"fusion{profile_suffix}"
+            if method == "rrf"
+            else f"{method}{profile_suffix}"
+        )
+        hybrid_profile = create_hybrid_rank_profile(
+            config,
+            profile_name=profile_name,
+            base_profile=f"bm25{profile_suffix}",
+            embedding_field=embedding_field_name,
+            query_tensor=query_tensor,
+            fusion_method=method,
+        )
+        profiles.append(hybrid_profile)
+
+    return profiles
+
+
 def create_hybrid_package(
     models: Union[str, ModelConfig, List[Union[str, ModelConfig]]],
     app_name: str = "hybridapp",
     schema_name: str = "doc",
 ) -> ApplicationPackage:
     """
-    Create a Vespa application package configured for NanoBEIR evaluation.
+    Create a Vespa application package configured for hybrid search evaluation.
 
     This function creates a complete Vespa application package with all necessary
     components, fields, and rank profiles for evaluation. It supports single or
@@ -666,7 +731,7 @@ def create_hybrid_package(
             - Embedding fields for each model (named "embedding" for single model,
               "embedding_{component_id}" for multiple models)
             - BM25 and semantic rank profiles for each model
-            - Hybrid rank profiles (RRF and normalize fusion) for each model
+            - Hybrid rank profiles (RRF, atan_norm, norm_linear) for each model
             - A match-only rank profile for baseline evaluation
 
     Raises:
@@ -722,93 +787,40 @@ def create_hybrid_package(
     # Determine if we have multiple models (affects naming)
     is_multi_model = len(resolved_configs) > 1
 
-    # Collect all components and fields
+    # Build components, fields, and profiles for each model
     all_components = []
     all_embedding_fields = []
     all_rank_profiles = []
-
-    # Track first embedding field type for match-only profile
-    first_embedding_type = None
-    # Track all query inputs for match-only profile (needed for multi-model)
     match_only_inputs = []
 
     for config in resolved_configs:
         # Create unique identifiers for multi-model setup
-        if is_multi_model:
-            embedding_field_name = f"embedding_{config.component_id}"
-            profile_suffix = f"_{config.component_id}"
-        else:
-            embedding_field_name = "embedding"
-            profile_suffix = ""
+        profile_suffix = f"_{config.component_id}" if is_multi_model else ""
+        embedding_field_name = (
+            f"embedding_{config.component_id}" if is_multi_model else "embedding"
+        )
+        query_tensor = f"q{profile_suffix}"
 
-        # Create the embedder component
-        embedder = create_embedder_component(config)
-        all_components.append(embedder)
+        # Create and collect component
+        all_components.append(create_embedder_component(config))
 
-        # Create the embedding field with correct type and indexing
+        # Create and collect embedding field
         embedding_field = create_embedding_field(
             config, field_name=embedding_field_name, embedder_id=config.component_id
         )
         all_embedding_fields.append(embedding_field)
 
-        # Store first embedding type for match-only profile
-        if first_embedding_type is None:
-            first_embedding_type = embedding_field.type
+        # Track query inputs for match-only profile
+        match_only_inputs.append((f"query({query_tensor})", embedding_field.type))
 
-        # Add query input for this model to match-only profile
-        match_only_inputs.append((f"query(q{profile_suffix})", embedding_field.type))
-
-        # Create base BM25 rank profile
-        bm25_profile = RankProfile(
-            name=f"bm25{profile_suffix}",
-            inputs=[(f"query(q{profile_suffix})", embedding_field.type)],
-            functions=[Function(name="bm25text", expression="bm25(text)")],
-            first_phase="bm25text",
-            match_features=["bm25text"],
+        # Create and collect all rank profiles for this model
+        all_rank_profiles.extend(
+            _create_model_profiles(
+                config, embedding_field_name, profile_suffix, query_tensor
+            )
         )
-        all_rank_profiles.append(bm25_profile)
 
-        # Create semantic search rank profile
-        semantic_profile = create_semantic_rank_profile(
-            config,
-            profile_name=f"semantic{profile_suffix}",
-            embedding_field=embedding_field_name,
-            query_tensor=f"q{profile_suffix}",
-        )
-        all_rank_profiles.append(semantic_profile)
-
-        # Create hybrid rank profiles
-        fusion_profile = create_hybrid_rank_profile(
-            config,
-            profile_name=f"fusion{profile_suffix}",
-            base_profile=f"bm25{profile_suffix}",
-            embedding_field=embedding_field_name,
-            query_tensor=f"q{profile_suffix}",
-            fusion_method="rrf",
-        )
-        all_rank_profiles.append(fusion_profile)
-
-        atan_norm_profile = create_hybrid_rank_profile(
-            config,
-            profile_name=f"atan_norm{profile_suffix}",
-            base_profile=f"bm25{profile_suffix}",
-            embedding_field=embedding_field_name,
-            query_tensor=f"q{profile_suffix}",
-            fusion_method="atan_norm",
-        )
-        all_rank_profiles.append(atan_norm_profile)
-
-        norm_linear_profile = create_hybrid_rank_profile(
-            config,
-            profile_name=f"norm_linear{profile_suffix}",
-            base_profile=f"bm25{profile_suffix}",
-            embedding_field=embedding_field_name,
-            query_tensor=f"q{profile_suffix}",
-            fusion_method="norm_linear",
-        )
-        all_rank_profiles.append(norm_linear_profile)
-
-    # Create a match-only profile with inputs for all models
+    # Create match-only profile with inputs for all models
     match_only_profile = RankProfile(
         name="match-only",
         inputs=match_only_inputs,
@@ -840,10 +852,8 @@ def create_hybrid_package(
     )
 
     # Create the application package
-    package = ApplicationPackage(
+    return ApplicationPackage(
         name=app_name,
         schema=[schema],
         components=all_components,
     )
-
-    return package
