@@ -1,13 +1,25 @@
 import pytest
 
+from vespa.configuration.vt import compare_xml
+from vespa.models import (
+    COMMON_MODELS,
+    ModelConfig,
+    create_embedder_component,
+    create_embedding_field,
+    create_hybrid_package,
+    create_hybrid_rank_profile,
+    create_semantic_rank_profile,
+    get_model_config,
+    list_models,
+)
+from vespa.package import Component, Field, FirstPhaseRanking, RankProfile
+
 
 class TestModelConfig:
     """Test ModelConfig dataclass."""
 
     def test_basic_config(self):
         """Test basic model configuration."""
-        from vespa.models import ModelConfig
-
         config = ModelConfig(
             model_id="test-model",
             embedding_dim=384,
@@ -20,8 +32,6 @@ class TestModelConfig:
 
     def test_config_with_tokenizer(self):
         """Test configuration with separate tokenizer."""
-        from vespa.models import ModelConfig
-
         config = ModelConfig(
             model_id="e5-small-v2",
             embedding_dim=384,
@@ -31,8 +41,6 @@ class TestModelConfig:
 
     def test_config_binarized(self):
         """Test binarized model configuration."""
-        from vespa.models import ModelConfig
-
         config = ModelConfig(
             model_id="bge-m3",
             embedding_dim=1024,
@@ -42,8 +50,6 @@ class TestModelConfig:
 
     def test_config_with_paths(self):
         """Test configuration with local paths."""
-        from vespa.models import ModelConfig
-
         config = ModelConfig(
             model_id="custom-model",
             embedding_dim=512,
@@ -55,8 +61,6 @@ class TestModelConfig:
 
     def test_config_with_urls(self):
         """Test configuration with URLs."""
-        from vespa.models import ModelConfig
-
         config = ModelConfig(
             model_id="url-model",
             embedding_dim=768,
@@ -68,8 +72,6 @@ class TestModelConfig:
 
     def test_config_with_explicit_parameters(self):
         """Test configuration with explicit huggingface embedder parameters."""
-        from vespa.models import ModelConfig
-
         config = ModelConfig(
             model_id="custom-model",
             embedding_dim=768,
@@ -89,8 +91,6 @@ class TestModelConfig:
 
     def test_config_pooling_strategy_validation(self):
         """Test that invalid pooling strategy raises error."""
-        from vespa.models import ModelConfig
-
         with pytest.raises(ValueError, match="pooling_strategy must be one of"):
             ModelConfig(
                 model_id="test",
@@ -100,8 +100,6 @@ class TestModelConfig:
 
     def test_config_invalid_dimension(self):
         """Test that invalid embedding dimension raises error."""
-        from vespa.models import ModelConfig
-
         with pytest.raises(ValueError, match="embedding_dim must be positive"):
             ModelConfig(model_id="test", embedding_dim=0)
 
@@ -110,8 +108,6 @@ class TestModelConfig:
 
     def test_component_id_sanitization(self):
         """Test that component IDs are properly sanitized."""
-        from vespa.models import ModelConfig
-
         config = ModelConfig(
             model_id="some/model-with-special_chars",
             embedding_dim=384,
@@ -121,8 +117,6 @@ class TestModelConfig:
 
     def test_binarized_dimension_validation(self):
         """Test that binarized embeddings require dimension divisible by 8."""
-        from vespa.models import ModelConfig
-
         # Valid binarized dimensions (divisible by 8)
         config = ModelConfig(model_id="test", embedding_dim=1024, binarized=True)
         assert config.embedding_dim == 1024
@@ -153,9 +147,6 @@ class TestCreateEmbedderComponent:
 
     def test_component_with_model_id(self):
         """Test component creation with model ID."""
-        from vespa.models import ModelConfig, create_embedder_component
-        from vespa.package import Component
-
         config = ModelConfig(
             model_id="e5-small-v2",
             embedding_dim=384,
@@ -174,8 +165,6 @@ class TestCreateEmbedderComponent:
 
     def test_component_with_paths(self):
         """Test component creation with file paths."""
-        from vespa.models import ModelConfig, create_embedder_component
-
         config = ModelConfig(
             model_id="custom-model",
             embedding_dim=384,
@@ -189,8 +178,6 @@ class TestCreateEmbedderComponent:
 
     def test_component_with_urls(self):
         """Test component creation with URLs."""
-        from vespa.models import ModelConfig, create_embedder_component
-
         config = ModelConfig(
             model_id="url-model",
             embedding_dim=768,
@@ -208,8 +195,6 @@ class TestCreateEmbedderComponent:
 
     def test_component_with_explicit_parameters(self):
         """Test component creation with explicit huggingface embedder parameters."""
-        from vespa.models import ModelConfig, create_embedder_component
-
         config = ModelConfig(
             model_id="advanced-model",
             embedding_dim=768,
@@ -233,8 +218,6 @@ class TestCreateEmbedderComponent:
 
     def test_component_with_prepend_parameters(self):
         """Test component creation with prepend parameters."""
-        from vespa.models import ModelConfig, create_embedder_component
-
         config = ModelConfig(
             model_id="prepend-model",
             embedding_dim=768,
@@ -261,8 +244,6 @@ class TestCreateEmbedderComponent:
 
     def test_component_with_only_query_prepend(self):
         """Test component creation with only query prepend."""
-        from vespa.models import ModelConfig, create_embedder_component
-
         config = ModelConfig(
             model_id="query-prepend-model",
             embedding_dim=768,
@@ -279,8 +260,6 @@ class TestCreateEmbedderComponent:
 
     def test_component_url_priority_over_path(self):
         """Test that URL takes priority over path when both are provided."""
-        from vespa.models import ModelConfig, create_embedder_component
-
         config = ModelConfig(
             model_id="test-model",
             embedding_dim=384,
@@ -303,9 +282,6 @@ class TestCreateEmbeddingField:
 
     def test_float_embedding_field(self):
         """Test field creation for float embeddings."""
-        from vespa.models import ModelConfig, create_embedding_field
-        from vespa.package import Field
-
         config = ModelConfig(
             model_id="e5-small-v2",
             embedding_dim=384,
@@ -331,8 +307,6 @@ class TestCreateEmbeddingField:
 
     def test_binarized_embedding_field(self):
         """Test field creation for binarized embeddings."""
-        from vespa.models import ModelConfig, create_embedding_field
-
         config = ModelConfig(
             model_id="bge-m3",
             embedding_dim=1024,
@@ -353,8 +327,6 @@ class TestCreateEmbeddingField:
 
     def test_custom_field_name(self):
         """Test field creation with custom name."""
-        from vespa.models import ModelConfig, create_embedding_field
-
         config = ModelConfig(model_id="test", embedding_dim=384)
         field = create_embedding_field(config, field_name="my_embedding")
 
@@ -362,8 +334,6 @@ class TestCreateEmbeddingField:
 
     def test_custom_distance_metric(self):
         """Test field creation with custom distance metric."""
-        from vespa.models import ModelConfig, create_embedding_field
-
         config = ModelConfig(model_id="test", embedding_dim=384)
         field = create_embedding_field(config, distance_metric="euclidean")
 
@@ -371,8 +341,6 @@ class TestCreateEmbeddingField:
 
     def test_custom_indexing(self):
         """Test field creation with custom indexing."""
-        from vespa.models import ModelConfig, create_embedding_field
-
         config = ModelConfig(model_id="test", embedding_dim=384)
         custom_indexing = ["attribute", "index"]
         field = create_embedding_field(config, indexing=custom_indexing)
@@ -381,8 +349,6 @@ class TestCreateEmbeddingField:
 
     def test_custom_embedder_id(self):
         """Test field creation with custom embedder ID."""
-        from vespa.models import ModelConfig, create_embedding_field
-
         config = ModelConfig(model_id="test", embedding_dim=384)
         field = create_embedding_field(config, embedder_id="my_embedder")
 
@@ -394,9 +360,6 @@ class TestCreateSemanticRankProfile:
 
     def test_float_semantic_profile(self):
         """Test semantic profile for float embeddings."""
-        from vespa.models import ModelConfig, create_semantic_rank_profile
-        from vespa.package import RankProfile
-
         config = ModelConfig(
             model_id="e5-small-v2",
             embedding_dim=384,
@@ -420,8 +383,6 @@ class TestCreateSemanticRankProfile:
 
     def test_binarized_semantic_profile(self):
         """Test semantic profile for binarized embeddings."""
-        from vespa.models import ModelConfig, create_semantic_rank_profile
-
         config = ModelConfig(
             model_id="bge-m3",
             embedding_dim=1024,
@@ -440,8 +401,6 @@ class TestCreateSemanticRankProfile:
 
     def test_custom_profile_name(self):
         """Test semantic profile with custom name."""
-        from vespa.models import ModelConfig, create_semantic_rank_profile
-
         config = ModelConfig(model_id="test", embedding_dim=384)
         profile = create_semantic_rank_profile(config, profile_name="my_semantic")
 
@@ -449,8 +408,6 @@ class TestCreateSemanticRankProfile:
 
     def test_custom_embedding_field(self):
         """Test semantic profile with custom embedding field name."""
-        from vespa.models import ModelConfig, create_semantic_rank_profile
-
         config = ModelConfig(model_id="test", embedding_dim=384)
         profile = create_semantic_rank_profile(
             config,
@@ -462,8 +419,6 @@ class TestCreateSemanticRankProfile:
 
     def test_custom_query_tensor(self):
         """Test semantic profile with custom query tensor name."""
-        from vespa.models import ModelConfig, create_semantic_rank_profile
-
         config = ModelConfig(model_id="test", embedding_dim=384)
         profile = create_semantic_rank_profile(
             config,
@@ -478,9 +433,6 @@ class TestCreateHybridRankProfile:
 
     def test_hybrid_profile_rrf(self):
         """Test hybrid profile with reciprocal rank fusion."""
-        from vespa.models import ModelConfig, create_hybrid_rank_profile
-        from vespa.package import RankProfile
-
         config = ModelConfig(
             model_id="e5-small-v2",
             embedding_dim=384,
@@ -504,9 +456,6 @@ class TestCreateHybridRankProfile:
 
     def test_hybrid_profile_atan_norm(self):
         """Test hybrid profile with atan normalization."""
-        from vespa.models import ModelConfig, create_hybrid_rank_profile
-        from vespa.package import FirstPhaseRanking
-
         config = ModelConfig(model_id="test", embedding_dim=384)
         profile = create_hybrid_rank_profile(
             config,
@@ -530,8 +479,6 @@ class TestCreateHybridRankProfile:
 
     def test_hybrid_profile_norm_linear(self):
         """Test hybrid profile with linear normalization."""
-        from vespa.models import ModelConfig, create_hybrid_rank_profile
-
         config = ModelConfig(model_id="test", embedding_dim=384)
         profile = create_hybrid_rank_profile(
             config,
@@ -546,8 +493,6 @@ class TestCreateHybridRankProfile:
 
     def test_hybrid_profile_binarized(self):
         """Test hybrid profile for binarized embeddings."""
-        from vespa.models import ModelConfig, create_hybrid_rank_profile
-
         config = ModelConfig(
             model_id="bge-m3",
             embedding_dim=1024,
@@ -564,8 +509,6 @@ class TestCreateHybridRankProfile:
 
     def test_hybrid_profile_invalid_fusion(self):
         """Test that invalid fusion method raises error."""
-        from vespa.models import ModelConfig, create_hybrid_rank_profile
-
         config = ModelConfig(model_id="test", embedding_dim=384)
 
         with pytest.raises(ValueError, match="Unknown fusion_method"):
@@ -577,8 +520,6 @@ class TestCreateHybridRankProfile:
 
     def test_custom_profile_name(self):
         """Test hybrid profile with custom name."""
-        from vespa.models import ModelConfig, create_hybrid_rank_profile
-
         config = ModelConfig(model_id="test", embedding_dim=384)
         profile = create_hybrid_rank_profile(
             config,
@@ -589,8 +530,6 @@ class TestCreateHybridRankProfile:
 
     def test_custom_base_profile(self):
         """Test hybrid profile with custom base profile."""
-        from vespa.models import ModelConfig, create_hybrid_rank_profile
-
         config = ModelConfig(model_id="test", embedding_dim=384)
         profile = create_hybrid_rank_profile(
             config,
@@ -605,8 +544,6 @@ class TestPredefinedModels:
 
     def test_common_models_exist(self):
         """Test that Vespa Cloud models are defined."""
-        from vespa.models import COMMON_MODELS
-
         assert "nomic-ai-modernbert" in COMMON_MODELS
         assert "lightonai-modernbert-large" in COMMON_MODELS
         assert "alibaba-gte-modernbert" in COMMON_MODELS
@@ -617,8 +554,6 @@ class TestPredefinedModels:
 
     def test_e5_small_v2_config(self):
         """Test e5-small-v2 configuration."""
-        from vespa.models import COMMON_MODELS
-
         config = COMMON_MODELS["e5-small-v2"]
         assert config.model_id == "e5-small-v2"
         assert config.embedding_dim == 384
@@ -629,8 +564,6 @@ class TestPredefinedModels:
 
     def test_nomic_ai_modernbert_config(self):
         """Test nomic-ai-modernbert configuration."""
-        from vespa.models import COMMON_MODELS
-
         config = COMMON_MODELS["nomic-ai-modernbert"]
         assert config.model_id == "nomic-ai-modernbert"
         assert config.embedding_dim == 768
@@ -642,16 +575,12 @@ class TestPredefinedModels:
 
     def test_get_model_config_success(self):
         """Test getting a predefined model config."""
-        from vespa.models import get_model_config
-
         config = get_model_config("e5-small-v2")
         assert config.model_id == "e5-small-v2"
         assert config.embedding_dim == 384
 
     def test_get_model_config_not_found(self):
         """Test that unknown model raises error."""
-        from vespa.models import get_model_config
-
         with pytest.raises(KeyError, match="Unknown model"):
             get_model_config("nonexistent-model")
 
@@ -663,8 +592,6 @@ class TestPredefinedModels:
 
     def test_get_model_config_fuzzy_matching(self):
         """Test that fuzzy matching provides suggestions for typos."""
-        from vespa.models import get_model_config
-
         # Test with a typo that should match e5-small-v2
         with pytest.raises(KeyError, match="Did you mean"):
             get_model_config("e5-smal-v2")
@@ -688,8 +615,6 @@ class TestPredefinedModels:
 
     def test_list_models(self):
         """Test listing all available models."""
-        from vespa.models import list_models, COMMON_MODELS
-
         models = list_models()
 
         # Should return a list
@@ -712,14 +637,6 @@ class TestIntegration:
 
     def test_complete_float_setup(self):
         """Test complete setup for float embeddings."""
-        from vespa.models import (
-            ModelConfig,
-            create_embedder_component,
-            create_embedding_field,
-            create_semantic_rank_profile,
-            create_hybrid_rank_profile,
-        )
-
         config = ModelConfig(
             model_id="e5-small-v2",
             embedding_dim=384,
@@ -741,14 +658,6 @@ class TestIntegration:
 
     def test_complete_binarized_setup(self):
         """Test complete setup for binarized embeddings."""
-        from vespa.models import (
-            ModelConfig,
-            create_embedder_component,
-            create_embedding_field,
-            create_semantic_rank_profile,
-            create_hybrid_rank_profile,
-        )
-
         config = ModelConfig(
             model_id="bge-m3",
             embedding_dim=1024,
@@ -772,14 +681,6 @@ class TestIntegration:
 
     def test_complete_advanced_setup(self):
         """Test complete setup with URL-based model and explicit parameters."""
-        from vespa.models import (
-            ModelConfig,
-            create_embedder_component,
-            create_embedding_field,
-            create_semantic_rank_profile,
-            create_hybrid_rank_profile,
-        )
-
         config = ModelConfig(
             model_id="gte-multilingual",
             embedding_dim=768,
@@ -824,9 +725,6 @@ class TestCommonModelsXMLGeneration:
 
     def test_nomic_ai_modernbert_xml(self):
         """Test nomic-ai-modernbert generates correct XML."""
-        from vespa.models import get_model_config, create_embedder_component
-        from vespa.configuration.vt import compare_xml
-
         config = get_model_config("nomic-ai-modernbert")
         component = create_embedder_component(config)
         xml = component.to_xml_string(indent=1)
@@ -847,9 +745,6 @@ class TestCommonModelsXMLGeneration:
 
     def test_lightonai_modernbert_large_xml(self):
         """Test lightonai-modernbert-large generates correct XML."""
-        from vespa.models import get_model_config, create_embedder_component
-        from vespa.configuration.vt import compare_xml
-
         config = get_model_config("lightonai-modernbert-large")
         component = create_embedder_component(config)
         xml = component.to_xml_string(indent=1)
@@ -869,9 +764,6 @@ class TestCommonModelsXMLGeneration:
 
     def test_alibaba_gte_modernbert_xml(self):
         """Test alibaba-gte-modernbert generates correct XML."""
-        from vespa.models import get_model_config, create_embedder_component
-        from vespa.configuration.vt import compare_xml
-
         config = get_model_config("alibaba-gte-modernbert")
         component = create_embedder_component(config)
         xml = component.to_xml_string(indent=1)
@@ -888,9 +780,6 @@ class TestCommonModelsXMLGeneration:
 
     def test_e5_small_v2_xml(self):
         """Test e5-small-v2 generates correct XML."""
-        from vespa.models import get_model_config, create_embedder_component
-        from vespa.configuration.vt import compare_xml
-
         config = get_model_config("e5-small-v2")
         component = create_embedder_component(config)
         xml = component.to_xml_string(indent=1)
@@ -910,9 +799,6 @@ class TestCommonModelsXMLGeneration:
 
     def test_e5_base_v2_xml(self):
         """Test e5-base-v2 generates correct XML."""
-        from vespa.models import get_model_config, create_embedder_component
-        from vespa.configuration.vt import compare_xml
-
         config = get_model_config("e5-base-v2")
         component = create_embedder_component(config)
         xml = component.to_xml_string(indent=1)
@@ -932,9 +818,6 @@ class TestCommonModelsXMLGeneration:
 
     def test_e5_large_v2_xml(self):
         """Test e5-large-v2 generates correct XML."""
-        from vespa.models import get_model_config, create_embedder_component
-        from vespa.configuration.vt import compare_xml
-
         config = get_model_config("e5-large-v2")
         component = create_embedder_component(config)
         xml = component.to_xml_string(indent=1)
@@ -954,9 +837,6 @@ class TestCommonModelsXMLGeneration:
 
     def test_multilingual_e5_base_xml(self):
         """Test multilingual-e5-base generates correct XML."""
-        from vespa.models import get_model_config, create_embedder_component
-        from vespa.configuration.vt import compare_xml
-
         config = get_model_config("multilingual-e5-base")
         component = create_embedder_component(config)
         xml = component.to_xml_string(indent=1)
@@ -980,8 +860,6 @@ class TestCreateHybridPackage:
 
     def test_create_hybrid_package_multi_model_naming(self):
         """Test that multi-model setup creates properly namespaced fields and profiles."""
-        from vespa.models import create_hybrid_package
-
         package = create_hybrid_package(["e5-small-v2", "e5-base-v2"])
 
         # Check that we have 2 components
