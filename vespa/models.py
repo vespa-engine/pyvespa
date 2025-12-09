@@ -21,6 +21,7 @@ DistanceMetric = Literal[
     "angular", "euclidean", "dotproduct", "hamming", "prenormalized-angular"
 ]
 FusionMethod = Literal["rrf", "atan_norm", "norm_linear"]
+EmbeddingFieldType = Literal["double", "float", "bfloat16", "int8"]
 
 
 # ============================================================================
@@ -81,9 +82,18 @@ class ModelConfig:
 
     Attributes:
         model_id: The model identifier (e.g., 'e5-small-v2', 'snowflake-arctic-embed-xs')
-        embedding_dim: The dimension of the embedding vectors (e.g., 384, 768)
+        embedding_dim: The dimension of the embedding vectors (e.g., 384, 768).
+            When binarized=True, specify the original model dimension - it will be
+            automatically divided by 8 for storage (e.g., 1024 -> 128 bytes).
         tokenizer_id: The tokenizer model identifier (if different from model_id)
-        binarized: Whether the embeddings should be binarized (packed to bits)
+        binarized: Whether the embeddings should be binarized (packed to bits).
+            When True, overrides embedding_field_type to int8 and embedding_dim
+            must be divisible by 8.
+        embedding_field_type: Tensor cell type for embeddings. Options:
+            - "double": 64-bit float (highest precision, highest memory)
+            - "float": 32-bit float (good balance)
+            - "bfloat16": 16-bit brain float (reduced memory, good for large scale) - DEFAULT
+            - "int8": 8-bit integer (quantized, or used automatically when binarized=True)
         component_id: The ID to use for the Vespa component (defaults to sanitized model_id)
         model_path: Optional local path to the model file
         tokenizer_path: Optional local path to the tokenizer file
@@ -105,6 +115,7 @@ class ModelConfig:
     embedding_dim: int
     tokenizer_id: Optional[str] = None
     binarized: bool = False
+    embedding_field_type: EmbeddingFieldType = "bfloat16"
     component_id: Optional[str] = None
     model_path: Optional[str] = None
     tokenizer_path: Optional[str] = None
@@ -136,11 +147,21 @@ class ModelConfig:
                 f"embedding_dim must be positive, got {self.embedding_dim}"
             )
 
-        # Validate binarized embeddings require dimension divisible by 8
-        if self.binarized and self.embedding_dim % 8 != 0:
+        # Override embedding_field_type to int8 if binarized is True
+        if self.binarized:
+            object.__setattr__(self, "embedding_field_type", "int8")
+            # Validate binarized embeddings require dimension divisible by 8
+            if self.embedding_dim % 8 != 0:
+                raise ValueError(
+                    f"binarized embeddings require embedding_dim divisible by 8, "
+                    f"got {self.embedding_dim} which would be truncated to {self.embedding_dim // 8} bytes"
+                )
+
+        # Validate embedding_field_type
+        valid_field_types = ["double", "float", "bfloat16", "int8"]
+        if self.embedding_field_type not in valid_field_types:
             raise ValueError(
-                f"binarized embeddings require embedding_dim divisible by 8, "
-                f"got {self.embedding_dim} which would be truncated to {self.embedding_dim // 8} bytes"
+                f"embedding_field_type must be one of {valid_field_types}, got {self.embedding_field_type}"
             )
 
         # Validate pooling strategy (type checker handles valid values, but runtime check for safety)
@@ -299,9 +320,14 @@ def create_embedding_field(
         Field: A Vespa Field configured for embeddings
 
     Example:
-        >>> config = ModelConfig(model_id="e5-small-v2", embedding_dim=384, binarized=False)
+        >>> config = ModelConfig(model_id="e5-small-v2", embedding_dim=384)
         >>> field = create_embedding_field(config)
         >>> field.type
+        'tensor<bfloat16>(x[384])'
+
+        >>> config_float = ModelConfig(model_id="e5-small-v2", embedding_dim=384, embedding_field_type="float")
+        >>> field_float = create_embedding_field(config_float)
+        >>> field_float.type
         'tensor<float>(x[384])'
 
         >>> config_binary = ModelConfig(model_id="bge-m3", embedding_dim=1024, binarized=True)
@@ -312,7 +338,7 @@ def create_embedding_field(
     # Determine embedder ID to use
     embedder_id = embedder_id or config.component_id
 
-    # Determine field type based on binarization
+    # Determine field type based on binarization and cell type
     if config.binarized:
         # For binarized embeddings, we pack 8 bits into each int8
         packed_dim = config.embedding_dim // 8
@@ -329,11 +355,11 @@ def create_embedding_field(
                 "attribute",
             ]
     else:
-        # Regular float embeddings
-        field_type = f"tensor<float>(x[{config.embedding_dim}])"
+        # Regular embeddings using specified embedding field type
+        field_type = f"tensor<{config.embedding_field_type}>(x[{config.embedding_dim}])"
         default_distance_metric = "angular"
 
-        # Default indexing for float embeddings
+        # Default indexing for embeddings
         if indexing is None:
             indexing = [
                 "input text",
@@ -391,9 +417,11 @@ def create_semantic_rank_profile(
         # We use negation or subtraction to convert to a score where higher is better
         similarity_expr = f"1/(1 + closeness(field, {embedding_field}))"
     else:
-        tensor_type = f"tensor<float>(x[{config.embedding_dim}])"
+        tensor_type = (
+            f"tensor<{config.embedding_field_type}>(x[{config.embedding_dim}])"
+        )
 
-        # For float embeddings, use angular distance (cosine similarity)
+        # For regular embeddings, use angular distance (cosine similarity)
         similarity_expr = f"closeness(field, {embedding_field})"
 
     return RankProfile(
@@ -452,7 +480,9 @@ def create_hybrid_rank_profile(
         tensor_type = f"tensor<int8>(x[{packed_dim}])"
         similarity_expr = f"1/(1 + closeness(field, {embedding_field}))"
     else:
-        tensor_type = f"tensor<float>(x[{config.embedding_dim}])"
+        tensor_type = (
+            f"tensor<{config.embedding_field_type}>(x[{config.embedding_dim}])"
+        )
         similarity_expr = f"closeness(field, {embedding_field})"
 
     # Choose global phase expression based on fusion method
@@ -664,7 +694,7 @@ def _create_model_profiles(
     embedding_type = (
         f"tensor<int8>(x[{config.embedding_dim // 8}])"
         if config.binarized
-        else f"tensor<float>(x[{config.embedding_dim}])"
+        else f"tensor<{config.embedding_field_type}>(x[{config.embedding_dim}])"
     )
     bm25_profile = RankProfile(
         name=f"bm25{profile_suffix}",
