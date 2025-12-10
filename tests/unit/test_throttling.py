@@ -208,6 +208,60 @@ class TestAdaptiveThrottler(unittest.TestCase):
         self.assertFalse(throttler._is_error_status(400))
         self.assertFalse(throttler._is_error_status(404))
 
+    def test_semaphore_dynamic_access_works(self):
+        """
+        Test that accessing throttler.semaphore dynamically picks up new limits.
+
+        When concurrency is reduced, a new semaphore is created. Code that
+        accesses throttler.semaphore dynamically (not capturing it once) will
+        correctly use the new semaphore with reduced concurrency.
+
+        NOTE: Code must NOT capture the semaphore once like `sem = throttler.semaphore`.
+        Instead, it should access `throttler.semaphore` each time to get the current one.
+        """
+
+        async def run_test():
+            throttler = AdaptiveThrottler(
+                initial_concurrent=10,
+                error_threshold=0.1,
+                reduction_factor=0.5,
+            )
+
+            # Get initial semaphore
+            initial_sem = throttler.semaphore
+
+            # Verify initial state
+            self.assertEqual(throttler.current_concurrent, 10)
+
+            # Trigger a reduction by recording errors
+            for _ in range(5):
+                await throttler.record_result(200)
+            for _ in range(6):
+                await throttler.record_result(504)
+
+            # Throttler has reduced concurrency
+            self.assertEqual(throttler.current_concurrent, 5)
+
+            # Accessing throttler.semaphore NOW gives us the new semaphore
+            new_sem = throttler.semaphore
+
+            # The semaphores are different objects (new one was created)
+            self.assertNotEqual(
+                id(initial_sem),
+                id(new_sem),
+                "After reduction, a new semaphore should be created",
+            )
+
+            # This is the key insight: dynamic access works correctly
+            # Each call to throttler.semaphore returns the current semaphore
+            self.assertEqual(
+                id(throttler.semaphore),
+                id(new_sem),
+                "Dynamic access should consistently return the current semaphore",
+            )
+
+        asyncio.run(run_test())
+
 
 if __name__ == "__main__":
     unittest.main()
