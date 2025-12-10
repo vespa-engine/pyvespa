@@ -35,6 +35,7 @@ import time
 from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse, VespaVisitResponse
 from vespa.package import ApplicationPackage
+from vespa.throttling import AdaptiveThrottler
 import httpx
 import vespa
 import gzip
@@ -875,6 +876,7 @@ class Vespa(object):
         queries: Iterable[Dict],
         num_connections: int = 1,
         max_concurrent: int = 100,
+        adaptive: bool = True,
         client_kwargs: Dict = {},
         **query_kwargs,
     ) -> List[VespaQueryResponse]:
@@ -883,10 +885,15 @@ class Vespa(object):
         Number of concurrent requests is controlled by the `max_concurrent` parameter.
         Each query will be retried up to 3 times using an exponential backoff strategy.
 
+        When adaptive=True (default), an AdaptiveThrottler is used that starts with
+        a conservative concurrency limit and automatically adjusts based on server
+        responses to prevent overloading Vespa with expensive operations.
+
         Args:
             queries (Iterable[dict]): Iterable of query bodies (dictionaries) to be sent.
             num_connections (int, optional): Number of connections to be used in the asynchronous client (uses HTTP/2). Defaults to 1.
             max_concurrent (int, optional): Maximum concurrent requests to be sent. Defaults to 100. Be careful with increasing too much.
+            adaptive (bool, optional): Use adaptive throttling. Defaults to True. When True, starts with lower concurrency and adjusts based on error rates.
             client_kwargs (dict, optional): Additional arguments to be passed to the httpx.AsyncClient.
             **query_kwargs (dict, optional): Additional arguments to be passed to the query method.
 
@@ -897,14 +904,26 @@ class Vespa(object):
         results = []
         # Use the asynchronous client from VespaAsync (created via self.asyncio).
         async with self.asyncio(connections=num_connections, **client_kwargs) as client:
-            sem = asyncio.Semaphore(max_concurrent)
+            if adaptive:
+                throttler = AdaptiveThrottler(
+                    initial_concurrent=min(10, max_concurrent),
+                    max_concurrent=max_concurrent,
+                )
+            else:
+                throttler = None
+                sem = asyncio.Semaphore(max_concurrent)
 
             async def query_wrapper(query_body: Dict) -> VespaQueryResponse:
-                async with sem:
+                # Access semaphore dynamically to pick up throttler adjustments
+                async with throttler.semaphore if throttler else sem:
                     try:
                         response = await client.query(query_body, **query_kwargs)
+                        if throttler:
+                            await throttler.record_result(response.status_code)
                         return response
                     except HTTPError as e:
+                        if throttler:
+                            await throttler.record_result(e.response.status_code)
                         return VespaQueryResponse(
                             json=str(e),
                             status_code=e.response.status_code,
@@ -921,6 +940,7 @@ class Vespa(object):
         queries: Iterable[Dict],
         num_connections: int = 1,
         max_concurrent: int = 100,
+        adaptive: bool = True,
         client_kwargs: Dict = {},
         **query_kwargs,
     ) -> List[VespaQueryResponse]:
@@ -930,10 +950,15 @@ class Vespa(object):
         Number of concurrent requests is controlled by the `max_concurrent` parameter.
         Each query will be retried up to 3 times using an exponential backoff strategy.
 
+        When adaptive=True (default), an AdaptiveThrottler is used that starts with
+        a conservative concurrency limit and automatically adjusts based on server
+        responses to prevent overloading Vespa with expensive operations.
+
         Args:
             queries (Iterable[dict]): Iterable of query bodies (dictionaries) to be sent.
             num_connections (int, optional): Number of connections to be used in the asynchronous client (uses HTTP/2). Defaults to 1.
             max_concurrent (int, optional): Maximum concurrent requests to be sent. Defaults to 100. Be careful with increasing too much.
+            adaptive (bool, optional): Use adaptive throttling. Defaults to True. When True, starts with lower concurrency and adjusts based on error rates.
             client_kwargs (dict, optional): Additional arguments to be passed to the httpx.AsyncClient.
             **query_kwargs (dict, optional): Additional arguments to be passed to the query method.
 
@@ -945,6 +970,7 @@ class Vespa(object):
                 queries=queries,
                 num_connections=num_connections,
                 max_concurrent=max_concurrent,
+                adaptive=adaptive,
                 client_kwargs=client_kwargs,
                 **query_kwargs,
             )

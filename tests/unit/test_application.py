@@ -692,6 +692,7 @@ class TestQueryMany(unittest.TestCase):
             queries=query_data,
             num_connections=2,
             max_concurrent=100,
+            adaptive=False,  # Disable adaptive throttling for this test
         )
 
         # Assert that app.query is called for each query
@@ -711,6 +712,7 @@ class TestQueryMany(unittest.TestCase):
             queries=query_data,
             num_connections=2,
             max_concurrent=100,
+            adaptive=False,  # Disable adaptive throttling for this test
             client_kwargs={"timeout": 10},
         )
 
@@ -734,6 +736,7 @@ class TestQueryMany(unittest.TestCase):
             queries=query_data,
             num_connections=2,
             max_concurrent=100,
+            adaptive=False,  # Disable adaptive throttling for this test
             query_param="custom",
         )
 
