@@ -909,13 +909,13 @@ class Vespa(object):
                     initial_concurrent=min(10, max_concurrent),
                     max_concurrent=max_concurrent,
                 )
-                sem = throttler.semaphore
             else:
                 throttler = None
                 sem = asyncio.Semaphore(max_concurrent)
 
             async def query_wrapper(query_body: Dict) -> VespaQueryResponse:
-                async with sem:
+                # Access semaphore dynamically to pick up throttler adjustments
+                async with throttler.semaphore if throttler else sem:
                     try:
                         response = await client.query(query_body, **query_kwargs)
                         if throttler:
