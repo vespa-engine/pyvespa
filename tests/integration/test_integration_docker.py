@@ -36,6 +36,7 @@ from vespa.configuration.services import *
 from vespa.deployment import VespaDocker
 from vespa.application import Vespa, VespaSync
 from vespa.exceptions import VespaError
+from vespa.throttling import AdaptiveThrottler
 from pathlib import Path
 
 CONTAINER_STOP_TIMEOUT = 10
@@ -1147,6 +1148,109 @@ class TestMsmarcoApplication(TestApplicationCommon):
             self.assertEqual(response.status_code, 200)
             json_results.append(response.json)
         # Check that the number of results is equal to the number of queries
+        self.assertEqual(len(results), len(queries))
+
+    def test_adaptive_throttling_increases_concurrency(self):
+        """
+        Integration test verifying adaptive throttling increases concurrency
+        when queries succeed consistently.
+
+        This test uses the AdaptiveThrottler directly to verify it increases
+        concurrency after a window of successful queries.
+        """
+        docs_to_feed = [
+            {
+                "id": f"{i}",
+                "fields": {
+                    "title": f"this is title {i}",
+                    "body": f"this is body {i}",
+                },
+            }
+            for i in range(10)
+        ]
+        self.app.feed_async_iterable(docs_to_feed)
+
+        async def run_test():
+            throttler = AdaptiveThrottler(
+                initial_concurrent=5,
+                max_concurrent=50,
+                success_window=20,  # Lower window for faster test
+                increase_step=5,
+                cooldown_seconds=0.1,  # Short cooldown for testing
+            )
+
+            initial_concurrent = throttler.current_concurrent
+            self.assertEqual(initial_concurrent, 5)
+
+            queries = [
+                {
+                    "yql": "select * from sources * where userQuery();",
+                    "query": f"title {i}",
+                }
+                for i in range(100)
+            ]
+
+            async with self.app.asyncio(connections=4) as client:
+                for query in queries:
+                    async with throttler.semaphore:
+                        response = await client.query(query)
+                        await throttler.record_result(response.status_code)
+                        self.assertEqual(response.status_code, 200)
+
+            # After many successful queries, concurrency should have increased
+            final_concurrent = throttler.current_concurrent
+            self.assertGreater(
+                final_concurrent,
+                initial_concurrent,
+                f"Expected concurrency to increase from {initial_concurrent}, "
+                f"but got {final_concurrent}",
+            )
+            print(
+                f"Adaptive throttling: concurrency increased from "
+                f"{initial_concurrent} to {final_concurrent}"
+            )
+
+        asyncio.run(run_test())
+
+    def test_query_many_with_adaptive_throttling(self):
+        """
+        Integration test verifying query_many works correctly with adaptive throttling enabled.
+
+        All queries should succeed and complete.
+        """
+        docs_to_feed = [
+            {
+                "id": f"{i}",
+                "fields": {
+                    "title": f"this is title {i}",
+                    "body": f"this is body {i}",
+                },
+            }
+            for i in range(10)
+        ]
+        self.app.feed_async_iterable(docs_to_feed)
+
+        queries = [
+            {
+                "yql": "select * from sources * where userQuery();",
+                "query": f"title {i}",
+            }
+            for i in range(200)
+        ]
+
+        # Run with adaptive throttling enabled (default)
+        results = self.app.query_many(
+            queries,
+            num_connections=4,
+            max_concurrent=50,
+            adaptive=True,
+        )
+
+        # All queries should succeed
+        for response in results:
+            self.assertIsInstance(response, VespaQueryResponse)
+            self.assertEqual(response.status_code, 200)
+
         self.assertEqual(len(results), len(queries))
 
     def test_compress_large_feed_auto(self):
