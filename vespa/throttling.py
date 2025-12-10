@@ -57,7 +57,9 @@ class AdaptiveThrottler:
 
     # Internal state (not part of __init__ signature)
     _current_concurrent: int = field(init=False, repr=False)
-    _semaphore: Optional[asyncio.Semaphore] = field(init=False, repr=False, default=None)
+    _semaphore: Optional[asyncio.Semaphore] = field(
+        init=False, repr=False, default=None
+    )
     _window: List[bool] = field(init=False, repr=False, default_factory=list)
     _last_reduction: float = field(init=False, repr=False, default=0.0)
     _lock: Optional[asyncio.Lock] = field(init=False, repr=False, default=None)
@@ -80,7 +82,7 @@ class AdaptiveThrottler:
     @property
     def semaphore(self) -> asyncio.Semaphore:
         """Async semaphore for rate limiting requests.
-        
+
         Note: This property lazily creates the semaphore on first access
         to maintain compatibility with Python 3.9.
         """
@@ -148,7 +150,9 @@ class AdaptiveThrottler:
 
     async def _increase_concurrency(self) -> None:
         """Gradually increase concurrency during healthy periods."""
-        new_limit = min(self.max_concurrent, self._current_concurrent + self.increase_step)
+        new_limit = min(
+            self.max_concurrent, self._current_concurrent + self.increase_step
+        )
         if new_limit > self._current_concurrent:
             self._current_concurrent = new_limit
             self._semaphore = asyncio.Semaphore(new_limit)
