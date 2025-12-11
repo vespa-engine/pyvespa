@@ -902,11 +902,17 @@ def _create_query_functions(
             "hits": top_k,
         }
 
-    functions["semantic"] = semantic_query_fn
-    functions["bm25"] = bm25_query_fn
-    functions["fusion"] = fusion_query_fn
-    functions["atan_norm"] = atan_norm_query_fn
-    functions["norm_linear"] = norm_linear_query_fn
+    # Use profile_suffix for dictionary keys to avoid collisions in multi-model setup
+    # For single model (no suffix), keys are: "semantic", "bm25", etc.
+    # For multi-model, keys include suffix: "semantic_e5_small_v2", "bm25_e5_small_v2", etc.
+    suffix = profile_suffix.lstrip("_") if profile_suffix else ""
+    key_suffix = f"_{suffix}" if suffix else ""
+
+    functions[f"semantic{key_suffix}"] = semantic_query_fn
+    functions[f"bm25{key_suffix}"] = bm25_query_fn
+    functions[f"fusion{key_suffix}"] = fusion_query_fn
+    functions[f"atan_norm{key_suffix}"] = atan_norm_query_fn
+    functions[f"norm_linear{key_suffix}"] = norm_linear_query_fn
 
     return functions
 
