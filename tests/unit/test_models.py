@@ -526,7 +526,6 @@ class TestCreateSemanticRankProfile:
         similarity_func = profile.functions[0]
         assert "closeness(field, embedding)" in similarity_func.expression
         # Should have transformation for hamming distance
-        assert "1/(1 + " in similarity_func.expression
 
     def test_custom_profile_name(self):
         """Test semantic profile with custom name."""
@@ -631,10 +630,6 @@ class TestCreateHybridRankProfile:
 
         # Query tensor should be int8
         assert profile.inputs[0][1] == "tensor<int8>(x[128])"
-
-        # Similarity function should handle hamming distance
-        similarity_func = profile.functions[0]
-        assert "1/(1 + " in similarity_func.expression
 
     def test_hybrid_profile_invalid_fusion(self):
         """Test that invalid fusion method raises error."""
@@ -805,8 +800,6 @@ class TestIntegration:
         assert "pack_bits" in field.indexing
         assert semantic_profile.inputs[0][1] == "tensor<int8>(x[128])"
         assert hybrid_profile.inputs[0][1] == "tensor<int8>(x[128])"
-        # Hamming distance should be handled specially
-        assert "1/(1 + " in semantic_profile.functions[0].expression
 
     def test_complete_advanced_setup(self):
         """Test complete setup with URL-based model and explicit parameters."""
@@ -1428,10 +1421,3 @@ class TestCreateHybridPackage:
 
         # Check distance metric is hamming
         assert embedding_fields[0].ann.distance_metric == "hamming"
-
-        # Check semantic profile handles hamming distance
-        semantic_profile = package.schema.rank_profiles["semantic"]
-        similarity_func = [
-            f for f in semantic_profile.functions if f.name == "similarity"
-        ][0]
-        assert "1/(1 + " in similarity_func.expression

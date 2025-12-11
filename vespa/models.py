@@ -486,12 +486,12 @@ def create_hybrid_rank_profile(
     if config.binarized:
         packed_dim = config.embedding_dim // 8
         tensor_type = f"tensor<int8>(x[{packed_dim}])"
-        similarity_expr = f"1/(1 + closeness(field, {embedding_field}))"
     else:
         tensor_type = (
             f"tensor<{config.embedding_field_type}>(x[{config.embedding_dim}])"
         )
-        similarity_expr = f"closeness(field, {embedding_field})"
+
+    similarity_expr = f"closeness(field, {embedding_field})"
 
     # Choose global phase expression based on fusion method
     if fusion_method == "rrf":
