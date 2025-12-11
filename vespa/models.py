@@ -92,8 +92,8 @@ class ModelConfig:
             must be divisible by 8.
         embedding_field_type: Tensor cell type for embeddings. Options:
             - "double": 64-bit float (highest precision, highest memory)
-            - "float": 32-bit float (good balance)
-            - "bfloat16": 16-bit brain float (reduced memory, good for large scale) - DEFAULT
+            - "float": 32-bit float (good balance) - default
+            - "bfloat16": 16-bit brain float (reduced memory, good for large scale)
             - "int8": 8-bit integer (quantized, or used automatically when binarized=True)
         distance_metric: Distance metric for HNSW index. Options:
             - "angular": Cosine similarity (default for non-binarized)
@@ -120,7 +120,7 @@ class ModelConfig:
     embedding_dim: int
     tokenizer_id: Optional[str] = None
     binarized: bool = False
-    embedding_field_type: EmbeddingFieldType = "bfloat16"
+    embedding_field_type: EmbeddingFieldType = "float"
     distance_metric: Optional[DistanceMetric] = None
     component_id: Optional[str] = None
     model_path: Optional[str] = None
@@ -698,6 +698,33 @@ def list_models() -> List[str]:
     return sorted(COMMON_MODELS.keys())
 
 
+def _get_unique_model_identifier(config: ModelConfig) -> str:
+    """
+    Generate a unique identifier for a model config that includes dimension and type info.
+
+    This is used when multiple configs share the same model_id but differ in
+    embedding_dim or binarization settings.
+
+    Args:
+        config: ModelConfig instance
+
+    Returns:
+        Unique identifier string like "e5_small_v2_384_float" or "e5_small_v2_384_int8"
+
+    Example:
+        >>> config1 = ModelConfig(model_id="e5-small-v2", embedding_dim=384)
+        >>> _get_unique_model_identifier(config1)
+        'e5_small_v2_384_float'
+        >>> config2 = ModelConfig(model_id="e5-small-v2", embedding_dim=384, binarized=True)
+        >>> _get_unique_model_identifier(config2)
+        'e5_small_v2_48_int8'
+    """
+    effective_dim = (
+        config.embedding_dim // 8 if config.binarized else config.embedding_dim
+    )
+    return f"{config.component_id}_{effective_dim}_{config.embedding_field_type}"
+
+
 def _create_model_profiles(
     config: ModelConfig,
     embedding_field_name: str,
@@ -990,6 +1017,11 @@ def create_hybrid_package(
     # Determine if we have multiple models (affects naming)
     is_multi_model = len(resolved_configs) > 1
 
+    # Check for component_id collisions (same model_id but different dim/type)
+    # If collisions exist, we need to use full unique identifiers for all configs
+    component_ids = [c.component_id for c in resolved_configs]
+    has_component_id_collisions = len(component_ids) != len(set(component_ids))
+
     # Build components, fields, and profiles for each model
     all_components = []
     all_embedding_fields = []
@@ -999,9 +1031,15 @@ def create_hybrid_package(
 
     for config in resolved_configs:
         # Create unique identifiers for multi-model setup
-        profile_suffix = f"_{config.component_id}" if is_multi_model else ""
+        # Use full unique identifier (with dim/type) if there are component_id collisions
+        if has_component_id_collisions:
+            unique_id = _get_unique_model_identifier(config)
+        else:
+            unique_id = config.component_id
+
+        profile_suffix = f"_{unique_id}" if is_multi_model else ""
         embedding_field_name = (
-            f"embedding_{config.component_id}" if is_multi_model else "embedding"
+            f"embedding_{unique_id}" if is_multi_model else "embedding"
         )
         query_tensor = f"q{profile_suffix}"
 
