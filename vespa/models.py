@@ -428,17 +428,12 @@ def create_semantic_rank_profile(
         packed_dim = config.embedding_dim // 8
         tensor_type = f"tensor<int8>(x[{packed_dim}])"
 
-        # For binarized, use hamming distance
-        # Note: closeness() with hamming distance returns similarity (lower is more similar)
-        # We use negation or subtraction to convert to a score where higher is better
-        similarity_expr = f"1/(1 + closeness(field, {embedding_field}))"
     else:
         tensor_type = (
             f"tensor<{config.embedding_field_type}>(x[{config.embedding_dim}])"
         )
 
-        # For regular embeddings, use angular distance (cosine similarity)
-        similarity_expr = f"closeness(field, {embedding_field})"
+    similarity_expr = f"closeness(field, {embedding_field})"
 
     return RankProfile(
         name=profile_name,
