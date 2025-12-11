@@ -2,7 +2,7 @@ from __future__ import annotations
 import re
 import warnings
 from difflib import get_close_matches
-from typing import Dict, List, Optional, Union, Literal
+from typing import Any, Dict, List, Optional, Union, Literal
 from dataclasses import dataclass
 from vespa.package import (
     ApplicationPackage,
@@ -189,6 +189,35 @@ class ModelConfig:
                 raise ValueError(
                     f"pooling_strategy must be one of {valid_strategies}, got {self.pooling_strategy}"
                 )
+
+    def to_dict(self, include_none: bool = False) -> Dict[str, Any]:
+        """
+        Convert the ModelConfig to a dictionary for serialization.
+
+        Args:
+            include_none: If True, include fields with None values. Default False.
+
+        Returns:
+            Dict with all model configuration attributes.
+
+        Example:
+            >>> config = ModelConfig(model_id="e5-small-v2", embedding_dim=384)
+            >>> d = config.to_dict()
+            >>> d["model_id"]
+            'e5-small-v2'
+            >>> d["embedding_dim"]
+            384
+            >>> d["binarized"]
+            False
+        """
+        from dataclasses import fields
+
+        result = {}
+        for field in fields(self):
+            value = getattr(self, field.name)
+            if include_none or value is not None:
+                result[field.name] = value
+        return result
 
 
 def create_embedder_component(config: ModelConfig) -> Component:
