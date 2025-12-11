@@ -1417,6 +1417,419 @@ class TestCreateHybridPackage:
         assert "fusion_e5_small_v2_384_float" in query_functions
         assert "fusion_e5_small_v2_384_bfloat16" in query_functions
 
+        expected_schema = """schema doc {
+    document doc {
+        field id type string {
+            indexing: summary | attribute
+        }
+        field text type string {
+            indexing: index | summary
+            index: enable-bm25
+            bolding: on
+        }
+    }
+    field embedding_e5_small_v2_48_int8 type tensor<int8>(x[48]) {
+        indexing: input text | embed e5_small_v2 | pack_bits | index | attribute
+        attribute {
+            distance-metric: hamming
+        }
+        index {
+            hnsw {
+                max-links-per-node: 16
+                neighbors-to-explore-at-insert: 200
+            }
+        }
+    }
+    field embedding_e5_small_v2_384_float type tensor<float>(x[384]) {
+        indexing: input text | embed e5_small_v2 | index | attribute
+        attribute {
+            distance-metric: angular
+        }
+        index {
+            hnsw {
+                max-links-per-node: 16
+                neighbors-to-explore-at-insert: 200
+            }
+        }
+    }
+    field embedding_e5_small_v2_384_bfloat16 type tensor<bfloat16>(x[384]) {
+        indexing: input text | embed e5_small_v2 | index | attribute
+        attribute {
+            distance-metric: angular
+        }
+        index {
+            hnsw {
+                max-links-per-node: 16
+                neighbors-to-explore-at-insert: 200
+            }
+        }
+    }
+    fieldset default {
+        fields: text
+    }
+    rank-profile match-only {
+        inputs {
+            query(q_e5_small_v2_48_int8) tensor<int8>(x[48])
+            query(q_e5_small_v2_384_float) tensor<float>(x[384])
+            query(q_e5_small_v2_384_bfloat16) tensor<bfloat16>(x[384])
+        }
+        first-phase {
+            expression {
+                random
+            }
+        }
+    }
+    rank-profile bm25_e5_small_v2_48_int8 {
+        inputs {
+            query(q_e5_small_v2_48_int8) tensor<int8>(x[48])
+        }
+        function bm25text() {
+            expression {
+                bm25(text)
+            }
+        }
+        first-phase {
+            expression {
+                bm25text
+            }
+        }
+        match-features {
+            bm25text
+        }
+    }
+    rank-profile semantic_e5_small_v2_48_int8 {
+        inputs {
+            query(q_e5_small_v2_48_int8) tensor<int8>(x[48])
+        }
+        function similarity() {
+            expression {
+                closeness(field, embedding_e5_small_v2_48_int8)
+            }
+        }
+        first-phase {
+            expression {
+                similarity
+            }
+        }
+        match-features {
+            similarity
+        }
+    }
+    rank-profile fusion_e5_small_v2_48_int8 inherits bm25_e5_small_v2_48_int8 {
+        inputs {
+            query(q_e5_small_v2_48_int8) tensor<int8>(x[48])
+        }
+        function similarity() {
+            expression {
+                closeness(field, embedding_e5_small_v2_48_int8)
+            }
+        }
+        first-phase {
+            expression {
+                similarity
+            }
+        }
+        global-phase {
+            expression {
+                reciprocal_rank_fusion(bm25text, closeness(field, embedding_e5_small_v2_48_int8))
+            }
+            rerank-count: 1000
+        }
+        match-features {
+            similarity
+            bm25text
+        }
+    }
+    rank-profile atan_norm_e5_small_v2_48_int8 inherits bm25_e5_small_v2_48_int8 {
+        inputs {
+            query(q_e5_small_v2_48_int8) tensor<int8>(x[48])
+        }
+        function scale(val) {
+            expression {
+                2*atan(val)/(3.14159)
+            }
+        }
+        function normalized_bm25() {
+            expression {
+                scale(bm25(text))
+            }
+        }
+        function cos_sim() {
+            expression {
+                closeness(field, embedding_e5_small_v2_48_int8)
+            }
+        }
+        first-phase {
+            expression {
+                normalized_bm25 + cos_sim
+            }
+        }
+        match-features {
+            cos_sim
+            normalized_bm25
+        }
+    }
+    rank-profile norm_linear_e5_small_v2_48_int8 inherits bm25_e5_small_v2_48_int8 {
+        inputs {
+            query(q_e5_small_v2_48_int8) tensor<int8>(x[48])
+        }
+        function cos_sim() {
+            expression {
+                closeness(field, embedding_e5_small_v2_48_int8)
+            }
+        }
+        first-phase {
+            expression {
+                cos_sim
+            }
+        }
+        global-phase {
+            expression {
+                normalize_linear(bm25(text)) + normalize_linear(closeness(field, embedding_e5_small_v2_48_int8))
+            }
+            rerank-count: 1000
+        }
+        match-features {
+            cos_sim
+            bm25(text)
+        }
+    }
+    rank-profile bm25_e5_small_v2_384_float {
+        inputs {
+            query(q_e5_small_v2_384_float) tensor<float>(x[384])
+        }
+        function bm25text() {
+            expression {
+                bm25(text)
+            }
+        }
+        first-phase {
+            expression {
+                bm25text
+            }
+        }
+        match-features {
+            bm25text
+        }
+    }
+    rank-profile semantic_e5_small_v2_384_float {
+        inputs {
+            query(q_e5_small_v2_384_float) tensor<float>(x[384])
+        }
+        function similarity() {
+            expression {
+                closeness(field, embedding_e5_small_v2_384_float)
+            }
+        }
+        first-phase {
+            expression {
+                similarity
+            }
+        }
+        match-features {
+            similarity
+        }
+    }
+    rank-profile fusion_e5_small_v2_384_float inherits bm25_e5_small_v2_384_float {
+        inputs {
+            query(q_e5_small_v2_384_float) tensor<float>(x[384])
+        }
+        function similarity() {
+            expression {
+                closeness(field, embedding_e5_small_v2_384_float)
+            }
+        }
+        first-phase {
+            expression {
+                similarity
+            }
+        }
+        global-phase {
+            expression {
+                reciprocal_rank_fusion(bm25text, closeness(field, embedding_e5_small_v2_384_float))
+            }
+            rerank-count: 1000
+        }
+        match-features {
+            similarity
+            bm25text
+        }
+    }
+    rank-profile atan_norm_e5_small_v2_384_float inherits bm25_e5_small_v2_384_float {
+        inputs {
+            query(q_e5_small_v2_384_float) tensor<float>(x[384])
+        }
+        function scale(val) {
+            expression {
+                2*atan(val)/(3.14159)
+            }
+        }
+        function normalized_bm25() {
+            expression {
+                scale(bm25(text))
+            }
+        }
+        function cos_sim() {
+            expression {
+                closeness(field, embedding_e5_small_v2_384_float)
+            }
+        }
+        first-phase {
+            expression {
+                normalized_bm25 + cos_sim
+            }
+        }
+        match-features {
+            cos_sim
+            normalized_bm25
+        }
+    }
+    rank-profile norm_linear_e5_small_v2_384_float inherits bm25_e5_small_v2_384_float {
+        inputs {
+            query(q_e5_small_v2_384_float) tensor<float>(x[384])
+        }
+        function cos_sim() {
+            expression {
+                closeness(field, embedding_e5_small_v2_384_float)
+            }
+        }
+        first-phase {
+            expression {
+                cos_sim
+            }
+        }
+        global-phase {
+            expression {
+                normalize_linear(bm25(text)) + normalize_linear(closeness(field, embedding_e5_small_v2_384_float))
+            }
+            rerank-count: 1000
+        }
+        match-features {
+            cos_sim
+            bm25(text)
+        }
+    }
+    rank-profile bm25_e5_small_v2_384_bfloat16 {
+        inputs {
+            query(q_e5_small_v2_384_bfloat16) tensor<bfloat16>(x[384])
+        }
+        function bm25text() {
+            expression {
+                bm25(text)
+            }
+        }
+        first-phase {
+            expression {
+                bm25text
+            }
+        }
+        match-features {
+            bm25text
+        }
+    }
+    rank-profile semantic_e5_small_v2_384_bfloat16 {
+        inputs {
+            query(q_e5_small_v2_384_bfloat16) tensor<bfloat16>(x[384])
+        }
+        function similarity() {
+            expression {
+                closeness(field, embedding_e5_small_v2_384_bfloat16)
+            }
+        }
+        first-phase {
+            expression {
+                similarity
+            }
+        }
+        match-features {
+            similarity
+        }
+    }
+    rank-profile fusion_e5_small_v2_384_bfloat16 inherits bm25_e5_small_v2_384_bfloat16 {
+        inputs {
+            query(q_e5_small_v2_384_bfloat16) tensor<bfloat16>(x[384])
+        }
+        function similarity() {
+            expression {
+                closeness(field, embedding_e5_small_v2_384_bfloat16)
+            }
+        }
+        first-phase {
+            expression {
+                similarity
+            }
+        }
+        global-phase {
+            expression {
+                reciprocal_rank_fusion(bm25text, closeness(field, embedding_e5_small_v2_384_bfloat16))
+            }
+            rerank-count: 1000
+        }
+        match-features {
+            similarity
+            bm25text
+        }
+    }
+    rank-profile atan_norm_e5_small_v2_384_bfloat16 inherits bm25_e5_small_v2_384_bfloat16 {
+        inputs {
+            query(q_e5_small_v2_384_bfloat16) tensor<bfloat16>(x[384])
+        }
+        function scale(val) {
+            expression {
+                2*atan(val)/(3.14159)
+            }
+        }
+        function normalized_bm25() {
+            expression {
+                scale(bm25(text))
+            }
+        }
+        function cos_sim() {
+            expression {
+                closeness(field, embedding_e5_small_v2_384_bfloat16)
+            }
+        }
+        first-phase {
+            expression {
+                normalized_bm25 + cos_sim
+            }
+        }
+        match-features {
+            cos_sim
+            normalized_bm25
+        }
+    }
+    rank-profile norm_linear_e5_small_v2_384_bfloat16 inherits bm25_e5_small_v2_384_bfloat16 {
+        inputs {
+            query(q_e5_small_v2_384_bfloat16) tensor<bfloat16>(x[384])
+        }
+        function cos_sim() {
+            expression {
+                closeness(field, embedding_e5_small_v2_384_bfloat16)
+            }
+        }
+        first-phase {
+            expression {
+                cos_sim
+            }
+        }
+        global-phase {
+            expression {
+                normalize_linear(bm25(text)) + normalize_linear(closeness(field, embedding_e5_small_v2_384_bfloat16))
+            }
+            rerank-count: 1000
+        }
+        match-features {
+            cos_sim
+            bm25(text)
+        }
+    }
+}"""
+        schema_text = package.schema.schema_to_text
+        assert (
+            schema_text == expected_schema
+        ), f"Schema mismatch:\nGot:\n{schema_text}\n\nExpected:\n{expected_schema}"
+
     def test_create_hybrid_package_single_model_string(self):
         """Test single model setup using model name string."""
         package = create_hybrid_package("e5-small-v2")
