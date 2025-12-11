@@ -1339,6 +1339,11 @@ class TestCreateHybridPackage:
         ]
         package = create_hybrid_package(model_configs)
 
+        # Check that we only have ONE component (same model_id = same embedder)
+        # Even though we have 3 configs, they all share the same underlying model
+        assert len(package.components) == 1
+        assert package.components[0].id == "e5_small_v2"
+
         # Check that we have 3 embedding fields with unique identifiers
         embedding_fields = [
             f for f in package.schema.document.fields if "embedding" in f.name
