@@ -17,6 +17,7 @@ from vespa.package import (
     Document,
     FieldSet,
 )
+import vespa.querybuilder as qb
 
 PoolingStrategy = Literal["mean", "cls", "none"]
 
@@ -741,12 +742,152 @@ def _create_model_profiles(
     return profiles
 
 
+def _create_query_functions(
+    config: ModelConfig,
+    embedding_field_name: str,
+    schema_name: str,
+    query_tensor: str = "q",
+    profile_suffix: str = "",
+) -> Dict[str, callable]:
+    """
+    Helper function to create query functions for a single model.
+
+    Args:
+        config: ModelConfig instance
+        embedding_field_name: Name of the embedding field
+        schema_name: Name of the schema to query
+        query_tensor: Name of the query tensor (default: "q")
+        profile_suffix: Suffix to add to profile names (empty string for single model)
+    Returns:
+        Dict of query functions for this model
+    """
+    functions = {}
+
+    # Create one query function per: bm25, semantic, fusion, atan_norm, norm_linear
+    def semantic_query_fn(query_text: str, top_k: int) -> dict:
+        return {
+            "yql": str(
+                qb.select("*")
+                .from_(schema_name)
+                .where(
+                    qb.nearestNeighbor(
+                        field=embedding_field_name,
+                        query_vector=query_tensor,
+                        annotations={"targetHits": 1000},
+                    )
+                )
+            ),
+            "query": query_text,
+            "ranking": f"semantic{profile_suffix}",
+            f"input.query({query_tensor})": f"embed({query_text})",
+            "hits": top_k,
+        }
+
+    def bm25_query_fn(query_text: str, top_k: int) -> dict:
+        return {
+            "yql": "select * from sources * where userQuery();",  # provide the yql directly as a string
+            "query": query_text,
+            "ranking": f"bm25{profile_suffix}",
+            "hits": top_k,
+        }
+
+    def fusion_query_fn(query_text: str, top_k: int) -> dict:
+        return {
+            "yql": str(
+                qb.select("*")
+                .from_(schema_name)
+                .where(
+                    qb.nearestNeighbor(
+                        field=embedding_field_name,
+                        query_vector=query_tensor,
+                        annotations={"targetHits": 1000},
+                    )
+                    | qb.userQuery()
+                )
+            ),
+            "query": query_text,
+            "ranking": f"fusion{profile_suffix}",
+            f"input.query({query_tensor})": f"embed({query_text})",
+            "hits": top_k,
+        }
+
+    def atan_norm_query_fn(query_text: str, top_k: int) -> dict:
+        return {
+            "yql": str(
+                qb.select("*")
+                .from_(schema_name)
+                .where(
+                    qb.nearestNeighbor(
+                        field=embedding_field_name,
+                        query_vector=query_tensor,
+                        annotations={"targetHits": 1000},
+                    )
+                    | qb.userQuery()
+                )
+            ),
+            "query": query_text,
+            "ranking": f"atan_norm{profile_suffix}",
+            f"input.query({query_tensor})": f"embed({query_text})",
+            "hits": top_k,
+        }
+
+    def norm_linear_query_fn(query_text: str, top_k: int) -> dict:
+        return {
+            "yql": str(
+                qb.select("*")
+                .from_(schema_name)
+                .where(
+                    qb.nearestNeighbor(
+                        field=embedding_field_name,
+                        query_vector=query_tensor,
+                        annotations={"targetHits": 1000},
+                    )
+                    | qb.userQuery()
+                )
+            ),
+            "query": query_text,
+            "ranking": f"norm_linear{profile_suffix}",
+            f"input.query({query_tensor})": f"embed({query_text})",
+            "hits": top_k,
+        }
+
+    functions["semantic"] = semantic_query_fn
+    functions["bm25"] = bm25_query_fn
+    functions["fusion"] = fusion_query_fn
+    functions["atan_norm"] = atan_norm_query_fn
+    functions["norm_linear"] = norm_linear_query_fn
+
+    return functions
+
+
+class ApplicationPackageWithQueryFunctions(ApplicationPackage):
+    # Extending ApplicationPackage to add method for retrieving query functions
+    # Also need to take in query functions in init.
+    # Pass through all other parameters to super().__init__()
+    def __init__(
+        self,
+        query_functions: Optional[Dict[str, callable]] = None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.query_functions = query_functions or {}
+
+    def get_query_functions(self) -> Dict[str, callable]:
+        """
+        Get the query functions for this application package.
+
+        Returns:
+            Dict of query functions
+        """
+        return self.query_functions
+
+
 def create_hybrid_package(
     models: Union[str, ModelConfig, List[Union[str, ModelConfig]]],
     app_name: str = "hybridapp",
     schema_name: str = "doc",
     global_rerank_count: int = 1000,
-) -> ApplicationPackage:
+) -> ApplicationPackageWithQueryFunctions:
     """
     Create a Vespa application package configured for hybrid search evaluation.
 
@@ -830,6 +971,7 @@ def create_hybrid_package(
     all_embedding_fields = []
     all_rank_profiles = []
     match_only_inputs = []
+    query_functions = {}
 
     for config in resolved_configs:
         # Create unique identifiers for multi-model setup
@@ -861,6 +1003,15 @@ def create_hybrid_package(
                 global_rerank_count,
             )
         )
+        # Create and collect query functions for this model
+        model_query_functions = _create_query_functions(
+            config,
+            embedding_field_name,
+            schema_name,
+            query_tensor,
+            profile_suffix,
+        )
+        query_functions.update(model_query_functions)
 
     # Create match-only profile with inputs for all models
     match_only_profile = RankProfile(
@@ -894,8 +1045,9 @@ def create_hybrid_package(
     )
 
     # Create the application package
-    return ApplicationPackage(
+    return ApplicationPackageWithQueryFunctions(
         name=app_name,
         schema=[schema],
         components=all_components,
+        query_functions=query_functions,
     )
