@@ -311,10 +311,10 @@ def vespa_hybrid_loader(model_name, **kwargs) -> SearchProtocol:
     return VespaMTEBApp(**kwargs)
 
 
-def get_vespa_app(model_config, package):
+def get_vespa_app(model_config, package, port: int = 8080):
     return ModelMeta(
         loader=vespa_hybrid_loader,
-        loader_kwargs={"model_config": model_config, "package": package},
+        loader_kwargs={"model_config": model_config, "package": package, "port": port},
         name="vespa/bm25",
         languages=["eng-Latn"],
         open_weights=True,
@@ -341,59 +341,319 @@ def get_vespa_app(model_config, package):
     )
 
 
-def load_benchmark_results(results_path: Path) -> dict:
-    """Load existing benchmark results from file, or return empty structure."""
-    if results_path.exists():
-        with open(results_path, "r") as f:
-            return json.load(f)
-    return {}
-
-
-def save_benchmark_results(results_path: Path, results: dict) -> None:
-    """Save benchmark results to file with atomic write."""
-    # Write to temp file first, then rename for atomic operation
-    temp_path = results_path.with_suffix(".tmp")
-    with open(temp_path, "w") as f:
-        json.dump(results, f, indent=4, ignore_nan=True)
-    temp_path.rename(results_path)
-
-
-def is_task_query_function_complete(
-    benchmark_results: dict, task_name: str, query_function: str
-) -> bool:
-    """Check if a specific task + query_function combination has already been evaluated."""
-    return (
-        "results" in benchmark_results
-        and task_name in benchmark_results["results"]
-        and query_function in benchmark_results["results"][task_name]
-        and benchmark_results["results"][task_name][query_function].get("finished_at")
-        is not None
-    )
-
-
-def get_timestamp() -> str:
-    """Get current timestamp in ISO format."""
-    from datetime import datetime, timezone
-
-    return datetime.now(timezone.utc).isoformat()
-
-
-def get_model_suffix(model_configs: List[ModelConfig]) -> str:
+class VespaMTEBEvaluator:
     """
-    Generate a suffix string for file/directory naming based on model configs.
+    Evaluator class for running MTEB benchmarks with Vespa.
 
-    For single model: {model_id}_{bin|full}_{dim}
-    For multiple models: {model1_id}_{bin|full}_{dim}__{model2_id}_{bin|full}_{dim}
+    This class handles the orchestration of MTEB evaluation tasks using Vespa
+    as the search backend. It supports single tasks or full benchmarks, with
+    incremental result saving and optional overwrite control.
+
+    Args:
+        model_configs: One or more ModelConfig instances or model name strings.
+        task_name: Name of a single MTEB task to evaluate (mutually exclusive with benchmark_name).
+        benchmark_name: Name of an MTEB benchmark to evaluate (mutually exclusive with task_name).
+        results_dir: Directory to save results. Defaults to "results".
+        overwrite: If False, skip evaluations where results already exist. Defaults to False.
+        url: Vespa application URL. Defaults to "http://localhost".
+        port: Vespa application port. Defaults to 8080.
+
+    Example:
+        >>> evaluator = VespaMTEBEvaluator(
+        ...     model_configs="e5-small-v2",
+        ...     benchmark_name="NanoBEIR",
+        ...     overwrite=False,
+        ... )
+        >>> evaluator.evaluate()
     """
-    suffixes = []
-    for config in model_configs:
-        binary_indicator = "bin" if config.binarized else "full"
-        suffixes.append(f"{config.model_id}_{binary_indicator}_{config.embedding_dim}")
-    return "__".join(suffixes)
+
+    def __init__(
+        self,
+        model_configs: ModelConfig | str | List[ModelConfig | str],
+        task_name: str | None = None,
+        benchmark_name: str | None = None,
+        results_dir: str | Path = "results",
+        overwrite: bool = False,
+        url: str = "http://localhost",
+        port: int = 8080,
+    ):
+        # Validate mutually exclusive parameters
+        if task_name is not None and benchmark_name is not None:
+            raise ValueError(
+                "Only one of 'task_name' or 'benchmark_name' can be specified, not both."
+            )
+        if task_name is None and benchmark_name is None:
+            raise ValueError(
+                "Either 'task_name' or 'benchmark_name' must be specified."
+            )
+
+        # Normalize model_configs to list of ModelConfig instances
+        self.model_configs = self._normalize_model_configs(model_configs)
+
+        self.task_name = task_name
+        self.benchmark_name = benchmark_name
+        self.results_dir = Path(results_dir)
+        self.overwrite = overwrite
+        self.url = url
+        self.port = port
+
+        # Create the application package
+        self.package = create_hybrid_package(self.model_configs)
+        self.query_function_names = list(self.package.get_query_functions().keys())
+
+        # Compute model suffix for file naming
+        self.model_suffix = self._get_model_suffix()
+
+    def _normalize_model_configs(
+        self, model_input: ModelConfig | str | List[ModelConfig | str]
+    ) -> List[ModelConfig]:
+        """Normalize model_config input to a list of ModelConfig instances."""
+        if isinstance(model_input, str):
+            return [get_model_config(model_input)]
+        elif isinstance(model_input, ModelConfig):
+            return [model_input]
+        elif isinstance(model_input, list):
+            return [
+                get_model_config(m) if isinstance(m, str) else m for m in model_input
+            ]
+        else:
+            raise ValueError(
+                f"model_configs must be a string, ModelConfig, or list of either. Got {type(model_input)}"
+            )
+
+    def _get_model_suffix(self) -> str:
+        """
+        Generate a suffix string for file/directory naming based on model configs.
+
+        For single model: {model_id}_{bin|full}_{dim}
+        For multiple models: {model1_id}_{bin|full}_{dim}__{model2_id}_{bin|full}_{dim}
+        """
+        suffixes = []
+        for config in self.model_configs:
+            binary_indicator = "bin" if config.binarized else "full"
+            suffixes.append(
+                f"{config.model_id}_{binary_indicator}_{config.embedding_dim}"
+            )
+        return "__".join(suffixes)
+
+    @staticmethod
+    def _get_timestamp() -> str:
+        """Get current timestamp in ISO format."""
+        from datetime import datetime, timezone
+
+        return datetime.now(timezone.utc).isoformat()
+
+    def _load_benchmark_results(self, results_path: Path) -> dict:
+        """Load existing benchmark results from file, or return empty structure."""
+        if results_path.exists():
+            with open(results_path, "r") as f:
+                return json.load(f)
+        return {}
+
+    def _save_benchmark_results(self, results_path: Path, results: dict) -> None:
+        """Save benchmark results to file with atomic write."""
+        # Write to temp file first, then rename for atomic operation
+        temp_path = results_path.with_suffix(".tmp")
+        with open(temp_path, "w") as f:
+            json.dump(results, f, indent=4, ignore_nan=True)
+        temp_path.rename(results_path)
+
+    def _is_task_query_function_complete(
+        self, benchmark_results: dict, task_name: str, query_function: str
+    ) -> bool:
+        """Check if a specific task + query_function combination has already been evaluated."""
+        return (
+            "results" in benchmark_results
+            and task_name in benchmark_results["results"]
+            and query_function in benchmark_results["results"][task_name]
+            and benchmark_results["results"][task_name][query_function].get(
+                "finished_at"
+            )
+            is not None
+        )
+
+    def _get_results_path(self, eval_name: str) -> Path:
+        """Get the path for the results file."""
+        results_dir = self.results_dir / eval_name
+        results_dir.mkdir(parents=True, exist_ok=True)
+        results_file = f"{eval_name}_{self.model_suffix}_results.json"
+        return results_dir / results_file
+
+    def _save_package(self, eval_name: str) -> Path:
+        """Save the application package to disk."""
+        package_dir = self.results_dir / "packages" / eval_name / self.model_suffix
+        package_dir.parent.mkdir(parents=True, exist_ok=True)
+        self.package.to_files(package_dir)
+        return package_dir
+
+    def get_model_meta(self) -> ModelMeta:
+        """
+        Get the MTEB ModelMeta for this evaluator's configuration.
+
+        Returns:
+            ModelMeta instance configured for Vespa search.
+        """
+        return get_vespa_app(
+            model_config=self.model_configs,
+            package=self.package,
+            port=self.port,
+        )
+
+    def _get_tasks(self) -> list:
+        """Get the list of tasks to evaluate."""
+        if self.benchmark_name is not None:
+            return list(mteb.get_benchmark(self.benchmark_name))
+        else:
+            return [mteb.get_task(self.task_name)]
+
+    def _get_eval_name(self) -> str:
+        """Get the evaluation name (benchmark or task name)."""
+        return (
+            self.benchmark_name if self.benchmark_name is not None else self.task_name
+        )
+
+    def evaluate(self) -> dict:
+        """
+        Run the MTEB evaluation.
+
+        Returns:
+            dict: The benchmark results including metadata and scores for all
+                  task/query_function combinations.
+        """
+        eval_name = self._get_eval_name()
+        tasks = self._get_tasks()
+
+        # Setup results path and check for existing results
+        results_path = self._get_results_path(eval_name)
+
+        # Check if results file exists and overwrite is False
+        if results_path.exists() and not self.overwrite:
+            existing_results = self._load_benchmark_results(results_path)
+            # Check if benchmark is already complete
+            if (
+                existing_results.get("metadata", {}).get("benchmark_finished_at")
+                is not None
+            ):
+                logger.info(
+                    f"Results file already exists and benchmark is complete: {results_path}\n"
+                    f"Skipping evaluation. Set overwrite=True to re-run."
+                )
+                return existing_results
+
+        # Save the application package
+        package_dir = self._save_package(eval_name)
+        logger.info(f"Saved application package to: {package_dir}")
+        logger.info(f"Available query functions: {self.query_function_names}")
+
+        # Load existing results (for incremental saving)
+        benchmark_results = self._load_benchmark_results(results_path)
+
+        # Initialize metadata if not present
+        if "metadata" not in benchmark_results:
+            benchmark_results["metadata"] = {
+                "benchmark_name": eval_name,
+                "model_configs": [config.to_dict() for config in self.model_configs],
+                "query_functions": self.query_function_names,
+                "tasks": [task.metadata.name for task in tasks],
+                "benchmark_started_at": self._get_timestamp(),
+                "benchmark_finished_at": None,
+            }
+
+        # Initialize results structure if not present
+        if "results" not in benchmark_results:
+            benchmark_results["results"] = {}
+
+        # Save initial state
+        self._save_benchmark_results(results_path, benchmark_results)
+
+        try:
+            vespa_model_meta = self.get_model_meta()
+
+            for task in tasks:
+                task_name = task.metadata.name
+                logger.info(f"Starting evaluation for task: {task_name}")
+
+                # Initialize task results if not present
+                if task_name not in benchmark_results["results"]:
+                    benchmark_results["results"][task_name] = {}
+
+                for query_function in self.query_function_names:
+                    # Check if this task + query_function is already complete
+                    if not self.overwrite and self._is_task_query_function_complete(
+                        benchmark_results, task_name, query_function
+                    ):
+                        logger.info(
+                            f"Task '{task_name}' with query function '{query_function}' already complete, skipping. "
+                            f"Set overwrite=True to re-run."
+                        )
+                        continue
+
+                    logger.info(
+                        f"Evaluating task '{task_name}' with query function: {query_function}"
+                    )
+
+                    # Record start time
+                    started_at = self._get_timestamp()
+
+                    # Initialize entry for this query function
+                    benchmark_results["results"][task_name][query_function] = {
+                        "started_at": started_at,
+                        "finished_at": None,
+                        "scores": None,
+                    }
+                    # Save incremental progress (started)
+                    self._save_benchmark_results(results_path, benchmark_results)
+
+                    results = mteb.evaluate(
+                        vespa_model_meta,
+                        task,
+                        encode_kwargs={"query_function": query_function},
+                        overwrite_strategy="always",
+                    )
+
+                    # Record finish time and scores
+                    finished_at = self._get_timestamp()
+                    benchmark_results["results"][task_name][query_function] = {
+                        "started_at": started_at,
+                        "finished_at": finished_at,
+                        "scores": results[0].scores,
+                    }
+
+                    # Save incremental progress (finished)
+                    self._save_benchmark_results(results_path, benchmark_results)
+
+                    # Print results summary
+                    self._print_results_summary(
+                        task_name, query_function, results[0].scores
+                    )
+
+            # Mark benchmark as complete
+            benchmark_results["metadata"]["benchmark_finished_at"] = (
+                self._get_timestamp()
+            )
+            self._save_benchmark_results(results_path, benchmark_results)
+            logger.info(f"Evaluation complete! Results saved to: {results_path}")
+
+        finally:
+            logger.info("Evaluation finished.")
+
+        return benchmark_results
+
+    def _print_results_summary(
+        self, task_name: str, query_function: str, scores: dict
+    ) -> None:
+        """Print a summary of the evaluation results."""
+        print(f"Finished evaluation for '{task_name}' with '{query_function}':")
+        if "train" in scores and "ndcg_at_10" in scores["train"][0]:
+            print(f"  NDCG@10: {scores['train'][0]['ndcg_at_10']}")
+        elif "test" in scores and "ndcg_at_10" in scores["test"][0]:
+            print(f"  NDCG@10: {scores['test'][0]['ndcg_at_10']}")
+        else:
+            print(f"  Scores: {scores}")
 
 
 if __name__ == "__main__":
-    # Can be a single config or a list of configs for multi-model evaluation
+    # Example: Run a benchmark evaluation with a single model config
     model_configs: List[ModelConfig] = [
         ModelConfig(
             model_id="e5-small-v2",
@@ -404,125 +664,34 @@ if __name__ == "__main__":
             query_prepend="query: ",
             document_prepend="passage: ",
         ),
+        ModelConfig(
+            model_id="e5-small-v2",
+            embedding_dim=384,
+            binarized=False,
+            embedding_field_type="float",
+            model_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx",
+            tokenizer_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/tokenizer.json",
+            query_prepend="query: ",
+            document_prepend="passage: ",
+        ),
+        ModelConfig(
+            model_id="e5-small-v2",
+            embedding_dim=384,
+            binarized=False,
+            embedding_field_type="bfloat16",
+            model_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx",
+            tokenizer_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/tokenizer.json",
+            query_prepend="query: ",
+            document_prepend="passage: ",
+        ),
     ]
 
-    benchmark_name = "NanoBEIR"
-    tasks = mteb.get_benchmark(benchmark_name)
-    results_dir = Path("results") / benchmark_name
-    results_dir.mkdir(parents=True, exist_ok=True)
+    # Create and run the evaluator
+    evaluator = VespaMTEBEvaluator(
+        model_configs=model_configs,
+        benchmark_name="NanoBEIR",
+        results_dir="results",
+        overwrite=True,
+    )
 
-    # Create the application package once (handles single or multiple models)
-    package = create_hybrid_package(model_configs)
-    model_suffix = get_model_suffix(model_configs)
-    package_dir = Path("results") / "packages" / benchmark_name / model_suffix
-    package_dir.parent.mkdir(parents=True, exist_ok=True)
-    package.to_files(package_dir)
-    query_function_names = list(package.get_query_functions().keys())
-
-    logger.info(f"Available query functions: {query_function_names}")
-
-    # Single results file for the entire benchmark
-    # Format: {benchmark}_{model_suffix}_results.json
-    results_file = f"{benchmark_name}_{model_suffix}_results.json"
-    results_path = results_dir / results_file
-
-    # Load existing results (for incremental saving)
-    benchmark_results = load_benchmark_results(results_path)
-
-    # Initialize metadata if not present
-    if "metadata" not in benchmark_results:
-        benchmark_results["metadata"] = {
-            "benchmark_name": benchmark_name,
-            "model_configs": [config.to_dict() for config in model_configs],
-            "query_functions": query_function_names,
-            "tasks": [task.metadata.name for task in tasks],
-            "benchmark_started_at": get_timestamp(),
-            "benchmark_finished_at": None,
-        }
-
-    # Initialize results structure if not present
-    if "results" not in benchmark_results:
-        benchmark_results["results"] = {}
-
-    # Save initial state
-    save_benchmark_results(results_path, benchmark_results)
-
-    try:
-        vespa_mteb = get_vespa_app(model_config=model_configs, package=package)
-
-        for task in tasks:
-            task_name = task.metadata.name
-            logger.info(f"Starting evaluation for task: {task_name}")
-
-            # Initialize task results if not present
-            if task_name not in benchmark_results["results"]:
-                benchmark_results["results"][task_name] = {}
-
-            for query_function in query_function_names:
-                # Check if this task + query_function is already complete
-                if is_task_query_function_complete(
-                    benchmark_results, task_name, query_function
-                ):
-                    logger.info(
-                        f"Task '{task_name}' with query function '{query_function}' already complete, skipping..."
-                    )
-                    continue
-
-                logger.info(
-                    f"Evaluating task '{task_name}' with query function: {query_function}"
-                )
-
-                # Record start time
-                started_at = get_timestamp()
-
-                # Initialize entry for this query function
-                benchmark_results["results"][task_name][query_function] = {
-                    "started_at": started_at,
-                    "finished_at": None,
-                    "scores": None,
-                }
-                # Save incremental progress (started)
-                save_benchmark_results(results_path, benchmark_results)
-
-                results = mteb.evaluate(
-                    vespa_mteb,
-                    task,
-                    encode_kwargs={"query_function": query_function},
-                    overwrite_strategy="always",
-                )
-
-                # Record finish time and scores
-                finished_at = get_timestamp()
-                benchmark_results["results"][task_name][query_function] = {
-                    "started_at": started_at,
-                    "finished_at": finished_at,
-                    "scores": results[0].scores,
-                }
-
-                # Save incremental progress (finished)
-                save_benchmark_results(results_path, benchmark_results)
-
-                # Print results summary
-                print(f"Finished evaluation for '{task_name}' with '{query_function}':")
-                if (
-                    "train" in results[0].scores
-                    and "ndcg_at_10" in results[0].scores["train"][0]
-                ):
-                    print(f"  NDCG@10: {results[0].scores['train'][0]['ndcg_at_10']}")
-                elif (
-                    "test" in results[0].scores
-                    and "ndcg_at_10" in results[0].scores["test"][0]
-                ):
-                    print(f"  NDCG@10: {results[0].scores['test'][0]['ndcg_at_10']}")
-                else:
-                    print(f"  Scores: {results[0].scores}")
-
-        # Mark benchmark as complete
-        benchmark_results["metadata"]["benchmark_finished_at"] = get_timestamp()
-        save_benchmark_results(results_path, benchmark_results)
-        logger.info(f"Benchmark complete! Results saved to: {results_path}")
-
-    finally:
-        print("Cleaning up Vespa container...")
-        # del vespa_mteb
-        pass
+    results = evaluator.evaluate()
