@@ -208,17 +208,20 @@ class Summary(object):
         )
 
 
+DistanceMetric = Literal[
+    "euclidean",
+    "angular",
+    "dotproduct",
+    "prenormalized-angular",
+    "hamming",
+    "geodegrees",
+]
+
+
 class HNSW(object):
     def __init__(
         self,
-        distance_metric: Literal[
-            "euclidean",
-            "angular",
-            "dotproduct",
-            "prenormalized-angular",
-            "hamming",
-            "geodegrees",
-        ] = "euclidean",
+        distance_metric: DistanceMetric = "euclidean",
         max_links_per_node=16,
         neighbors_to_explore_at_insert=200,
     ):
@@ -1738,7 +1741,7 @@ class RankProfile(object):
         )
 
     def __repr__(self) -> str:
-        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15}, {16}, {17})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15}, {16}, {17}, {18})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.first_phase),
