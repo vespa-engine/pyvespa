@@ -301,7 +301,6 @@ class VespaMTEBApp(SearchProtocol):
         #     try:
         #         logger.info("Cleaning up Vespa container...")
         #         self.vespa_docker.container.stop(timeout=10)
-        #         self.vespa_docker.container.remove()
         #     except Exception as e:
         #         logger.warning(f"Error during cleanup: {e}")
         pass
@@ -379,47 +378,51 @@ def get_timestamp() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-if __name__ == "__main__":
-    import inspect
+def get_model_suffix(model_configs: List[ModelConfig]) -> str:
+    """
+    Generate a suffix string for file/directory naming based on model configs.
 
-    config = ModelConfig(
-        model_id="e5-small-v2",
-        embedding_dim=384,
-        binarized=True,
-        model_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx",
-        tokenizer_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/tokenizer.json",
-        query_prepend="query: ",
-        document_prepend="passage: ",
-    )
+    For single model: {model_id}_{bin|full}_{dim}
+    For multiple models: {model1_id}_{bin|full}_{dim}__{model2_id}_{bin|full}_{dim}
+    """
+    suffixes = []
+    for config in model_configs:
+        binary_indicator = "bin" if config.binarized else "full"
+        suffixes.append(f"{config.model_id}_{binary_indicator}_{config.embedding_dim}")
+    return "__".join(suffixes)
+
+
+if __name__ == "__main__":
+    # Can be a single config or a list of configs for multi-model evaluation
+    model_configs: List[ModelConfig] = [
+        ModelConfig(
+            model_id="e5-small-v2",
+            embedding_dim=384,
+            binarized=True,
+            model_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx",
+            tokenizer_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/tokenizer.json",
+            query_prepend="query: ",
+            document_prepend="passage: ",
+        ),
+    ]
+
     benchmark_name = "NanoBEIR"
     tasks = mteb.get_benchmark(benchmark_name)
     results_dir = Path("results") / benchmark_name
     results_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create the application package once
-    package = create_hybrid_package(config)
-    # Format: {model_id}_{bin|full}_{dim}
-    binary_indicator = "bin" if config.binarized else "full"
-    model_suffix = f"{config.model_id}_{binary_indicator}_{config.embedding_dim}"
+    # Create the application package once (handles single or multiple models)
+    package = create_hybrid_package(model_configs)
+    model_suffix = get_model_suffix(model_configs)
     package_dir = Path("results") / "packages" / benchmark_name / model_suffix
     package_dir.parent.mkdir(parents=True, exist_ok=True)
     package.to_files(package_dir)
     query_function_names = list(package.get_query_functions().keys())
 
-    # Save query function names and the string representation of the functions (code) to a json file
-    with open(package_dir / "query_functions.json", "w") as f:
-        json.dump(
-            {
-                name: inspect.getsource(func)
-                for name, func in package.get_query_functions().items()
-            },
-            f,
-            indent=4,
-        )
     logger.info(f"Available query functions: {query_function_names}")
 
     # Single results file for the entire benchmark
-    # Format: {benchmark}_{model_id}_{bin|full}_{dim}_results.json
+    # Format: {benchmark}_{model_suffix}_results.json
     results_file = f"{benchmark_name}_{model_suffix}_results.json"
     results_path = results_dir / results_file
 
@@ -430,14 +433,7 @@ if __name__ == "__main__":
     if "metadata" not in benchmark_results:
         benchmark_results["metadata"] = {
             "benchmark_name": benchmark_name,
-            "model_config": {
-                "model_id": config.model_id,
-                "embedding_dim": config.embedding_dim,
-                "model_url": config.model_url,
-                "tokenizer_url": config.tokenizer_url,
-                "query_prepend": config.query_prepend,
-                "document_prepend": config.document_prepend,
-            },
+            "model_configs": [config.to_dict() for config in model_configs],
             "query_functions": query_function_names,
             "tasks": [task.metadata.name for task in tasks],
             "benchmark_started_at": get_timestamp(),
@@ -452,7 +448,7 @@ if __name__ == "__main__":
     save_benchmark_results(results_path, benchmark_results)
 
     try:
-        vespa_mteb = get_vespa_app(model_config=config, package=package)
+        vespa_mteb = get_vespa_app(model_config=model_configs, package=package)
 
         for task in tasks:
             task_name = task.metadata.name
