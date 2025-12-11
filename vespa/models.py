@@ -1030,6 +1030,7 @@ def create_hybrid_package(
 
     # Build components, fields, and profiles for each model
     all_components = []
+    seen_component_ids = set()  # Track which component_ids we've already added
     all_embedding_fields = []
     all_rank_profiles = []
     match_only_inputs = []
@@ -1049,8 +1050,11 @@ def create_hybrid_package(
         )
         query_tensor = f"q{profile_suffix}"
 
-        # Create and collect component
-        all_components.append(create_embedder_component(config))
+        # Create and collect component - only if we haven't seen this component_id yet
+        # Multiple ModelConfigs with the same model_id share the same embedder
+        if config.component_id not in seen_component_ids:
+            all_components.append(create_embedder_component(config))
+            seen_component_ids.add(config.component_id)
 
         # Create and collect embedding field
         embedding_field = create_embedding_field(
