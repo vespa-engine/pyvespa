@@ -3,6 +3,7 @@ import re
 import warnings
 from difflib import get_close_matches
 from typing import Any, Dict, List, Optional, Union, Literal
+import requests
 from dataclasses import dataclass
 from vespa.package import (
     ApplicationPackage,
@@ -114,6 +115,7 @@ class ModelConfig:
         normalize: Whether to normalize output to unit length (default: False)
         query_prepend: Optional instruction to prepend to query text
         document_prepend: Optional instruction to prepend to document text
+        validate_urls: Whether to validate URLs by checking they return HTTP 200 (default: True)
     """
 
     model_id: str
@@ -136,6 +138,7 @@ class ModelConfig:
     normalize: Optional[bool] = None
     query_prepend: Optional[str] = None
     document_prepend: Optional[str] = None
+    validate_urls: bool = True
 
     def __post_init__(self):
         """Set defaults and validate configuration."""
@@ -189,6 +192,34 @@ class ModelConfig:
                 raise ValueError(
                     f"pooling_strategy must be one of {valid_strategies}, got {self.pooling_strategy}"
                 )
+
+        # Validate URLs if validation is enabled
+        if self.validate_urls:
+            self._validate_urls()
+
+    def _validate_urls(self) -> None:
+        """Validate that provided URLs are accessible (return HTTP 200)."""
+        urls_to_check = []
+        if self.model_url:
+            urls_to_check.append(("model_url", self.model_url))
+        if self.tokenizer_url:
+            urls_to_check.append(("tokenizer_url", self.tokenizer_url))
+
+        for url_name, url in urls_to_check:
+            try:
+                response = requests.head(url, timeout=10, allow_redirects=True)
+                if response.status_code != 200:
+                    # Some servers don't support HEAD, try GET with stream
+                    response = requests.get(url, timeout=10, stream=True, allow_redirects=True)
+                    response.close()
+                if response.status_code != 200:
+                    raise ValueError(
+                        f"{url_name} returned HTTP {response.status_code}: {url}"
+                    )
+            except requests.RequestException as e:
+                raise ValueError(
+                    f"Failed to validate {url_name} '{url}': {e}"
+                ) from e
 
     def to_dict(self, include_none: bool = False) -> Dict[str, Any]:
         """
