@@ -31,9 +31,13 @@ from vespa.deployment import VespaDocker
 from vespa.application import Vespa as VespaApp
 from vespa.io import VespaResponse
 
+# Configure logging with a handler so logs are actually output
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()],
+)
 logger = logging.getLogger(__name__)
-# set logging level to info
-logger.setLevel(logging.INFO)
 
 
 class VespaMTEBApp(SearchProtocol):
