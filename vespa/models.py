@@ -91,13 +91,18 @@ class ModelConfig:
         binarized: Whether the embeddings should be binarized (packed to bits).
             When True, overrides embedding_field_type to int8 and embedding_dim
             must be divisible by 8.
-        embedding_field_type: Tensor cell type for embeddings. Options:
+        embedding_field_type: Tensor cell type for embeddings (default: "float").
+            Note: When binarized=True, this is automatically overridden to "int8".
+            Options:
             - "double": 64-bit float (highest precision, highest memory)
-            - "float": 32-bit float (good balance) - default
+            - "float": 32-bit float (good balance)
             - "bfloat16": 16-bit brain float (reduced memory, good for large scale)
             - "int8": 8-bit integer (quantized, or used automatically when binarized=True)
-        distance_metric: Distance metric for HNSW index. Options:
-            - "angular": Cosine similarity (default for non-binarized)
+        distance_metric: Distance metric for HNSW index (default: None, auto-set based on binarized).
+            When binarized=True, automatically set to "hamming".
+            When binarized=False and not specified, defaults to "angular".
+            Options:
+            - "angular": Cosine similarity
             - "hamming": Hamming distance (required for binarized embeddings)
             - "euclidean", "dotproduct", "prenormalized-angular", "geodegrees"
         component_id: The ID to use for the Vespa component (defaults to sanitized model_id)
@@ -105,14 +110,21 @@ class ModelConfig:
         tokenizer_path: Optional local path to the tokenizer file
         model_url: Optional URL to the ONNX model file (alternative to model_id)
         tokenizer_url: Optional URL to the tokenizer file (alternative to tokenizer_id)
-        max_tokens: Maximum number of tokens accepted by the transformer model (default: 512)
-        transformer_input_ids: Name/identifier for transformer input IDs (default: "input_ids")
-        transformer_attention_mask: Name/identifier for transformer attention mask (default: "attention_mask")
-        transformer_token_type_ids: Name/identifier for transformer token type IDs (default: "token_type_ids")
-            Set to None to disable token_type_ids
-        transformer_output: Name/identifier for transformer output (default: "last_hidden_state")
-        pooling_strategy: How to pool output vectors ("mean", "cls", or "none") (default: "mean")
-        normalize: Whether to normalize output to unit length (default: False)
+        max_tokens: Maximum number of tokens accepted by the transformer model.
+            Optional, if not set the Vespa embedder uses its internal default (512).
+        transformer_input_ids: Name/identifier for transformer input IDs.
+            Optional, if not set the Vespa embedder uses its internal default ("input_ids").
+        transformer_attention_mask: Name/identifier for transformer attention mask.
+            Optional, if not set the Vespa embedder uses its internal default ("attention_mask").
+        transformer_token_type_ids: Name/identifier for transformer token type IDs.
+            Optional, if not set the Vespa embedder uses its internal default ("token_type_ids").
+            Set to empty string "" to explicitly disable token_type_ids.
+        transformer_output: Name/identifier for transformer output.
+            Optional, if not set the Vespa embedder uses its internal default ("last_hidden_state").
+        pooling_strategy: How to pool output vectors ("mean", "cls", or "none").
+            Optional, if not set the Vespa embedder uses its internal default ("mean").
+        normalize: Whether to normalize output to unit length.
+            Optional, if not set the Vespa embedder uses its internal default (False).
         query_prepend: Optional instruction to prepend to query text
         document_prepend: Optional instruction to prepend to document text
         validate_urls: Whether to validate URLs by checking they return HTTP 200 (default: True)
@@ -158,6 +170,12 @@ class ModelConfig:
 
         # Override embedding_field_type to int8 if binarized is True
         if self.binarized:
+            if self.embedding_field_type != "int8":
+                warnings.warn(
+                    f"binarized embeddings require 'int8' embedding_field_type, "
+                    f"but got '{self.embedding_field_type}'. Overriding to 'int8'.",
+                    UserWarning,
+                )
             object.__setattr__(self, "embedding_field_type", "int8")
             # Validate binarized embeddings require dimension divisible by 8
             if self.embedding_dim % 8 != 0:
@@ -168,8 +186,8 @@ class ModelConfig:
             # Set distance_metric to hamming for binarized embeddings
             if self.distance_metric is not None and self.distance_metric != "hamming":
                 warnings.warn(
-                    f"binarized embeddings require 'hamming' distance metric, "
-                    f"but got '{self.distance_metric}'. Setting to 'hamming'.",
+                    f"binarized embeddings require 'hamming' distance_metric, "
+                    f"but got '{self.distance_metric}'. Overriding to 'hamming'.",
                     UserWarning,
                 )
             object.__setattr__(self, "distance_metric", "hamming")
@@ -210,16 +228,16 @@ class ModelConfig:
                 response = requests.head(url, timeout=10, allow_redirects=True)
                 if response.status_code != 200:
                     # Some servers don't support HEAD, try GET with stream
-                    response = requests.get(url, timeout=10, stream=True, allow_redirects=True)
+                    response = requests.get(
+                        url, timeout=10, stream=True, allow_redirects=True
+                    )
                     response.close()
                 if response.status_code != 200:
                     raise ValueError(
                         f"{url_name} returned HTTP {response.status_code}: {url}"
                     )
             except requests.RequestException as e:
-                raise ValueError(
-                    f"Failed to validate {url_name} '{url}': {e}"
-                ) from e
+                raise ValueError(f"Failed to validate {url_name} '{url}': {e}") from e
 
     def to_dict(self, include_none: bool = False) -> Dict[str, Any]:
         """
