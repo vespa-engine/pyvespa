@@ -686,6 +686,18 @@ if __name__ == "__main__":
         ),
     ]
 
+    model_configs = [
+        ModelConfig(
+            model_id="embeddinggemma-300m",
+            embedding_dim=768,
+            binarized=False,
+            model_url="https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX/resolve/main/onnx/model_fp16.onnx",
+            tokenizer_url="https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX/resolve/main/tokenizer.json",
+            query_prepend="task: search result | query: ",
+            document_prepend="title: none | text: ",
+        )
+    ]
+
     # Create and run the evaluator
     evaluator = VespaMTEBEvaluator(
         model_configs=model_configs,
