@@ -429,16 +429,13 @@ class VespaMTEBEvaluator:
         """
         Generate a suffix string for file/directory naming based on model configs.
 
-        For single model: {model_id}_{bin|full}_{dim}
-        For multiple models: {model1_id}_{bin|full}_{dim}__{model2_id}_{bin|full}_{dim}
+        Uses only unique model IDs to keep filenames short.
+        For single model: {model_id}
+        For multiple models: {model1_id}__{model2_id}
         """
-        suffixes = []
-        for config in self.model_configs:
-            binary_indicator = "bin" if config.binarized else "full"
-            suffixes.append(
-                f"{config.model_id}_{binary_indicator}_{config.embedding_dim}"
-            )
-        return "__".join(suffixes)
+        # Use a set to get unique model IDs, then sort for consistent ordering
+        unique_model_ids = sorted(set(config.model_id for config in self.model_configs))
+        return "__".join(unique_model_ids)
 
     @staticmethod
     def _get_timestamp() -> str:
@@ -658,48 +655,35 @@ class VespaMTEBEvaluator:
 
 if __name__ == "__main__":
     # Example: Run a benchmark evaluation with a single model config
-    model_configs: List[ModelConfig] = [
-        ModelConfig(
-            model_id="e5-small-v2",
-            embedding_dim=384,
-            binarized=True,
-            model_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx",
-            tokenizer_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/tokenizer.json",
-            query_prepend="query: ",
-            document_prepend="passage: ",
-        ),
-        ModelConfig(
-            model_id="e5-small-v2",
-            embedding_dim=384,
-            binarized=False,
-            embedding_field_type="float",
-            model_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx",
-            tokenizer_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/tokenizer.json",
-            query_prepend="query: ",
-            document_prepend="passage: ",
-        ),
-        ModelConfig(
-            model_id="e5-small-v2",
-            embedding_dim=384,
-            binarized=False,
-            embedding_field_type="bfloat16",
-            model_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx",
-            tokenizer_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/tokenizer.json",
-            query_prepend="query: ",
-            document_prepend="passage: ",
-        ),
+
+    # Base config shared by all variants
+    base_config = {
+        "model_id": "embeddinggemma-300m-q4",
+        "model_url": "https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX/resolve/main/onnx/model_q4.onnx",
+        "tokenizer_url": "https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX/resolve/main/tokenizer.json",
+        "query_prepend": "task: search result | query: ",
+        "document_prepend": "title: none | text: ",
+    }
+
+    # Dimensions to test
+    dims = [128, 512, 768]
+
+    # Variants: (binarized, embedding_field_type)
+    variants = [
+        (False, "float"),
+        (False, "bfloat16"),
+        (True, "int8"),
     ]
 
     model_configs = [
         ModelConfig(
-            model_id="embeddinggemma-300m",
-            embedding_dim=768,
-            binarized=False,
-            model_url="https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX/resolve/main/onnx/model_fp16.onnx",
-            tokenizer_url="https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX/resolve/main/tokenizer.json",
-            query_prepend="task: search result | query: ",
-            document_prepend="title: none | text: ",
+            **base_config,
+            embedding_dim=dim,
+            binarized=binarized,
+            **({"embedding_field_type": field_type}),
         )
+        for dim in dims
+        for binarized, field_type in variants
     ]
 
     # Create and run the evaluator
