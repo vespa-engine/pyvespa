@@ -1,5 +1,45 @@
 const models = [
     {
+        "id": "e5-base-v2",
+        "name": "E5 Base V2",
+        "org": "Community",
+        "modelId": "e5-base-v2",
+        "params": "TODO",
+        "maxDim": 768,
+        "dimensions": {
+            "float": [
+                768
+            ],
+            "bfloat16": [
+                768
+            ],
+            "binary": [
+                768
+            ]
+        },
+        "speeds": {
+            "t4": 0,
+            "c7g": 0
+        },
+        "mrlSupport": false,
+        "binarySupport": true,
+        "bfloat16Support": true,
+        "scores": {
+            "semantic_768_float": 0.593,
+            "fusion_768_float": 0.597,
+            "atan_norm_768_float": 0.628,
+            "norm_linear_768_float": 0.632,
+            "semantic_768_bfloat16": 0.593,
+            "fusion_768_bfloat16": 0.597,
+            "atan_norm_768_bfloat16": 0.628,
+            "norm_linear_768_bfloat16": 0.632,
+            "semantic_768_binary": 0.423,
+            "fusion_768_binary": 0.544,
+            "atan_norm_768_binary": 0.563,
+            "norm_linear_768_binary": 0.566
+        }
+    },
+    {
         "id": "nomic-ai-modernbert",
         "name": "Nomic Ai Modernbert",
         "org": "Community",
@@ -37,6 +77,76 @@ const models = [
             "fusion_768_binary": 0.59,
             "atan_norm_768_binary": 0.557,
             "norm_linear_768_binary": 0.619
+        }
+    },
+    {
+        "id": "embeddinggemma-300m-q4",
+        "name": "Embeddinggemma 300M Q4",
+        "org": "Community",
+        "modelId": "embeddinggemma-300m-q4",
+        "params": "TODO",
+        "maxDim": 768,
+        "dimensions": {
+            "float": [
+                768,
+                512,
+                128
+            ],
+            "bfloat16": [
+                768,
+                512,
+                128
+            ],
+            "binary": [
+                768,
+                512,
+                128
+            ]
+        },
+        "speeds": {
+            "t4": 0,
+            "c7g": 0
+        },
+        "mrlSupport": true,
+        "binarySupport": true,
+        "bfloat16Support": true,
+        "scores": {
+            "semantic_768_float": 0.6,
+            "fusion_768_float": 0.574,
+            "atan_norm_768_float": 0.603,
+            "norm_linear_768_float": 0.603,
+            "semantic_512_float": 0.642,
+            "fusion_512_float": 0.628,
+            "atan_norm_512_float": 0.662,
+            "norm_linear_512_float": 0.656,
+            "semantic_128_float": 0.462,
+            "fusion_128_float": 0.57,
+            "atan_norm_128_float": 0.573,
+            "norm_linear_128_float": 0.593,
+            "semantic_768_bfloat16": 0.6,
+            "fusion_768_bfloat16": 0.574,
+            "atan_norm_768_bfloat16": 0.603,
+            "norm_linear_768_bfloat16": 0.603,
+            "semantic_512_bfloat16": 0.642,
+            "fusion_512_bfloat16": 0.628,
+            "atan_norm_512_bfloat16": 0.662,
+            "norm_linear_512_bfloat16": 0.61,
+            "semantic_128_bfloat16": 0.462,
+            "fusion_128_bfloat16": 0.568,
+            "atan_norm_128_bfloat16": 0.574,
+            "norm_linear_128_bfloat16": 0.591,
+            "semantic_768_binary": 0.565,
+            "fusion_768_binary": 0.571,
+            "atan_norm_768_binary": 0.519,
+            "norm_linear_768_binary": 0.596,
+            "semantic_512_binary": 0.528,
+            "fusion_512_binary": 0.558,
+            "atan_norm_512_binary": 0.526,
+            "norm_linear_512_binary": 0.582,
+            "semantic_128_binary": 0.299,
+            "fusion_128_binary": 0.478,
+            "atan_norm_128_binary": 0.582,
+            "norm_linear_128_binary": 0.53
         }
     },
     {
@@ -310,7 +420,7 @@ const models = [
         "bfloat16Support": false,
         "isBM25": true,
         "scores": {
-            "semantic_float": 0.527,
+            "semantic_float": 0.524,
             "fusion_float": null,
             "semantic_bfloat16": null,
             "fusion_bfloat16": null,
