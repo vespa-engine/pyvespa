@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vespa NanoBEIR Hybrid Leaderboard</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Disable Tailwind's JIT watcher to prevent re-renders
+        tailwind.config = { corePlugins: { preflight: true } };
+    </script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <!-- Model Data -->
+    <script src="NanoBEIR/models.js"></script>
+
+    <style>
+        /* Font Setup */
+        @font-face {
+            font-family: 'Roobert';
+            src: local('Roobert'), local('Roobert-Regular'), url('https://fonts.cdnfonts.com/s/20127/Roobert-Regular.woff') format('woff');
+            font-weight: 400;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'Roobert';
+            src: local('Roobert Medium'), local('Roobert-Medium'), url('https://fonts.cdnfonts.com/s/20127/Roobert-Medium.woff') format('woff');
+            font-weight: 500;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'Roobert';
+            src: local('Roobert Bold'), local('Roobert-Bold'), url('https://fonts.cdnfonts.com/s/20127/Roobert-Bold.woff') format('woff');
+            font-weight: 700;
+            font-style: normal;
+        }
+
+        body { font-family: 'Roobert', sans-serif; background-color: #0d1117; color: #c9d1d9; }
+        
+        /* Vespa Colors */
+        .text-vespa-primary { color: #61D790; }
+        .bg-vespa-primary { background-color: #61D790; }
+        .border-vespa-primary { border-color: #61D790; }
+        
+        .text-vespa-sec-1 { color: #B6AED5; }
+        .bg-vespa-sec-1 { background-color: #B6AED5; }
+        
+        .text-vespa-sec-2 { color: #B7E2F1; }
+        .bg-vespa-sec-2 { background-color: #B7E2F1; }
+
+        .bg-vespa-dark { background-color: #161b22; }
+        .border-vespa { border-color: #30363d; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0d1117; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #61D790; }
+        
+        /* Table Animations */
+        .expand-row {
+            transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+        }
+        .expand-row.open {
+            max-height: 500px;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo } = React;
+
+        // --- Data loaded from NanoBEIR/models.js ---
+        // models is defined in the external script
+
+        // --- Icons ---
+        const CopyIcon = () => <i className="ph ph-copy text-lg"></i>;
+        const CheckIcon = () => <i className="ph ph-check text-lg"></i>;
+        const CaretDown = () => <i className="ph ph-caret-down"></i>;
+
+        // --- Utils ---
+        const calculateSize = (dim, dtype) => {
+            const bytesPerDim = {
+                'int8': 0.125,
+                'float': 4,
+                'bfloat16': 2
+            }[dtype] || 4;
+            return Math.round(dim * bytesPerDim);
+        };
+
+        const TypeBadge = ({ dtype }) => {
+            const config = {
+                'float': { label: 'float32', color: '#9ca3af', bg: 'rgba(156, 163, 175, 0.1)', border: 'rgba(156, 163, 175, 0.3)' },
+                'bfloat16': { label: 'bfloat16', color: '#B7E2F1', bg: 'rgba(183, 226, 241, 0.1)', border: 'rgba(183, 226, 241, 0.3)' },
+                'int8': { label: 'int8', color: '#B6AED5', bg: 'rgba(182, 174, 213, 0.1)', border: 'rgba(182, 174, 213, 0.3)' }
+            }[dtype] || { label: dtype, color: '#888', bg: 'rgba(136, 136, 136, 0.1)', border: 'rgba(136, 136, 136, 0.3)' };
+            
+            return (
+                <span 
+                    className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium"
+                    style={{ color: config.color, backgroundColor: config.bg, border: `1px solid ${config.border}` }}
+                >
+                    {config.label}
+                </span>
+            );
+        };
+
+        const CopyButton = ({ text }) => {
+            const [copied, setCopied] = useState(false);
+            const handleCopy = (e) => {
+                e.stopPropagation();
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                } catch (err) {}
+                document.body.removeChild(textArea);
+            };
+
+            return (
+                <button onClick={handleCopy} className="ml-2 text-gray-500 hover:text-[#61D790] transition-colors">
+                    {copied ? <span className="text-[#61D790]"><CheckIcon /></span> : <CopyIcon />}
+                </button>
+            );
+        };
+
+        const ModelRow = ({ model, hardware }) => {
+            const [expanded, setExpanded] = useState(false);
+            
+            // Helper to get score with new dimension-aware key format
+            const getScore = (queryFunc, dim, dtype) => {
+                const key = `${queryFunc}_${dim}_${dtype}`;
+                return model.scores[key] || null;
+            };
+            
+            // Get all dimensions from model.dimensions (new format) or fallback to maxDim
+            const floatDims = model.dimensions?.float || [model.maxDim];
+            const bfloat16Dims = model.dimensions?.bfloat16 || [];
+            const binaryDims = model.dimensions?.binary || [];
+            const maxFloatDim = floatDims[0] || model.maxDim;
+            
+            // Main scores for the table columns - best across ALL dimensions and data types
+            const allScores = Object.entries(model.scores);
+            
+            // Best semantic across all dims/dtypes
+            const semanticScores = allScores.filter(([k]) => k.startsWith('semantic_')).map(([,v]) => v);
+            const bestSemantic = semanticScores.length ? Math.max(...semanticScores) : null;
+            
+            // Best hybrid across all dims/dtypes and methods
+            const hybridScores = allScores
+                .filter(([k]) => k.startsWith('fusion_') || k.startsWith('atan_norm_') || k.startsWith('norm_linear_'))
+                .map(([,v]) => v);
+            const bestHybrid = hybridScores.length ? Math.max(...hybridScores) : null;
+            
+            // Best binary (int8) includes all binary methods across all dims
+            const binaryScores = allScores.filter(([k]) => k.endsWith('_binary')).map(([,v]) => v);
+            const bestBinary = binaryScores.length ? Math.max(...binaryScores) : null;
+            
+            // Best full precision (float or bfloat16) at max dim for comparison
+            const fullPrecisionScores = allScores
+                .filter(([k]) => k.endsWith('_float') || k.endsWith('_bfloat16'))
+                .map(([,v]) => v);
+            const bestFullPrecision = fullPrecisionScores.length ? Math.max(...fullPrecisionScores) : null;
+            
+            // Binary is recommended if it achieves >= 90% of best full precision score
+            const binaryRecommended = bestBinary && bestFullPrecision ? (bestBinary >= bestFullPrecision * 0.9) : null;
+            
+            const speed = hardware === 't4' ? model.speeds.t4 : model.speeds.c7g;
+            const maxSpeed = hardware === 't4' ? 3200 : 600;
+            
+            // Check if this is the BM25 baseline entry
+            const isBM25 = model.isBM25;
+
+            // Build dimension groups for expanded view
+            // Group by dimension, then show all dtypes for that dimension
+            const allDims = [...new Set([...floatDims, ...bfloat16Dims, ...binaryDims])].sort((a, b) => b - a);
+            
+            // Build rows for expanded view - organized by dimension
+            const dimensionRows = allDims.map(dim => {
+                const hasFloat = floatDims.includes(dim);
+                const hasBfloat16 = bfloat16Dims.includes(dim);
+                const hasBinary = binaryDims.includes(dim);
+                
+                return {
+                    dim,
+                    isMaxDim: dim === maxFloatDim,
+                    float: hasFloat ? {
+                        semantic: getScore('semantic', dim, 'float'),
+                        fusion: getScore('fusion', dim, 'float'),
+                        atan: getScore('atan_norm', dim, 'float'),
+                        linear: getScore('norm_linear', dim, 'float'),
+                    } : null,
+                    bfloat16: hasBfloat16 ? {
+                        semantic: getScore('semantic', dim, 'bfloat16'),
+                        fusion: getScore('fusion', dim, 'bfloat16'),
+                        atan: getScore('atan_norm', dim, 'bfloat16'),
+                        linear: getScore('norm_linear', dim, 'bfloat16'),
+                    } : null,
+                    binary: hasBinary ? {
+                        semantic: getScore('semantic', dim, 'binary'),
+                        fusion: getScore('fusion', dim, 'binary'),
+                        atan: getScore('atan_norm', dim, 'binary'),
+                        linear: getScore('norm_linear', dim, 'binary'),
+                    } : null,
+                };
+            });
+
+            return (
+                <React.Fragment>
+                    <tr 
+                        className={`group cursor-pointer transition-colors ${expanded ? 'bg-[#1f2428]' : 'hover:bg-[#161b22] border-b border-gray-800'}`}
+                        onClick={() => setExpanded(!expanded)}
+                    >
+                        <td className="p-4">
+                            <div className="flex items-center gap-3">
+                                <div className={`text-gray-500 transition-transform ${expanded ? 'rotate-180' : ''}`}>
+                                    <CaretDown />
+                                </div>
+                                <div className="flex flex-col">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-semibold text-white text-base">{model.name}</span>
+                                        {model.badge && (
+                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#B7E2F1]/10 text-[#B7E2F1] border border-[#B7E2F1]/30">
+                                                {model.badge}
+                                            </span>
+                                        )}
+                                        {model.mrlSupport && (
+                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#B7E2F1]/10 text-[#B7E2F1] border border-[#B7E2F1]/30">
+                                                MRL
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center text-xs text-gray-500 mt-1">
+                                        <span className="truncate max-w-[150px] md:max-w-none font-mono">
+                                            {model.modelId}
+                                        </span>
+                                        <CopyButton text={model.modelId} />
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td className="p-4 text-center text-gray-400 font-mono text-sm">
+                            <div className="flex flex-col items-center">
+                                <span>{model.maxDim}</span>
+                                {model.mrlSupport && (
+                                    <span className="text-[10px] text-gray-600">
+                                        ({floatDims.filter(d => d < maxFloatDim).join(', ')})
+                                    </span>
+                                )}
+                            </div>
+                        </td>
+                        <td className="p-4 text-center text-gray-400">
+                            <span className="px-2 py-1 rounded bg-gray-800 border border-gray-700 text-xs">
+                                {model.maxDim === 768 ? '8k' : '512'}
+                            </span>
+                        </td>
+                        <td className="p-4">
+                            <div className="flex items-center gap-3">
+                                <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                                    <div 
+                                        className="h-full bg-gradient-to-r from-[#B7E2F1] to-[#61D790]" 
+                                        style={{ width: `${(speed / maxSpeed) * 100}%` }}
+                                    ></div>
+                                </div>
+                                <span className="text-xs font-mono w-10 text-right">{speed}</span>
+                            </div>
+                        </td>
+                        <td className="p-4 text-right font-mono text-white text-base">
+                            {bestSemantic ? bestSemantic.toFixed(3) : '-'}
+                        </td>
+                        <td className="p-4 text-right font-mono text-white text-base bg-[#61D790]/5">
+                            {bestHybrid ? bestHybrid.toFixed(3) : '-'}
+                        </td>
+                        <td className="p-4 text-right font-mono text-[#B6AED5] text-base">
+                            {bestBinary ? bestBinary.toFixed(3) : '-'}
+                        </td>
+                    </tr>
+                    
+                    {/* Expanded Row Content */}
+                    <tr>
+                        <td colSpan="8" className="p-0 border-b border-gray-800">
+                            <div className={`expand-row bg-[#0d1117] ${expanded ? 'open' : ''}`}>
+                                <div className="p-6 pl-12">
+                                    <h4 className="text-xs uppercase tracking-wider text-gray-500 mb-4 font-semibold">
+                                        Score Breakdown for {model.name} {model.mrlSupport && <span className="text-[#B7E2F1] normal-case ml-2">(MRL supported)</span>}
+                                    </h4>
+                                    <div className="overflow-x-auto border border-gray-800 rounded-lg">
+                                        <table className="w-full text-sm text-left">
+                                            <thead className="bg-gray-800 text-gray-400 text-xs uppercase">
+                                                <tr>
+                                                    <th className="p-3">Dimension</th>
+                                                    <th className="p-3 text-center">Type</th>
+                                                    <th className="p-3 text-center">Size/vec</th>
+                                                    <th className="p-3 text-right">Semantic</th>
+                                                    <th className="p-3 text-right">RRF</th>
+                                                    <th className="p-3 text-right">Atan</th>
+                                                    <th className="p-3 text-right">Linear</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-800 bg-[#161b22]">
+                                                {dimensionRows.map((dimRow, dimIdx) => {
+                                                    // For each dimension, show rows for available dtypes
+                                                    const dtypeEntries = [
+                                                        dimRow.float && { dtype: 'float', data: dimRow.float },
+                                                        dimRow.bfloat16 && { dtype: 'bfloat16', data: dimRow.bfloat16 },
+                                                        dimRow.binary && { dtype: 'int8', data: dimRow.binary, isBinary: true },
+                                                    ].filter(Boolean);
+                                                    
+                                                    return dtypeEntries.map((entry, typeIdx) => {
+                                                        const row = entry.data;
+                                                        const rowBestHybrid = Math.max(row.fusion || 0, row.atan || 0, row.linear || 0);
+                                                        const isBestAtan = row.atan === rowBestHybrid && rowBestHybrid > 0;
+                                                        const isBestLinear = row.linear === rowBestHybrid && rowBestHybrid > 0 && !isBestAtan;
+                                                        const isBestFusion = row.fusion === rowBestHybrid && rowBestHybrid > 0 && !isBestAtan && !isBestLinear;
+                                                        
+                                                        // Check if binary performance is < 90% of best full precision (not recommended)
+                                                        const binaryNotRecommended = entry.isBinary && bestFullPrecision && 
+                                                            Math.max(row.semantic || 0, row.fusion || 0, row.atan || 0, row.linear || 0) < (bestFullPrecision * 0.9);
+                                                        
+                                                        const isFirstForDim = typeIdx === 0;
+                                                        const dimLabel = dimRow.isMaxDim ? `${dimRow.dim}` : `${dimRow.dim}`;
+                                                        
+                                                        return (
+                                                            <tr key={`${dimIdx}-${typeIdx}`} className={`hover:bg-[#1f2428] ${isFirstForDim && dimIdx > 0 ? 'border-t-2 border-gray-700' : ''}`}>
+                                                                <td className="p-3 font-mono">
+                                                                    {isFirstForDim && (
+                                                                        <span className={`${dimRow.isMaxDim ? 'text-white font-semibold' : 'text-gray-400'}`}>
+                                                                            {dimLabel}
+                                                                            {!dimRow.isMaxDim && <span className="text-[10px] text-gray-600 ml-1">(MRL)</span>}
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                                <td className="p-3 text-center">
+                                                                    <TypeBadge dtype={entry.dtype} />
+                                                                    {entry.isBinary && binaryNotRecommended && (
+                                                                        <span className="ml-1 text-[9px] text-red-400 border border-red-800/50 bg-red-900/30 px-1 rounded">!</span>
+                                                                    )}
+                                                                </td>
+                                                                <td className="p-3 text-center text-gray-500 font-mono text-xs">{calculateSize(dimRow.dim, entry.dtype)}B</td>
+                                                                <td className="p-3 text-right font-mono text-white">
+                                                                    {row.semantic?.toFixed(3) || '-'}
+                                                                </td>
+                                                                <td className={`p-3 text-right font-mono ${isBestFusion ? 'text-[#61D790] font-bold bg-[#61D790]/10 rounded' : 'text-gray-400'}`}>
+                                                                    {row.fusion?.toFixed(3) || '-'}
+                                                                </td>
+                                                                <td className={`p-3 text-right font-mono ${isBestAtan ? 'text-[#61D790] font-bold bg-[#61D790]/10 rounded' : 'text-gray-400'}`}>
+                                                                    {row.atan?.toFixed(3) || '-'}
+                                                                </td>
+                                                                <td className={`p-3 text-right font-mono ${isBestLinear ? 'text-[#61D790] font-bold bg-[#61D790]/10 rounded' : 'text-gray-400'}`}>
+                                                                    {row.linear?.toFixed(3) || '-'}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    });
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div className="mt-3 text-xs text-gray-500">
+                                        <strong>Hybrid methods:</strong> RRF = Reciprocal Rank Fusion, Atan = arctangent normalization, Linear = linear normalization. 
+                                        Best hybrid score per row highlighted. Binary (int8) reduces storage by 32x.
+                                        {model.mrlSupport && <span className="ml-2 text-[#B7E2F1]">• MRL = Matryoshka dimension variants</span>}
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                </React.Fragment>
+            );
+        };
+
+        const App = () => {
+            const [hardware, setHardware] = useState('c7g'); // 't4' or 'c7g'
+            
+            // Helper to get best semantic score for a model (across all dims/dtypes)
+            const getBestSemantic = (model) => {
+                const semanticScores = Object.entries(model.scores)
+                    .filter(([k]) => k.startsWith('semantic_'))
+                    .map(([,v]) => v);
+                return semanticScores.length ? Math.max(...semanticScores) : 0;
+            };
+            
+            // Memoize sorted models to prevent re-renders from resetting expanded state
+            const sortedModels = useMemo(() => 
+                models
+                    .filter(m => !m.isBM25)
+                    .sort((a, b) => getBestSemantic(b) - getBestSemantic(a)),
+                []  // Empty deps - models data doesn't change
+            );
+
+            return (
+                <div className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto">
+                    
+                    {/* Header */}
+                    <header className="mb-10 flex flex-col md:flex-row justify-between items-start md:items-center border-b border-vespa pb-6">
+                        <div className="flex items-center gap-6">
+                            <img 
+                                src="https://assets.vespa.ai/logos/Vespa-logo-green-RGB.svg" 
+                                alt="Vespa" 
+                                className="h-8 md:h-10"
+                            />
+                            <div className="h-8 w-px bg-gray-700 hidden md:block"></div>
+                            <div>
+                                <h1 className="text-2xl font-bold text-white">NanoBEIR Hybrid Leaderboard</h1>
+                                <p className="text-sm text-[#B6AED5]">Evaluating quality, performance & efficiency</p>
+                            </div>
+                        </div>
+                        
+                        <div className="mt-6 md:mt-0 flex items-center gap-6">
+                            <div className="flex flex-col items-end">
+                                <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block">Benchmark Hardware</label>
+                                <div className="relative w-full md:w-72">
+                                    <select 
+                                        value={hardware} 
+                                        onChange={(e) => setHardware(e.target.value)}
+                                        className="w-full appearance-none bg-vespa-dark text-gray-300 pl-4 pr-10 py-2.5 rounded border border-vespa focus:border-[#61D790] focus:outline-none text-sm cursor-pointer hover:bg-[#1f2428] transition-colors"
+                                    >
+                                        <option value="t4">AWS g4dn.xlarge (T4 GPU)</option>
+                                        <option value="c7g">AWS c7g.large (Graviton3 CPU)</option>
+                                    </select>
+                                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 pointer-events-none">
+                                        <CaretDown />
+                                    </div>
+                                </div>
+                            </div>
+                            <a 
+                                href="https://github.com/vespa-engine/pyvespa" 
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-gray-400 hover:text-[#61D790] transition-colors flex items-center"
+                                title="View on GitHub"
+                            >
+                                <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
+                                </svg>
+                            </a>
+                        </div>
+                    </header>
+
+                    {/* Main Table */}
+                    <div className="overflow-hidden bg-vespa-dark rounded-xl border border-vespa shadow-2xl">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-gray-800 text-xs uppercase tracking-wider text-gray-400 bg-[#0d1117]">
+                                    <th className="p-4 font-medium w-1/3 text-white">Model Name</th>
+                                    <th className="p-4 font-medium text-center">Dim</th>
+                                    <th className="p-4 font-medium text-center">Context</th>
+                                    <th className="p-4 font-medium w-48">
+                                        Inference Speed
+                                        <div className="normal-case text-[10px] text-gray-500">Docs / Sec</div>
+                                    </th>
+                                    <th className="p-4 font-medium text-right text-white">
+                                        Best Semantic
+                                        <div className="normal-case text-[10px] text-gray-500">nDCG@10</div>
+                                    </th>
+                                    <th className="p-4 font-medium text-right text-[#61D790] bg-[#61D790]/5">
+                                        Best Hybrid
+                                        <div className="normal-case text-[10px] text-[#61D790]/70">nDCG@10</div>
+                                    </th>
+                                    <th className="p-4 font-medium text-right text-[#B6AED5]">
+                                        Best Binary
+                                        <div className="normal-case text-[10px] text-[#B6AED5]/70">int8 nDCG@10</div>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sortedModels.map((model) => (
+                                    <ModelRow key={model.id} model={model} hardware={hardware} />
+                                ))}
+                            </tbody>
+                            {/* BM25 Baseline */}
+                            {(() => {
+                                const bm25 = models.find(m => m.isBM25);
+                                if (!bm25) return null;
+                                return (
+                                    <tfoot className="border-t-2 border-gray-700">
+                                        <tr className="bg-[#0d1117]">
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-4"></div>
+                                                    <div className="flex flex-col">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-semibold text-gray-400 text-base">{bm25.name}</span>
+                                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-700 text-gray-400 border border-gray-600">
+                                                                Baseline
+                                                            </span>
+                                                        </div>
+                                                        <span className="text-xs text-gray-500 mt-1">Lexical search (no embeddings)</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="p-4 text-center text-gray-500">-</td>
+                                            <td className="p-4 text-center text-gray-500">-</td>
+                                            <td className="p-4 text-gray-500 text-xs">N/A</td>
+                                            <td className="p-4 text-right font-mono text-gray-400 text-base">
+                                                {bm25.scores.semantic_float ? bm25.scores.semantic_float.toFixed(3) : '-'}
+                                            </td>
+                                            <td className="p-4 text-right font-mono text-gray-500 text-base bg-[#61D790]/5">-</td>
+                                            <td className="p-4 text-right font-mono text-gray-500 text-base">-</td>
+                                        </tr>
+                                    </tfoot>
+                                );
+                            })()}
+                        </table>
+                    </div>
+
+                    {/* Note about Not Recommended label */}
+                    <div className="mt-4 flex items-center gap-2 text-xs text-gray-500">
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-900/30 text-red-400 border border-red-800/50">Not Recommended</span>
+                        <span>Binary quantization scores are &lt;90% of full precision performance for this model.</span>
+                    </div>
+
+                    {/* Footer Legend */}
+                    <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-gray-400 border-t border-gray-800 pt-6">
+                        <div>
+                            <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
+                                <i className="ph ph-cpu text-[#B7E2F1]"></i> Hardware Benchmark
+                            </h3>
+                            <p className="text-xs leading-relaxed text-gray-400">
+                                Performance varies significantly between GPU and CPU. 
+                                We benchmark on AWS standard instances. 
+                                <strong>c7g.large</strong> uses Graviton3 (ARM) processors, highly efficient for scalar workloads but slower for heavy transformers compared to T4 GPUs.
+                            </p>
+                        </div>
+                        <div>
+                            <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
+                                <i className="ph ph-arrows-in-line-horizontal text-[#B7E2F1]"></i> Matryoshka & Binary
+                            </h3>
+                            <p className="text-xs leading-relaxed text-gray-400">
+                                Expand any row to see efficiency variants. 
+                                <strong>Matryoshka (MRL)</strong> models allow dimension truncation. 
+                                <strong>Binary Quantization</strong> reduces size by 32x but requires models trained for it (like MDBR) to avoid large quality drops.
+                            </p>
+                        </div>
+                        <div>
+                            <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
+                                <i className="ph ph-graph text-[#B7E2F1]"></i> Hybrid vs RRF
+                            </h3>
+                            <p className="text-xs leading-relaxed text-gray-400">
+                                <strong>Hybrid:</strong> Linear combination of normalized BM25 and Vector scores using <code className="bg-gray-800 px-1 rounded text-[#B6AED5]">atan</code>.
+                                <br/>
+                                <strong>RRF:</strong> Reciprocal Rank Fusion, often provides stable uplifts without parameter tuning.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div className="mt-12 text-center">
+                         <a 
+                            href="https://vespa.ai" 
+                            target="_blank"
+                            className="inline-flex items-center gap-2 px-8 py-3 bg-[#61D790] hover:bg-[#4ec980] text-[#0d1117] rounded-full font-bold transition-transform hover:scale-105"
+                        >
+                            Start building with Vespa <i className="ph ph-arrow-right font-bold"></i>
+                        </a>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
