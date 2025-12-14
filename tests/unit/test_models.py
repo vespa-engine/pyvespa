@@ -3,6 +3,7 @@ import pytest
 from vespa.configuration.vt import compare_xml
 from vespa.models import (
     COMMON_MODELS,
+    HF_MODELS,
     ModelConfig,
     create_embedder_component,
     create_embedding_field,
@@ -63,12 +64,18 @@ class TestModelConfig:
         """Test configuration with URLs."""
         config = ModelConfig(
             model_id="url-model",
-            embedding_dim=768,
-            model_url="https://example.com/model.onnx",
-            tokenizer_url="https://example.com/tokenizer.json",
+            embedding_dim=384,
+            model_url="https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/e5-small-v2-int8.onnx",
+            tokenizer_url="https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/tokenizer.json",
         )
-        assert config.model_url == "https://example.com/model.onnx"
-        assert config.tokenizer_url == "https://example.com/tokenizer.json"
+        assert (
+            config.model_url
+            == "https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/e5-small-v2-int8.onnx"
+        )
+        assert (
+            config.tokenizer_url
+            == "https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/tokenizer.json"
+        )
 
     def test_config_with_explicit_parameters(self):
         """Test configuration with explicit huggingface embedder parameters."""
@@ -234,10 +241,12 @@ class TestModelConfig:
             )
             # Should be overridden to hamming
             assert config.distance_metric == "hamming"
-            # Should have raised a warning
-            assert len(w) == 1
-            assert "binarized embeddings require 'hamming' distance metric" in str(
-                w[0].message
+            # Should have raised warnings (one for embedding_field_type, one for distance_metric)
+            assert len(w) == 2
+            warning_messages = [str(warning.message) for warning in w]
+            assert any(
+                "binarized embeddings require 'hamming' distance_metric" in msg
+                for msg in warning_messages
             )
 
 
@@ -279,17 +288,17 @@ class TestCreateEmbedderComponent:
         """Test component creation with URLs."""
         config = ModelConfig(
             model_id="url-model",
-            embedding_dim=768,
-            model_url="https://huggingface.co/model.onnx",
-            tokenizer_url="https://huggingface.co/tokenizer.json",
+            embedding_dim=384,
+            model_url="https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/e5-small-v2-int8.onnx",
+            tokenizer_url="https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/tokenizer.json",
         )
         component = create_embedder_component(config)
 
         assert component.parameters[0].args == {
-            "url": "https://huggingface.co/model.onnx"
+            "url": "https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/e5-small-v2-int8.onnx"
         }
         assert component.parameters[1].args == {
-            "url": "https://huggingface.co/tokenizer.json"
+            "url": "https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/tokenizer.json"
         }
 
     def test_component_with_explicit_parameters(self):
@@ -319,9 +328,9 @@ class TestCreateEmbedderComponent:
         """Test component creation with prepend parameters."""
         config = ModelConfig(
             model_id="prepend-model",
-            embedding_dim=768,
-            model_url="https://example.com/model.onnx",
-            tokenizer_url="https://example.com/tokenizer.json",
+            embedding_dim=384,
+            model_url="https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/e5-small-v2-int8.onnx",
+            tokenizer_url="https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/tokenizer.json",
             query_prepend="Represent this sentence for searching relevant passages: ",
             document_prepend="passage: ",
         )
@@ -363,16 +372,18 @@ class TestCreateEmbedderComponent:
             model_id="test-model",
             embedding_dim=384,
             model_path="/path/to/model.onnx",
-            model_url="https://example.com/model.onnx",
+            model_url="https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/e5-small-v2-int8.onnx",
             tokenizer_path="/path/to/tokenizer.json",
-            tokenizer_url="https://example.com/tokenizer.json",
+            tokenizer_url="https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/tokenizer.json",
         )
         component = create_embedder_component(config)
 
         # URLs should take priority
-        assert component.parameters[0].args == {"url": "https://example.com/model.onnx"}
+        assert component.parameters[0].args == {
+            "url": "https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/e5-small-v2-int8.onnx"
+        }
         assert component.parameters[1].args == {
-            "url": "https://example.com/tokenizer.json"
+            "url": "https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/tokenizer.json"
         }
 
 
@@ -1862,9 +1873,9 @@ class TestCreateHybridPackage:
         """Test single model setup using ModelConfig instance."""
         config = ModelConfig(
             model_id="custom-model",
-            embedding_dim=512,
-            model_url="https://example.com/model.onnx",
-            tokenizer_url="https://example.com/tokenizer.json",
+            embedding_dim=384,
+            model_url="https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/e5-small-v2-int8.onnx",
+            tokenizer_url="https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/tokenizer.json",
         )
         package = create_hybrid_package(config)
 
@@ -1877,7 +1888,7 @@ class TestCreateHybridPackage:
             f for f in package.schema.document.fields if "embedding" in f.name
         ]
         assert len(embedding_fields) == 1
-        assert "512" in embedding_fields[0].type
+        assert "384" in embedding_fields[0].type
 
     def test_create_hybrid_package_custom_names(self):
         """Test custom app_name and schema_name."""
@@ -1952,3 +1963,27 @@ class TestCreateHybridPackage:
 
         # Check distance metric is hamming
         assert embedding_fields[0].ann.distance_metric == "hamming"
+
+
+class TestHFModelsURLValidation:
+    """Test that all HF_MODELS have valid URLs."""
+
+    @pytest.mark.parametrize("model_name", list(HF_MODELS.keys()))
+    def test_hf_model_urls_are_valid(self, model_name):
+        """Test that all URLs in HF_MODELS are accessible.
+
+        This test validates that the model_url and tokenizer_url for each
+        HF_MODELS entry return HTTP 200 status codes.
+        """
+        config = HF_MODELS[model_name]
+        # URL validation happens in __post_init__, so if we get here without
+        # an exception, the URLs are valid. But let's also verify the config
+        # has the expected URLs set.
+        print(f"Validating URLs for model: {model_name}")
+        assert config.model_url is not None, f"{model_name} should have model_url"
+        assert (
+            config.tokenizer_url is not None
+        ), f"{model_name} should have tokenizer_url"
+        assert (
+            config.validate_urls is True
+        ), f"{model_name} should have validate_urls=True"
