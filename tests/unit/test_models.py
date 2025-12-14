@@ -1,3 +1,5 @@
+import warnings
+
 import pytest
 
 from vespa.configuration.vt import compare_xml
@@ -42,11 +44,14 @@ class TestModelConfig:
 
     def test_config_binarized(self):
         """Test binarized model configuration."""
-        config = ModelConfig(
-            model_id="bge-m3",
-            embedding_dim=1024,
-            binarized=True,
-        )
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            config = ModelConfig(
+                model_id="bge-m3",
+                embedding_dim=1024,
+                binarized=True,
+            )
         assert config.binarized is True
 
     def test_config_with_paths(self):
@@ -124,25 +129,30 @@ class TestModelConfig:
 
     def test_binarized_dimension_validation(self):
         """Test that binarized embeddings require dimension divisible by 8."""
-        # Valid binarized dimensions (divisible by 8)
-        config = ModelConfig(model_id="test", embedding_dim=1024, binarized=True)
-        assert config.embedding_dim == 1024
 
-        config = ModelConfig(model_id="test", embedding_dim=768, binarized=True)
-        assert config.embedding_dim == 768
+        # Valid binarized dimensions (divisible by 8)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            config = ModelConfig(model_id="test", embedding_dim=1024, binarized=True)
+            assert config.embedding_dim == 1024
+
+            config = ModelConfig(model_id="test", embedding_dim=768, binarized=True)
+            assert config.embedding_dim == 768
 
         # Invalid binarized dimensions (not divisible by 8)
-        with pytest.raises(
-            ValueError,
-            match="binarized embeddings require embedding_dim divisible by 8",
-        ):
-            ModelConfig(model_id="test", embedding_dim=1023, binarized=True)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            with pytest.raises(
+                ValueError,
+                match="binarized embeddings require embedding_dim divisible by 8",
+            ):
+                ModelConfig(model_id="test", embedding_dim=1023, binarized=True)
 
-        with pytest.raises(
-            ValueError,
-            match="binarized embeddings require embedding_dim divisible by 8",
-        ):
-            ModelConfig(model_id="test", embedding_dim=385, binarized=True)
+            with pytest.raises(
+                ValueError,
+                match="binarized embeddings require embedding_dim divisible by 8",
+            ):
+                ModelConfig(model_id="test", embedding_dim=385, binarized=True)
 
         # Non-binarized embeddings can have any positive dimension
         config = ModelConfig(model_id="test", embedding_dim=385, binarized=False)
@@ -181,22 +191,25 @@ class TestModelConfig:
 
     def test_binarized_overrides_embedding_field_type(self):
         """Test that binarized=True overrides embedding_field_type to int8."""
-        config = ModelConfig(
-            model_id="test",
-            embedding_dim=1024,
-            binarized=True,
-            embedding_field_type="float",
-        )
-        # Should be overridden to int8
-        assert config.embedding_field_type == "int8"
 
-        config = ModelConfig(
-            model_id="test",
-            embedding_dim=1024,
-            binarized=True,
-            embedding_field_type="bfloat16",
-        )
-        assert config.embedding_field_type == "int8"
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            config = ModelConfig(
+                model_id="test",
+                embedding_dim=1024,
+                binarized=True,
+                embedding_field_type="float",
+            )
+            # Should be overridden to int8
+            assert config.embedding_field_type == "int8"
+
+            config = ModelConfig(
+                model_id="test",
+                embedding_dim=1024,
+                binarized=True,
+                embedding_field_type="bfloat16",
+            )
+            assert config.embedding_field_type == "int8"
 
     def test_embedding_field_type_validation(self):
         """Test that invalid embedding field type raises error."""
@@ -224,12 +237,14 @@ class TestModelConfig:
 
     def test_distance_metric_binarized_default_hamming(self):
         """Test that binarized embeddings default to hamming distance."""
-        config = ModelConfig(model_id="test", embedding_dim=1024, binarized=True)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            config = ModelConfig(model_id="test", embedding_dim=1024, binarized=True)
         assert config.distance_metric == "hamming"
 
     def test_distance_metric_binarized_overrides_to_hamming(self):
         """Test that binarized=True overrides distance_metric to hamming with warning."""
-        import warnings
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -248,6 +263,52 @@ class TestModelConfig:
                 "binarized embeddings require 'hamming' distance_metric" in msg
                 for msg in warning_messages
             )
+
+    def test_config_hash_generated(self):
+        """Test that config_hash is generated automatically."""
+        config = ModelConfig(model_id="test-model", embedding_dim=384)
+        assert config.config_hash is not None
+        assert len(config.config_hash) == 64  # SHA-256 hex string length
+
+    def test_config_hash_deterministic(self):
+        """Test that same configuration produces same hash."""
+        config1 = ModelConfig(model_id="e5-small-v2", embedding_dim=384)
+        config2 = ModelConfig(model_id="e5-small-v2", embedding_dim=384)
+        assert config1.config_hash == config2.config_hash
+
+    def test_config_hash_differs_for_different_configs(self):
+        """Test that different configurations produce different hashes."""
+
+        config1 = ModelConfig(model_id="e5-small-v2", embedding_dim=384)
+        config2 = ModelConfig(model_id="e5-small-v2", embedding_dim=768)
+        config3 = ModelConfig(model_id="e5-base-v2", embedding_dim=384)
+        # Suppress expected warning for binarized config
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            config4 = ModelConfig(
+                model_id="e5-small-v2", embedding_dim=384, binarized=True
+            )
+
+        # All hashes should be different
+        hashes = {
+            config1.config_hash,
+            config2.config_hash,
+            config3.config_hash,
+            config4.config_hash,
+        }
+        assert len(hashes) == 4
+
+    def test_config_hash_differs_for_optional_params(self):
+        """Test that optional parameters affect the hash."""
+        config1 = ModelConfig(model_id="test", embedding_dim=384)
+        config2 = ModelConfig(
+            model_id="test", embedding_dim=384, query_prepend="query: "
+        )
+        config3 = ModelConfig(model_id="test", embedding_dim=384, max_tokens=512)
+
+        assert config1.config_hash != config2.config_hash
+        assert config1.config_hash != config3.config_hash
+        assert config2.config_hash != config3.config_hash
 
 
 class TestCreateEmbedderComponent:
@@ -417,11 +478,14 @@ class TestCreateEmbeddingField:
 
     def test_binarized_embedding_field(self):
         """Test field creation for binarized embeddings."""
-        config = ModelConfig(
-            model_id="bge-m3",
-            embedding_dim=1024,
-            binarized=True,
-        )
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            config = ModelConfig(
+                model_id="bge-m3",
+                embedding_dim=1024,
+                binarized=True,
+            )
         field = create_embedding_field(config)
 
         assert field.name == "embedding"
@@ -523,11 +587,14 @@ class TestCreateSemanticRankProfile:
 
     def test_binarized_semantic_profile(self):
         """Test semantic profile for binarized embeddings."""
-        config = ModelConfig(
-            model_id="bge-m3",
-            embedding_dim=1024,
-            binarized=True,
-        )
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            config = ModelConfig(
+                model_id="bge-m3",
+                embedding_dim=1024,
+                binarized=True,
+            )
         profile = create_semantic_rank_profile(config)
 
         # Query tensor should be int8 with packed dimensions
@@ -632,11 +699,14 @@ class TestCreateHybridRankProfile:
 
     def test_hybrid_profile_binarized(self):
         """Test hybrid profile for binarized embeddings."""
-        config = ModelConfig(
-            model_id="bge-m3",
-            embedding_dim=1024,
-            binarized=True,
-        )
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            config = ModelConfig(
+                model_id="bge-m3",
+                embedding_dim=1024,
+                binarized=True,
+            )
         profile = create_hybrid_rank_profile(config)
 
         # Query tensor should be int8
@@ -793,11 +863,14 @@ class TestIntegration:
 
     def test_complete_binarized_setup(self):
         """Test complete setup for binarized embeddings."""
-        config = ModelConfig(
-            model_id="bge-m3",
-            embedding_dim=1024,
-            binarized=True,
-        )
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            config = ModelConfig(
+                model_id="bge-m3",
+                embedding_dim=1024,
+                binarized=True,
+            )
 
         component = create_embedder_component(config)
         field = create_embedding_field(config)
@@ -1317,37 +1390,40 @@ class TestCreateHybridPackage:
         settings, each configuration should get a unique identifier that includes the dimension and type
         to avoid naming collisions.
         """
-        model_configs = [
-            ModelConfig(
-                model_id="e5-small-v2",
-                embedding_dim=384,
-                binarized=True,
-                model_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx",
-                tokenizer_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/tokenizer.json",
-                query_prepend="query: ",
-                document_prepend="passage: ",
-            ),
-            ModelConfig(
-                model_id="e5-small-v2",
-                embedding_dim=384,
-                binarized=False,
-                embedding_field_type="float",
-                model_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx",
-                tokenizer_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/tokenizer.json",
-                query_prepend="query: ",
-                document_prepend="passage: ",
-            ),
-            ModelConfig(
-                model_id="e5-small-v2",
-                embedding_dim=384,
-                binarized=False,
-                embedding_field_type="bfloat16",
-                model_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx",
-                tokenizer_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/tokenizer.json",
-                query_prepend="query: ",
-                document_prepend="passage: ",
-            ),
-        ]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            model_configs = [
+                ModelConfig(
+                    model_id="e5-small-v2",
+                    embedding_dim=384,
+                    binarized=True,
+                    model_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx",
+                    tokenizer_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/tokenizer.json",
+                    query_prepend="query: ",
+                    document_prepend="passage: ",
+                ),
+                ModelConfig(
+                    model_id="e5-small-v2",
+                    embedding_dim=384,
+                    binarized=False,
+                    embedding_field_type="float",
+                    model_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx",
+                    tokenizer_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/tokenizer.json",
+                    query_prepend="query: ",
+                    document_prepend="passage: ",
+                ),
+                ModelConfig(
+                    model_id="e5-small-v2",
+                    embedding_dim=384,
+                    binarized=False,
+                    embedding_field_type="bfloat16",
+                    model_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx",
+                    tokenizer_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/tokenizer.json",
+                    query_prepend="query: ",
+                    document_prepend="passage: ",
+                ),
+            ]
         package = create_hybrid_package(model_configs)
 
         # Check that we only have ONE component (same model_id = same embedder)
@@ -1946,11 +2022,14 @@ class TestCreateHybridPackage:
 
     def test_create_hybrid_package_binarized_model(self):
         """Test hybrid package with binarized embedding model."""
-        config = ModelConfig(
-            model_id="binarized-model",
-            embedding_dim=1024,
-            binarized=True,
-        )
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            config = ModelConfig(
+                model_id="binarized-model",
+                embedding_dim=1024,
+                binarized=True,
+            )
         package = create_hybrid_package(config)
 
         # Check embedding field type is int8 with packed dimensions
