@@ -1,10 +1,12 @@
 from __future__ import annotations
+import hashlib
+import json
 import re
 import warnings
 from difflib import get_close_matches
 from typing import Any, Dict, List, Optional, Union, Literal
 import requests
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, field
 from vespa.package import (
     ApplicationPackage,
     Component,
@@ -151,6 +153,7 @@ class ModelConfig:
     query_prepend: Optional[str] = None
     document_prepend: Optional[str] = None
     validate_urls: bool = True
+    config_hash: str = field(default="", init=False)
 
     def __post_init__(self):
         """Set defaults and validate configuration."""
@@ -215,6 +218,40 @@ class ModelConfig:
         if self.validate_urls:
             self._validate_urls()
 
+        # Generate unique hash for this configuration
+        object.__setattr__(self, "config_hash", self._generate_hash())
+
+    def _generate_hash(self) -> str:
+        """
+        Generate a unique hash for this model configuration.
+
+        The hash is based on all configuration attributes (excluding config_hash itself)
+        and can be used to uniquely identify a specific model configuration.
+
+        Returns:
+            A hex string representing the SHA-256 hash of the configuration.
+
+        Example:
+            >>> config = ModelConfig(model_id="e5-small-v2", embedding_dim=384)
+            >>> len(config.config_hash)
+            64
+            >>> config2 = ModelConfig(model_id="e5-small-v2", embedding_dim=384)
+            >>> config.config_hash == config2.config_hash
+            True
+            >>> config3 = ModelConfig(model_id="e5-small-v2", embedding_dim=768)
+            >>> config.config_hash == config3.config_hash
+            False
+        """
+        # Build a dict of all attributes except config_hash
+        hash_dict = {}
+        for f in fields(self):
+            if f.name != "config_hash":
+                hash_dict[f.name] = getattr(self, f.name)
+
+        # Create a stable JSON representation and hash it
+        json_str = json.dumps(hash_dict, sort_keys=True, default=str)
+        return hashlib.sha256(json_str.encode()).hexdigest()
+
     def _validate_urls(self) -> None:
         """Validate that provided URLs are accessible (return HTTP 200)."""
         urls_to_check = []
@@ -262,10 +299,10 @@ class ModelConfig:
         from dataclasses import fields
 
         result = {}
-        for field in fields(self):
-            value = getattr(self, field.name)
+        for f in fields(self):
+            value = getattr(self, f.name)
             if include_none or value is not None:
-                result[field.name] = value
+                result[f.name] = value
         return result
 
 
@@ -966,7 +1003,7 @@ def _create_query_functions(
             ),
             "query": query_text,
             "ranking": f"semantic{profile_suffix}",
-            f"input.query({query_tensor})": f"embed({query_text})",
+            f"input.query({query_tensor})": "embed(@query)",
             "hits": top_k,
         }
 
@@ -994,7 +1031,7 @@ def _create_query_functions(
             ),
             "query": query_text,
             "ranking": f"fusion{profile_suffix}",
-            f"input.query({query_tensor})": f"embed({query_text})",
+            f"input.query({query_tensor})": "embed(@query)",
             "hits": top_k,
         }
 
@@ -1014,7 +1051,7 @@ def _create_query_functions(
             ),
             "query": query_text,
             "ranking": f"atan_norm{profile_suffix}",
-            f"input.query({query_tensor})": f"embed({query_text})",
+            f"input.query({query_tensor})": "embed(@query)",
             "hits": top_k,
         }
 
@@ -1034,7 +1071,7 @@ def _create_query_functions(
             ),
             "query": query_text,
             "ranking": f"norm_linear{profile_suffix}",
-            f"input.query({query_tensor})": f"embed({query_text})",
+            f"input.query({query_tensor})": "embed(@query)",
             "hits": top_k,
         }
 
