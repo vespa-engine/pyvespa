@@ -834,7 +834,7 @@ def list_models() -> List[str]:
     return sorted(COMMON_MODELS.keys())
 
 
-def _get_unique_model_identifier(config: ModelConfig) -> str:
+def _get_model_string(config: ModelConfig) -> str:
     """
     Generate a unique identifier for a model config that includes dimension and type info.
 
@@ -849,10 +849,10 @@ def _get_unique_model_identifier(config: ModelConfig) -> str:
 
     Example:
         >>> config1 = ModelConfig(model_id="e5-small-v2", embedding_dim=384)
-        >>> _get_unique_model_identifier(config1)
+        >>> _get_model_string(config1)
         'e5_small_v2_384_float'
         >>> config2 = ModelConfig(model_id="e5-small-v2", embedding_dim=384, binarized=True)
-        >>> _get_unique_model_identifier(config2)
+        >>> _get_model_string(config2)
         'e5_small_v2_48_int8'
     """
     effective_dim = (
@@ -1176,7 +1176,7 @@ def create_hybrid_package(
         # Create unique identifiers for multi-model setup
         # Use full unique identifier (with dim/type) if there are component_id collisions
         if has_component_id_collisions:
-            unique_id = _get_unique_model_identifier(config)
+            unique_id = _get_model_string(config)
         else:
             unique_id = config.component_id
 
