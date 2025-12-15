@@ -158,4 +158,5 @@ vespa/resources/*.md
 
 .aider*
 
-results/
+results/**/*.json
+results/packages/

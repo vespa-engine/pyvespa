@@ -7,14 +7,10 @@
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        // Disable Tailwind's JIT watcher to prevent re-renders
-        tailwind.config = { corePlugins: { preflight: true } };
-    </script>
     
-    <!-- React & ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- React & ReactDOM (production builds for stability) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     
     <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -390,24 +386,50 @@
             );
         };
 
+        // Helper functions defined outside component to avoid recreation
+        const getBestSemantic = (model) => {
+            const semanticScores = Object.entries(model.scores)
+                .filter(([k]) => k.startsWith('semantic_'))
+                .map(([,v]) => v);
+            return semanticScores.length ? Math.max(...semanticScores) : 0;
+        };
+        
+        const getBestHybrid = (model) => {
+            const hybridScores = Object.entries(model.scores)
+                .filter(([k]) => k.startsWith('fusion_') || k.startsWith('atan_norm_') || k.startsWith('norm_linear_'))
+                .map(([,v]) => v);
+            return hybridScores.length ? Math.max(...hybridScores) : 0;
+        };
+        
+        const getBestBinary = (model) => {
+            const binaryScores = Object.entries(model.scores)
+                .filter(([k]) => k.endsWith('_binary'))
+                .map(([,v]) => v);
+            return binaryScores.length ? Math.max(...binaryScores) : 0;
+        };
+        
+        // Sort indicator icon component
+        const SortIcon = ({ active }) => (
+            <i className={`ph ph-caret-down ml-1 ${active ? 'text-[#61D790]' : 'text-gray-600'}`}></i>
+        );
+
         const App = () => {
             const [hardware, setHardware] = useState('c7g'); // 't4' or 'c7g'
+            const [sortColumn, setSortColumn] = useState('semantic'); // 'semantic', 'hybrid', or 'binary'
             
-            // Helper to get best semantic score for a model (across all dims/dtypes)
-            const getBestSemantic = (model) => {
-                const semanticScores = Object.entries(model.scores)
-                    .filter(([k]) => k.startsWith('semantic_'))
-                    .map(([,v]) => v);
-                return semanticScores.length ? Math.max(...semanticScores) : 0;
-            };
-            
-            // Memoize sorted models to prevent re-renders from resetting expanded state
-            const sortedModels = useMemo(() => 
-                models
+            // Memoize sorted models - sort inline to capture sortColumn correctly
+            const sortedModels = useMemo(() => {
+                const getSortValue = (model) => {
+                    switch (sortColumn) {
+                        case 'hybrid': return getBestHybrid(model);
+                        case 'binary': return getBestBinary(model);
+                        default: return getBestSemantic(model);
+                    }
+                };
+                return models
                     .filter(m => !m.isBM25)
-                    .sort((a, b) => getBestSemantic(b) - getBestSemantic(a)),
-                []  // Empty deps - models data doesn't change
-            );
+                    .sort((a, b) => getSortValue(b) - getSortValue(a));
+            }, [sortColumn]);
 
             return (
                 <div className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto">
@@ -470,16 +492,34 @@
                                         Inference Speed
                                         <div className="normal-case text-[10px] text-gray-500">Docs / Sec</div>
                                     </th>
-                                    <th className="p-4 font-medium text-right text-white">
-                                        Best Semantic
+                                    <th 
+                                        className="p-4 font-medium text-right text-white cursor-pointer hover:bg-[#1f2428] transition-colors"
+                                        onClick={() => setSortColumn('semantic')}
+                                    >
+                                        <div className="flex items-center justify-end">
+                                            Best Semantic
+                                            <SortIcon active={sortColumn === 'semantic'} />
+                                        </div>
                                         <div className="normal-case text-[10px] text-gray-500">nDCG@10</div>
                                     </th>
-                                    <th className="p-4 font-medium text-right text-[#61D790] bg-[#61D790]/5">
-                                        Best Hybrid
+                                    <th 
+                                        className="p-4 font-medium text-right text-[#61D790] bg-[#61D790]/5 cursor-pointer hover:bg-[#61D790]/10 transition-colors"
+                                        onClick={() => setSortColumn('hybrid')}
+                                    >
+                                        <div className="flex items-center justify-end">
+                                            Best Hybrid
+                                            <SortIcon active={sortColumn === 'hybrid'} />
+                                        </div>
                                         <div className="normal-case text-[10px] text-[#61D790]/70">nDCG@10</div>
                                     </th>
-                                    <th className="p-4 font-medium text-right text-[#B6AED5]">
-                                        Best Binary
+                                    <th 
+                                        className="p-4 font-medium text-right text-[#B6AED5] cursor-pointer hover:bg-[#B6AED5]/10 transition-colors"
+                                        onClick={() => setSortColumn('binary')}
+                                    >
+                                        <div className="flex items-center justify-end">
+                                            Best Binary
+                                            <SortIcon active={sortColumn === 'binary'} />
+                                        </div>
                                         <div className="normal-case text-[10px] text-[#B6AED5]/70">int8 nDCG@10</div>
                                     </th>
                                 </tr>
