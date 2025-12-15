@@ -656,36 +656,19 @@ class VespaMTEBEvaluator:
 if __name__ == "__main__":
     # Example: Run a benchmark evaluation with a single model config
 
-    # Base config shared by all variants
-    base_config = {
-        "model_id": "embeddinggemma-300m-q4",
-        "model_url": "https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX/resolve/main/onnx/model_q4.onnx",
-        "tokenizer_url": "https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX/resolve/main/tokenizer.json",
-        "query_prepend": "task: search result | query: ",
-        "document_prepend": "title: none | text: ",
-    }
-
-    # Dimensions to test
-    dims = [128, 512, 768]
-
-    # Variants: (binarized, embedding_field_type)
-    variants = [
-        (False, "float"),
-        (False, "bfloat16"),
-        (True, "int8"),
-    ]
-
     model_configs = [
         ModelConfig(
-            **base_config,
-            embedding_dim=dim,
-            binarized=binarized,
-            **({"embedding_field_type": field_type}),
-        )
-        for dim in dims
-        for binarized, field_type in variants
+            model_id="alibaba-gte-modernbert-int8",
+            embedding_dim=768,
+            binarized=True,
+            embedding_field_type="int8",
+            distance_metric="hamming",
+            model_url="https://huggingface.co/Alibaba-NLP/gte-modernbert-base/resolve/main/onnx/model_int8.onnx",
+            tokenizer_url="https://huggingface.co/Alibaba-NLP/gte-modernbert-base/resolve/main/tokenizer.json",
+            max_tokens=8192,
+            pooling_strategy="cls",
+        ),
     ]
-
     # Create and run the evaluator
     evaluator = VespaMTEBEvaluator(
         model_configs=model_configs,
