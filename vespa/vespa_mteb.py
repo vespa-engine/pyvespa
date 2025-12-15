@@ -80,6 +80,18 @@ class VespaMTEBApp(SearchProtocol):
         self.port = port
         self._current_task_name: Optional[str] = None
 
+    def cleanup(self) -> None:
+        """Stop and remove the Vespa Docker container."""
+        if self.vespa_docker is not None and self.vespa_docker.container is not None:
+            try:
+                logger.info("Stopping Vespa container...")
+                self.vespa_docker.container.stop(timeout=10)
+                logger.info("Removing Vespa container...")
+                self.vespa_docker.container.remove()
+                logger.info("Vespa container cleaned up successfully.")
+            except Exception as e:
+                logger.warning(f"Error during container cleanup: {e}")
+
     @staticmethod
     def _get_cache_key(model_configs: List[ModelConfig], task_name: str) -> str:
         """Generate a unique cache key for model_configs + task combination."""
@@ -246,7 +258,7 @@ class VespaMTEBApp(SearchProtocol):
         responses = self.app.query_many(
             query_bodies,
             num_connections=4,
-            max_concurrent=4,
+            max_concurrent=10,
             client_kwargs={
                 "timeout": self.get_timeout()
             },  # TODO: This can be removed when updating from master
@@ -298,16 +310,6 @@ class VespaMTEBApp(SearchProtocol):
                 logger.info(f"Sample scores: {list(sample_results.values())[:3]}")
 
         return results
-
-    def __del__(self):
-        """Clean up Vespa container when object is destroyed."""
-        # if self.vespa_docker is not None:
-        #     try:
-        #         logger.info("Cleaning up Vespa container...")
-        #         self.vespa_docker.container.stop(timeout=10)
-        #     except Exception as e:
-        #         logger.warning(f"Error during cleanup: {e}")
-        pass
 
 
 def vespa_hybrid_loader(model_name, **kwargs) -> SearchProtocol:
