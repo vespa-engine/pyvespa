@@ -55,15 +55,34 @@ def get_org_and_name(model_id):
     return org, clean_name, model_id
 
 
-def parse_result_key(key):
+def parse_result_key(key, configs=None):
     """
-    Parses keys like: 'semantic_lightonai_modernbert_large_128_int8'
+    Parses keys like: 'semantic_lightonai_modernbert_large_128_int8' (old format)
+    or just 'semantic', 'bm25', etc. (new format)
+
+    For new format, uses configs to determine dim and dtype.
     Returns: (query_func, dimension, dtype) or None
     """
     # Valid query functions we want to track
     valid_funcs = ["semantic", "bm25", "fusion", "atan_norm", "norm_linear"]
 
-    # Match known prefixes explicitly
+    # Check for new simple format (key is just the query function)
+    if key in valid_funcs:
+        # Use the first config to get dimension and dtype
+        if configs and len(configs) > 0:
+            config = configs[0]
+            dim = config.get("embedding_dim", 768)
+            # Determine dtype from config
+            if config.get("binarized") or config.get("embedding_field_type") == "int8":
+                dtype = "int8"
+            elif config.get("embedding_field_type") == "bfloat16":
+                dtype = "bfloat16"
+            else:
+                dtype = "float"
+            return key, dim, dtype
+        return None
+
+    # Old format: Match known prefixes explicitly
     prefix = None
     for func in valid_funcs:
         if key.startswith(func + "_"):
@@ -119,6 +138,13 @@ def process_benchmark_data(file_pattern):
         # 1. Parse Metadata to determine model grouping
         configs = data.get("metadata", {}).get("model_configs", [])
 
+        # Get the primary model_id from the first config
+        if not configs:
+            print(f"  WARNING [{file_path}]: No model_configs found, skipping")
+            continue
+        primary_model_id = configs[0].get("model_id", "unknown")
+        print(f"  Processing model: {primary_model_id}")
+
         for task_name, task_results in results.items():
             for key, score_data in task_results.items():
                 # Check if valid score exists
@@ -141,52 +167,28 @@ def process_benchmark_data(file_pattern):
 
                 ndcg_score = split_scores[0].get("ndcg_at_10", 0)
 
-                # Parse the key to classify the score
-                parsed = parse_result_key(key)
+                # Parse the key to classify the score (pass configs for new simple format)
+                parsed = parse_result_key(key, configs)
                 if not parsed:
                     continue
 
                 query_func, dim, dtype = parsed
 
-                # For int8/binary, the dimension in the key is the packed dimension (original_dim / 8)
-                # We need to track this separately
+                # For int8/binary in old format, the dimension in the key is the packed dimension (original_dim / 8)
+                # For new format, dim is already the original dimension from config
                 original_dim = dim
-                if dtype == "int8":
+                # Only apply the *8 conversion for old format (where dim is packed)
+                if dtype == "int8" and key not in [
+                    "semantic",
+                    "bm25",
+                    "fusion",
+                    "atan_norm",
+                    "norm_linear",
+                ]:
                     original_dim = dim * 8  # Convert packed dimension back to original
 
-                # Let's derive model ID from the metadata to be safe
-                # Finding the config that matches this dim/dtype
-                # For int8, match on original_dim (before packing)
-                relevant_config = next(
-                    (
-                        c
-                        for c in configs
-                        if c["embedding_dim"] == original_dim
-                        and (
-                            (dtype == "int8" and c.get("binarized"))
-                            or (
-                                dtype == "float"
-                                and c.get("embedding_field_type") == "float"
-                            )
-                            or (
-                                dtype == "bfloat16"
-                                and c.get("embedding_field_type") == "bfloat16"
-                            )
-                        )
-                    ),
-                    None,
-                )
-
-                if not relevant_config:
-                    # Fallback: extract from key - remove query_func prefix and dim_dtype suffix
-                    raw_model_id = key.replace(f"{query_func}_", "").replace(
-                        f"_{dim}_{dtype}", ""
-                    )
-                else:
-                    raw_model_id = relevant_config["model_id"]
-
-                # Normalize model ID (replace underscores with dashes)
-                raw_model_id = raw_model_id.replace("_", "-")
+                # Use the primary model_id from metadata (normalized with dashes)
+                raw_model_id = primary_model_id.replace("_", "-")
 
                 # Categorize score by query_func, original_dim, dtype
                 # Use "{query_func}_{original_dim}_{dtype}" as key for consistent dimension tracking
