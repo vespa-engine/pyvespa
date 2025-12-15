@@ -83,14 +83,41 @@ class VespaMTEBApp(SearchProtocol):
     def cleanup(self) -> None:
         """Stop and remove the Vespa Docker container."""
         if self.vespa_docker is not None and self.vespa_docker.container is not None:
+            container_id = self.vespa_docker.container.short_id
             try:
-                logger.info("Stopping Vespa container...")
+                logger.info(f"Stopping Vespa container {container_id}...")
                 self.vespa_docker.container.stop(timeout=10)
-                logger.info("Removing Vespa container...")
+                logger.info(f"Removing Vespa container {container_id}...")
                 self.vespa_docker.container.remove()
-                logger.info("Vespa container cleaned up successfully.")
+                logger.info(f"Vespa container {container_id} cleaned up successfully.")
             except Exception as e:
                 logger.warning(f"Error during container cleanup: {e}")
+                # Try force removal as fallback
+                try:
+                    self.vespa_docker.container.remove(force=True)
+                    logger.info(f"Force removed container {container_id}.")
+                except Exception as force_err:
+                    logger.error(f"Failed to force remove container: {force_err}")
+        # Clear the fed indices cache since the container (and its data) is gone
+        VespaMTEBApp._fed_indices.clear()
+        self.app = None
+        self.vespa_docker = None
+
+    def ensure_clean_state(self) -> None:
+        """
+        Ensure a clean state by removing any existing container.
+
+        This should be called before starting a new task to ensure
+        no stale data from previous tasks remains in the index.
+        """
+        if self.app is not None or self.vespa_docker is not None:
+            logger.info("Cleaning up existing container before new task...")
+            self.cleanup()
+
+    def _deploy(self) -> VespaApp:
+        """Deploy the Vespa application."""
+        self.vespa_docker = VespaDocker(port=self.port)
+        return self.vespa_docker.deploy(self.package)
 
     @staticmethod
     def _get_cache_key(model_configs: List[ModelConfig], task_name: str) -> str:
@@ -170,10 +197,12 @@ class VespaMTEBApp(SearchProtocol):
         logger.info(
             f"Starting indexing for model(s) '{model_ids}' and task '{task_name}'"
         )
+
+        # Ensure clean state before deploying new container
+        self.ensure_clean_state()
+
         logger.info("Deploying Vespa application...")
-        # Deploy Vespa application
-        self.vespa_docker = VespaDocker(port=self.port, container_memory=0)
-        self.app = self.vespa_docker.deploy(application_package=self.package)
+        self.app = self._deploy()
 
         logger.info("Starting to index corpus...")
 
@@ -312,41 +341,6 @@ class VespaMTEBApp(SearchProtocol):
         return results
 
 
-def vespa_hybrid_loader(model_name, **kwargs) -> SearchProtocol:
-    # requires_package(vespa_bm25_loader, "pyvespa", model_name, "pip install pyvespa")
-    return VespaMTEBApp(**kwargs)
-
-
-def get_vespa_app(model_config, package, port: int = 8080):
-    return ModelMeta(
-        loader=vespa_hybrid_loader,
-        loader_kwargs={"model_config": model_config, "package": package, "port": port},
-        name="vespa/bm25",
-        languages=["eng-Latn"],
-        open_weights=True,
-        revision="1.0.0",
-        release_date="2024-12-04",
-        n_parameters=None,
-        memory_usage_mb=None,
-        embed_dim=None,
-        license="apache-2.0",
-        max_tokens=None,
-        reference="https://docs.vespa.ai/en/reference/bm25.html",
-        similarity_fn_name=None,
-        framework=[],
-        use_instructions=False,
-        public_training_code=None,
-        public_training_data=None,
-        training_datasets=None,
-        citation="""@article{vespa,
-      title={Vespa: The Open Big Data Serving Engine},
-      author={Vespa.ai},
-      year={2024},
-      url={https://vespa.ai},
-}""",
-    )
-
-
 class VespaMTEBEvaluator:
     """
     Evaluator class for running MTEB benchmarks with Vespa.
@@ -409,6 +403,9 @@ class VespaMTEBEvaluator:
 
         # Compute model suffix for file naming
         self.model_suffix = self._get_model_suffix()
+
+        # Track the VespaMTEBApp instance for lifecycle management
+        self._vespa_app: Optional[VespaMTEBApp] = None
 
     def _normalize_model_configs(
         self, model_input: ModelConfig | str | List[ModelConfig | str]
@@ -489,6 +486,29 @@ class VespaMTEBEvaluator:
         self.package.to_files(package_dir)
         return package_dir
 
+    def cleanup(self) -> None:
+        """Clean up the Vespa app instance if one exists."""
+        if self._vespa_app is not None:
+            self._vespa_app.cleanup()
+            self._vespa_app = None
+
+    def _create_loader(self):
+        """
+        Create a loader function that captures this evaluator instance.
+
+        The loader reuses the existing VespaMTEBApp instance if available,
+        or creates a new one. This avoids global state while allowing
+        MTEB to instantiate the model via its standard loader pattern.
+        """
+
+        def loader(model_name, **kwargs) -> SearchProtocol:
+            if self._vespa_app is not None:
+                return self._vespa_app
+            self._vespa_app = VespaMTEBApp(**kwargs)
+            return self._vespa_app
+
+        return loader
+
     def get_model_meta(self) -> ModelMeta:
         """
         Get the MTEB ModelMeta for this evaluator's configuration.
@@ -496,10 +516,36 @@ class VespaMTEBEvaluator:
         Returns:
             ModelMeta instance configured for Vespa search.
         """
-        return get_vespa_app(
-            model_config=self.model_configs,
-            package=self.package,
-            port=self.port,
+        return ModelMeta(
+            loader=self._create_loader(),
+            loader_kwargs={
+                "model_config": self.model_configs,
+                "package": self.package,
+                "port": self.port,
+            },
+            name="vespa/bm25",
+            languages=["eng-Latn"],
+            open_weights=True,
+            revision="1.0.0",
+            release_date="2024-12-04",
+            n_parameters=None,
+            memory_usage_mb=None,
+            embed_dim=None,
+            license="apache-2.0",
+            max_tokens=None,
+            reference="https://docs.vespa.ai/en/reference/bm25.html",
+            similarity_fn_name=None,
+            framework=[],
+            use_instructions=False,
+            public_training_code=None,
+            public_training_data=None,
+            training_datasets=None,
+            citation="""@article{vespa,
+      title={Vespa: The Open Big Data Serving Engine},
+      author={Vespa.ai},
+      year={2024},
+      url={https://vespa.ai},
+}""",
         )
 
     def _get_tasks(self) -> list:
@@ -630,6 +676,10 @@ class VespaMTEBEvaluator:
                         task_name, query_function, results[0].scores
                     )
 
+                # Note: Container cleanup happens automatically in index() via
+                # ensure_clean_state() before each new task, not after.
+                # This avoids interrupting any pending queries.
+
             # Mark benchmark as complete
             benchmark_results["metadata"]["benchmark_finished_at"] = (
                 self._get_timestamp()
@@ -638,6 +688,8 @@ class VespaMTEBEvaluator:
             logger.info(f"Evaluation complete! Results saved to: {results_path}")
 
         finally:
+            # Ensure cleanup even if an error occurred
+            self.cleanup()
             logger.info("Evaluation finished.")
 
         return benchmark_results
