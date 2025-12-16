@@ -707,7 +707,7 @@ class VespaMTEBEvaluator:
     def _print_results_summary(
         self, task_name: str, query_function: str, scores: dict
     ) -> None:
-        """Print a summary of the evaluation results."""
+        """Print NDCG@10 for the evaluation results."""
         print(f"Finished evaluation for '{task_name}' with '{query_function}':")
         if "train" in scores and "ndcg_at_10" in scores["train"][0]:
             print(f"  NDCG@10: {scores['train'][0]['ndcg_at_10']}")
