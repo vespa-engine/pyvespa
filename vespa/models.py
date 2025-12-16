@@ -542,13 +542,16 @@ def create_semantic_rank_profile(
     if config.binarized:
         packed_dim = config.embedding_dim // 8
         tensor_type = f"tensor<int8>(x[{packed_dim}])"
-
+        # For binarized embeddings with hamming distance, normalize closeness to [0, 1]
+        # Default closeness is 1/(1+d), we convert back to linear: (c*(1+d_max)-1)/d_max
+        # where d_max is the original embedding_dim (max hamming distance = number of bits)
+        max_distance = config.embedding_dim
+        similarity_expr = f"(closeness(field, {embedding_field}) * {1 + max_distance} - 1) / {max_distance}"
     else:
         tensor_type = (
             f"tensor<{config.embedding_field_type}>(x[{config.embedding_dim}])"
         )
-
-    similarity_expr = f"closeness(field, {embedding_field})"
+        similarity_expr = f"closeness(field, {embedding_field})"
 
     return RankProfile(
         name=profile_name,
@@ -597,22 +600,26 @@ def create_hybrid_rank_profile(
         FirstPhaseRanking,
     )
 
-    # Determine tensor type for query input
+    # Determine tensor type for query input and similarity expression
     if config.binarized:
         packed_dim = config.embedding_dim // 8
         tensor_type = f"tensor<int8>(x[{packed_dim}])"
+        # For binarized embeddings with hamming distance, normalize closeness to [0, 1]
+        # Default closeness is 1/(1+d), we convert back to linear: (c*(1+d_max)-1)/d_max
+        # where d_max is the original embedding_dim (max hamming distance = number of bits)
+        max_distance = config.embedding_dim
+        closeness_expr = f"(closeness(field, {embedding_field}) * {1 + max_distance} - 1) / {max_distance}"
     else:
         tensor_type = (
             f"tensor<{config.embedding_field_type}>(x[{config.embedding_dim}])"
         )
+        closeness_expr = f"closeness(field, {embedding_field})"
 
-    similarity_expr = f"closeness(field, {embedding_field})"
+    similarity_expr = closeness_expr
 
     # Choose global phase expression based on fusion method
     if fusion_method == "rrf":
-        global_expr = (
-            f"reciprocal_rank_fusion(bm25text, closeness(field, {embedding_field}))"
-        )
+        global_expr = "reciprocal_rank_fusion(bm25text, similarity)"
         functions = [Function(name="similarity", expression=similarity_expr)]
         first_phase_expr = "similarity"
         match_features_list = ["similarity", "bm25text"]
@@ -629,16 +636,16 @@ def create_hybrid_rank_profile(
                 expression="2*atan(val)/(3.14159)",
             ),
             Function(name="normalized_bm25", expression="scale(bm25(text))"),
-            Function(name="cos_sim", expression=f"closeness(field, {embedding_field})"),
+            Function(name="cos_sim", expression=closeness_expr),
         ]
         first_phase_expr = "normalized_bm25 + cos_sim"
         match_features_list = ["cos_sim", "normalized_bm25"]
         global_phase = None
     elif fusion_method == "norm_linear":
         # Use linear normalization in global phase (no atan)
-        global_expr = f"normalize_linear(bm25(text)) + normalize_linear(closeness(field, {embedding_field}))"
+        global_expr = "normalize_linear(bm25(text)) + normalize_linear(cos_sim)"
         functions = [
-            Function(name="cos_sim", expression=f"closeness(field, {embedding_field})"),
+            Function(name="cos_sim", expression=closeness_expr),
         ]
         first_phase_expr = "cos_sim"
         match_features_list = ["cos_sim", "bm25(text)"]

@@ -695,7 +695,8 @@ class TestCreateHybridRankProfile:
         assert profile.global_phase is not None
         assert "normalize_linear" in profile.global_phase.expression
         assert "bm25(text)" in profile.global_phase.expression
-        assert "closeness" in profile.global_phase.expression
+        # Uses cos_sim function (which wraps closeness) instead of raw closeness
+        assert "cos_sim" in profile.global_phase.expression
 
     def test_hybrid_profile_binarized(self):
         """Test hybrid profile for binarized embeddings."""
@@ -1170,7 +1171,7 @@ class TestCreateHybridPackage:
         }
         global-phase {
             expression {
-                reciprocal_rank_fusion(bm25text, closeness(field, embedding_e5_small_v2))
+                reciprocal_rank_fusion(bm25text, similarity)
             }
             rerank-count: 1000
         }
@@ -1224,7 +1225,7 @@ class TestCreateHybridPackage:
         }
         global-phase {
             expression {
-                normalize_linear(bm25(text)) + normalize_linear(closeness(field, embedding_e5_small_v2))
+                normalize_linear(bm25(text)) + normalize_linear(cos_sim)
             }
             rerank-count: 1000
         }
@@ -1285,7 +1286,7 @@ class TestCreateHybridPackage:
         }
         global-phase {
             expression {
-                reciprocal_rank_fusion(bm25text, closeness(field, embedding_e5_base_v2))
+                reciprocal_rank_fusion(bm25text, similarity)
             }
             rerank-count: 1000
         }
@@ -1339,7 +1340,7 @@ class TestCreateHybridPackage:
         }
         global-phase {
             expression {
-                normalize_linear(bm25(text)) + normalize_linear(closeness(field, embedding_e5_base_v2))
+                normalize_linear(bm25(text)) + normalize_linear(cos_sim)
             }
             rerank-count: 1000
         }
@@ -1590,7 +1591,7 @@ class TestCreateHybridPackage:
         }
         function similarity() {
             expression {
-                closeness(field, embedding_e5_small_v2_48_int8)
+                (closeness(field, embedding_e5_small_v2_48_int8) * 385 - 1) / 384
             }
         }
         first-phase {
@@ -1608,7 +1609,7 @@ class TestCreateHybridPackage:
         }
         function similarity() {
             expression {
-                closeness(field, embedding_e5_small_v2_48_int8)
+                (closeness(field, embedding_e5_small_v2_48_int8) * 385 - 1) / 384
             }
         }
         first-phase {
@@ -1618,7 +1619,7 @@ class TestCreateHybridPackage:
         }
         global-phase {
             expression {
-                reciprocal_rank_fusion(bm25text, closeness(field, embedding_e5_small_v2_48_int8))
+                reciprocal_rank_fusion(bm25text, similarity)
             }
             rerank-count: 1000
         }
@@ -1643,7 +1644,7 @@ class TestCreateHybridPackage:
         }
         function cos_sim() {
             expression {
-                closeness(field, embedding_e5_small_v2_48_int8)
+                (closeness(field, embedding_e5_small_v2_48_int8) * 385 - 1) / 384
             }
         }
         first-phase {
@@ -1662,7 +1663,7 @@ class TestCreateHybridPackage:
         }
         function cos_sim() {
             expression {
-                closeness(field, embedding_e5_small_v2_48_int8)
+                (closeness(field, embedding_e5_small_v2_48_int8) * 385 - 1) / 384
             }
         }
         first-phase {
@@ -1672,7 +1673,7 @@ class TestCreateHybridPackage:
         }
         global-phase {
             expression {
-                normalize_linear(bm25(text)) + normalize_linear(closeness(field, embedding_e5_small_v2_48_int8))
+                normalize_linear(bm25(text)) + normalize_linear(cos_sim)
             }
             rerank-count: 1000
         }
@@ -1733,7 +1734,7 @@ class TestCreateHybridPackage:
         }
         global-phase {
             expression {
-                reciprocal_rank_fusion(bm25text, closeness(field, embedding_e5_small_v2_384_float))
+                reciprocal_rank_fusion(bm25text, similarity)
             }
             rerank-count: 1000
         }
@@ -1787,7 +1788,7 @@ class TestCreateHybridPackage:
         }
         global-phase {
             expression {
-                normalize_linear(bm25(text)) + normalize_linear(closeness(field, embedding_e5_small_v2_384_float))
+                normalize_linear(bm25(text)) + normalize_linear(cos_sim)
             }
             rerank-count: 1000
         }
@@ -1848,7 +1849,7 @@ class TestCreateHybridPackage:
         }
         global-phase {
             expression {
-                reciprocal_rank_fusion(bm25text, closeness(field, embedding_e5_small_v2_384_bfloat16))
+                reciprocal_rank_fusion(bm25text, similarity)
             }
             rerank-count: 1000
         }
@@ -1902,7 +1903,7 @@ class TestCreateHybridPackage:
         }
         global-phase {
             expression {
-                normalize_linear(bm25(text)) + normalize_linear(closeness(field, embedding_e5_small_v2_384_bfloat16))
+                normalize_linear(bm25(text)) + normalize_linear(cos_sim)
             }
             rerank-count: 1000
         }
