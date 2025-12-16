@@ -8,23 +8,33 @@
 # ///
 import logging
 from typing import Any, Optional, List
-import simplejson as json
 from pathlib import Path
 import hashlib
 
+try:
+    import mteb
+    from mteb._create_dataloaders import _create_text_queries_dataloader
+    from mteb.abstasks.task_metadata import TaskMetadata
+    from mteb.models.model_meta import ModelMeta
+    from mteb.models.models_protocols import SearchProtocol
+    from mteb.types import (
+        CorpusDatasetType,
+        InstructionDatasetType,
+        QueryDatasetType,
+        RetrievalOutputType,
+        TopRankedDocumentsType,
+    )
+    import simplejson as json
+except ImportError as e:
+    raise ImportError(
+        "The 'mteb' and 'simplejson' package is required for this module but is not installed.\n"
+        "Please install them using:\n\n"
+        "    pip install pyvespa[mteb]\n\n"
+        "or with uv:\n\n"
+        "    uv add 'pyvespa[mteb]'"
+    ) from e
+
 import httpx
-import mteb
-from mteb._create_dataloaders import _create_text_queries_dataloader
-from mteb.abstasks.task_metadata import TaskMetadata
-from mteb.models.model_meta import ModelMeta
-from mteb.models.models_protocols import SearchProtocol
-from mteb.types import (
-    CorpusDatasetType,
-    InstructionDatasetType,
-    QueryDatasetType,
-    RetrievalOutputType,
-    TopRankedDocumentsType,
-)
 from vespa.models import ApplicationPackageWithQueryFunctions
 from vespa.models import create_hybrid_package, ModelConfig, get_model_config
 from vespa.deployment import VespaDocker
@@ -523,7 +533,7 @@ class VespaMTEBEvaluator:
                 "package": self.package,
                 "port": self.port,
             },
-            name="vespa/bm25",
+            name=f"vespa_{self.model_suffix}_hybrid",
             languages=["eng-Latn"],
             open_weights=True,
             revision="1.0.0",
