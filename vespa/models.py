@@ -1099,8 +1099,7 @@ def _create_query_functions(
 
 class ApplicationPackageWithQueryFunctions(ApplicationPackage):
     # Extending ApplicationPackage to add method for retrieving query functions
-    # Also need to take in query functions in init.
-    # Pass through all other parameters to super().__init__()
+    # This is needed for the VespaMTEBEvaluator to access the query functions.
     def __init__(
         self,
         query_functions: Optional[Dict[str, callable]] = None,
