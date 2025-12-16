@@ -533,7 +533,7 @@ class VespaMTEBEvaluator:
                 "package": self.package,
                 "port": self.port,
             },
-            name=f"vespa_{self.model_suffix}_hybrid",
+            name=f"vespa/{self.model_suffix}_hybrid_vespa",
             languages=["eng-Latn"],
             open_weights=True,
             revision="1.0.0",
