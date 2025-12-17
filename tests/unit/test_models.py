@@ -673,14 +673,14 @@ class TestCreateHybridRankProfile:
         # first_phase should be a FirstPhaseRanking object
         assert isinstance(profile.first_phase, FirstPhaseRanking)
         # Should use atan-normalized sum in first phase
-        assert "normalized_bm25 + cos_sim" in profile.first_phase.expression
-        # Should have scale, normalized_bm25, and cos_sim functions
+        assert "normalized_bm25 + similarity" in profile.first_phase.expression
+        # Should have scale, normalized_bm25, and similarity functions
         func_names = [f.name for f in profile.functions]
         assert "scale" in func_names
         assert "normalized_bm25" in func_names
-        assert "cos_sim" in func_names
+        assert "similarity" in func_names
         # Check match features
-        assert "cos_sim" in profile.match_features
+        assert "similarity" in profile.match_features
         assert "normalized_bm25" in profile.match_features
 
     def test_hybrid_profile_norm_linear(self):
@@ -695,8 +695,8 @@ class TestCreateHybridRankProfile:
         assert profile.global_phase is not None
         assert "normalize_linear" in profile.global_phase.expression
         assert "bm25(text)" in profile.global_phase.expression
-        # Uses cos_sim function (which wraps closeness) instead of raw closeness
-        assert "cos_sim" in profile.global_phase.expression
+        # Uses similarity function (which wraps closeness) instead of raw closeness
+        assert "similarity" in profile.global_phase.expression
 
     def test_hybrid_profile_binarized(self):
         """Test hybrid profile for binarized embeddings."""
@@ -1194,18 +1194,18 @@ class TestCreateHybridPackage:
                 scale(bm25(text))
             }
         }
-        function cos_sim() {
+        function similarity() {
             expression {
                 closeness(field, embedding_e5_small_v2)
             }
         }
         first-phase {
             expression {
-                normalized_bm25 + cos_sim
+                normalized_bm25 + similarity
             }
         }
         match-features {
-            cos_sim
+            similarity
             normalized_bm25
         }
     }
@@ -1213,24 +1213,24 @@ class TestCreateHybridPackage:
         inputs {
             query(q_e5_small_v2) tensor<float>(x[384])
         }
-        function cos_sim() {
+        function similarity() {
             expression {
                 closeness(field, embedding_e5_small_v2)
             }
         }
         first-phase {
             expression {
-                cos_sim
+                similarity
             }
         }
         global-phase {
             expression {
-                normalize_linear(bm25(text)) + normalize_linear(cos_sim)
+                normalize_linear(bm25(text)) + normalize_linear(similarity)
             }
             rerank-count: 1000
         }
         match-features {
-            cos_sim
+            similarity
             bm25(text)
         }
     }
@@ -1309,18 +1309,18 @@ class TestCreateHybridPackage:
                 scale(bm25(text))
             }
         }
-        function cos_sim() {
+        function similarity() {
             expression {
                 closeness(field, embedding_e5_base_v2)
             }
         }
         first-phase {
             expression {
-                normalized_bm25 + cos_sim
+                normalized_bm25 + similarity
             }
         }
         match-features {
-            cos_sim
+            similarity
             normalized_bm25
         }
     }
@@ -1328,24 +1328,24 @@ class TestCreateHybridPackage:
         inputs {
             query(q_e5_base_v2) tensor<float>(x[768])
         }
-        function cos_sim() {
+        function similarity() {
             expression {
                 closeness(field, embedding_e5_base_v2)
             }
         }
         first-phase {
             expression {
-                cos_sim
+                similarity
             }
         }
         global-phase {
             expression {
-                normalize_linear(bm25(text)) + normalize_linear(cos_sim)
+                normalize_linear(bm25(text)) + normalize_linear(similarity)
             }
             rerank-count: 1000
         }
         match-features {
-            cos_sim
+            similarity
             bm25(text)
         }
     }
@@ -1642,18 +1642,18 @@ class TestCreateHybridPackage:
                 scale(bm25(text))
             }
         }
-        function cos_sim() {
+        function similarity() {
             expression {
                 (384 + 1 - 1/closeness(field, embedding_e5_small_v2_48_int8)) / 384
             }
         }
         first-phase {
             expression {
-                normalized_bm25 + cos_sim
+                normalized_bm25 + similarity
             }
         }
         match-features {
-            cos_sim
+            similarity
             normalized_bm25
         }
     }
@@ -1661,24 +1661,24 @@ class TestCreateHybridPackage:
         inputs {
             query(q_e5_small_v2_48_int8) tensor<int8>(x[48])
         }
-        function cos_sim() {
+        function similarity() {
             expression {
                 (384 + 1 - 1/closeness(field, embedding_e5_small_v2_48_int8)) / 384
             }
         }
         first-phase {
             expression {
-                cos_sim
+                similarity
             }
         }
         global-phase {
             expression {
-                normalize_linear(bm25(text)) + normalize_linear(cos_sim)
+                normalize_linear(bm25(text)) + normalize_linear(similarity)
             }
             rerank-count: 1000
         }
         match-features {
-            cos_sim
+            similarity
             bm25(text)
         }
     }
@@ -1757,18 +1757,18 @@ class TestCreateHybridPackage:
                 scale(bm25(text))
             }
         }
-        function cos_sim() {
+        function similarity() {
             expression {
                 closeness(field, embedding_e5_small_v2_384_float)
             }
         }
         first-phase {
             expression {
-                normalized_bm25 + cos_sim
+                normalized_bm25 + similarity
             }
         }
         match-features {
-            cos_sim
+            similarity
             normalized_bm25
         }
     }
@@ -1776,24 +1776,24 @@ class TestCreateHybridPackage:
         inputs {
             query(q_e5_small_v2_384_float) tensor<float>(x[384])
         }
-        function cos_sim() {
+        function similarity() {
             expression {
                 closeness(field, embedding_e5_small_v2_384_float)
             }
         }
         first-phase {
             expression {
-                cos_sim
+                similarity
             }
         }
         global-phase {
             expression {
-                normalize_linear(bm25(text)) + normalize_linear(cos_sim)
+                normalize_linear(bm25(text)) + normalize_linear(similarity)
             }
             rerank-count: 1000
         }
         match-features {
-            cos_sim
+            similarity
             bm25(text)
         }
     }
@@ -1872,18 +1872,18 @@ class TestCreateHybridPackage:
                 scale(bm25(text))
             }
         }
-        function cos_sim() {
+        function similarity() {
             expression {
                 closeness(field, embedding_e5_small_v2_384_bfloat16)
             }
         }
         first-phase {
             expression {
-                normalized_bm25 + cos_sim
+                normalized_bm25 + similarity
             }
         }
         match-features {
-            cos_sim
+            similarity
             normalized_bm25
         }
     }
@@ -1891,24 +1891,24 @@ class TestCreateHybridPackage:
         inputs {
             query(q_e5_small_v2_384_bfloat16) tensor<bfloat16>(x[384])
         }
-        function cos_sim() {
+        function similarity() {
             expression {
                 closeness(field, embedding_e5_small_v2_384_bfloat16)
             }
         }
         first-phase {
             expression {
-                cos_sim
+                similarity
             }
         }
         global-phase {
             expression {
-                normalize_linear(bm25(text)) + normalize_linear(cos_sim)
+                normalize_linear(bm25(text)) + normalize_linear(similarity)
             }
             rerank-count: 1000
         }
         match-features {
-            cos_sim
+            similarity
             bm25(text)
         }
     }

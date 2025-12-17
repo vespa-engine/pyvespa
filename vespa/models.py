@@ -640,19 +640,19 @@ def create_hybrid_rank_profile(
                 expression="2*atan(val)/(3.14159)",
             ),
             Function(name="normalized_bm25", expression="scale(bm25(text))"),
-            Function(name="cos_sim", expression=closeness_expr),
+            Function(name="similarity", expression=closeness_expr),
         ]
-        first_phase_expr = "normalized_bm25 + cos_sim"
-        match_features_list = ["cos_sim", "normalized_bm25"]
+        first_phase_expr = "normalized_bm25 + similarity"
+        match_features_list = ["similarity", "normalized_bm25"]
         global_phase = None
     elif fusion_method == "norm_linear":
         # Use linear normalization in global phase (no atan)
-        global_expr = "normalize_linear(bm25(text)) + normalize_linear(cos_sim)"
+        global_expr = "normalize_linear(bm25(text)) + normalize_linear(similarity)"
         functions = [
-            Function(name="cos_sim", expression=closeness_expr),
+            Function(name="similarity", expression=closeness_expr),
         ]
-        first_phase_expr = "cos_sim"
-        match_features_list = ["cos_sim", "bm25(text)"]
+        first_phase_expr = "similarity"
+        match_features_list = ["similarity", "bm25(text)"]
         global_phase = GlobalPhaseRanking(
             expression=global_expr,
             rerank_count=global_rerank_count,
