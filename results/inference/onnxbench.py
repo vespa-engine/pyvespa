@@ -7,10 +7,17 @@
 #     "tqdm",
 #     "requests",
 #     "numpy",
-#     "pyvespa @ file:///${PROJECT_ROOT}",
+#     "pyvespa @ file:///${PROJECT_ROOT}", #TODO: remove file reference after branch is merged
 # ]
 # ///
-
+"""
+This script is standalone, intended to benchmark ONNX embedding models
+on different hardware configurations.
+Run by executing:
+    uv run onnxbench.py [hardware_type] [--overwrite]
+The results are saved in CSV and JSON formats in the 'benchmark_results' directory.
+Models are cached in the 'model_cache' directory.
+"""
 import argparse
 import os
 import time
