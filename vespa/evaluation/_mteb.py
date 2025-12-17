@@ -1,11 +1,3 @@
-# /// script
-# requires-python = ">=3.11,<=3.13"
-# dependencies = [
-#     "mteb",
-#     "pyvespa @ file:///${PROJECT_ROOT}",
-#     "simplejson",
-# ]
-# ///
 import logging
 from typing import Any, Optional, List
 from pathlib import Path

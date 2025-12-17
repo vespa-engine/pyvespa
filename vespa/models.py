@@ -543,10 +543,12 @@ def create_semantic_rank_profile(
         packed_dim = config.embedding_dim // 8
         tensor_type = f"tensor<int8>(x[{packed_dim}])"
         # For binarized embeddings with hamming distance, normalize closeness to [0, 1]
-        # Default closeness is 1/(1+d), we convert back to linear: (c*(1+d_max)-1)/d_max
-        # where d_max is the original embedding_dim (max hamming distance = number of bits)
+        # where 1 = identical vectors, 0 = all bits differ.
+        # Given closeness = 1/(1+d) where d is hamming distance (number of differing bits),
+        # we solve for: similarity = 1 - d/d_max = 1 - (1/closeness - 1)/d_max
+        # This simplifies to: (d_max + 1 - 1/closeness) / d_max
         max_distance = config.embedding_dim
-        similarity_expr = f"(closeness(field, {embedding_field}) * {1 + max_distance} - 1) / {max_distance}"
+        similarity_expr = f"({max_distance} + 1 - 1/closeness(field, {embedding_field})) / {max_distance}"
     else:
         tensor_type = (
             f"tensor<{config.embedding_field_type}>(x[{config.embedding_dim}])"
@@ -605,10 +607,12 @@ def create_hybrid_rank_profile(
         packed_dim = config.embedding_dim // 8
         tensor_type = f"tensor<int8>(x[{packed_dim}])"
         # For binarized embeddings with hamming distance, normalize closeness to [0, 1]
-        # Default closeness is 1/(1+d), we convert back to linear: (c*(1+d_max)-1)/d_max
-        # where d_max is the original embedding_dim (max hamming distance = number of bits)
+        # where 1 = identical vectors, 0 = all bits differ.
+        # Given closeness = 1/(1+d) where d is hamming distance (number of differing bits),
+        # we solve for: similarity = 1 - d/d_max = 1 - (1/closeness - 1)/d_max
+        # This simplifies to: (d_max + 1 - 1/closeness) / d_max
         max_distance = config.embedding_dim
-        closeness_expr = f"(closeness(field, {embedding_field}) * {1 + max_distance} - 1) / {max_distance}"
+        closeness_expr = f"({max_distance} + 1 - 1/closeness(field, {embedding_field})) / {max_distance}"
     else:
         tensor_type = (
             f"tensor<{config.embedding_field_type}>(x[{config.embedding_dim}])"
