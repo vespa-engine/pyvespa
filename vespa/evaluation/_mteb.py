@@ -596,8 +596,11 @@ class VespaMTEBEvaluator:
         logger.info(f"Saved application package to: {package_dir}")
         logger.info(f"Available query functions: {self.query_function_names}")
 
-        # Load existing results (for incremental saving)
-        benchmark_results = self._load_benchmark_results(results_path)
+        # Load existing results (for incremental saving) or start fresh if overwrite=True
+        if self.overwrite:
+            benchmark_results = {}
+        else:
+            benchmark_results = self._load_benchmark_results(results_path)
 
         # Initialize metadata if not present
         if "metadata" not in benchmark_results:
