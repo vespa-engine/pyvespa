@@ -1,7 +1,8 @@
 import logging
-from typing import Any, Optional, List
+from typing import Any, Callable, Optional, List
 from pathlib import Path
 import hashlib
+from vespa.application import Vespa
 
 try:
     import mteb
@@ -152,7 +153,7 @@ class VespaMTEBApp(SearchProtocol):
             f"Marked index as fed for model(s) '{model_ids}' and task '{task_name}'"
         )
 
-    def get_query_functions(self) -> dict[str, callable]:
+    def get_query_functions(self) -> dict[str, Callable]:
         return self.package.get_query_functions()
 
     def get_timeout(self) -> httpx.Timeout:
@@ -204,7 +205,7 @@ class VespaMTEBApp(SearchProtocol):
         self.ensure_clean_state()
 
         logger.info("Deploying Vespa application...")
-        self.app = self._deploy()
+        self.app: Vespa = self._deploy()
 
         logger.info("Starting to index corpus...")
 
@@ -553,15 +554,15 @@ class VespaMTEBEvaluator:
     def _get_tasks(self) -> list:
         """Get the list of tasks to evaluate."""
         if self.benchmark_name is not None:
-            return list(mteb.get_benchmark(self.benchmark_name))
-        else:
-            return [mteb.get_task(self.task_name)]
+            benchmark = mteb.get_benchmark(self.benchmark_name)
+            return list(benchmark.tasks)
+        # task_name is guaranteed to be set by __init__ validation
+        return [mteb.get_task(self.task_name)]  # type: ignore[arg-type]
 
     def _get_eval_name(self) -> str:
         """Get the evaluation name (benchmark or task name)."""
-        return (
-            self.benchmark_name if self.benchmark_name is not None else self.task_name
-        )
+        # One of these is guaranteed to be set by __init__ validation
+        return self.benchmark_name or self.task_name  # type: ignore[return-value]
 
     def evaluate(self) -> dict:
         """
