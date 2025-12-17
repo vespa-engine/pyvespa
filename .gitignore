@@ -158,5 +158,6 @@ vespa/resources/*.md
 
 .aider*
 
-results/**/*.json
+results/NanoBEIR/
 results/packages/
+results/inference/model_cache/
