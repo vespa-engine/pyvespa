@@ -1192,7 +1192,7 @@ class ApplicationPackageWithQueryFunctions(ApplicationPackage):
 
 
 def create_hybrid_package(
-    models: Union[str, ModelConfig, List[Union[str, ModelConfig]]],
+    models: Union[str, ModelConfig, List[Union[str, ModelConfig]], List[ModelConfig]],
     app_name: str = "hybridapp",
     schema_name: str = "doc",
     global_rerank_count: int = 1000,
