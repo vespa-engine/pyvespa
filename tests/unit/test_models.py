@@ -1591,7 +1591,7 @@ class TestCreateHybridPackage:
         }
         function similarity() {
             expression {
-                (closeness(field, embedding_e5_small_v2_48_int8) * 385 - 1) / 384
+                (384 + 1 - 1/closeness(field, embedding_e5_small_v2_48_int8)) / 384
             }
         }
         first-phase {
@@ -1609,7 +1609,7 @@ class TestCreateHybridPackage:
         }
         function similarity() {
             expression {
-                (closeness(field, embedding_e5_small_v2_48_int8) * 385 - 1) / 384
+                (384 + 1 - 1/closeness(field, embedding_e5_small_v2_48_int8)) / 384
             }
         }
         first-phase {
@@ -1644,7 +1644,7 @@ class TestCreateHybridPackage:
         }
         function cos_sim() {
             expression {
-                (closeness(field, embedding_e5_small_v2_48_int8) * 385 - 1) / 384
+                (384 + 1 - 1/closeness(field, embedding_e5_small_v2_48_int8)) / 384
             }
         }
         first-phase {
@@ -1663,7 +1663,7 @@ class TestCreateHybridPackage:
         }
         function cos_sim() {
             expression {
-                (closeness(field, embedding_e5_small_v2_48_int8) * 385 - 1) / 384
+                (384 + 1 - 1/closeness(field, embedding_e5_small_v2_48_int8)) / 384
             }
         }
         first-phase {
