@@ -7,7 +7,7 @@
 #     "tqdm",
 #     "requests",
 #     "numpy",
-#     "pyvespa @ file:///home/thomas/onnxbench/pyvespa"
+#     "pyvespa @ file:///${PROJECT_ROOT}",
 # ]
 # ///
 
@@ -17,11 +17,9 @@ import time
 import json
 import logging
 import random
-import shutil
 import warnings
-import sys
 from pathlib import Path
-from typing import List, Dict, Any, Set
+from typing import List, Set
 
 import numpy as np
 import pandas as pd
@@ -83,11 +81,11 @@ def get_instance_type() -> str:
 QUERY_BENCHMARK_DURATION_SEC = 10  # How long to run query inference benchmark
 DOC_BENCHMARK_DURATION_SEC = 10    # How long to run document inference benchmark
 
-def get_hf_repo_from_url(url: str) -> str:
+def get_hf_repo_from_url(url: str) -> str | None:
     """Extract HuggingFace repo ID from a model URL.
     
     Example: https://huggingface.co/nomic-ai/modernbert-embed-base/resolve/main/onnx/model.onnx
-    Returns: nomic-ai/modernbert-embed-base
+    Returns: nomic-ai/modernbert-embed-base, or None if URL doesn't match expected pattern
     """
     import re
     match = re.match(r'https://huggingface\.co/([^/]+/[^/]+)/resolve/', url)
@@ -235,33 +233,38 @@ def run_inference(session, tokenizer, texts: List[str], max_length: int, duratio
 def benchmark_config(config: ModelConfig, hardware_type: str = "default"):
     logger.info(f"--- Benchmarking: {config.model_id} ({config.embedding_field_type}) on {hardware_type} ---")
     
-    # 1. Extract HuggingFace repo from model URL
+    # 1. Check model_url is present
+    if config.model_url is None:
+        logger.error(f"No model_url for config: {config.model_id}")
+        return None
+    
+    # 2. Extract HuggingFace repo from model URL
     hf_repo = get_hf_repo_from_url(config.model_url)
     if not hf_repo:
         logger.error(f"Could not extract HuggingFace repo from URL: {config.model_url}")
         return None
     
-    # 2. Prepare Paths - use model-specific folder to avoid conflicts
+    # 3. Prepare Paths - use model-specific folder to avoid conflicts
     model_cache_dir = CACHE_DIR / config.model_id
     model_cache_dir.mkdir(exist_ok=True)
     
     model_filename = config.model_url.split('/')[-1]
     model_path = model_cache_dir / model_filename
 
-    # 3. Download ONNX model
+    # 4. Download ONNX model
     download_file(config.model_url, model_path)
 
     model_size_mb = get_file_size_mb(model_path)
     logger.info(f"Model Size: {model_size_mb:.2f} MB")
 
-    # 4. Load Tokenizer directly from HuggingFace (handles config properly)
+    # 5. Load Tokenizer directly from HuggingFace (handles config properly)
     try:
         tokenizer = AutoTokenizer.from_pretrained(hf_repo)
     except Exception as e:
         logger.error(f"Error loading tokenizer from {hf_repo}: {e}")
         return None
 
-    # 4. Load ONNX Model
+    # 6. Load ONNX Model
     # Configure to match Vespa's default ONNX runtime settings
     sess_options = ort.SessionOptions()
     sess_options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL  # onnx-execution-mode: sequential
@@ -275,25 +278,25 @@ def benchmark_config(config: ModelConfig, hardware_type: str = "default"):
         logger.error(f"Error loading ONNX model: {e}")
         return None
 
-    # 5. Prepend Prefixes (handle None values from vespa.models.ModelConfig)
+    # 7. Prepend Prefixes (handle None values from vespa.models.ModelConfig)
     query_prepend = config.query_prepend or ""
     document_prepend = config.document_prepend or ""
     prepped_query = f"{query_prepend}{SAMPLE_QUERY}"
     prepped_doc = f"{document_prepend}{SAMPLE_DOC}"
 
-    # 6. Print text stats (not added to results, just for info)
+    # 8. Print text stats (not added to results, just for info)
     print_text_stats(prepped_query, tokenizer, "query")
     print_text_stats(prepped_doc, tokenizer, "doc")
 
-    # 7. Run Benchmarks (time-based) - use single sample repeated
+    # 9. Run Benchmarks (time-based) - use single sample repeated
     max_tokens = config.max_tokens or 512  # Default to 512 if not specified
     perf_q = run_inference(session, tokenizer, [prepped_query], max_tokens, QUERY_BENCHMARK_DURATION_SEC, "Inferencing Queries")
     perf_d = run_inference(session, tokenizer, [prepped_doc], max_tokens, DOC_BENCHMARK_DURATION_SEC, "Inferencing Docs")
 
-    # 8. Get model commit SHA for reproducibility
+    # 10. Get model commit SHA for reproducibility
     commit_sha = get_hf_commit_sha(hf_repo)
     
-    # 9. Compile Results
+    # 11. Compile Results
     result = {
         "hardware_type": hardware_type,
         "model_id": config.model_id,
