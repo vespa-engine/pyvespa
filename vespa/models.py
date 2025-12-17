@@ -4,9 +4,10 @@ import json
 import re
 import warnings
 from difflib import get_close_matches
-from typing import Any, Dict, List, Optional, Union, Literal
+from typing import Any, Callable, Dict, List, Optional, Union, Literal
 import requests
 from dataclasses import dataclass, fields, field
+
 from vespa.package import (
     ApplicationPackage,
     Component,
@@ -422,6 +423,8 @@ def create_embedder_component(config: ModelConfig) -> Component:
             )
         parameters.append(Parameter("prepend", args={}, children=prepend_children))
 
+    # component_id is guaranteed to be set in __post_init__
+    assert config.component_id is not None
     return Component(
         id=config.component_id,
         type="hugging-face-embedder",
@@ -500,13 +503,15 @@ def create_embedding_field(
             ]
 
     # Use provided distance metric or config's distance metric
-    distance_metric = distance_metric or config.distance_metric
+    # distance_metric is guaranteed to be set in __post_init__
+    effective_distance_metric = distance_metric or config.distance_metric
+    assert effective_distance_metric is not None
 
     return Field(
         name=field_name,
         type=field_type,
         indexing=indexing,
-        ann=HNSW(distance_metric=distance_metric),
+        ann=HNSW(distance_metric=effective_distance_metric),
         is_document_field=False,
     )
 
@@ -1047,7 +1052,7 @@ def _create_query_functions(
     schema_name: str,
     query_tensor: str = "q",
     profile_suffix: str = "",
-) -> Dict[str, callable]:
+) -> Dict[str, Callable[[str, int], dict]]:
     """
     Helper function to create query functions for a single model.
 
@@ -1170,13 +1175,13 @@ class ApplicationPackageWithQueryFunctions(ApplicationPackage):
     # This is needed for the VespaMTEBEvaluator to access the query functions.
     def __init__(
         self,
-        query_functions: Optional[Dict[str, callable]] = None,
+        query_functions: Optional[Dict[str, Callable[[str, int], dict]]] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.query_functions = query_functions or {}
 
-    def get_query_functions(self) -> Dict[str, callable]:
+    def get_query_functions(self) -> Dict[str, Callable[[str, int], dict]]:
         """
         Get the query functions for this application package.
 
