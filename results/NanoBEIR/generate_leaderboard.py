@@ -4,6 +4,11 @@
 #     "numpy",
 # ]
 # ///
+"""This script processes multiple NanoBEIR benchmark result JSON files and generates a consolidated
+JavaScript file (models.js) containing model performance metrics for leaderboard display, that is
+intended to be used for a web-based frontend.
+"""
+
 import json
 import glob
 import re
