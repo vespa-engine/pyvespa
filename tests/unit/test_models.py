@@ -602,8 +602,7 @@ class TestCreateSemanticRankProfile:
 
         # Similarity function should handle hamming distance
         similarity_func = profile.functions[0]
-        assert "closeness(field, embedding)" in similarity_func.expression
-        # Should have transformation for hamming distance
+        assert "1 - (distance(field, embedding) / 1024)" in similarity_func.expression
 
     def test_custom_profile_name(self):
         """Test semantic profile with custom name."""
@@ -712,6 +711,10 @@ class TestCreateHybridRankProfile:
 
         # Query tensor should be int8
         assert profile.inputs[0][1] == "tensor<int8>(x[128])"
+
+        # Similarity function should handle hamming distance
+        similarity_func = [f for f in profile.functions if f.name == "similarity"][0]
+        assert "1 - (distance(field, embedding) / 1024)" in similarity_func.expression
 
     def test_hybrid_profile_invalid_fusion(self):
         """Test that invalid fusion method raises error."""
@@ -885,6 +888,14 @@ class TestIntegration:
         assert "pack_bits" in field.indexing
         assert semantic_profile.inputs[0][1] == "tensor<int8>(x[128])"
         assert hybrid_profile.inputs[0][1] == "tensor<int8>(x[128])"
+
+        # Verify similarity expressions
+        assert (
+            "1 - (distance(field, embedding) / 1024)"
+            in semantic_profile.functions[0].expression
+        )
+        hybrid_sim = [f for f in hybrid_profile.functions if f.name == "similarity"][0]
+        assert "1 - (distance(field, embedding) / 1024)" in hybrid_sim.expression
 
     def test_complete_advanced_setup(self):
         """Test complete setup with URL-based model and explicit parameters."""
@@ -1591,7 +1602,7 @@ class TestCreateHybridPackage:
         }
         function similarity() {
             expression {
-                (384 + 1 - 1/closeness(field, embedding_e5_small_v2_48_int8)) / 384
+                1 - (distance(field, embedding_e5_small_v2_48_int8) / 384)
             }
         }
         first-phase {
@@ -1609,7 +1620,7 @@ class TestCreateHybridPackage:
         }
         function similarity() {
             expression {
-                (384 + 1 - 1/closeness(field, embedding_e5_small_v2_48_int8)) / 384
+                1 - (distance(field, embedding_e5_small_v2_48_int8) / 384)
             }
         }
         first-phase {
@@ -1644,7 +1655,7 @@ class TestCreateHybridPackage:
         }
         function similarity() {
             expression {
-                (384 + 1 - 1/closeness(field, embedding_e5_small_v2_48_int8)) / 384
+                1 - (distance(field, embedding_e5_small_v2_48_int8) / 384)
             }
         }
         first-phase {
@@ -1663,7 +1674,7 @@ class TestCreateHybridPackage:
         }
         function similarity() {
             expression {
-                (384 + 1 - 1/closeness(field, embedding_e5_small_v2_48_int8)) / 384
+                1 - (distance(field, embedding_e5_small_v2_48_int8) / 384)
             }
         }
         first-phase {
