@@ -1,7 +1,7 @@
 # /// script
 # requires-python = ">=3.10,<=3.12"
 # dependencies = [
-#     "onnxruntime==1.23.2",
+#     "onnxruntime-gpu==1.23.2",
 #     "transformers",
 #     "pandas",
 #     "tqdm",
@@ -300,8 +300,17 @@ def benchmark_config(config: ModelConfig, hardware_type: str = "default"):
     sess_options.intra_op_num_threads = 4  # onnx-intraop-threads: 4
     sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
     
+    # Select execution provider: prefer CUDA if available, fallback to CPU
+    available_providers = ort.get_available_providers()
+    if "CUDAExecutionProvider" in available_providers:
+        providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        logger.info("Using CUDA execution provider (GPU detected)")
+    else:
+        providers = ["CPUExecutionProvider"]
+        logger.info("Using CPU execution provider")
+    
     try:
-        session = ort.InferenceSession(str(model_path), sess_options, providers=["CPUExecutionProvider"])
+        session = ort.InferenceSession(str(model_path), sess_options, providers=providers)
     except Exception as e:
         logger.error(f"Error loading ONNX model: {e}")
         return None
