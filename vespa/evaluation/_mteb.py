@@ -714,27 +714,70 @@ class VespaMTEBEvaluator:
 
 
 if __name__ == "__main__":
-    # Example: Run a benchmark evaluation with a single model config
+    # Run benchmark evaluation for all HF_MODELS with multiple configurations
+    from dataclasses import replace
+    from vespa.models import HF_MODELS, ModelConfig
 
-    model_configs = [
-        ModelConfig(
-            model_id="alibaba-gte-modernbert-int8",
-            embedding_dim=768,
-            binarized=True,
-            embedding_field_type="int8",
-            distance_metric="hamming",
-            model_url="https://huggingface.co/Alibaba-NLP/gte-modernbert-base/resolve/main/onnx/model_int8.onnx",
-            tokenizer_url="https://huggingface.co/Alibaba-NLP/gte-modernbert-base/resolve/main/tokenizer.json",
-            max_tokens=8192,
-            pooling_strategy="cls",
-        ),
+    # Matryoshka models get additional dimension variations
+    MATRYOSHKA_DIMS = {
+        "embeddinggemma-300m": [768, 512, 128],
+        "embeddinggemma-300m-q4": [768, 512, 128], 
+    }
+
+    # 3 variations: (binarized, embedding_field_type)
+    VARIATIONS = [
+        (True, "int8", "hamming"),      # binary
+        (False, "bfloat16", "angular"), # bfloat16
+        (False, "float", "angular"),    # float
     ]
-    # Create and run the evaluator
-    evaluator = VespaMTEBEvaluator(
-        model_configs=model_configs,
-        benchmark_name="NanoBEIR",
-        results_dir="results",
-        overwrite=True,
-    )
 
-    results = evaluator.evaluate()
+    all_configs: list[ModelConfig] = []
+
+    for model_name, base_config in HF_MODELS.items():
+        print(f"Creating variations for: {model_name}")
+
+        # Get dimensions to test (just base dim for normal models)
+        if model_name in MATRYOSHKA_DIMS:
+            dims = sorted(set(MATRYOSHKA_DIMS[model_name]), reverse=True)
+        else:
+            dims = [base_config.embedding_dim]
+
+        for dim in dims:
+            for binarized, field_type, distance_metric in VARIATIONS:
+                config = replace(
+                    base_config,
+                    embedding_dim=dim,
+                    binarized=binarized,
+                    embedding_field_type=field_type,
+                    distance_metric=distance_metric,
+                )
+                all_configs.append(config)
+                print(f"  - dim={dim}, binarized={binarized}, type={field_type}")
+
+    print(f"\nTotal configurations to evaluate: {len(all_configs)}")
+    print("=" * 60)
+
+    # Run evaluations one model at a time
+    for i, model_config in enumerate(all_configs):
+        print(f"\n[{i+1}/{len(all_configs)}] Evaluating: {model_config.model_id}")
+        print(f"  Embedding dim: {model_config.embedding_dim}")
+        print(f"  Binarized: {model_config.binarized}")
+        print(f"  Field type: {model_config.embedding_field_type}")
+        print("-" * 40)
+
+        try:
+            evaluator = VespaMTEBEvaluator(
+                model_configs=model_config,
+                benchmark_name="NanoBEIR",
+                results_dir="results",
+                overwrite=False,
+            )
+            results = evaluator.evaluate()
+        except Exception as e:
+            print(f"  ERROR: {e}")
+            continue
+
+        print(f"  Completed: {model_config.model_id}")
+
+    print("\n" + "=" * 60)
+    print("All evaluations complete!")
