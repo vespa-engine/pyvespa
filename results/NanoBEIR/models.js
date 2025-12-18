@@ -349,7 +349,7 @@ const models = [
         },
         "speeds": {
             "t4": 0,
-            "c7g": 38.83
+            "c7g": 39.16
         },
         "mrlSupport": true,
         "binarySupport": true,
@@ -399,16 +399,16 @@ const models = [
                 "hf_repo": "onnx-community/embeddinggemma-300m-ONNX",
                 "model_url": "https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX/resolve/main/onnx/model_q4.onnx",
                 "commit_sha": "5090578d9565",
-                "model_size_mb": 0.5,
+                "model_size_mb": 188.11,
                 "embedding_dim": 768,
-                "queries_samples_processed": 389,
-                "queries_avg_latency_ms": 25.3,
-                "queries_p95_latency_ms": 25.57,
-                "queries_throughput": 38.83,
+                "queries_samples_processed": 392,
+                "queries_avg_latency_ms": 25.1,
+                "queries_p95_latency_ms": 25.36,
+                "queries_throughput": 39.16,
                 "docs_samples_processed": 59,
-                "docs_avg_latency_ms": 169.33,
-                "docs_p95_latency_ms": 169.59,
-                "docs_throughput": 5.87
+                "docs_avg_latency_ms": 168.74,
+                "docs_p95_latency_ms": 168.91,
+                "docs_throughput": 5.89
             }
         }
     },
@@ -606,7 +606,7 @@ const models = [
         },
         "speeds": {
             "t4": 0,
-            "c7g": 30.86
+            "c7g": 30.73
         },
         "mrlSupport": true,
         "binarySupport": true,
@@ -644,16 +644,16 @@ const models = [
                 "hf_repo": "onnx-community/embeddinggemma-300m-ONNX",
                 "model_url": "https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX/resolve/main/onnx/model_fp16.onnx",
                 "commit_sha": "5090578d9565",
-                "model_size_mb": 0.62,
+                "model_size_mb": 589.46,
                 "embedding_dim": 768,
-                "queries_samples_processed": 309,
-                "queries_avg_latency_ms": 31.89,
-                "queries_p95_latency_ms": 32.02,
-                "queries_throughput": 30.86,
+                "queries_samples_processed": 308,
+                "queries_avg_latency_ms": 32.01,
+                "queries_p95_latency_ms": 32.16,
+                "queries_throughput": 30.73,
                 "docs_samples_processed": 52,
-                "docs_avg_latency_ms": 194.27,
-                "docs_p95_latency_ms": 194.76,
-                "docs_throughput": 5.12
+                "docs_avg_latency_ms": 193.98,
+                "docs_p95_latency_ms": 194.21,
+                "docs_throughput": 5.13
             }
         }
     },
