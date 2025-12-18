@@ -278,6 +278,11 @@ def benchmark_config(config: ModelConfig, hardware_type: str = "default"):
     download_file(config.model_url, model_path)
 
     model_size_mb = get_file_size_mb(model_path)
+    # Check for .onnx_data file
+    data_path = model_path.with_name(model_path.name + "_data")
+    if data_path.exists():
+        model_size_mb += get_file_size_mb(data_path)
+        
     logger.info(f"Model Size: {model_size_mb:.2f} MB")
 
     # 5. Load Tokenizer directly from HuggingFace (handles config properly)
