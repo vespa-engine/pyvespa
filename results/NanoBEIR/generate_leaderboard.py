@@ -18,6 +18,8 @@ from collections import defaultdict
 # --- Configuration ---
 # Path to your JSON result files (e.g., "results/*.json")
 INPUT_FILES_PATTERN = "*.json"
+# Path to benchmark result files
+BENCHMARK_FILES_PATTERN = "../inference/benchmark_results/*.json"
 
 # Expected NanoBEIR tasks
 EXPECTED_TASKS = [
@@ -111,7 +113,43 @@ def parse_result_key(key, configs=None):
     return None
 
 
-def process_benchmark_data(file_pattern):
+def load_benchmark_data(file_pattern):
+    """
+    Loads benchmark data from JSON files.
+    Returns a dict: {model_id: {hardware_type: { ... data ... }}}
+    """
+    benchmarks = defaultdict(dict)
+    files = glob.glob(file_pattern)
+    print(f"Found {len(files)} benchmark files. Processing...")
+
+    for file_path in files:
+        try:
+            with open(file_path, "r") as f:
+                data = json.load(f)
+
+            # Benchmark files are expected to be a list of objects
+            if not isinstance(data, list):
+                print(
+                    f"  INFO [{file_path}]: Not a list, skipping (might be a NanoBEIR result file)"
+                )
+                continue
+
+            for entry in data:
+                model_id = entry.get("model_id")
+                hw_type = entry.get("hardware_type")
+                if model_id and hw_type:
+                    benchmarks[model_id][hw_type] = entry
+
+        except Exception as e:
+            print(f"  ERROR [{file_path}]: {e}")
+
+    return benchmarks
+
+
+def process_benchmark_data(file_pattern, benchmark_pattern):
+    # Load benchmarks first
+    benchmark_data = load_benchmark_data(benchmark_pattern)
+
     # Data Structure:
     # models[model_id][variant_key] = [list of scores from different tasks]
     # variant_key format: "{query_func}_{dim}_{dtype}" e.g. "semantic_384_float"
@@ -123,6 +161,10 @@ def process_benchmark_data(file_pattern):
     for file_path in files:
         with open(file_path, "r") as f:
             data = json.load(f)
+
+        # Skip if it looks like a benchmark file (list)
+        if isinstance(data, list):
+            continue
 
         # Check for missing tasks
         results = data.get("results", {})
@@ -281,6 +323,26 @@ def process_benchmark_data(file_pattern):
         # Org / Name Parsing
         org, name, hf_id = get_org_and_name(model_id)
 
+        # Retrieve benchmark data for this model
+        # model_id here is already sanitized (replaced _ with -)
+        model_benchmarks = benchmark_data.get(model_id, {})
+
+        # Try to fill speeds if possible (heuristic)
+        speeds = {
+            "t4": 0,
+            "c7g": 0,
+        }
+        # Map known hardware types to speeds keys
+        hw_map = {
+            "c7g.2xlarge": "c7g",
+            "t4": "t4",  # Assuming t4 is the key for T4
+        }
+
+        for hw_type, data in model_benchmarks.items():
+            # Update speeds if we have a mapping
+            if hw_type in hw_map:
+                speeds[hw_map[hw_type]] = data.get("queries_throughput", 0)
+
         model_entry = {
             "id": model_id.replace("/", "-").replace("_", "-"),
             "name": name,
@@ -293,14 +355,12 @@ def process_benchmark_data(file_pattern):
                 "bfloat16": all_bfloat16_dims,
                 "binary": all_int8_dims,
             },
-            "speeds": {
-                "t4": 0,  # TODO: Manual fill
-                "c7g": 0,  # TODO: Manual fill
-            },
+            "speeds": speeds,
             "mrlSupport": mrl_support,
             "binarySupport": variants.get("_binary_supported", False),
             "bfloat16Support": variants.get("_bfloat16_supported", False),
             "scores": scores_obj,
+            "benchmarks": model_benchmarks,
         }
 
         output_list.append(model_entry)
@@ -339,7 +399,7 @@ def process_benchmark_data(file_pattern):
 OUTPUT_FILE = "models.js"
 
 if __name__ == "__main__":
-    results = process_benchmark_data(INPUT_FILES_PATTERN)
+    results = process_benchmark_data(INPUT_FILES_PATTERN, BENCHMARK_FILES_PATTERN)
 
     output_content = f"const models = {json.dumps(results, indent=4)};"
 

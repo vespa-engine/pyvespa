@@ -141,8 +141,12 @@
             );
         };
 
-        const ModelRow = ({ model, hardware }) => {
+        const ModelRow = ({ model, hardware, maxThroughput }) => {
             const [expanded, setExpanded] = useState(false);
+            
+            // Get benchmark data for selected hardware
+            const benchmark = model.benchmarks?.[hardware === 't4' ? 't4' : 'c7g.2xlarge'] || {};
+            const hfUrl = benchmark.hf_repo ? `https://huggingface.co/${benchmark.hf_repo}` : null;
             
             // Helper to get score with new dimension-aware key format
             const getScore = (queryFunc, dim, dtype) => {
@@ -182,8 +186,10 @@
             // Binary is recommended if it achieves >= 90% of best full precision score
             const binaryRecommended = bestBinary && bestFullPrecision ? (bestBinary >= bestFullPrecision * 0.9) : null;
             
-            const speed = hardware === 't4' ? model.speeds.t4 : model.speeds.c7g;
-            const maxSpeed = hardware === 't4' ? 3200 : 600;
+            // Benchmark metrics
+            const docThroughput = benchmark.docs_throughput || 0;
+            const queryLatency = benchmark.queries_avg_latency_ms || 0;
+            const modelSize = benchmark.model_size_mb || 0;
             
             // Check if this is the BM25 baseline entry
             const isBM25 = model.isBM25;
@@ -235,15 +241,22 @@
                                 </div>
                                 <div className="flex flex-col">
                                     <div className="flex items-center gap-2">
-                                        <span className="font-semibold text-white text-base">{model.name}</span>
+                                        {hfUrl ? (
+                                            <a 
+                                                href={hfUrl} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                className="font-semibold text-white text-base hover:text-[#61D790] hover:underline"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                {model.name}
+                                            </a>
+                                        ) : (
+                                            <span className="font-semibold text-white text-base">{model.name}</span>
+                                        )}
                                         {model.badge && (
                                             <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#B7E2F1]/10 text-[#B7E2F1] border border-[#B7E2F1]/30">
                                                 {model.badge}
-                                            </span>
-                                        )}
-                                        {model.mrlSupport && (
-                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#B7E2F1]/10 text-[#B7E2F1] border border-[#B7E2F1]/30">
-                                                MRL
                                             </span>
                                         )}
                                     </div>
@@ -257,29 +270,42 @@
                             </div>
                         </td>
                         <td className="p-4 text-center text-gray-400 font-mono text-sm">
-                            <div className="flex flex-col items-center">
-                                <span>{model.maxDim}</span>
+                            <div className="flex flex-col items-center gap-1">
+                                <span className="text-gray-300">{model.maxDim}</span>
                                 {model.mrlSupport && (
-                                    <span className="text-[10px] text-gray-600">
-                                        ({floatDims.filter(d => d < maxFloatDim).join(', ')})
-                                    </span>
+                                    <div className="flex flex-col items-center gap-0.5 mt-0.5">
+                                        <span className="px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold bg-[#B7E2F1]/10 text-[#B7E2F1] border border-[#B7E2F1]/20 leading-none mb-0.5" title="Matryoshka Representation Learning supported">
+                                            MRL
+                                        </span>
+                                        {floatDims.filter(d => d < maxFloatDim).map(d => (
+                                            <span key={d} className="text-[11px] text-gray-600 leading-tight">
+                                                {d}
+                                            </span>
+                                        ))}
+                                    </div>
                                 )}
                             </div>
                         </td>
-                        <td className="p-4 text-center text-gray-400">
-                            <span className="px-2 py-1 rounded bg-gray-800 border border-gray-700 text-xs">
-                                {model.maxDim === 768 ? '8k' : '512'}
-                            </span>
+                        <td className="p-4 text-center text-gray-400 font-mono text-sm">
+                            {modelSize > 0 ? (
+                                <div className="flex flex-col items-center">
+                                    <span>{modelSize.toFixed(0)}</span>
+                                    <span className="text-xs text-gray-600">MB</span>
+                                </div>
+                            ) : '-'}
+                        </td>
+                        <td className="p-4 text-right font-mono text-white text-sm">
+                            {queryLatency > 0 ? queryLatency.toFixed(1) : '-'}
                         </td>
                         <td className="p-4">
                             <div className="flex items-center gap-3">
                                 <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
                                     <div 
                                         className="h-full bg-gradient-to-r from-[#B7E2F1] to-[#61D790]" 
-                                        style={{ width: `${(speed / maxSpeed) * 100}%` }}
+                                        style={{ width: `${Math.min((docThroughput / maxThroughput) * 100, 100)}%` }}
                                     ></div>
                                 </div>
-                                <span className="text-xs font-mono w-10 text-right">{speed}</span>
+                                <span className="text-xs font-mono w-10 text-right">{docThroughput > 0 ? docThroughput.toFixed(1) : '-'}</span>
                             </div>
                         </td>
                         <td className="p-4 text-right font-mono text-white text-base">
@@ -348,10 +374,14 @@
                                                                     )}
                                                                 </td>
                                                                 <td className="p-3 text-center">
-                                                                    <TypeBadge dtype={entry.dtype} />
-                                                                    {entry.isBinary && binaryNotRecommended && (
-                                                                        <span className="ml-1 text-[9px] text-red-400 border border-red-800/50 bg-red-900/30 px-1 rounded">!</span>
-                                                                    )}
+                                                                    <div className="flex flex-col items-center gap-1">
+                                                                        <TypeBadge dtype={entry.dtype} />
+                                                                        {entry.isBinary && binaryNotRecommended && (
+                                                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-900/30 text-red-400 border border-red-800/50 whitespace-nowrap">
+                                                                                Not Recommended
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                 </td>
                                                                 <td className="p-3 text-center text-gray-500 font-mono text-xs">{calculateSize(dimRow.dim, entry.dtype)}B</td>
                                                                 <td className="p-3 text-right font-mono text-white">
@@ -431,6 +461,15 @@
                     .sort((a, b) => getSortValue(b) - getSortValue(a));
             }, [sortColumn]);
 
+            // Calculate max throughput for progress bar scaling
+            const maxThroughput = useMemo(() => {
+                const throughputs = models.map(m => {
+                    const benchmark = m.benchmarks?.[hardware === 't4' ? 't4' : 'c7g.2xlarge'] || {};
+                    return benchmark.docs_throughput || 0;
+                });
+                return Math.max(...throughputs) * 1.1; // Max + 10%
+            }, [hardware]);
+
             return (
                 <div className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto">
                     
@@ -487,9 +526,13 @@
                                 <tr className="border-b border-gray-800 text-xs uppercase tracking-wider text-gray-400 bg-[#0d1117]">
                                     <th className="p-4 font-medium w-1/3 text-white">Model Name</th>
                                     <th className="p-4 font-medium text-center">Dim</th>
-                                    <th className="p-4 font-medium text-center">Context</th>
+                                    <th className="p-4 font-medium text-center">Size</th>
+                                    <th className="p-4 font-medium w-32 text-right">
+                                        Query Latency
+                                        <div className="normal-case text-[10px] text-gray-500">Avg (ms)</div>
+                                    </th>
                                     <th className="p-4 font-medium w-48">
-                                        Inference Speed
+                                        Doc Throughput
                                         <div className="normal-case text-[10px] text-gray-500">Docs / Sec</div>
                                     </th>
                                     <th 
@@ -526,7 +569,7 @@
                             </thead>
                             <tbody>
                                 {sortedModels.map((model) => (
-                                    <ModelRow key={model.id} model={model} hardware={hardware} />
+                                    <ModelRow key={model.id} model={model} hardware={hardware} maxThroughput={maxThroughput} />
                                 ))}
                             </tbody>
                             {/* BM25 Baseline */}
@@ -580,7 +623,10 @@
                             <p className="text-xs leading-relaxed text-gray-400">
                                 Performance varies significantly between GPU and CPU. 
                                 We benchmark on AWS standard instances. 
-                                <strong>c7g.large</strong> uses Graviton3 (ARM) processors, highly efficient for scalar workloads but slower for heavy transformers compared to T4 GPUs.
+                                <strong>c7g.2xlarge</strong> uses Graviton3 (ARM) processors, highly efficient for scalar workloads but slower for heavy transformers compared to T4 GPUs.
+                            </p>
+                            <p className="text-xs leading-relaxed text-gray-400 mt-2">
+                                <strong>Metrics:</strong> Latency and throughput include tokenization and ONNX inference for a sample query (8 words) and document (100 words). Indexing and ranking overheads are not included.
                             </p>
                         </div>
                         <div>
