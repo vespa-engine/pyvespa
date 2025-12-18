@@ -48,8 +48,9 @@ logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore", category=UserWarning)
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-RESULTS_DIR = Path("benchmark_results")
-CACHE_DIR = Path("model_cache")
+SCRIPT_DIR = Path(__file__).parent
+RESULTS_DIR = SCRIPT_DIR / "benchmark_results"
+CACHE_DIR = SCRIPT_DIR / "model_cache"
 RESULTS_DIR.mkdir(exist_ok=True)
 CACHE_DIR.mkdir(exist_ok=True)
 
@@ -112,29 +113,44 @@ def download_file(url: str, dest_path: Path):
     """Download a file with progress bar if it doesn't exist."""
     if dest_path.exists():
         logger.info(f"File already exists: {dest_path}")
-        return
+    else:
+        logger.info(f"Downloading {url} to {dest_path}...")
+        try:
+            response = requests.get(url, stream=True)
+            response.raise_for_status()
+            total_size = int(response.headers.get('content-length', 0))
+            
+            with open(dest_path, 'wb') as file, tqdm(
+                desc=dest_path.name,
+                total=total_size,
+                unit='iB',
+                unit_scale=True,
+                unit_divisor=1024,
+            ) as bar:
+                for data in response.iter_content(chunk_size=1024):
+                    size = file.write(data)
+                    bar.update(size)
+        except Exception as e:
+            logger.error(f"Failed to download {url}: {e}")
+            if dest_path.exists():
+                dest_path.unlink()
+            raise
 
-    logger.info(f"Downloading {url} to {dest_path}...")
-    try:
-        response = requests.get(url, stream=True)
-        response.raise_for_status()
-        total_size = int(response.headers.get('content-length', 0))
+    # Check for .onnx_data file if this is an .onnx file
+    if dest_path.suffix == ".onnx":
+        data_url = url + "_data"
+        data_dest_path = dest_path.with_name(dest_path.name + "_data")
         
-        with open(dest_path, 'wb') as file, tqdm(
-            desc=dest_path.name,
-            total=total_size,
-            unit='iB',
-            unit_scale=True,
-            unit_divisor=1024,
-        ) as bar:
-            for data in response.iter_content(chunk_size=1024):
-                size = file.write(data)
-                bar.update(size)
-    except Exception as e:
-        logger.error(f"Failed to download {url}: {e}")
-        if dest_path.exists():
-            dest_path.unlink()
-        raise
+        if not data_dest_path.exists():
+            try:
+                # Check if data file exists on server
+                # Follow redirects because HF URLs are often redirects
+                head_response = requests.head(data_url, allow_redirects=True)
+                if head_response.status_code == 200:
+                    logger.info(f"Found associated data file, downloading {data_url}...")
+                    download_file(data_url, data_dest_path)
+            except Exception as e:
+                logger.warning(f"Failed to check associated data file {data_url}: {e}")
 
 def get_file_size_mb(path: Path) -> float:
     return path.stat().st_size / (1024 * 1024)
