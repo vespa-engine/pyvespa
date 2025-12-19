@@ -1635,7 +1635,8 @@ class VespaSync(object):
             # Parse response based on content type
             content_type = response.headers.get("Content-Type", "")
             if "cbor" in content_type:
-                response_data = cbor2.loads(response.content)
+                from io import BytesIO
+                response_data = cbor2.load(BytesIO(response.content))
             else:
                 response_data = response.json()
 
@@ -2081,12 +2082,14 @@ class VespaAsync(object):
         if self.app._enable_cbor and 'Accept-Encoding' not in self.headers:
             headers['Accept-Encoding'] = 'identity'
 
+        # When CBOR is enabled, use HTTP/1.1 which is faster for large responses
+        use_http2 = not self.app._enable_cbor
         self.httpx_client = httpx.AsyncClient(
             timeout=self.timeout,
             headers=headers,
             verify=sslcontext,
-            http2=True,  # HTTP/2 by default
-            http1=False,
+            http2=use_http2,
+            http1=True,
             **self.kwargs,
         )
         self._owns_client = True
@@ -2108,9 +2111,6 @@ class VespaAsync(object):
             raise state.outcome.exception()
         return state.outcome.result()
 
-    @retry(
-        wait=wait_random_exponential(multiplier=1.5, max=60), stop=stop_after_attempt(5)
-    )
     async def query(
         self, body: Optional[Dict] = None, groupname: str = None, **kwargs
     ) -> VespaQueryResponse:
@@ -2128,7 +2128,8 @@ class VespaAsync(object):
         # Parse response based on content type
         content_type = r.headers.get("Content-Type", "")
         if "cbor" in content_type:
-            response_data = cbor2.loads(r.content)
+            from io import BytesIO
+            response_data = cbor2.load(BytesIO(r.content))
         else:
             response_data = r.json()
 
