@@ -186,47 +186,6 @@ const models = [
         }
     },
     {
-        "id": "gte-multilingual-base",
-        "name": "GTE Multilingual Base",
-        "org": "Community",
-        "modelId": "gte-multilingual-base",
-        "params": "TODO",
-        "maxDim": 768,
-        "dimensions": {
-            "float": [
-                768
-            ],
-            "bfloat16": [
-                768
-            ],
-            "binary": [
-                768
-            ]
-        },
-        "speeds": {
-            "t4": 0,
-            "c7g": 0
-        },
-        "mrlSupport": false,
-        "binarySupport": true,
-        "bfloat16Support": true,
-        "scores": {
-            "semantic_768_float": 0.609,
-            "fusion_768_float": 0.614,
-            "atan_norm_768_float": 0.641,
-            "norm_linear_768_float": 0.646,
-            "semantic_768_bfloat16": 0.608,
-            "fusion_768_bfloat16": 0.614,
-            "atan_norm_768_bfloat16": 0.642,
-            "norm_linear_768_bfloat16": 0.646,
-            "semantic_768_binary": 0.0,
-            "fusion_768_binary": 0.0,
-            "atan_norm_768_binary": 0.0,
-            "norm_linear_768_binary": 0.0
-        },
-        "benchmarks": {}
-    },
-    {
         "id": "nomic-ai-modernbert",
         "name": "Nomic Ai Modernbert",
         "org": "Community",
