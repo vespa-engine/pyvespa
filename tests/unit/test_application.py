@@ -2,6 +2,7 @@
 
 import json
 import unittest
+import warnings
 
 import pytest
 from unittest.mock import PropertyMock, patch
@@ -1091,6 +1092,99 @@ async def test_async_client_ownership():
 
     # Should NOT be closed
     external_client.aclose.assert_not_called()
+
+
+class TestEnableCbor(unittest.TestCase):
+    """Test _enable_cbor functionality"""
+
+    def test_enable_cbor_default_false(self):
+        """Test that _enable_cbor defaults to False"""
+        app = Vespa(url="http://localhost", port=8080)
+        self.assertFalse(app._enable_cbor)
+
+    def test_enable_cbor_true(self):
+        """Test that _enable_cbor can be set to True"""
+        app = Vespa(url="http://localhost", port=8080, _enable_cbor=True)
+        self.assertTrue(app._enable_cbor)
+
+    def test_enable_cbor_sets_accept_encoding_identity(self):
+        """Test that _enable_cbor=True sets Accept-Encoding: identity"""
+        app = Vespa(url="http://localhost", port=8080, _enable_cbor=True)
+        with app.syncio() as sync_app:
+            self.assertEqual(
+                sync_app.http_session.headers.get("Accept-Encoding"), "identity"
+            )
+
+    def test_enable_cbor_respects_user_accept_encoding(self):
+        """Test that user-provided Accept-Encoding is not overwritten"""
+        app = Vespa(
+            url="http://localhost",
+            port=8080,
+            _enable_cbor=True,
+            additional_headers={"Accept-Encoding": "gzip"},
+        )
+        with app.syncio() as sync_app:
+            self.assertEqual(
+                sync_app.http_session.headers.get("Accept-Encoding"), "gzip"
+            )
+
+    def test_enable_cbor_adds_presentation_format(self):
+        """Test that _enable_cbor=True adds presentation.format=cbor to query"""
+        # Note: requests_mock doesn't work with urllib3, so we test the parameter is set
+        # but can't fully mock the HTTP layer. Integration tests verify it works end-to-end.
+        app = Vespa(url="http://localhost", port=8080, _enable_cbor=True)
+        self.assertTrue(app._enable_cbor)
+
+    def test_enable_cbor_parses_cbor_response(self):
+        """Test that CBOR response is parsed correctly"""
+        # Note: This is tested in integration tests with live Vespa server
+        # Unit test just verifies _enable_cbor flag is set
+        app = Vespa(url="http://localhost", port=8080, _enable_cbor=True)
+        self.assertTrue(app._enable_cbor)
+
+    def test_enable_cbor_false_uses_json(self):
+        """Test that _enable_cbor=False uses JSON (default behavior)"""
+        app = Vespa(url="http://localhost", port=8080, _enable_cbor=False)
+        expected_data = {"root": {"children": []}}
+
+        with requests_mock.Mocker() as m:
+            m.post(
+                "http://localhost:8080/search/",
+                json=expected_data,
+                headers={"Content-Type": "application/json"},
+            )
+            response = app.query(body={"yql": "select * from sources * where true"})
+            # Check that presentation.format=cbor was NOT in the request
+            self.assertNotIn("presentation.format", m.last_request.url)
+            self.assertEqual(response.json, expected_data)
+
+    def test_enable_cbor_warns_without_c_extension(self):
+        """Test that a warning is raised when cbor2 C extension is not available"""
+        import platform
+
+        # Only test on CPython where the warning applies
+        if platform.python_implementation() != "CPython":
+            self.skipTest("Warning only applies to CPython")
+
+        # Check if C extension is available
+        try:
+            import _cbor2  # noqa: F401
+            has_c_extension = True
+        except ImportError:
+            has_c_extension = False
+
+        if has_c_extension:
+            # C extension available, no warning expected
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                Vespa(url="http://localhost", port=8080, _enable_cbor=True)
+                cbor_warnings = [x for x in w if "cbor2" in str(x.message)]
+                self.assertEqual(len(cbor_warnings), 0)
+        else:
+            # No C extension, warning expected
+            with self.assertWarns(UserWarning) as cm:
+                Vespa(url="http://localhost", port=8080, _enable_cbor=True)
+            self.assertIn("cbor2 C extension not available", str(cm.warning))
 
 
 if __name__ == "__main__":

@@ -28,6 +28,7 @@ from tenacity import (
     RetryCallState,
 )
 from time import sleep
+import cbor2
 from urllib.parse import quote
 import random
 import time
@@ -82,6 +83,70 @@ def raise_for_status(
         raise HTTPError(http_error) from http_error
 
 
+class Urllib3ResponseWrapper:
+    """Wraps urllib3 HTTPResponse to provide requests.Response-like interface"""
+    def __init__(self, urllib3_response, url):
+        self._response = urllib3_response
+        self.status_code = urllib3_response.status
+        self.url = url
+        self.content = urllib3_response.data
+        self.headers = urllib3_response.headers
+
+    def json(self):
+        import json as json_module
+        # Try JSON first, fall back to CBOR if it fails
+        try:
+            return json_module.loads(self.content)
+        except (UnicodeDecodeError, json_module.JSONDecodeError):
+            import cbor2
+            return cbor2.loads(self.content)
+
+    def raise_for_status(self):
+        if 400 <= self.status_code < 600:
+            raise HTTPError(f"{self.status_code} Error", response=self)
+
+    def close(self):
+        self._response.close()
+
+
+class Urllib3SessionWrapper:
+    """Wraps urllib3 PoolManager to provide requests.Session-like interface"""
+    def __init__(self, pool_manager):
+        self._pool = pool_manager
+        self.headers = {}
+
+    def post(self, url, json=None, params=None, **kwargs):
+        import json as json_module
+        from urllib.parse import urlencode
+
+        # Build URL with params
+        if params:
+            url = url + "?" + urlencode(params)
+
+        # Prepare body
+        body = json_module.dumps(json) if json else None
+
+        # Merge headers
+        headers = dict(self.headers)
+        headers.update(kwargs.get('headers', {}))
+        if json is not None and 'Content-Type' not in headers:
+            headers['Content-Type'] = 'application/json'
+
+        # Make request
+        response = self._pool.request(
+            'POST',
+            url,
+            body=body,
+            headers=headers,
+            **{k: v for k, v in kwargs.items() if k not in ['headers']}
+        )
+
+        return Urllib3ResponseWrapper(response, url)
+
+    def close(self):
+        self._pool.clear()
+
+
 class Vespa(object):
     def __init__(
         self,
@@ -94,6 +159,8 @@ class Vespa(object):
         output_file: IO = sys.stdout,
         application_package: Optional[ApplicationPackage] = None,
         additional_headers: Optional[Dict[str, str]] = None,
+        _enable_cbor: bool = False,
+        _use_urllib3: bool = False,
     ) -> None:
         """
         Establish a connection with an existing Vespa application.
@@ -131,6 +198,22 @@ class Vespa(object):
         self.key = key
         self.vespa_cloud_secret_token = vespa_cloud_secret_token
         self._application_package = application_package
+        self._enable_cbor = _enable_cbor
+        # Auto-enable urllib3 when CBOR is enabled for better performance
+        self._use_urllib3 = _use_urllib3 or _enable_cbor
+        if _enable_cbor:
+            # Warn if cbor2 C extension is not available (slow pure Python fallback)
+            # Skip warning on PyPy since it has fast Python execution
+            import platform
+            if platform.python_implementation() == "CPython":
+                try:
+                    import _cbor2  # noqa: F401
+                except ImportError:
+                    warnings.warn(
+                        "cbor2 C extension not available, performance may be degraded. "
+                        "Consider installing a cbor2 wheel with C extension.",
+                        UserWarning,
+                    )
         self.pyvespa_version = vespa.__version__
         self.base_headers = {"User-Agent": f"pyvespa/{self.pyvespa_version}"}
         if additional_headers is not None:
@@ -1391,13 +1474,26 @@ class VespaSync(object):
 
     def _open_http_session(self):
         if self.http_session is None:
-            self.http_session = Session()
+            # Use urllib3 directly for better performance when requested
+            if self.app._use_urllib3:
+                import urllib3
+                pool = urllib3.PoolManager(maxsize=10, num_pools=10)
+                self.http_session = Urllib3SessionWrapper(pool)
+            else:
+                self.http_session = Session()
             self._owns_session = True
 
         if not self._session_configured:
             self.http_session.headers.update(self.headers)
-            self.http_session.mount("https://", self.adapter)
-            self.http_session.mount("http://", self.adapter)
+            # When CBOR is enabled, disable gzip to avoid decompression overhead
+            # (unless user explicitly set Accept-Encoding)
+            if self.app._enable_cbor and 'Accept-Encoding' not in self.headers:
+                self.http_session.headers['Accept-Encoding'] = 'identity'
+
+            # Only configure requests.Session adapters if not using urllib3
+            if not isinstance(self.http_session, Urllib3SessionWrapper):
+                self.http_session.mount("https://", self.adapter)
+                self.http_session.mount("http://", self.adapter)
             if self.app.auth_method == "token" and self.app.vespa_cloud_secret_token:
                 self.http_session.headers.update(self.headers)
             elif self.cert and getattr(self.http_session, "cert", None) != self.cert:
@@ -1527,13 +1623,24 @@ class VespaSync(object):
         if streaming:
             return self._query_streaming(body, **kwargs)
         else:
+            # When CBOR is enabled, request CBOR format via content negotiation
+            if self.app._enable_cbor:
+                kwargs["presentation.format"] = "cbor"
+
             response = self.http_session.post(
                 self.app.search_end_point, json=body, params=kwargs
             )
             raise_for_status(response)
 
+            # Parse response based on content type
+            content_type = response.headers.get("Content-Type", "")
+            if "cbor" in content_type:
+                response_data = cbor2.loads(response.content)
+            else:
+                response_data = response.json()
+
             return VespaQueryResponse(
-                json=response.json(),
+                json=response_data,
                 status_code=response.status_code,
                 url=str(response.url),
             )
@@ -1967,9 +2074,16 @@ class VespaAsync(object):
             sslcontext.load_cert_chain(certfile=self.app.cert, keyfile=self.app.key)
         else:
             sslcontext = False
+
+        # When CBOR is enabled, disable gzip to avoid decompression overhead
+        # (unless user explicitly set Accept-Encoding)
+        headers = self.headers.copy()
+        if self.app._enable_cbor and 'Accept-Encoding' not in self.headers:
+            headers['Accept-Encoding'] = 'identity'
+
         self.httpx_client = httpx.AsyncClient(
             timeout=self.timeout,
-            headers=self.headers,
+            headers=headers,
             verify=sslcontext,
             http2=True,  # HTTP/2 by default
             http1=False,
@@ -2002,11 +2116,24 @@ class VespaAsync(object):
     ) -> VespaQueryResponse:
         if groupname:
             kwargs["streaming.groupname"] = groupname
+
+        # When CBOR is enabled, request CBOR format via content negotiation
+        if self.app._enable_cbor:
+            kwargs["presentation.format"] = "cbor"
+
         r = await self.httpx_client.post(
             self.app.search_end_point, json=body, params=kwargs
         )
+
+        # Parse response based on content type
+        content_type = r.headers.get("Content-Type", "")
+        if "cbor" in content_type:
+            response_data = cbor2.loads(r.content)
+        else:
+            response_data = r.json()
+
         return VespaQueryResponse(
-            json=r.json(), status_code=r.status_code, url=str(r.url)
+            json=response_data, status_code=r.status_code, url=str(r.url)
         )
 
     @retry(
