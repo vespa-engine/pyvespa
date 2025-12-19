@@ -86,6 +86,30 @@
         // --- Data loaded from NanoBEIR/models.js ---
         // models is defined in the external script
 
+        // --- Hardware Options ---
+        // Auto-detect available hardware types from models.js
+        const getAvailableHardwareTypes = () => {
+            const hardwareTypes = new Set();
+            for (const model of models) {
+                if (model.benchmarks) {
+                    Object.keys(model.benchmarks).forEach(hw => hardwareTypes.add(hw));
+                }
+            }
+            return Array.from(hardwareTypes).sort();
+        };
+        
+        const availableHardwareTypes = getAvailableHardwareTypes();
+        
+        // Human-readable labels for hardware types
+        const hardwareLabels = {
+            'g4dn.xlarge': 'AWS g4dn.xlarge (T4 GPU)',
+            'c7g.2xlarge': 'AWS c7g.2xlarge (Graviton3 CPU)',
+            'm8g.xlarge': 'AWS m8g.xlarge (Graviton4 CPU)',
+        };
+        
+        // Fixed benchmark source for scores (does not change with dropdown)
+        const SCORE_BENCHMARK_SOURCE = 'c7g.2xlarge';
+
         // --- Icons ---
         const CopyIcon = () => <i className="ph ph-copy text-lg"></i>;
         const CheckIcon = () => <i className="ph ph-check text-lg"></i>;
@@ -144,9 +168,11 @@
         const ModelRow = ({ model, hardware, maxThroughput }) => {
             const [expanded, setExpanded] = useState(false);
             
-            // Get benchmark data for selected hardware
-            const benchmark = model.benchmarks?.[hardware === 't4' ? 't4' : 'c7g.2xlarge'] || {};
-            const hfUrl = benchmark.hf_repo ? `https://huggingface.co/${benchmark.hf_repo}` : null;
+            // Get benchmark data for selected hardware (for latency/throughput display)
+            const performanceBenchmark = model.benchmarks?.[hardware] || {};
+            // Get benchmark data from fixed source for scores/metadata (c7g.2xlarge)
+            const scoreBenchmark = model.benchmarks?.[SCORE_BENCHMARK_SOURCE] || {};
+            const hfUrl = scoreBenchmark.hf_repo ? `https://huggingface.co/${scoreBenchmark.hf_repo}` : null;
             
             // Helper to get score with new dimension-aware key format
             const getScore = (queryFunc, dim, dtype) => {
@@ -186,10 +212,11 @@
             // Binary is recommended if it achieves >= 90% of best full precision score
             const binaryRecommended = bestBinary && bestFullPrecision ? (bestBinary >= bestFullPrecision * 0.9) : null;
             
-            // Benchmark metrics
-            const docThroughput = benchmark.docs_throughput || 0;
-            const queryLatency = benchmark.queries_avg_latency_ms || 0;
-            const modelSize = benchmark.model_size_mb || 0;
+            // Performance metrics from selected hardware
+            const docThroughput = performanceBenchmark.docs_throughput || 0;
+            const queryLatency = performanceBenchmark.queries_avg_latency_ms || 0;
+            // Model size from score benchmark source (fixed)
+            const modelSize = scoreBenchmark.model_size_mb || 0;
             
             // Check if this is the BM25 baseline entry
             const isBM25 = model.isBM25;
@@ -444,7 +471,11 @@
         );
 
         const App = () => {
-            const [hardware, setHardware] = useState('c7g'); // 't4' or 'c7g'
+            // Default to c7g.2xlarge if available, otherwise first available hardware
+            const defaultHardware = availableHardwareTypes.includes('c7g.2xlarge') 
+                ? 'c7g.2xlarge' 
+                : availableHardwareTypes[0] || 'c7g.2xlarge';
+            const [hardware, setHardware] = useState(defaultHardware);
             const [sortColumn, setSortColumn] = useState('semantic'); // 'semantic', 'hybrid', or 'binary'
             
             // Memoize sorted models - sort inline to capture sortColumn correctly
@@ -461,10 +492,10 @@
                     .sort((a, b) => getSortValue(b) - getSortValue(a));
             }, [sortColumn]);
 
-            // Calculate max throughput for progress bar scaling
+            // Calculate max throughput for progress bar scaling (based on selected hardware)
             const maxThroughput = useMemo(() => {
                 const throughputs = models.map(m => {
-                    const benchmark = m.benchmarks?.[hardware === 't4' ? 't4' : 'c7g.2xlarge'] || {};
+                    const benchmark = m.benchmarks?.[hardware] || {};
                     return benchmark.docs_throughput || 0;
                 });
                 return Math.max(...throughputs) * 1.1; // Max + 10%
@@ -497,8 +528,11 @@
                                         onChange={(e) => setHardware(e.target.value)}
                                         className="w-full appearance-none bg-vespa-dark text-gray-300 pl-4 pr-10 py-2.5 rounded border border-vespa focus:border-[#61D790] focus:outline-none text-sm cursor-pointer hover:bg-[#1f2428] transition-colors"
                                     >
-                                        <option value="t4">AWS g4dn.xlarge (T4 GPU)</option>
-                                        <option value="c7g">AWS c7g.large (Graviton3 CPU)</option>
+                                        {availableHardwareTypes.map(hw => (
+                                            <option key={hw} value={hw}>
+                                                {hardwareLabels[hw] || hw}
+                                            </option>
+                                        ))}
                                     </select>
                                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 pointer-events-none">
                                         <CaretDown />
@@ -595,6 +629,7 @@
                                             </td>
                                             <td className="p-4 text-center text-gray-500">-</td>
                                             <td className="p-4 text-center text-gray-500">-</td>
+                                            <td className="p-4 text-gray-500 text-right">-</td>
                                             <td className="p-4 text-gray-500 text-xs">N/A</td>
                                             <td className="p-4 text-right font-mono text-gray-400 text-base">
                                                 {bm25.scores.semantic_float ? bm25.scores.semantic_float.toFixed(3) : '-'}

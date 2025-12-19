@@ -39,6 +39,23 @@ const models = [
             "norm_linear_1024_binary": 0.632
         },
         "benchmarks": {
+            "g4dn.xlarge": {
+                "hardware_type": "g4dn.xlarge",
+                "model_id": "lightonai-modernbert-large",
+                "hf_repo": "lightonai/modernbert-embed-large",
+                "model_url": "https://huggingface.co/lightonai/modernbert-embed-large/resolve/main/onnx/model.onnx",
+                "commit_sha": "95a19bff4963",
+                "model_size_mb": 1506.38,
+                "embedding_dim": 1024,
+                "queries_samples_processed": 951,
+                "queries_avg_latency_ms": 10.14,
+                "queries_p95_latency_ms": 10.23,
+                "queries_throughput": 95.01,
+                "docs_samples_processed": 274,
+                "docs_avg_latency_ms": 35.3,
+                "docs_p95_latency_ms": 35.91,
+                "docs_throughput": 27.39
+            },
             "c7g.2xlarge": {
                 "hardware_type": "c7g.2xlarge",
                 "model_id": "lightonai-modernbert-large",
@@ -55,6 +72,23 @@ const models = [
                 "docs_avg_latency_ms": 614.76,
                 "docs_p95_latency_ms": 616.24,
                 "docs_throughput": 1.62
+            },
+            "m8g.xlarge": {
+                "hardware_type": "m8g.xlarge",
+                "model_id": "lightonai-modernbert-large",
+                "hf_repo": "lightonai/modernbert-embed-large",
+                "model_url": "https://huggingface.co/lightonai/modernbert-embed-large/resolve/main/onnx/model.onnx",
+                "commit_sha": "95a19bff4963",
+                "model_size_mb": 1506.38,
+                "embedding_dim": 1024,
+                "queries_samples_processed": 122,
+                "queries_avg_latency_ms": 81.34,
+                "queries_p95_latency_ms": 88.41,
+                "queries_throughput": 12.2,
+                "docs_samples_processed": 19,
+                "docs_avg_latency_ms": 536.47,
+                "docs_p95_latency_ms": 577.68,
+                "docs_throughput": 1.86
             }
         }
     },
@@ -98,6 +132,23 @@ const models = [
             "norm_linear_768_binary": 0.566
         },
         "benchmarks": {
+            "g4dn.xlarge": {
+                "hardware_type": "g4dn.xlarge",
+                "model_id": "e5-base-v2",
+                "hf_repo": "intfloat/e5-base-v2",
+                "model_url": "https://huggingface.co/intfloat/e5-base-v2/resolve/main/onnx/model.onnx",
+                "commit_sha": "f52bf8ec8c71",
+                "model_size_mb": 415.62,
+                "embedding_dim": 768,
+                "queries_samples_processed": 3214,
+                "queries_avg_latency_ms": 2.9,
+                "queries_p95_latency_ms": 2.92,
+                "queries_throughput": 321.39,
+                "docs_samples_processed": 1232,
+                "docs_avg_latency_ms": 7.45,
+                "docs_p95_latency_ms": 7.52,
+                "docs_throughput": 123.11
+            },
             "c7g.2xlarge": {
                 "hardware_type": "c7g.2xlarge",
                 "model_id": "e5-base-v2",
@@ -114,6 +165,23 @@ const models = [
                 "docs_avg_latency_ms": 136.27,
                 "docs_p95_latency_ms": 136.37,
                 "docs_throughput": 7.29
+            },
+            "m8g.xlarge": {
+                "hardware_type": "m8g.xlarge",
+                "model_id": "e5-base-v2",
+                "hf_repo": "intfloat/e5-base-v2",
+                "model_url": "https://huggingface.co/intfloat/e5-base-v2/resolve/main/onnx/model.onnx",
+                "commit_sha": "f52bf8ec8c71",
+                "model_size_mb": 415.62,
+                "embedding_dim": 768,
+                "queries_samples_processed": 555,
+                "queries_avg_latency_ms": 17.65,
+                "queries_p95_latency_ms": 18.68,
+                "queries_throughput": 55.48,
+                "docs_samples_processed": 83,
+                "docs_avg_latency_ms": 120.55,
+                "docs_p95_latency_ms": 139.72,
+                "docs_throughput": 8.22
             }
         }
     },
@@ -198,6 +266,23 @@ const models = [
             "norm_linear_768_binary": 0.619
         },
         "benchmarks": {
+            "g4dn.xlarge": {
+                "hardware_type": "g4dn.xlarge",
+                "model_id": "nomic-ai-modernbert",
+                "hf_repo": "nomic-ai/modernbert-embed-base",
+                "model_url": "https://huggingface.co/nomic-ai/modernbert-embed-base/resolve/main/onnx/model.onnx",
+                "commit_sha": "d556a88e3325",
+                "model_size_mb": 568.86,
+                "embedding_dim": 768,
+                "queries_samples_processed": 1763,
+                "queries_avg_latency_ms": 5.41,
+                "queries_p95_latency_ms": 5.58,
+                "queries_throughput": 176.28,
+                "docs_samples_processed": 707,
+                "docs_avg_latency_ms": 13.45,
+                "docs_p95_latency_ms": 13.64,
+                "docs_throughput": 70.65
+            },
             "c7g.2xlarge": {
                 "hardware_type": "c7g.2xlarge",
                 "model_id": "nomic-ai-modernbert",
@@ -214,6 +299,23 @@ const models = [
                 "docs_avg_latency_ms": 206.32,
                 "docs_p95_latency_ms": 206.94,
                 "docs_throughput": 4.82
+            },
+            "m8g.xlarge": {
+                "hardware_type": "m8g.xlarge",
+                "model_id": "nomic-ai-modernbert",
+                "hf_repo": "nomic-ai/modernbert-embed-base",
+                "model_url": "https://huggingface.co/nomic-ai/modernbert-embed-base/resolve/main/onnx/model.onnx",
+                "commit_sha": "d556a88e3325",
+                "model_size_mb": 568.86,
+                "embedding_dim": 768,
+                "queries_samples_processed": 339,
+                "queries_avg_latency_ms": 29.03,
+                "queries_p95_latency_ms": 29.76,
+                "queries_throughput": 33.86,
+                "docs_samples_processed": 54,
+                "docs_avg_latency_ms": 184.66,
+                "docs_p95_latency_ms": 203.77,
+                "docs_throughput": 5.38
             }
         }
     },
@@ -245,6 +347,23 @@ const models = [
             "norm_linear_768_binary": 0.654
         },
         "benchmarks": {
+            "g4dn.xlarge": {
+                "hardware_type": "g4dn.xlarge",
+                "model_id": "alibaba-gte-modernbert-int8",
+                "hf_repo": "Alibaba-NLP/gte-modernbert-base",
+                "model_url": "https://huggingface.co/Alibaba-NLP/gte-modernbert-base/resolve/main/onnx/model_int8.onnx",
+                "commit_sha": "e7f32e3c00f9",
+                "model_size_mb": 143.26,
+                "embedding_dim": 768,
+                "queries_samples_processed": 433,
+                "queries_avg_latency_ms": 22.61,
+                "queries_p95_latency_ms": 25.24,
+                "queries_throughput": 43.27,
+                "docs_samples_processed": 107,
+                "docs_avg_latency_ms": 92.25,
+                "docs_p95_latency_ms": 105.85,
+                "docs_throughput": 10.68
+            },
             "c7g.2xlarge": {
                 "hardware_type": "c7g.2xlarge",
                 "model_id": "alibaba-gte-modernbert-int8",
@@ -261,6 +380,23 @@ const models = [
                 "docs_avg_latency_ms": 58.07,
                 "docs_p95_latency_ms": 58.21,
                 "docs_throughput": 16.95
+            },
+            "m8g.xlarge": {
+                "hardware_type": "m8g.xlarge",
+                "model_id": "alibaba-gte-modernbert-int8",
+                "hf_repo": "Alibaba-NLP/gte-modernbert-base",
+                "model_url": "https://huggingface.co/Alibaba-NLP/gte-modernbert-base/resolve/main/onnx/model_int8.onnx",
+                "commit_sha": "e7f32e3c00f9",
+                "model_size_mb": 143.26,
+                "embedding_dim": 768,
+                "queries_samples_processed": 955,
+                "queries_avg_latency_ms": 9.99,
+                "queries_p95_latency_ms": 11.01,
+                "queries_throughput": 95.4,
+                "docs_samples_processed": 162,
+                "docs_avg_latency_ms": 60.83,
+                "docs_p95_latency_ms": 63.96,
+                "docs_throughput": 16.16
             }
         }
     },
@@ -304,6 +440,23 @@ const models = [
             "norm_linear_384_binary": 0.508
         },
         "benchmarks": {
+            "g4dn.xlarge": {
+                "hardware_type": "g4dn.xlarge",
+                "model_id": "e5-small-v2",
+                "hf_repo": "Xenova/e5-small-v2",
+                "model_url": "https://huggingface.co/Xenova/e5-small-v2/resolve/main/onnx/model_int8.onnx",
+                "commit_sha": "02af79985278",
+                "model_size_mb": 32.2,
+                "embedding_dim": 384,
+                "queries_samples_processed": 1254,
+                "queries_avg_latency_ms": 7.56,
+                "queries_p95_latency_ms": 8.21,
+                "queries_throughput": 125.37,
+                "docs_samples_processed": 378,
+                "docs_avg_latency_ms": 25.23,
+                "docs_p95_latency_ms": 26.09,
+                "docs_throughput": 37.78
+            },
             "c7g.2xlarge": {
                 "hardware_type": "c7g.2xlarge",
                 "model_id": "e5-small-v2",
@@ -320,6 +473,23 @@ const models = [
                 "docs_avg_latency_ms": 14.39,
                 "docs_p95_latency_ms": 14.49,
                 "docs_throughput": 66.23
+            },
+            "m8g.xlarge": {
+                "hardware_type": "m8g.xlarge",
+                "model_id": "e5-small-v2",
+                "hf_repo": "Xenova/e5-small-v2",
+                "model_url": "https://huggingface.co/Xenova/e5-small-v2/resolve/main/onnx/model_int8.onnx",
+                "commit_sha": "02af79985278",
+                "model_size_mb": 32.2,
+                "embedding_dim": 384,
+                "queries_samples_processed": 3301,
+                "queries_avg_latency_ms": 2.7,
+                "queries_p95_latency_ms": 3.05,
+                "queries_throughput": 329.99,
+                "docs_samples_processed": 667,
+                "docs_avg_latency_ms": 14.23,
+                "docs_p95_latency_ms": 14.92,
+                "docs_throughput": 66.64
             }
         }
     },
@@ -409,6 +579,23 @@ const models = [
                 "docs_avg_latency_ms": 168.74,
                 "docs_p95_latency_ms": 168.91,
                 "docs_throughput": 5.89
+            },
+            "m8g.xlarge": {
+                "hardware_type": "m8g.xlarge",
+                "model_id": "embeddinggemma-300m-q4",
+                "hf_repo": "onnx-community/embeddinggemma-300m-ONNX",
+                "model_url": "https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX/resolve/main/onnx/model_q4.onnx",
+                "commit_sha": "5090578d9565",
+                "model_size_mb": 188.11,
+                "embedding_dim": 768,
+                "queries_samples_processed": 410,
+                "queries_avg_latency_ms": 23.96,
+                "queries_p95_latency_ms": 24.9,
+                "queries_throughput": 40.93,
+                "docs_samples_processed": 63,
+                "docs_avg_latency_ms": 159.47,
+                "docs_p95_latency_ms": 177.69,
+                "docs_throughput": 6.23
             }
         }
     },
@@ -452,6 +639,23 @@ const models = [
             "norm_linear_768_binary": 0.652
         },
         "benchmarks": {
+            "g4dn.xlarge": {
+                "hardware_type": "g4dn.xlarge",
+                "model_id": "alibaba-gte-modernbert",
+                "hf_repo": "Alibaba-NLP/gte-modernbert-base",
+                "model_url": "https://huggingface.co/Alibaba-NLP/gte-modernbert-base/resolve/main/onnx/model.onnx",
+                "commit_sha": "e7f32e3c00f9",
+                "model_size_mb": 568.76,
+                "embedding_dim": 768,
+                "queries_samples_processed": 1927,
+                "queries_avg_latency_ms": 4.99,
+                "queries_p95_latency_ms": 5.11,
+                "queries_throughput": 192.62,
+                "docs_samples_processed": 745,
+                "docs_avg_latency_ms": 12.81,
+                "docs_p95_latency_ms": 13.0,
+                "docs_throughput": 74.5
+            },
             "c7g.2xlarge": {
                 "hardware_type": "c7g.2xlarge",
                 "model_id": "alibaba-gte-modernbert",
@@ -468,6 +672,23 @@ const models = [
                 "docs_avg_latency_ms": 200.33,
                 "docs_p95_latency_ms": 202.0,
                 "docs_throughput": 4.97
+            },
+            "m8g.xlarge": {
+                "hardware_type": "m8g.xlarge",
+                "model_id": "alibaba-gte-modernbert",
+                "hf_repo": "Alibaba-NLP/gte-modernbert-base",
+                "model_url": "https://huggingface.co/Alibaba-NLP/gte-modernbert-base/resolve/main/onnx/model.onnx",
+                "commit_sha": "e7f32e3c00f9",
+                "model_size_mb": 568.76,
+                "embedding_dim": 768,
+                "queries_samples_processed": 413,
+                "queries_avg_latency_ms": 23.8,
+                "queries_p95_latency_ms": 25.95,
+                "queries_throughput": 41.2,
+                "docs_samples_processed": 56,
+                "docs_avg_latency_ms": 179.39,
+                "docs_p95_latency_ms": 201.12,
+                "docs_throughput": 5.54
             }
         }
     },
@@ -511,6 +732,23 @@ const models = [
             "norm_linear_768_binary": 0.546
         },
         "benchmarks": {
+            "g4dn.xlarge": {
+                "hardware_type": "g4dn.xlarge",
+                "model_id": "multilingual-e5-base",
+                "hf_repo": "intfloat/multilingual-e5-base",
+                "model_url": "https://huggingface.co/intfloat/multilingual-e5-base/resolve/main/onnx/model.onnx",
+                "commit_sha": "835193815a39",
+                "model_size_mb": 1058.63,
+                "embedding_dim": 768,
+                "queries_samples_processed": 3164,
+                "queries_avg_latency_ms": 2.95,
+                "queries_p95_latency_ms": 2.98,
+                "queries_throughput": 316.35,
+                "docs_samples_processed": 1037,
+                "docs_avg_latency_ms": 8.98,
+                "docs_p95_latency_ms": 9.14,
+                "docs_throughput": 103.67
+            },
             "c7g.2xlarge": {
                 "hardware_type": "c7g.2xlarge",
                 "model_id": "multilingual-e5-base",
@@ -527,6 +765,23 @@ const models = [
                 "docs_avg_latency_ms": 158.93,
                 "docs_p95_latency_ms": 159.12,
                 "docs_throughput": 6.25
+            },
+            "m8g.xlarge": {
+                "hardware_type": "m8g.xlarge",
+                "model_id": "multilingual-e5-base",
+                "hf_repo": "intfloat/multilingual-e5-base",
+                "model_url": "https://huggingface.co/intfloat/multilingual-e5-base/resolve/main/onnx/model.onnx",
+                "commit_sha": "835193815a39",
+                "model_size_mb": 1058.63,
+                "embedding_dim": 768,
+                "queries_samples_processed": 467,
+                "queries_avg_latency_ms": 21.04,
+                "queries_p95_latency_ms": 21.82,
+                "queries_throughput": 46.65,
+                "docs_samples_processed": 71,
+                "docs_avg_latency_ms": 140.92,
+                "docs_p95_latency_ms": 160.86,
+                "docs_throughput": 7.04
             }
         }
     },
@@ -564,6 +819,23 @@ const models = [
             "norm_linear_768_binary": 0.646
         },
         "benchmarks": {
+            "g4dn.xlarge": {
+                "hardware_type": "g4dn.xlarge",
+                "model_id": "snowflake-arctic-embed-m-v2.0-int8",
+                "hf_repo": "Snowflake/snowflake-arctic-embed-m-v2.0",
+                "model_url": "https://huggingface.co/Snowflake/snowflake-arctic-embed-m-v2.0/resolve/main/onnx/model_int8.onnx",
+                "commit_sha": "95c274148085",
+                "model_size_mb": 296.51,
+                "embedding_dim": 768,
+                "queries_samples_processed": 532,
+                "queries_avg_latency_ms": 18.28,
+                "queries_p95_latency_ms": 23.32,
+                "queries_throughput": 53.17,
+                "docs_samples_processed": 121,
+                "docs_avg_latency_ms": 81.25,
+                "docs_p95_latency_ms": 103.52,
+                "docs_throughput": 12.1
+            },
             "c7g.2xlarge": {
                 "hardware_type": "c7g.2xlarge",
                 "model_id": "snowflake-arctic-embed-m-v2.0-int8",
@@ -580,6 +852,23 @@ const models = [
                 "docs_avg_latency_ms": 51.59,
                 "docs_p95_latency_ms": 51.73,
                 "docs_throughput": 19.05
+            },
+            "m8g.xlarge": {
+                "hardware_type": "m8g.xlarge",
+                "model_id": "snowflake-arctic-embed-m-v2.0-int8",
+                "hf_repo": "Snowflake/snowflake-arctic-embed-m-v2.0",
+                "model_url": "https://huggingface.co/Snowflake/snowflake-arctic-embed-m-v2.0/resolve/main/onnx/model_int8.onnx",
+                "commit_sha": "95c274148085",
+                "model_size_mb": 296.51,
+                "embedding_dim": 768,
+                "queries_samples_processed": 972,
+                "queries_avg_latency_ms": 9.92,
+                "queries_p95_latency_ms": 10.64,
+                "queries_throughput": 97.01,
+                "docs_samples_processed": 185,
+                "docs_avg_latency_ms": 53.4,
+                "docs_p95_latency_ms": 56.47,
+                "docs_throughput": 18.4
             }
         }
     },
@@ -638,6 +927,23 @@ const models = [
             "norm_linear_384_binary": 0.604
         },
         "benchmarks": {
+            "g4dn.xlarge": {
+                "hardware_type": "g4dn.xlarge",
+                "model_id": "embeddinggemma-300m",
+                "hf_repo": "onnx-community/embeddinggemma-300m-ONNX",
+                "model_url": "https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX/resolve/main/onnx/model_fp16.onnx",
+                "commit_sha": "5090578d9565",
+                "model_size_mb": 589.46,
+                "embedding_dim": 768,
+                "queries_samples_processed": 373,
+                "queries_avg_latency_ms": 26.33,
+                "queries_p95_latency_ms": 28.27,
+                "queries_throughput": 37.26,
+                "docs_samples_processed": 128,
+                "docs_avg_latency_ms": 77.33,
+                "docs_p95_latency_ms": 78.93,
+                "docs_throughput": 12.78
+            },
             "c7g.2xlarge": {
                 "hardware_type": "c7g.2xlarge",
                 "model_id": "embeddinggemma-300m",
@@ -654,6 +960,23 @@ const models = [
                 "docs_avg_latency_ms": 193.98,
                 "docs_p95_latency_ms": 194.21,
                 "docs_throughput": 5.13
+            },
+            "m8g.xlarge": {
+                "hardware_type": "m8g.xlarge",
+                "model_id": "embeddinggemma-300m",
+                "hf_repo": "onnx-community/embeddinggemma-300m-ONNX",
+                "model_url": "https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX/resolve/main/onnx/model_fp16.onnx",
+                "commit_sha": "5090578d9565",
+                "model_size_mb": 589.46,
+                "embedding_dim": 768,
+                "queries_samples_processed": 306,
+                "queries_avg_latency_ms": 32.11,
+                "queries_p95_latency_ms": 35.38,
+                "queries_throughput": 30.53,
+                "docs_samples_processed": 57,
+                "docs_avg_latency_ms": 175.0,
+                "docs_p95_latency_ms": 196.77,
+                "docs_throughput": 5.67
             }
         }
     },
