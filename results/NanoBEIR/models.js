@@ -25,18 +25,18 @@ const models = [
         "binarySupport": true,
         "bfloat16Support": true,
         "scores": {
-            "semantic_1024_float": 0.62,
-            "fusion_1024_float": 0.608,
-            "atan_norm_1024_float": 0.637,
-            "norm_linear_1024_float": 0.636,
-            "semantic_1024_bfloat16": 0.619,
-            "fusion_1024_bfloat16": 0.608,
-            "atan_norm_1024_bfloat16": 0.637,
-            "norm_linear_1024_bfloat16": 0.636,
-            "semantic_1024_binary": 0.593,
-            "fusion_1024_binary": 0.603,
-            "atan_norm_1024_binary": 0.55,
-            "norm_linear_1024_binary": 0.632
+            "semantic_1024_float": 0.641,
+            "fusion_1024_float": 0.626,
+            "atan_norm_1024_float": 0.658,
+            "norm_linear_1024_float": 0.654,
+            "semantic_1024_bfloat16": 0.64,
+            "fusion_1024_bfloat16": 0.626,
+            "atan_norm_1024_bfloat16": 0.658,
+            "norm_linear_1024_bfloat16": 0.654,
+            "semantic_1024_binary": 0.608,
+            "fusion_1024_binary": 0.624,
+            "atan_norm_1024_binary": 0.646,
+            "norm_linear_1024_binary": 0.648
         },
         "benchmarks": {
             "g4dn.xlarge": {
@@ -118,18 +118,18 @@ const models = [
         "binarySupport": true,
         "bfloat16Support": true,
         "scores": {
-            "semantic_768_float": 0.593,
-            "fusion_768_float": 0.597,
-            "atan_norm_768_float": 0.628,
-            "norm_linear_768_float": 0.632,
-            "semantic_768_bfloat16": 0.593,
-            "fusion_768_bfloat16": 0.597,
-            "atan_norm_768_bfloat16": 0.628,
-            "norm_linear_768_bfloat16": 0.632,
-            "semantic_768_binary": 0.423,
-            "fusion_768_binary": 0.544,
-            "atan_norm_768_binary": 0.563,
-            "norm_linear_768_binary": 0.566
+            "semantic_768_float": 0.62,
+            "fusion_768_float": 0.621,
+            "atan_norm_768_float": 0.651,
+            "norm_linear_768_float": 0.648,
+            "semantic_768_bfloat16": 0.62,
+            "fusion_768_bfloat16": 0.621,
+            "atan_norm_768_bfloat16": 0.651,
+            "norm_linear_768_bfloat16": 0.648,
+            "semantic_768_binary": 0.449,
+            "fusion_768_binary": 0.564,
+            "atan_norm_768_binary": 0.595,
+            "norm_linear_768_binary": 0.602
         },
         "benchmarks": {
             "g4dn.xlarge": {
@@ -211,18 +211,18 @@ const models = [
         "binarySupport": true,
         "bfloat16Support": true,
         "scores": {
-            "semantic_768_float": 0.612,
-            "fusion_768_float": 0.6,
-            "atan_norm_768_float": 0.63,
-            "norm_linear_768_float": 0.626,
-            "semantic_768_bfloat16": 0.612,
-            "fusion_768_bfloat16": 0.6,
-            "atan_norm_768_bfloat16": 0.63,
-            "norm_linear_768_bfloat16": 0.626,
-            "semantic_768_binary": 0.584,
-            "fusion_768_binary": 0.59,
-            "atan_norm_768_binary": 0.557,
-            "norm_linear_768_binary": 0.619
+            "semantic_768_float": 0.632,
+            "fusion_768_float": 0.622,
+            "atan_norm_768_float": 0.648,
+            "norm_linear_768_float": 0.651,
+            "semantic_768_bfloat16": 0.632,
+            "fusion_768_bfloat16": 0.622,
+            "atan_norm_768_bfloat16": 0.648,
+            "norm_linear_768_bfloat16": 0.651,
+            "semantic_768_binary": 0.59,
+            "fusion_768_binary": 0.612,
+            "atan_norm_768_binary": 0.633,
+            "norm_linear_768_binary": 0.638
         },
         "benchmarks": {
             "g4dn.xlarge": {
@@ -286,8 +286,12 @@ const models = [
         "params": "TODO",
         "maxDim": 768,
         "dimensions": {
-            "float": [],
-            "bfloat16": [],
+            "float": [
+                768
+            ],
+            "bfloat16": [
+                768
+            ],
             "binary": [
                 768
             ]
@@ -298,8 +302,16 @@ const models = [
         },
         "mrlSupport": false,
         "binarySupport": true,
-        "bfloat16Support": false,
+        "bfloat16Support": true,
         "scores": {
+            "semantic_768_float": 0.631,
+            "fusion_768_float": 0.633,
+            "atan_norm_768_float": 0.662,
+            "norm_linear_768_float": 0.667,
+            "semantic_768_bfloat16": 0.63,
+            "fusion_768_bfloat16": 0.632,
+            "atan_norm_768_bfloat16": 0.663,
+            "norm_linear_768_bfloat16": 0.667,
             "semantic_768_binary": 0.605,
             "fusion_768_binary": 0.625,
             "atan_norm_768_binary": 0.647,
@@ -385,18 +397,18 @@ const models = [
         "binarySupport": true,
         "bfloat16Support": true,
         "scores": {
-            "semantic_384_float": 0.566,
-            "fusion_384_float": 0.598,
-            "atan_norm_384_float": 0.617,
-            "norm_linear_384_float": 0.619,
-            "semantic_384_bfloat16": 0.567,
-            "fusion_384_bfloat16": 0.598,
-            "atan_norm_384_bfloat16": 0.617,
-            "norm_linear_384_bfloat16": 0.619,
-            "semantic_384_binary": 0.311,
-            "fusion_384_binary": 0.472,
-            "atan_norm_384_binary": 0.557,
-            "norm_linear_384_binary": 0.508
+            "semantic_384_float": 0.595,
+            "fusion_384_float": 0.611,
+            "atan_norm_384_float": 0.637,
+            "norm_linear_384_float": 0.638,
+            "semantic_384_bfloat16": 0.595,
+            "fusion_384_bfloat16": 0.612,
+            "atan_norm_384_bfloat16": 0.637,
+            "norm_linear_384_bfloat16": 0.638,
+            "semantic_384_binary": 0.348,
+            "fusion_384_binary": 0.501,
+            "atan_norm_384_binary": 0.559,
+            "norm_linear_384_binary": 0.559
         },
         "benchmarks": {
             "g4dn.xlarge": {
@@ -453,6 +465,99 @@ const models = [
         }
     },
     {
+        "id": "e5-large-v2",
+        "name": "E5 Large V2",
+        "org": "Community",
+        "modelId": "e5-large-v2",
+        "params": "TODO",
+        "maxDim": 1024,
+        "dimensions": {
+            "float": [
+                1024
+            ],
+            "bfloat16": [
+                1024
+            ],
+            "binary": [
+                1024
+            ]
+        },
+        "speeds": {
+            "t4": 0,
+            "c7g": 15.66
+        },
+        "mrlSupport": false,
+        "binarySupport": true,
+        "bfloat16Support": true,
+        "scores": {
+            "semantic_1024_float": 0.616,
+            "fusion_1024_float": 0.634,
+            "atan_norm_1024_float": 0.656,
+            "norm_linear_1024_float": 0.66,
+            "semantic_1024_bfloat16": 0.616,
+            "fusion_1024_bfloat16": 0.632,
+            "atan_norm_1024_bfloat16": 0.653,
+            "norm_linear_1024_bfloat16": 0.658,
+            "semantic_1024_binary": 0.462,
+            "fusion_1024_binary": 0.571,
+            "atan_norm_1024_binary": 0.601,
+            "norm_linear_1024_binary": 0.607
+        },
+        "benchmarks": {
+            "g4dn.xlarge": {
+                "hardware_type": "g4dn.xlarge",
+                "model_id": "e5-large-v2",
+                "hf_repo": "intfloat/e5-large-v2",
+                "model_url": "https://huggingface.co/intfloat/e5-large-v2/resolve/main/onnx/model.onnx",
+                "commit_sha": "f169b11e22de",
+                "model_size_mb": 1274.99,
+                "embedding_dim": 1024,
+                "queries_samples_processed": 1144,
+                "queries_avg_latency_ms": 8.5,
+                "queries_p95_latency_ms": 8.56,
+                "queries_throughput": 114.37,
+                "docs_samples_processed": 421,
+                "docs_avg_latency_ms": 23.04,
+                "docs_p95_latency_ms": 23.55,
+                "docs_throughput": 42.09
+            },
+            "c7g.2xlarge": {
+                "hardware_type": "c7g.2xlarge",
+                "model_id": "e5-large-v2",
+                "hf_repo": "intfloat/e5-large-v2",
+                "model_url": "https://huggingface.co/intfloat/e5-large-v2/resolve/main/onnx/model.onnx",
+                "commit_sha": "f169b11e22de",
+                "model_size_mb": 1274.99,
+                "embedding_dim": 1024,
+                "queries_samples_processed": 157,
+                "queries_avg_latency_ms": 63.43,
+                "queries_p95_latency_ms": 63.7,
+                "queries_throughput": 15.66,
+                "docs_samples_processed": 21,
+                "docs_avg_latency_ms": 482.49,
+                "docs_p95_latency_ms": 483.0,
+                "docs_throughput": 2.07
+            },
+            "m8g.xlarge": {
+                "hardware_type": "m8g.xlarge",
+                "model_id": "e5-large-v2",
+                "hf_repo": "intfloat/e5-large-v2",
+                "model_url": "https://huggingface.co/intfloat/e5-large-v2/resolve/main/onnx/model.onnx",
+                "commit_sha": "f169b11e22de",
+                "model_size_mb": 1274.99,
+                "embedding_dim": 1024,
+                "queries_samples_processed": 161,
+                "queries_avg_latency_ms": 61.64,
+                "queries_p95_latency_ms": 71.59,
+                "queries_throughput": 16.09,
+                "docs_samples_processed": 25,
+                "docs_avg_latency_ms": 414.07,
+                "docs_p95_latency_ms": 438.01,
+                "docs_throughput": 2.41
+            }
+        }
+    },
+    {
         "id": "embeddinggemma-300m-q4",
         "name": "Embeddinggemma 300M Q4",
         "org": "Community",
@@ -484,42 +589,42 @@ const models = [
         "binarySupport": true,
         "bfloat16Support": true,
         "scores": {
-            "semantic_768_float": 0.622,
-            "fusion_768_float": 0.605,
-            "atan_norm_768_float": 0.636,
-            "norm_linear_768_float": 0.635,
-            "semantic_512_float": 0.619,
-            "fusion_512_float": 0.612,
-            "atan_norm_512_float": 0.638,
-            "norm_linear_512_float": 0.638,
-            "semantic_128_float": 0.461,
-            "fusion_128_float": 0.547,
-            "atan_norm_128_float": 0.568,
-            "norm_linear_128_float": 0.578,
-            "semantic_768_bfloat16": 0.622,
-            "fusion_768_bfloat16": 0.605,
-            "atan_norm_768_bfloat16": 0.636,
-            "norm_linear_768_bfloat16": 0.635,
-            "semantic_512_bfloat16": 0.619,
-            "fusion_512_bfloat16": 0.612,
-            "atan_norm_512_bfloat16": 0.639,
-            "norm_linear_512_bfloat16": 0.638,
-            "semantic_128_bfloat16": 0.461,
-            "fusion_128_bfloat16": 0.549,
-            "atan_norm_128_bfloat16": 0.568,
-            "norm_linear_128_bfloat16": 0.578,
-            "semantic_768_binary": 0.578,
-            "fusion_768_binary": 0.598,
-            "atan_norm_768_binary": 0.547,
-            "norm_linear_768_binary": 0.618,
-            "semantic_512_binary": 0.548,
-            "fusion_512_binary": 0.589,
-            "atan_norm_512_binary": 0.554,
-            "norm_linear_512_binary": 0.609,
-            "semantic_128_binary": 0.322,
-            "fusion_128_binary": 0.472,
-            "atan_norm_128_binary": 0.565,
-            "norm_linear_128_binary": 0.51
+            "semantic_768_float": 0.541,
+            "fusion_768_float": 0.512,
+            "atan_norm_768_float": 0.538,
+            "norm_linear_768_float": 0.508,
+            "semantic_512_float": 0.581,
+            "fusion_512_float": 0.529,
+            "atan_norm_512_float": 0.582,
+            "norm_linear_512_float": 0.554,
+            "semantic_128_float": 0.504,
+            "fusion_128_float": 0.51,
+            "atan_norm_128_float": 0.531,
+            "norm_linear_128_float": 0.518,
+            "semantic_768_bfloat16": 0.541,
+            "fusion_768_bfloat16": 0.512,
+            "atan_norm_768_bfloat16": 0.537,
+            "norm_linear_768_bfloat16": 0.508,
+            "semantic_512_bfloat16": 0.581,
+            "fusion_512_bfloat16": 0.529,
+            "atan_norm_512_bfloat16": 0.582,
+            "norm_linear_512_bfloat16": 0.554,
+            "semantic_128_bfloat16": 0.507,
+            "fusion_128_bfloat16": 0.51,
+            "atan_norm_128_bfloat16": 0.529,
+            "norm_linear_128_bfloat16": 0.518,
+            "semantic_768_binary": 0.563,
+            "fusion_768_binary": 0.532,
+            "atan_norm_768_binary": 0.567,
+            "norm_linear_768_binary": 0.541,
+            "semantic_512_binary": 0.528,
+            "fusion_512_binary": 0.515,
+            "atan_norm_512_binary": 0.537,
+            "norm_linear_512_binary": 0.527,
+            "semantic_128_binary": 0.381,
+            "fusion_128_binary": 0.473,
+            "atan_norm_128_binary": 0.418,
+            "norm_linear_128_binary": 0.469
         },
         "benchmarks": {
             "c7g.2xlarge": {
@@ -584,18 +689,18 @@ const models = [
         "binarySupport": true,
         "bfloat16Support": true,
         "scores": {
-            "semantic_768_float": 0.641,
-            "fusion_768_float": 0.621,
-            "atan_norm_768_float": 0.666,
-            "norm_linear_768_float": 0.663,
-            "semantic_768_bfloat16": 0.642,
-            "fusion_768_bfloat16": 0.621,
-            "atan_norm_768_bfloat16": 0.666,
-            "norm_linear_768_bfloat16": 0.663,
-            "semantic_768_binary": 0.625,
-            "fusion_768_binary": 0.62,
-            "atan_norm_768_binary": 0.575,
-            "norm_linear_768_binary": 0.652
+            "semantic_768_float": 0.665,
+            "fusion_768_float": 0.646,
+            "atan_norm_768_float": 0.685,
+            "norm_linear_768_float": 0.684,
+            "semantic_768_bfloat16": 0.666,
+            "fusion_768_bfloat16": 0.646,
+            "atan_norm_768_bfloat16": 0.685,
+            "norm_linear_768_bfloat16": 0.684,
+            "semantic_768_binary": 0.641,
+            "fusion_768_binary": 0.635,
+            "atan_norm_768_binary": 0.67,
+            "norm_linear_768_binary": 0.669
         },
         "benchmarks": {
             "g4dn.xlarge": {
@@ -652,6 +757,99 @@ const models = [
         }
     },
     {
+        "id": "snowflake-arctic-embed-m-v2.0",
+        "name": "Snowflake Arctic Embed M V2.0",
+        "org": "Community",
+        "modelId": "snowflake-arctic-embed-m-v2.0",
+        "params": "TODO",
+        "maxDim": 768,
+        "dimensions": {
+            "float": [
+                768
+            ],
+            "bfloat16": [
+                768
+            ],
+            "binary": [
+                768
+            ]
+        },
+        "speeds": {
+            "t4": 0,
+            "c7g": 36.45
+        },
+        "mrlSupport": false,
+        "binarySupport": true,
+        "bfloat16Support": true,
+        "scores": {
+            "semantic_768_float": 0.662,
+            "fusion_768_float": 0.64,
+            "atan_norm_768_float": 0.671,
+            "norm_linear_768_float": 0.671,
+            "semantic_768_bfloat16": 0.662,
+            "fusion_768_bfloat16": 0.64,
+            "atan_norm_768_bfloat16": 0.671,
+            "norm_linear_768_bfloat16": 0.671,
+            "semantic_768_binary": 0.624,
+            "fusion_768_binary": 0.628,
+            "atan_norm_768_binary": 0.656,
+            "norm_linear_768_binary": 0.654
+        },
+        "benchmarks": {
+            "g4dn.xlarge": {
+                "hardware_type": "g4dn.xlarge",
+                "model_id": "snowflake-arctic-embed-m-v2.0",
+                "hf_repo": "Snowflake/snowflake-arctic-embed-m-v2.0",
+                "model_url": "https://huggingface.co/Snowflake/snowflake-arctic-embed-m-v2.0/resolve/main/onnx/model.onnx",
+                "commit_sha": "95c274148085",
+                "model_size_mb": 1169.3,
+                "embedding_dim": 768,
+                "queries_samples_processed": 2633,
+                "queries_avg_latency_ms": 3.56,
+                "queries_p95_latency_ms": 3.59,
+                "queries_throughput": 263.24,
+                "docs_samples_processed": 761,
+                "docs_avg_latency_ms": 12.47,
+                "docs_p95_latency_ms": 12.64,
+                "docs_throughput": 76.01
+            },
+            "c7g.2xlarge": {
+                "hardware_type": "c7g.2xlarge",
+                "model_id": "snowflake-arctic-embed-m-v2.0",
+                "hf_repo": "Snowflake/snowflake-arctic-embed-m-v2.0",
+                "model_url": "https://huggingface.co/Snowflake/snowflake-arctic-embed-m-v2.0/resolve/main/onnx/model.onnx",
+                "commit_sha": "95c274148085",
+                "model_size_mb": 1169.3,
+                "embedding_dim": 768,
+                "queries_samples_processed": 365,
+                "queries_avg_latency_ms": 27.07,
+                "queries_p95_latency_ms": 27.19,
+                "queries_throughput": 36.45,
+                "docs_samples_processed": 49,
+                "docs_avg_latency_ms": 206.83,
+                "docs_p95_latency_ms": 207.11,
+                "docs_throughput": 4.81
+            },
+            "m8g.xlarge": {
+                "hardware_type": "m8g.xlarge",
+                "model_id": "snowflake-arctic-embed-m-v2.0",
+                "hf_repo": "Snowflake/snowflake-arctic-embed-m-v2.0",
+                "model_url": "https://huggingface.co/Snowflake/snowflake-arctic-embed-m-v2.0/resolve/main/onnx/model.onnx",
+                "commit_sha": "95c274148085",
+                "model_size_mb": 1169.3,
+                "embedding_dim": 768,
+                "queries_samples_processed": 358,
+                "queries_avg_latency_ms": 27.5,
+                "queries_p95_latency_ms": 28.31,
+                "queries_throughput": 35.78,
+                "docs_samples_processed": 55,
+                "docs_avg_latency_ms": 183.75,
+                "docs_p95_latency_ms": 208.56,
+                "docs_throughput": 5.41
+            }
+        }
+    },
+    {
         "id": "multilingual-e5-base",
         "name": "Multilingual E5 Base",
         "org": "Community",
@@ -677,18 +875,18 @@ const models = [
         "binarySupport": true,
         "bfloat16Support": true,
         "scores": {
-            "semantic_768_float": 0.58,
-            "fusion_768_float": 0.601,
-            "atan_norm_768_float": 0.621,
-            "norm_linear_768_float": 0.624,
-            "semantic_768_bfloat16": 0.579,
-            "fusion_768_bfloat16": 0.6,
-            "atan_norm_768_bfloat16": 0.621,
-            "norm_linear_768_bfloat16": 0.624,
-            "semantic_768_binary": 0.37,
-            "fusion_768_binary": 0.522,
-            "atan_norm_768_binary": 0.557,
-            "norm_linear_768_binary": 0.546
+            "semantic_768_float": 0.613,
+            "fusion_768_float": 0.623,
+            "atan_norm_768_float": 0.642,
+            "norm_linear_768_float": 0.647,
+            "semantic_768_bfloat16": 0.602,
+            "fusion_768_bfloat16": 0.624,
+            "atan_norm_768_bfloat16": 0.642,
+            "norm_linear_768_bfloat16": 0.647,
+            "semantic_768_binary": 0.413,
+            "fusion_768_binary": 0.552,
+            "atan_norm_768_binary": 0.589,
+            "norm_linear_768_binary": 0.588
         },
         "benchmarks": {
             "g4dn.xlarge": {
@@ -745,6 +943,192 @@ const models = [
         }
     },
     {
+        "id": "lightonai-modernbert-large-int8",
+        "name": "Lightonai Modernbert Large Int8",
+        "org": "Community",
+        "modelId": "lightonai-modernbert-large-int8",
+        "params": "TODO",
+        "maxDim": 1024,
+        "dimensions": {
+            "float": [
+                1024
+            ],
+            "bfloat16": [
+                1024
+            ],
+            "binary": [
+                1024
+            ]
+        },
+        "speeds": {
+            "t4": 0,
+            "c7g": 39.76
+        },
+        "mrlSupport": false,
+        "binarySupport": true,
+        "bfloat16Support": true,
+        "scores": {
+            "semantic_1024_float": 0.596,
+            "fusion_1024_float": 0.613,
+            "atan_norm_1024_float": 0.634,
+            "norm_linear_1024_float": 0.638,
+            "semantic_1024_bfloat16": 0.596,
+            "fusion_1024_bfloat16": 0.613,
+            "atan_norm_1024_bfloat16": 0.635,
+            "norm_linear_1024_bfloat16": 0.638,
+            "semantic_1024_binary": 0.568,
+            "fusion_1024_binary": 0.614,
+            "atan_norm_1024_binary": 0.621,
+            "norm_linear_1024_binary": 0.636
+        },
+        "benchmarks": {
+            "g4dn.xlarge": {
+                "hardware_type": "g4dn.xlarge",
+                "model_id": "lightonai-modernbert-large-int8",
+                "hf_repo": "lightonai/modernbert-embed-large",
+                "model_url": "https://huggingface.co/lightonai/modernbert-embed-large/resolve/main/onnx/model_int8.onnx",
+                "commit_sha": "95a19bff4963",
+                "model_size_mb": 378.56,
+                "embedding_dim": 1024,
+                "queries_samples_processed": 185,
+                "queries_avg_latency_ms": 53.41,
+                "queries_p95_latency_ms": 69.09,
+                "queries_throughput": 18.49,
+                "docs_samples_processed": 44,
+                "docs_avg_latency_ms": 225.63,
+                "docs_p95_latency_ms": 268.28,
+                "docs_throughput": 4.4
+            },
+            "c7g.2xlarge": {
+                "hardware_type": "c7g.2xlarge",
+                "model_id": "lightonai-modernbert-large-int8",
+                "hf_repo": "lightonai/modernbert-embed-large",
+                "model_url": "https://huggingface.co/lightonai/modernbert-embed-large/resolve/main/onnx/model_int8.onnx",
+                "commit_sha": "95a19bff4963",
+                "model_size_mb": 378.56,
+                "embedding_dim": 1024,
+                "queries_samples_processed": 398,
+                "queries_avg_latency_ms": 24.7,
+                "queries_p95_latency_ms": 24.82,
+                "queries_throughput": 39.76,
+                "docs_samples_processed": 68,
+                "docs_avg_latency_ms": 147.45,
+                "docs_p95_latency_ms": 148.0,
+                "docs_throughput": 6.73
+            },
+            "m8g.xlarge": {
+                "hardware_type": "m8g.xlarge",
+                "model_id": "lightonai-modernbert-large-int8",
+                "hf_repo": "lightonai/modernbert-embed-large",
+                "model_url": "https://huggingface.co/lightonai/modernbert-embed-large/resolve/main/onnx/model_int8.onnx",
+                "commit_sha": "95a19bff4963",
+                "model_size_mb": 378.56,
+                "embedding_dim": 1024,
+                "queries_samples_processed": 346,
+                "queries_avg_latency_ms": 28.46,
+                "queries_p95_latency_ms": 30.21,
+                "queries_throughput": 34.52,
+                "docs_samples_processed": 65,
+                "docs_avg_latency_ms": 154.13,
+                "docs_p95_latency_ms": 174.22,
+                "docs_throughput": 6.43
+            }
+        }
+    },
+    {
+        "id": "nomic-ai-modernbert-int8",
+        "name": "Nomic Ai Modernbert Int8",
+        "org": "Community",
+        "modelId": "nomic-ai-modernbert-int8",
+        "params": "TODO",
+        "maxDim": 768,
+        "dimensions": {
+            "float": [
+                768
+            ],
+            "bfloat16": [
+                768
+            ],
+            "binary": [
+                768
+            ]
+        },
+        "speeds": {
+            "t4": 0,
+            "c7g": 86.54
+        },
+        "mrlSupport": false,
+        "binarySupport": true,
+        "bfloat16Support": true,
+        "scores": {
+            "semantic_768_float": 0.424,
+            "fusion_768_float": 0.472,
+            "atan_norm_768_float": 0.428,
+            "norm_linear_768_float": 0.453,
+            "semantic_768_bfloat16": 0.424,
+            "fusion_768_bfloat16": 0.472,
+            "atan_norm_768_bfloat16": 0.428,
+            "norm_linear_768_bfloat16": 0.453,
+            "semantic_768_binary": 0.43,
+            "fusion_768_binary": 0.462,
+            "atan_norm_768_binary": 0.434,
+            "norm_linear_768_binary": 0.45
+        },
+        "benchmarks": {
+            "g4dn.xlarge": {
+                "hardware_type": "g4dn.xlarge",
+                "model_id": "nomic-ai-modernbert-int8",
+                "hf_repo": "nomic-ai/modernbert-embed-base",
+                "model_url": "https://huggingface.co/nomic-ai/modernbert-embed-base/resolve/main/onnx/model_int8.onnx",
+                "commit_sha": "d556a88e3325",
+                "model_size_mb": 143.37,
+                "embedding_dim": 768,
+                "queries_samples_processed": 379,
+                "queries_avg_latency_ms": 25.82,
+                "queries_p95_latency_ms": 27.36,
+                "queries_throughput": 37.89,
+                "docs_samples_processed": 103,
+                "docs_avg_latency_ms": 95.77,
+                "docs_p95_latency_ms": 116.83,
+                "docs_throughput": 10.28
+            },
+            "c7g.2xlarge": {
+                "hardware_type": "c7g.2xlarge",
+                "model_id": "nomic-ai-modernbert-int8",
+                "hf_repo": "nomic-ai/modernbert-embed-base",
+                "model_url": "https://huggingface.co/nomic-ai/modernbert-embed-base/resolve/main/onnx/model_int8.onnx",
+                "commit_sha": "d556a88e3325",
+                "model_size_mb": 143.37,
+                "embedding_dim": 768,
+                "queries_samples_processed": 866,
+                "queries_avg_latency_ms": 11.15,
+                "queries_p95_latency_ms": 11.27,
+                "queries_throughput": 86.54,
+                "docs_samples_processed": 163,
+                "docs_avg_latency_ms": 60.55,
+                "docs_p95_latency_ms": 60.74,
+                "docs_throughput": 16.26
+            },
+            "m8g.xlarge": {
+                "hardware_type": "m8g.xlarge",
+                "model_id": "nomic-ai-modernbert-int8",
+                "hf_repo": "nomic-ai/modernbert-embed-base",
+                "model_url": "https://huggingface.co/nomic-ai/modernbert-embed-base/resolve/main/onnx/model_int8.onnx",
+                "commit_sha": "d556a88e3325",
+                "model_size_mb": 143.37,
+                "embedding_dim": 768,
+                "queries_samples_processed": 770,
+                "queries_avg_latency_ms": 12.46,
+                "queries_p95_latency_ms": 13.33,
+                "queries_throughput": 76.96,
+                "docs_samples_processed": 155,
+                "docs_avg_latency_ms": 63.65,
+                "docs_p95_latency_ms": 67.01,
+                "docs_throughput": 15.45
+            }
+        }
+    },
+    {
         "id": "snowflake-arctic-embed-m-v2.0-int8",
         "name": "Snowflake Arctic Embed M V2.0 Int8",
         "org": "Community",
@@ -752,7 +1136,9 @@ const models = [
         "params": "TODO",
         "maxDim": 768,
         "dimensions": {
-            "float": [],
+            "float": [
+                768
+            ],
             "bfloat16": [
                 768
             ],
@@ -768,14 +1154,18 @@ const models = [
         "binarySupport": true,
         "bfloat16Support": true,
         "scores": {
+            "semantic_768_float": 0.652,
+            "fusion_768_float": 0.636,
+            "atan_norm_768_float": 0.663,
+            "norm_linear_768_float": 0.662,
             "semantic_768_bfloat16": 0.652,
-            "fusion_768_bfloat16": 0.634,
-            "atan_norm_768_bfloat16": 0.666,
-            "norm_linear_768_bfloat16": 0.663,
-            "semantic_768_binary": 0.614,
-            "fusion_768_binary": 0.617,
-            "atan_norm_768_binary": 0.647,
-            "norm_linear_768_binary": 0.646
+            "fusion_768_bfloat16": 0.636,
+            "atan_norm_768_bfloat16": 0.663,
+            "norm_linear_768_bfloat16": 0.662,
+            "semantic_768_binary": 0.607,
+            "fusion_768_binary": 0.62,
+            "atan_norm_768_binary": 0.643,
+            "norm_linear_768_binary": 0.645
         },
         "benchmarks": {
             "g4dn.xlarge": {
@@ -841,15 +1231,18 @@ const models = [
         "dimensions": {
             "float": [
                 768,
-                384
+                512,
+                128
             ],
             "bfloat16": [
                 768,
-                384
+                512,
+                128
             ],
             "binary": [
                 768,
-                384
+                512,
+                128
             ]
         },
         "speeds": {
@@ -860,30 +1253,42 @@ const models = [
         "binarySupport": true,
         "bfloat16Support": true,
         "scores": {
-            "semantic_768_float": 0.631,
-            "fusion_768_float": 0.613,
-            "atan_norm_768_float": 0.638,
-            "norm_linear_768_float": 0.638,
-            "semantic_384_float": 0.607,
-            "fusion_384_float": 0.609,
-            "atan_norm_384_float": 0.637,
-            "norm_linear_384_float": 0.635,
-            "semantic_768_bfloat16": 0.631,
-            "fusion_768_bfloat16": 0.614,
-            "atan_norm_768_bfloat16": 0.637,
-            "norm_linear_768_bfloat16": 0.638,
-            "semantic_384_bfloat16": 0.607,
-            "fusion_384_bfloat16": 0.609,
-            "atan_norm_384_bfloat16": 0.637,
-            "norm_linear_384_bfloat16": 0.635,
-            "semantic_768_binary": 0.591,
-            "fusion_768_binary": 0.605,
-            "atan_norm_768_binary": 0.553,
-            "norm_linear_768_binary": 0.622,
-            "semantic_384_binary": 0.535,
-            "fusion_384_binary": 0.582,
-            "atan_norm_384_binary": 0.563,
-            "norm_linear_384_binary": 0.604
+            "semantic_768_float": 0.656,
+            "fusion_768_float": 0.631,
+            "atan_norm_768_float": 0.655,
+            "norm_linear_768_float": 0.657,
+            "semantic_512_float": 0.653,
+            "fusion_512_float": 0.638,
+            "atan_norm_512_float": 0.663,
+            "norm_linear_512_float": 0.661,
+            "semantic_128_float": 0.51,
+            "fusion_128_float": 0.587,
+            "atan_norm_128_float": 0.609,
+            "norm_linear_128_float": 0.612,
+            "semantic_768_bfloat16": 0.644,
+            "fusion_768_bfloat16": 0.63,
+            "atan_norm_768_bfloat16": 0.655,
+            "norm_linear_768_bfloat16": 0.657,
+            "semantic_512_bfloat16": 0.653,
+            "fusion_512_bfloat16": 0.638,
+            "atan_norm_512_bfloat16": 0.663,
+            "norm_linear_512_bfloat16": 0.661,
+            "semantic_128_bfloat16": 0.51,
+            "fusion_128_bfloat16": 0.586,
+            "atan_norm_128_bfloat16": 0.61,
+            "norm_linear_128_bfloat16": 0.616,
+            "semantic_768_binary": 0.606,
+            "fusion_768_binary": 0.625,
+            "atan_norm_768_binary": 0.638,
+            "norm_linear_768_binary": 0.644,
+            "semantic_512_binary": 0.585,
+            "fusion_512_binary": 0.617,
+            "atan_norm_512_binary": 0.628,
+            "norm_linear_512_binary": 0.635,
+            "semantic_128_binary": 0.385,
+            "fusion_128_binary": 0.533,
+            "atan_norm_128_binary": 0.527,
+            "norm_linear_128_binary": 0.573
         },
         "benchmarks": {
             "g4dn.xlarge": {
@@ -955,7 +1360,7 @@ const models = [
         "bfloat16Support": false,
         "isBM25": true,
         "scores": {
-            "semantic_float": 0.527,
+            "semantic_float": 0.559,
             "fusion_float": null,
             "semantic_bfloat16": null,
             "fusion_bfloat16": null,
