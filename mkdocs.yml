@@ -61,10 +61,12 @@ nav:
       - Evaluation: api/vespa/evaluation.md
       - Exceptions: api/vespa/exceptions.md
       - IO: api/vespa/io.md
+      - Models: api/vespa/models.md
       - Package: api/vespa/package.md
       - Querybuilder: 
           - Builder: api/vespa/querybuilder/builder/builder.md
           - Grouping: api/vespa/querybuilder/grouping/grouping.md
+      - Throttling: api/vespa/throttling.md
 plugins:
     - search
     - autorefs
