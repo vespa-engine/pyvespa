@@ -25,9 +25,9 @@ jobs:
 
         mend-app-name: ${{ env.MEND_APP_NAME }}
         mend-project-name: ${{ env.MEND_PROJECT_NAME }}
-        # update: ${{ contains(fromJson('["workflow_dispatch","schedule"]'), github.event_name) }}
-        update: true # Temporarily always send SAST updates
+        update: ${{ contains(fromJson('["workflow_dispatch","schedule"]'), github.event_name) }}
         enabled-engines: "104" # Python
+        github-upload: false # Requires feature to be enabled in GH repo
 
   sca:
     runs-on: ubuntu-latest
@@ -54,5 +54,4 @@ jobs:
         mend-project-name: ${{ env.MEND_PROJECT_NAME }}
 
         # Do not send SCA updates on PRs
-        # update: ${{ contains(fromJson('["workflow_dispatch","schedule"]'), github.event_name) }}
-        update: true # Temporarily always send SAST updates
+        update: ${{ contains(fromJson('["workflow_dispatch","schedule"]'), github.event_name) }}
