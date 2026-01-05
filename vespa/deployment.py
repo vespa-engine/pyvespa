@@ -1,4 +1,6 @@
-import httpx
+import httpr
+
+# Temporarily keeping for comparison testing
 from urllib3.exceptions import HTTPError
 import json
 import os
@@ -22,7 +24,8 @@ import time
 from urllib.parse import urlparse
 
 import docker
-import requests
+
+# Temporarily keeping for comparison testing
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -408,14 +411,14 @@ class VespaDocker(VespaDeployment):
         )
         self.wait_for_config_server_start(max_wait=max_wait_configserver)
 
-        r = requests.post(
-            "http://localhost:{}/application/v2/tenant/default/prepareandactivate".format(
-                self.cfgsrv_port
-            ),
-            headers={"Content-Type": "application/zip"},
-            data=data,
-            verify=False,
-        )
+        with httpr.Client(verify=False) as client:
+            r = client.post(
+                "http://localhost:{}/application/v2/tenant/default/prepareandactivate".format(
+                    self.cfgsrv_port
+                ),
+                headers={"Content-Type": "application/zip"},
+                data=data,
+            )
         logging.debug("Deploy status code: {}".format(r.status_code))
         if r.status_code != 200:
             raise RuntimeError(
@@ -443,7 +446,7 @@ class VespaDocker(VespaDeployment):
         # Warn if available memory is less than 4GB
         try:
             info = client.info()
-            total_memory = info.get('MemTotal')
+            total_memory = info.get("MemTotal")
             if total_memory is not None and total_memory < 4 * (1024**3):
                 print(
                     f"Warning: Only {total_memory / (1024**3):.1f}GB memory is available.",
@@ -632,11 +635,11 @@ class VespaCloud(VespaDeployment):
         self.default_timeout = (
             15  # seconds, default in httpx is 5. Eg. deployment may take longer.
         )
-        self.httpx_limits = httpx.Limits(
-            max_connections=100,
-            max_keepalive_connections=20,
-            keepalive_expiry=10,
-        )
+        # Note: httpr manages connection pooling automatically
+        # Keeping these values for reference but they won't be used
+        self.max_connections = 100
+        self.max_keepalive_connections = 20
+        self.keepalive_expiry = 10
         self.base_url = "https://api-ctl.vespa-cloud.com:4443"
         self.pyvespa_version = vespa.__version__
         self.base_headers = {"User-Agent": f"pyvespa/{self.pyvespa_version}"}
@@ -1324,7 +1327,7 @@ class VespaCloud(VespaDeployment):
         path,
         body: Optional[Union[BytesIO, Dict]] = None,
         headers: Dict = {},
-    ) -> httpx.Response:
+    ) -> httpr.Response:
         if isinstance(body, dict):
             data = body
             content = None
@@ -1334,21 +1337,27 @@ class VespaCloud(VespaDeployment):
         else:
             data = None
             content = None
-        with (
-            httpx.Client(
-                base_url=self.base_url,
-                headers=self.base_headers,
-                timeout=None,  # Need to set timeout to None to avoid httpx timeout on e.g. deployment requests
-                http1=True,
-                limits=self.httpx_limits,
-            ) as client
-        ):
-            response = client.request(
-                method, path, data=data, content=content, headers=headers
-            )
+
+        # Construct full URL since httpr doesn't have base_url parameter
+        full_url = self.base_url + path
+
+        with httpr.Client(
+            headers=self.base_headers,
+            timeout=None,  # No timeout for deployment requests
+            http2_only=False,  # Allow HTTP/1.1
+        ) as client:
+            if data is not None:
+                response = client.request(method, full_url, json=data, headers=headers)
+            elif content is not None:
+                response = client.request(
+                    method, full_url, data=content, headers=headers
+                )
+            else:
+                response = client.request(method, full_url, headers=headers)
+
             if response.status_code != 200:
                 raise HTTPError(
-                    f"HTTP {response.status_code} reason: {response.reason_phrase} error_text: {response.text} for {path}"
+                    f"HTTP {response.status_code} error_text: {response.text} for {path}"
                 )
         return response
 
@@ -1397,10 +1406,10 @@ class VespaCloud(VespaDeployment):
 
     def _handle_response(
         self,
-        response: httpx.Response,
+        response: httpr.Response,
         return_raw_response: bool = False,
         path: str = "",
-    ) -> Union[dict, httpx.Response]:
+    ) -> Union[dict, httpr.Response]:
         """Common response handling logic"""
         if return_raw_response:
             return response
@@ -1434,7 +1443,7 @@ class VespaCloud(VespaDeployment):
         body: Union[BytesIO, MultipartEncoder] = BytesIO(),
         headers: dict = {},
         return_raw_response: bool = False,
-    ) -> Union[dict, httpx.Response]:
+    ) -> Union[dict, httpr.Response]:
         """Make authenticated request with access token"""
         if hasattr(body, "seek"):
             body.seek(0)
@@ -1453,7 +1462,7 @@ class VespaCloud(VespaDeployment):
         body: Union[BytesIO, MultipartEncoder] = BytesIO(),
         headers: dict = {},
         return_raw_response: bool = False,
-    ) -> Union[dict, httpx.Response]:
+    ) -> Union[dict, httpr.Response]:
         if self.control_plane_auth_method == "access_token":
             return self._request_with_access_token(method, path, body, headers)
         elif self.control_plane_auth_method == "api_key":
@@ -1472,7 +1481,7 @@ class VespaCloud(VespaDeployment):
         body: Union[BytesIO, MultipartEncoder] = BytesIO(),
         headers: dict = {},
         return_raw_response: bool = False,
-    ) -> Union[dict, httpx.Response]:
+    ) -> Union[dict, httpr.Response]:
         digest = hashes.Hash(hashes.SHA256(), default_backend())
 
         # Handle different body types
