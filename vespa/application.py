@@ -3,19 +3,18 @@
 import sys
 import asyncio
 import traceback
-import certifi
 import concurrent.futures
 import warnings
-import ssl
 from typing import Optional, Dict, Generator, List, IO, Iterable, Callable, Tuple, Union
 from concurrent.futures import ThreadPoolExecutor, Future, as_completed
 from queue import Queue, Empty
 import threading
+import httpr
+
+# Temporarily keeping for comparison testing
 from requests import Session
 from requests.models import Response
 from requests.exceptions import ConnectionError, HTTPError, JSONDecodeError
-from requests.adapters import HTTPAdapter
-from urllib3.util import Retry
 from tenacity import (
     retry,
     wait_exponential,
@@ -36,12 +35,18 @@ from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse, VespaVisitResponse
 from vespa.package import ApplicationPackage
 from vespa.throttling import AdaptiveThrottler
+
+# Temporarily keeping for comparison testing
 import httpx
 import vespa
 import gzip
-from requests.models import PreparedRequest
+
+# Temporarily keeping for comparison testing
 from io import BytesIO
 import logging
+import tempfile
+import os
+import json
 
 logging.getLogger("urllib3").setLevel(logging.ERROR)
 
@@ -246,7 +251,7 @@ class Vespa(object):
             client=None,
             **kwargs,
         )
-        client = async_layer._open_httpx_client()
+        client = async_layer._open_httpr_client()
         async_layer._owns_client = False
         return client
 
@@ -314,7 +319,7 @@ class Vespa(object):
             compress=compress,
             session=Session(),
         )
-        session = sync_layer._open_http_session()
+        session = sync_layer._open_http_client()
         sync_layer._owns_session = False
         return session
 
@@ -1265,92 +1270,7 @@ class Vespa(object):
         return f"/document/v1/{namespace}/{schema}/docid/{id}"
 
 
-class CustomHTTPAdapter(HTTPAdapter):
-    def __init__(
-        self,
-        pool_connections=10,
-        pool_maxsize=10,
-        num_retries_429=10,
-        compress: Union[str, bool] = "auto",
-        compress_larger_than: int = 1024,
-        *args,
-        **kwargs,
-    ):
-        if compress not in ["auto", True, False]:
-            raise ValueError(
-                f"compress must be 'auto', True, or False. Got {compress} instead."
-            )
-        super().__init__(*args, **kwargs)
-        self.num_retries_429 = num_retries_429
-        self.compress = compress
-        self.compress_larger_than = compress_larger_than
-        self.retry_strategy = Retry(
-            total=10,
-            backoff_factor=1,
-            raise_on_status=False,
-            status_forcelist=[429, 503],
-            allowed_methods=["POST", "GET", "DELETE", "PUT"],
-        )
-
-    def send(self, request: PreparedRequest, **kwargs) -> Response:
-        # Automatically handle compression if needed
-        self._maybe_compress_request(request)
-
-        for attempt in range(self.num_retries_429 + 1):
-            try:
-                response = super().send(request, **kwargs)
-
-                if response.status_code == 429:
-                    self._wait_with_backoff(attempt)
-                else:
-                    return response
-
-            except ConnectionResetError:
-                if attempt < self.num_retries_429:
-                    print(f"ConnectionResetError on attempt {attempt}", file=sys.stderr)
-                    self._wait_with_backoff(attempt)
-                else:
-                    print(f"ConnectionResetError on attempt {attempt}", file=sys.stderr)
-                    raise
-
-        return response
-
-    def _maybe_compress_request(self, request: PreparedRequest):
-        # Compress if the method is POST or PUT, body exists, and compression conditions are met
-        if (
-            self.compress in [True, "auto"]
-            and request.method in ["POST", "PUT"]
-            and request.body
-        ):
-            body_size = (
-                len(request.body)
-                if isinstance(request.body, bytes)
-                else len(request.body.encode("utf-8"))
-            )
-
-            if self.compress is True or (
-                self.compress == "auto" and body_size > self.compress_larger_than
-            ):
-                # Compress the body
-                compressed_body = self._gzip_compress(request.body)
-                request.body = compressed_body
-                request.headers["Content-Encoding"] = "gzip"
-                request.headers["Content-Length"] = str(len(compressed_body))
-
-    @staticmethod
-    def _gzip_compress(data: Union[str, bytes]) -> bytes:
-        if isinstance(data, str):
-            data = data.encode("utf-8")
-
-        buf = BytesIO()
-        with gzip.GzipFile(fileobj=buf, mode="wb") as f:
-            f.write(data)
-        return buf.getvalue()
-
-    @staticmethod
-    def _wait_with_backoff(attempt):
-        wait_time = 0.1 * 1.618**attempt + random.uniform(0, 1)
-        time.sleep(wait_time)
+# CustomHTTPAdapter removed - functionality moved into VespaSync helper methods
 
 
 class VespaSync(object):
@@ -1360,7 +1280,7 @@ class VespaSync(object):
         pool_maxsize: int = 10,
         pool_connections: int = 10,
         compress: Union[str, bool] = "auto",
-        session: Optional[Session] = None,
+        session: Optional[Union[Session, httpr.Client]] = None,
     ) -> None:
         """
         Class to handle synchronous requests to Vespa.
@@ -1380,29 +1300,29 @@ class VespaSync(object):
                     response = sync_app.query(body=body)
                 ```
 
-            **Reusing a session across multiple contexts** (avoids TLS handshake overhead):
+            **Reusing a client across multiple contexts** (avoids TLS handshake overhead):
                 ```python
-                # Get a reusable session
-                session = app.get_sync_session()
+                # Get a reusable client
+                client = app.get_sync_session()
                 try:
                     # Use it multiple times
-                    with app.syncio(session=session) as sync_app:
+                    with app.syncio(session=client) as sync_app:
                         response1 = sync_app.query(body=body1)
-                    with app.syncio(session=session) as sync_app:
+                    with app.syncio(session=client) as sync_app:
                         response2 = sync_app.query(body=body2)
                 finally:
                     # User is responsible for closing
-                    session.close()
+                    client.close()
                 ```
 
             See also `Vespa.feed_iterable` for a convenient way to feed data synchronously.
 
         Args:
             app (Vespa): Vespa app object.
-            pool_maxsize (int, optional): The maximum number of connections to save in the pool. Defaults to 10.
-            pool_connections (int, optional): The number of urllib3 connection pools to cache. Defaults to 10.
+            pool_maxsize (int, optional): The maximum number of connections to save in the pool. Defaults to 10. (Note: httpr manages connection pooling automatically)
+            pool_connections (int, optional): The number of connection pools to cache. Defaults to 10. (Note: httpr manages connection pooling automatically)
             compress (Union[str, bool], optional): Whether to compress the request body. Defaults to "auto", which will compress if the body is larger than 1024 bytes.
-            session (requests.Session, optional): An externally managed session to reuse. When provided, the caller is responsible for closing it. Defaults to None.
+            session (httpr.Client, optional): An externally managed httpr client to reuse. When provided, the caller is responsible for closing it. Defaults to None.
         """
 
         if compress not in ["auto", True, False]:
@@ -1410,10 +1330,8 @@ class VespaSync(object):
                 f"compress must be 'auto', True, or False. Got {compress} instead."
             )
         self.app = app
-        if self.app.key:
-            self.cert = (self.app.cert, self.app.key)
-        else:
-            self.cert = self.app.cert
+        self.cert = self.app.cert
+        self.key = self.app.key
         self.headers = self.app.base_headers.copy()
         if self.app.auth_method == "token" and self.app.vespa_cloud_secret_token:
             # Bearer and user-agent
@@ -1421,49 +1339,193 @@ class VespaSync(object):
                 {"Authorization": f"Bearer {self.app.vespa_cloud_secret_token}"}
             )
         self.compress = compress
-        self.http_session = session
-        # Automatically determine ownership based on whether session was provided
-        self._owns_session = session is None
-        self._session_configured = False
-        self.adapter = CustomHTTPAdapter(
-            pool_maxsize=pool_maxsize,
-            pool_connections=pool_connections,
-            max_retries=10,
-            num_retries_429=10,
-            pool_block=True,
-            compress=compress,
+        self.compress_larger_than = 1024
+        self.num_retries_429 = 10
+        self.http_client = (
+            session  # For backward compatibility, parameter is still called "session"
+        )
+        # Automatically determine ownership based on whether client was provided
+        self._owns_client = session is None
+        self._client_configured = False
+        self._temp_cert_file = None  # For cleanup of temporary mTLS cert files
+        # pool_maxsize and pool_connections are kept for API compatibility but httpr manages pooling automatically
+
+    def _prepare_mtls_cert(self):
+        """
+        Prepare mTLS certificate for httpr.
+
+        httpr requires cert and key in a single PEM file.
+        If separate files are provided, combine them temporarily.
+
+        Returns:
+            str: Path to combined PEM file, or None if no cert
+        """
+        if not self.cert:
+            return None
+
+        if not self.key or self.key == self.cert:
+            # Single file with both cert and key, or no key
+            return self.cert
+
+        # Read both files and combine them
+        try:
+            with open(self.cert, "rb") as f:
+                cert_content = f.read()
+            with open(self.key, "rb") as f:
+                key_content = f.read()
+
+            # Create temporary combined file
+            fd, temp_path = tempfile.mkstemp(suffix=".pem", text=False)
+            try:
+                with os.fdopen(fd, "wb") as tmp:
+                    tmp.write(cert_content)
+                    if not cert_content.endswith(b"\n"):
+                        tmp.write(b"\n")
+                    tmp.write(key_content)
+            except:
+                os.unlink(temp_path)
+                raise
+
+            # Store for cleanup
+            self._temp_cert_file = temp_path
+            return temp_path
+        except Exception as e:
+            print(f"Error preparing mTLS certificate: {e}", file=sys.stderr)
+            raise
+
+    def _prepare_request_body(self, method: str, json_data=None, data=None):
+        """
+        Prepare request body with optional compression.
+
+        Args:
+            method: HTTP method (POST, PUT, GET, DELETE, etc.)
+            json_data: JSON data to send
+            data: Raw data to send
+
+        Returns:
+            Tuple of (body_data, extra_headers)
+            - body_data: The data to send (could be original or compressed)
+            - extra_headers: Dict of additional headers to include
+        """
+        if method not in ["POST", "PUT"]:
+            return json_data, {}
+
+        # Determine body content
+        if json_data is not None:
+            body_bytes = json.dumps(json_data).encode("utf-8")
+            content_type = "application/json"
+        elif data is not None:
+            body_bytes = data if isinstance(data, bytes) else data.encode("utf-8")
+            content_type = "application/octet-stream"
+        else:
+            return json_data, {}
+
+        # Check if compression should be applied
+        should_compress = self.compress is True or (
+            self.compress == "auto" and len(body_bytes) > self.compress_larger_than
         )
 
+        if should_compress:
+            # Compress the body
+            buf = BytesIO()
+            with gzip.GzipFile(fileobj=buf, mode="wb") as f:
+                f.write(body_bytes)
+            compressed_body = buf.getvalue()
+
+            # Return raw bytes and headers for httpr
+            return compressed_body, {
+                "Content-Encoding": "gzip",
+                "Content-Type": content_type,
+            }
+        else:
+            return json_data, {}
+
+    def _request_with_retry(self, method: str, url: str, **kwargs):
+        """
+        Execute HTTP request with 429 retry logic using exponential backoff.
+
+        Args:
+            method: HTTP method (GET, POST, PUT, DELETE, etc.)
+            url: URL to request
+            **kwargs: Additional arguments to pass to httpr.Client request method
+
+        Returns:
+            httpr.Response object
+        """
+        for attempt in range(self.num_retries_429 + 1):
+            try:
+                # Make the request using httpr.Client
+                response = getattr(self.http_client, method.lower())(url, **kwargs)
+
+                if response.status_code == 429 and attempt < self.num_retries_429:
+                    # Exponential backoff for 429 (same formula as CustomHTTPAdapter)
+                    wait_time = 0.1 * 1.618**attempt + random.uniform(0, 1)
+                    time.sleep(wait_time)
+                    continue
+
+                return response
+            except ConnectionResetError:
+                if attempt < self.num_retries_429:
+                    print(f"ConnectionResetError on attempt {attempt}", file=sys.stderr)
+                    wait_time = 0.1 * 1.618**attempt + random.uniform(0, 1)
+                    time.sleep(wait_time)
+                else:
+                    print(f"ConnectionResetError on attempt {attempt}", file=sys.stderr)
+                    raise
+
+        return response
+
     def __enter__(self):
-        self._open_http_session()
+        self._open_http_client()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._close_http_session()
+        self._close_http_client()
 
-    def _open_http_session(self):
-        if self.http_session is None:
-            self.http_session = Session()
-            self._owns_session = True
+    def _open_http_client(self):
+        """Create and configure httpr.Client for making HTTP requests."""
+        if self.http_client is None:
+            # Prepare client configuration
+            client_config = {
+                "headers": self.headers,
+                "timeout": 120,  # Default timeout in seconds
+                "follow_redirects": True,
+                "http2_only": False,  # Allow HTTP/1.1 for compatibility
+            }
 
-        if not self._session_configured:
-            self.http_session.headers.update(self.headers)
-            self.http_session.mount("https://", self.adapter)
-            self.http_session.mount("http://", self.adapter)
-            if self.app.auth_method == "token" and self.app.vespa_cloud_secret_token:
-                self.http_session.headers.update(self.headers)
-            elif self.cert and getattr(self.http_session, "cert", None) != self.cert:
-                self.http_session.cert = self.cert
-            self._session_configured = True
+            # Handle mTLS if cert/key are provided
+            if self.cert:
+                client_pem_path = self._prepare_mtls_cert()
+                if client_pem_path:
+                    client_config["client_pem"] = client_pem_path
 
-        return self.http_session
+            # Handle token authentication (already in headers)
+            # httpr will use headers automatically
 
-    def _close_http_session(self):
-        if self.http_session is None:
+            self.http_client = httpr.Client(**client_config)
+            self._owns_client = True
+            self._client_configured = True
+
+        return self.http_client
+
+    def _close_http_client(self):
+        """Close the httpr.Client and clean up temporary files."""
+        if self.http_client is None:
             return
-        if self._owns_session:
-            self.http_session.close()
-        self._session_configured = False
+        if self._owns_client:
+            self.http_client.close()
+        self._client_configured = False
+
+        # Clean up temporary cert file if created
+        if self._temp_cert_file and os.path.exists(self._temp_cert_file):
+            try:
+                os.unlink(self._temp_cert_file)
+                self._temp_cert_file = None
+            except Exception as e:
+                print(
+                    f"Warning: Could not delete temporary cert file: {e}",
+                    file=sys.stderr,
+                )
 
     def get_model_endpoint(self, model_id: Optional[str] = None) -> Optional[dict]:
         """Get model evaluation endpoints."""
@@ -1471,11 +1533,11 @@ class VespaSync(object):
         if model_id:
             end_point = end_point + model_id
         try:
-            response = self.http_session.get(end_point)
+            response = self._request_with_retry("GET", end_point)
             if response.status_code == 200:
                 return response.json()
             else:
-                return {"status_code": response.status_code, "message": response.reason}
+                return {"status_code": response.status_code, "message": response.text}
         except ConnectionError:
             response = None
         return response
@@ -1497,14 +1559,14 @@ class VespaSync(object):
             self.app.end_point, model_id, function_name, encoded_tokens
         )
         try:
-            response = self.http_session.get(end_point)
+            response = self._request_with_retry("GET", end_point)
             if response.status_code == 200:
                 return response.json()
             else:
                 return {
                     "status_code": response.status_code,
                     "body": response.json(),
-                    "message": response.reason,
+                    "message": response.text,
                 }
         except ConnectionError:
             response = None
@@ -1542,7 +1604,22 @@ class VespaSync(object):
         )
         end_point = "{}{}".format(self.app.end_point, path)
         vespa_format = {"fields": fields}
-        response = self.http_session.post(end_point, json=vespa_format, params=kwargs)
+
+        # Prepare request body with optional compression
+        prepared_body, extra_headers = self._prepare_request_body(
+            "POST", json_data=vespa_format
+        )
+        request_kwargs = {"params": kwargs}
+
+        if extra_headers:
+            # Compressed body - use data parameter
+            request_kwargs["data"] = prepared_body
+            request_kwargs["headers"] = extra_headers
+        else:
+            # Uncompressed - use json parameter
+            request_kwargs["json"] = prepared_body
+
+        response = self._request_with_retry("POST", end_point, **request_kwargs)
         raise_for_status(response)
         return VespaResponse(
             json=response.json(),
@@ -1583,8 +1660,22 @@ class VespaSync(object):
         if streaming:
             return self._query_streaming(body, **kwargs)
         else:
-            response = self.http_session.post(
-                self.app.search_end_point, json=body, params=kwargs
+            # Prepare request body with optional compression
+            prepared_body, extra_headers = self._prepare_request_body(
+                "POST", json_data=body
+            )
+            request_kwargs = {"params": kwargs}
+
+            if extra_headers:
+                # Compressed body - use data parameter
+                request_kwargs["data"] = prepared_body
+                request_kwargs["headers"] = extra_headers
+            else:
+                # Uncompressed - use json parameter
+                request_kwargs["json"] = prepared_body
+
+            response = self._request_with_retry(
+                "POST", self.app.search_end_point, **request_kwargs
             )
             raise_for_status(response)
 
@@ -1598,8 +1689,22 @@ class VespaSync(object):
         self, body: Optional[Dict] = None, **kwargs
     ) -> Generator[str, None, None]:
         """Helper method for streaming queries to avoid generator function issues."""
-        with self.http_session.post(
-            self.app.search_end_point, json=body, params=kwargs, stream=True
+        # Prepare request body with optional compression
+        prepared_body, extra_headers = self._prepare_request_body(
+            "POST", json_data=body
+        )
+        request_kwargs = {"params": kwargs}
+
+        if extra_headers:
+            # Compressed body - use data parameter
+            request_kwargs["data"] = prepared_body
+            request_kwargs["headers"] = extra_headers
+        else:
+            # Uncompressed - use json parameter
+            request_kwargs["json"] = prepared_body
+
+        with self.http_client.stream(
+            "POST", self.app.search_end_point, **request_kwargs
         ) as stream:
             for line in stream.iter_lines():
                 if line:
@@ -1633,7 +1738,7 @@ class VespaSync(object):
             id=data_id, schema=schema, namespace=namespace, group=groupname
         )
         end_point = "{}{}".format(self.app.end_point, path)
-        response = self.http_session.delete(end_point, params=kwargs)
+        response = self._request_with_retry("DELETE", end_point, params=kwargs)
         raise_for_status(response)
         return VespaResponse(
             json=response.json(),
@@ -1685,7 +1790,9 @@ class VespaSync(object):
             while True:
                 try:
                     count += 1
-                    response = self.http_session.delete(request_endpoint, params=kwargs)
+                    response = self._request_with_retry(
+                        "DELETE", request_endpoint, params=kwargs
+                    )
                     result = response.json()
                     if "continuation" in result:
                         request_endpoint = "{}&continuation={}".format(
@@ -1761,7 +1868,7 @@ class VespaSync(object):
 
         @retry(retry=retry_if_exception_type(HTTPError), stop=stop_after_attempt(3))
         def visit_request(end_point: str, params: Dict[str, str]):
-            r = self.http_session.get(end_point, params=params)
+            r = self._request_with_retry("GET", end_point, params=params)
             r.raise_for_status()
             return VespaVisitResponse(
                 json=r.json(), status_code=r.status_code, url=str(r.url)
@@ -1827,7 +1934,7 @@ class VespaSync(object):
         )
         end_point = "{}{}".format(self.app.end_point, path)
 
-        response = self.http_session.get(end_point, params=kwargs)
+        response = self._request_with_retry("GET", end_point, params=kwargs)
         raise_for_status(response, raise_on_not_found=raise_on_not_found)
         return VespaResponse(
             json=response.json(),
@@ -1878,7 +1985,22 @@ class VespaSync(object):
         else:
             # Can not send 'id' in fields for partial update
             vespa_format = {"fields": {k: v for k, v in fields.items() if k != "id"}}
-        response = self.http_session.put(end_point, json=vespa_format, params=kwargs)
+
+        # Prepare request body with optional compression
+        prepared_body, extra_headers = self._prepare_request_body(
+            "PUT", json_data=vespa_format
+        )
+        request_kwargs = {"params": kwargs}
+
+        if extra_headers:
+            # Compressed body - use data parameter
+            request_kwargs["data"] = prepared_body
+            request_kwargs["headers"] = extra_headers
+        else:
+            # Uncompressed - use json parameter
+            request_kwargs["json"] = prepared_body
+
+        response = self._request_with_retry("PUT", end_point, **request_kwargs)
         raise_for_status(response)
         return VespaResponse(
             json=response.json(),
@@ -1894,14 +2016,14 @@ class VespaAsync(object):
         app: Vespa,
         connections: Optional[int] = 1,
         total_timeout: Optional[int] = None,
-        timeout: Union[httpx.Timeout, int] = httpx.Timeout(5.0, read=30.0),
-        client: Optional[httpx.AsyncClient] = None,
+        timeout: Union[httpx.Timeout, int, float] = 30.0,
+        client: Optional[Union[httpx.AsyncClient, httpr.AsyncClient]] = None,
         **kwargs,
     ) -> None:
         """
         Class to handle asynchronous HTTP connections to Vespa.
 
-        Uses `httpx` as the async HTTP client, and HTTP/2 by default.
+        Uses `httpr` as the async HTTP client, and HTTP/2 by default.
         This class is intended to be used as a context manager.
 
         **Basic usage**:
@@ -1912,14 +2034,10 @@ class VespaAsync(object):
                 )
             ```
 
-        **Passing custom timeout and limits**:
+        **Passing custom timeout**:
             ```python
-            import httpx
-
-            timeout = httpx.Timeout(10.0, connect=5.0)
-            limits = httpx.Limits(max_connections=10, max_keepalive_connections=5)
-
-            async with VespaAsync(app, timeout=timeout, limits=limits) as async_app:
+            # Simple timeout in seconds
+            async with VespaAsync(app, timeout=60) as async_app:
                 response = await async_app.query(
                     body={"yql": "select * from sources * where title contains 'music';"}
                 )
@@ -1963,20 +2081,18 @@ class VespaAsync(object):
 
         Args:
             app (Vespa): Vespa application object.
-            connections (Optional[int], optional): Number of connections. Defaults to 1 as HTTP/2 is multiplexed.
-            total_timeout (int, optional): **Deprecated**. Will be ignored and removed in future versions. Use `timeout` to pass an `httpx.Timeout` object instead.
-            timeout (httpx.Timeout, optional): Timeout settings for the `httpx.AsyncClient`. Defaults to 5 seconds for connect/write/pool and 30 seconds for read.
-            client (httpx.AsyncClient, optional): An externally managed async client to reuse. When provided, the caller is responsible for closing it. Defaults to None.
-            **kwargs: Additional arguments to be passed to the `httpx.AsyncClient`. See
-                [HTTPX AsyncClient documentation](https://www.python-httpx.org/api/#asyncclient) for more details.
+            connections (Optional[int], optional): Number of connections. Defaults to 1 as HTTP/2 is multiplexed. (Note: httpr manages connection pooling automatically)
+            total_timeout (int, optional): **Deprecated**. Will be ignored and removed in future versions.
+            timeout (float, optional): Timeout in seconds for the `httpr.AsyncClient`. Defaults to 30 seconds.
+            client (httpr.AsyncClient, optional): An externally managed async client to reuse. When provided, the caller is responsible for closing it. Defaults to None.
+            **kwargs: Additional arguments to be passed to the `httpr.AsyncClient`.
 
         Note:
-            - Passing `timeout` allows you to configure timeouts for connect, read, write, and overall request time.
-            - The `limits` parameter can be used to control connection pooling behavior, such as the maximum number of concurrent connections.
-            - See [HTTPX documentation](https://www.python-httpx.org/) for more information on `httpx` and its features.
+            - `timeout` is specified in seconds as a float
+            - httpr manages connection pooling and HTTP/2 automatically
         """
         self.app = app
-        self.httpx_client = client
+        self.httpr_client = client  # Renamed from httpx_client
         # Automatically determine ownership based on whether client was provided
         self._owns_client = client is None
         self.connections = connections
@@ -1984,61 +2100,142 @@ class VespaAsync(object):
         if self.total_timeout is not None:
             # issue DeprecationWarning
             warnings.warn(
-                "total_timeout is deprecated, will be ignored and will be removed in future versions. Use timeout to pass a httpx.Timeout object instead.",
+                "total_timeout is deprecated, will be ignored and will be removed in future versions.",
                 category=DeprecationWarning,
             )
-        self.timeout = timeout
-        if isinstance(self.timeout, int):
-            self.timeout = httpx.Timeout(timeout)
+
+        # Convert timeout to float if needed (for backward compatibility with httpx.Timeout)
+        if isinstance(timeout, httpx.Timeout):
+            # Extract read timeout from httpx.Timeout for backward compatibility
+            self.timeout = timeout.read if timeout.read else 30.0
+            warnings.warn(
+                "Passing httpx.Timeout is deprecated. Please pass a float (seconds) instead.",
+                category=DeprecationWarning,
+            )
+        elif isinstance(timeout, (int, float)):
+            self.timeout = float(timeout)
+        else:
+            self.timeout = 30.0
+
         self.kwargs = kwargs
         self.headers = self.app.base_headers.copy()
-        self.limits = kwargs.get(
-            "limits", httpx.Limits(max_keepalive_connections=self.connections)
-        )
-        # Warn if limits.keepalive_expiry is higher than 30 seconds
-        if self.limits.keepalive_expiry and self.limits.keepalive_expiry > 30:
+
+        # Note: httpr manages connection pooling automatically, limits parameter is kept for compatibility but not used
+        if "limits" in kwargs:
             warnings.warn(
-                "Keepalive expiry is set to more than 30 seconds. Vespa server resets idle connections, so this may cause ConnectionResetError.",
-                category=UserWarning,
+                "The 'limits' parameter is no longer used with httpr. Connection pooling is managed automatically.",
+                category=DeprecationWarning,
             )
+
         if self.app.auth_method == "token" and self.app.vespa_cloud_secret_token:
             # Bearer and user-agent
             self.headers.update(
                 {"Authorization": f"Bearer {self.app.vespa_cloud_secret_token}"}
             )
 
+        # For cleanup of temporary mTLS cert files
+        self._temp_cert_file = None
+
+    def _prepare_mtls_cert(self):
+        """
+        Prepare mTLS certificate for httpr.
+
+        httpr requires cert and key in a single PEM file.
+        If separate files are provided, combine them temporarily.
+
+        Returns:
+            str: Path to combined PEM file, or None if no cert
+        """
+        if not self.app.cert:
+            return None
+
+        if not self.app.key or self.app.key == self.app.cert:
+            # Single file with both cert and key, or no key
+            return self.app.cert
+
+        # Read both files and combine them
+        try:
+            with open(self.app.cert, "rb") as f:
+                cert_content = f.read()
+            with open(self.app.key, "rb") as f:
+                key_content = f.read()
+
+            # Create temporary combined file
+            fd, temp_path = tempfile.mkstemp(suffix=".pem", text=False)
+            try:
+                with os.fdopen(fd, "wb") as tmp:
+                    tmp.write(cert_content)
+                    if not cert_content.endswith(b"\n"):
+                        tmp.write(b"\n")
+                    tmp.write(key_content)
+            except:
+                os.unlink(temp_path)
+                raise
+
+            # Store for cleanup
+            self._temp_cert_file = temp_path
+            return temp_path
+        except Exception as e:
+            print(f"Error preparing mTLS certificate: {e}", file=sys.stderr)
+            raise
+
     async def __aenter__(self):
-        self._open_httpx_client()
+        self._open_httpr_client()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._close_httpx_client()
+        await self._close_httpr_client()
 
-    def _open_httpx_client(self):
-        if self.httpx_client is not None:
-            return self.httpx_client
+    def _open_httpr_client(self):
+        """Create and configure httpr.AsyncClient for making async HTTP requests."""
+        if self.httpr_client is not None:
+            return self.httpr_client
 
-        if self.app.cert is not None:
-            sslcontext = ssl.create_default_context(cafile=certifi.where())
-            sslcontext.load_cert_chain(certfile=self.app.cert, keyfile=self.app.key)
-        else:
-            sslcontext = False
-        self.httpx_client = httpx.AsyncClient(
-            timeout=self.timeout,
-            headers=self.headers,
-            verify=sslcontext,
-            http2=True,  # HTTP/2 by default
-            http1=False,
-            **self.kwargs,
-        )
+        # Prepare client configuration
+        client_config = {
+            "headers": self.headers,
+            "timeout": self.timeout,
+            "follow_redirects": True,
+            "http2_only": True,  # HTTP/2 only for async (matches httpx default)
+        }
+
+        # Handle mTLS if cert/key are provided
+        if self.app.cert:
+            client_pem_path = self._prepare_mtls_cert()
+            if client_pem_path:
+                client_config["client_pem"] = client_pem_path
+
+        # Handle token authentication (already in headers)
+        # httpr will use headers automatically
+
+        # Handle additional kwargs (like proxies)
+        # Filter out httpx-specific kwargs that don't apply to httpr
+        filtered_kwargs = {
+            k: v for k, v in self.kwargs.items() if k not in ["limits", "verify"]
+        }
+        client_config.update(filtered_kwargs)
+
+        self.httpr_client = httpr.AsyncClient(**client_config)
         self._owns_client = True
-        return self.httpx_client
+        return self.httpr_client
 
-    async def _close_httpx_client(self):
-        if self.httpx_client is None:
+    async def _close_httpr_client(self):
+        """Close the httpr.AsyncClient and clean up temporary files."""
+        if self.httpr_client is None:
             return
         if self._owns_client:
-            await self.httpx_client.aclose()
+            await self.httpr_client.aclose()
+
+        # Clean up temporary cert file if created
+        if self._temp_cert_file and os.path.exists(self._temp_cert_file):
+            try:
+                os.unlink(self._temp_cert_file)
+                self._temp_cert_file = None
+            except Exception as e:
+                print(
+                    f"Warning: Could not delete temporary cert file: {e}",
+                    file=sys.stderr,
+                )
 
     async def _wait(f, args, **kwargs):
         tasks = [asyncio.create_task(f(*arg, **kwargs)) for arg in args]
@@ -2076,7 +2273,7 @@ class VespaAsync(object):
             kwargs["streaming.groupname"] = groupname
         if profile:
             kwargs.update(get_profiling_params())
-        r = await self.httpx_client.post(
+        r = await self.httpr_client.post(
             self.app.search_end_point, json=body, params=kwargs
         )
         return VespaQueryResponse(
@@ -2113,11 +2310,11 @@ class VespaAsync(object):
         vespa_format = {"fields": fields}
         if semaphore:
             async with semaphore:
-                response = await self.httpx_client.post(
+                response = await self.httpr_client.post(
                     end_point, json=vespa_format, params=kwargs
                 )
         else:
-            response = await self.httpx_client.post(
+            response = await self.httpr_client.post(
                 end_point, json=vespa_format, params=kwargs
             )
         return VespaResponse(
@@ -2155,9 +2352,9 @@ class VespaAsync(object):
         end_point = "{}{}".format(self.app.end_point, path)
         if semaphore:
             async with semaphore:
-                response = await self.httpx_client.delete(end_point, params=kwargs)
+                response = await self.httpr_client.delete(end_point, params=kwargs)
         else:
-            response = await self.httpx_client.delete(end_point, params=kwargs)
+            response = await self.httpr_client.delete(end_point, params=kwargs)
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -2193,9 +2390,9 @@ class VespaAsync(object):
         end_point = "{}{}".format(self.app.end_point, path)
         if semaphore:
             async with semaphore:
-                response = await self.httpx_client.get(end_point, params=kwargs)
+                response = await self.httpr_client.get(end_point, params=kwargs)
         else:
-            response = await self.httpx_client.get(end_point, params=kwargs)
+            response = await self.httpr_client.get(end_point, params=kwargs)
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -2241,11 +2438,11 @@ class VespaAsync(object):
             vespa_format = {"fields": {k: v for k, v in fields.items() if k != "id"}}
         if semaphore:
             async with semaphore:
-                response = await self.httpx_client.put(
+                response = await self.httpr_client.put(
                     end_point, json=vespa_format, params=kwargs
                 )
         else:
-            response = await self.httpx_client.put(
+            response = await self.httpr_client.put(
                 end_point, json=vespa_format, params=kwargs
             )
         return VespaResponse(
