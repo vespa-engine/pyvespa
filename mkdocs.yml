@@ -55,7 +55,7 @@ nav:
   - Troubleshooting: troubleshooting.md
   - Examples: /examples/*
   - API Reference: 
-      - api/summary.md
+      - Summary: api/summary.md
       - Application: api/vespa/application.md
       - Deployment: api/vespa/deployment.md
       - Evaluation: api/vespa/evaluation.md
@@ -63,7 +63,7 @@ nav:
       - IO: api/vespa/io.md
       - Package: api/vespa/package.md
       - Querybuilder: 
-          - api/vespa/querybuilder/builder/builder.md
+          - Builder: api/vespa/querybuilder/builder/builder.md
           - Grouping: api/vespa/querybuilder/grouping/grouping.md
 plugins:
     - search
