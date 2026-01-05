@@ -9,3 +9,4 @@ https://vespa.auth0.com/*
 https://data.vespa-cloud.com/*
 https://en.wikipedia.org/wiki/Discounted_cumulative_gain.*
 https://en.wikipedia.org/wiki/Evaluation_measures.*
+https://playground.twelvelabs.io/dashboard/api-key
