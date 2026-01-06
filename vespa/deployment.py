@@ -411,15 +411,21 @@ class VespaDocker(VespaDeployment):
         )
         self.wait_for_config_server_start(max_wait=max_wait_configserver)
 
-        with httpr.Client(verify=False) as client:
-            r = client.post(
-                "http://localhost:{}/application/v2/tenant/default/prepareandactivate".format(
-                    self.cfgsrv_port
-                ),
-                headers={"Content-Type": "application/zip"},
-                data=data,
-            )
-        logging.debug("Deploy status code: {}".format(r.status_code))
+        # Extract bytes from BytesIO if needed
+        data_bytes = data.getvalue() if isinstance(data, BytesIO) else data
+
+        try:
+            with httpr.Client(verify=False, timeout=120) as client:
+                r = client.post(
+                    "http://localhost:{}/application/v2/tenant/default/prepareandactivate".format(
+                        self.cfgsrv_port
+                    ),
+                    headers={"Content-Type": "application/zip"},
+                    content=data_bytes,  # Use content= for raw binary data
+                )
+            logging.debug("Deploy status code: {}".format(r.status_code))
+        except Exception as e:
+            raise RuntimeError(f"Deployment request failed: {str(e)}") from e
         if r.status_code != 200:
             raise RuntimeError(
                 "Deployment failed, code: {}, message: {}".format(
@@ -1350,7 +1356,7 @@ class VespaCloud(VespaDeployment):
                 response = client.request(method, full_url, json=data, headers=headers)
             elif content is not None:
                 response = client.request(
-                    method, full_url, data=content, headers=headers
+                    method, full_url, content=content, headers=headers
                 )
             else:
                 response = client.request(method, full_url, headers=headers)
