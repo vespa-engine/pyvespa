@@ -47,10 +47,10 @@ uv run pytest tests/perf/ -m perf -v
 
 ```bash
 # Run Ruff linter with auto-fix
-ruff check --fix
+uv run ruff check --fix
 
 # Run Ruff formatter
-ruff format
+uv run ruff format
 
 # Pre-commit will automatically run these on commit
 ```
