@@ -88,7 +88,7 @@ The `/vespa/` directory contains the main API:
 
 - **`configuration/`**: XML configuration generation using Jinja2 templates for services.xml, deployment.xml, and query profiles.
 
-- **`evaluation.py`**: Tools for evaluating search quality, running A/B tests, and measuring performance metrics.
+- **`evaluation.py`**: Tools for evaluating search quality, and measuring performance metrics.
 
 - **`models.py`**: Data models and type definitions used across the codebase.
 
