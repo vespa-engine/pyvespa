@@ -82,7 +82,7 @@ def raise_for_status(
     If the response contains an error message, `VespaError` is raised along with `HTTPError` to provide more details.
 
     Args:
-        response (Response): Response object from the Vespa API.
+        response (Response): Response object from the Vespa API (requests or httpr).
         raise_on_not_found (bool): If True, raises `HTTPError` if status_code is 404.
 
     Raises:
@@ -90,22 +90,52 @@ def raise_for_status(
         VespaError: If the response JSON contains an error message.
     """
 
-    try:
-        response.raise_for_status()
-    except HTTPError as http_error:
+    # Check if response has raise_for_status method (requests/httpx)
+    # or if we need to check manually (httpr)
+    has_error = False
+    http_error = None
+
+    if hasattr(response, "raise_for_status"):
+        # requests/httpx Response - use built-in method
+        try:
+            response.raise_for_status()
+            return  # No error, return early
+        except HTTPError as e:
+            has_error = True
+            http_error = e
+    else:
+        # httpr Response - check status code manually
+        if 400 <= response.status_code < 600:
+            has_error = True
+            # Try to format error message with JSON if available
+            try:
+                error_json = response.json()
+                http_error = HTTPError(
+                    f"HTTP {response.status_code}: {json.dumps(error_json)}"
+                )
+            except Exception:
+                # Fall back to text if JSON parsing fails
+                http_error = HTTPError(f"HTTP {response.status_code}: {response.text}")
+
+    if has_error:
+        # Handle 404 special case
+        if response.status_code == 404 and not raise_on_not_found:
+            return
+
+        # Try to extract error details from JSON
         try:
             response_json = response.json()
-            if response.status_code == 404 and not raise_on_not_found:
-                return
+            errors = response_json.get("root", {}).get("errors", [])
+            error_message = response_json.get("message", None)
+            if errors:
+                raise VespaError(errors) from http_error
+            if error_message:
+                raise VespaError(error_message) from http_error
         except JSONDecodeError:
-            raise http_error
-        errors = response_json.get("root", {}).get("errors", [])
-        error_message = response_json.get("message", None)
-        if errors:
-            raise VespaError(errors) from http_error
-        if error_message:
-            raise VespaError(error_message) from http_error
-        raise HTTPError(http_error) from http_error
+            # If we can't parse JSON, just raise the HTTP error
+            pass
+
+        raise http_error
 
 
 class Vespa(object):
@@ -320,7 +350,7 @@ class Vespa(object):
             session=Session(),
         )
         session = sync_layer._open_http_client()
-        sync_layer._owns_session = False
+        sync_layer._owns_client = False
         return session
 
     @staticmethod
@@ -394,7 +424,20 @@ class Vespa(object):
                 if response.status_code == 200:
                     print("Application is up!", file=self.output_file)
                     return
-            except ConnectionError:
+            except Exception as e:
+                # During startup, connection errors are expected
+                # Catch both requests.ConnectionError and httpr exceptions
+                error_str = str(e)
+                is_connection_error = (
+                    isinstance(e, ConnectionError)
+                    or "error sending request" in error_str.lower()
+                    or "connection" in error_str.lower()
+                    or type(e).__name__ == "RequestError"
+                )
+                if not is_connection_error:
+                    # If it's not a connection error, re-raise
+                    raise
+                # Otherwise, silently continue waiting
                 pass
 
             if wait_sec % 5 == 0:
@@ -418,7 +461,7 @@ class Vespa(object):
         """
         endpoint = f"{self.end_point}/ApplicationStatus"
         with self.syncio() as sync_sess:
-            response = sync_sess.http_session.get(endpoint)
+            response = sync_sess._request_with_retry("GET", endpoint)
         return response
 
     def get_model_endpoint(self, model_id: Optional[str] = None) -> Optional[Response]:
@@ -1464,13 +1507,32 @@ class VespaSync(object):
                     continue
 
                 return response
-            except ConnectionResetError:
-                if attempt < self.num_retries_429:
-                    print(f"ConnectionResetError on attempt {attempt}", file=sys.stderr)
+            except (ConnectionResetError, Exception) as e:
+                # Check if it's a connection/network error that should be retried
+                # This includes httpr.RequestError, httpr.ConnectError, ConnectionResetError, and other network errors
+                error_str = str(e)
+                is_connection_error = (
+                    isinstance(e, ConnectionResetError)
+                    or isinstance(e, (httpr.RequestError, httpr.ConnectError))
+                    or "error sending request" in error_str.lower()
+                    or "connection" in error_str.lower()
+                )
+
+                if is_connection_error and attempt < self.num_retries_429:
+                    print(
+                        f"Connection error on attempt {attempt}: {type(e).__name__}",
+                        file=sys.stderr,
+                    )
                     wait_time = 0.1 * 1.618**attempt + random.uniform(0, 1)
                     time.sleep(wait_time)
+                elif is_connection_error:
+                    print(
+                        f"Connection error on attempt {attempt}: {type(e).__name__}",
+                        file=sys.stderr,
+                    )
+                    raise
                 else:
-                    print(f"ConnectionResetError on attempt {attempt}", file=sys.stderr)
+                    # Not a connection error, re-raise immediately
                     raise
 
         return response
@@ -1538,9 +1600,20 @@ class VespaSync(object):
                 return response.json()
             else:
                 return {"status_code": response.status_code, "message": response.text}
-        except ConnectionError:
-            response = None
-        return response
+        except Exception as e:
+            # Catch both requests.ConnectionError and httpr exceptions
+            error_str = str(e)
+            is_connection_error = (
+                isinstance(e, ConnectionError)
+                or "error sending request" in error_str.lower()
+                or "connection" in error_str.lower()
+                or type(e).__name__ == "RequestError"
+            )
+            if is_connection_error:
+                return None
+            else:
+                raise
+        return None
 
     def predict(self, model_id, function_name, encoded_tokens):
         """
@@ -1568,9 +1641,20 @@ class VespaSync(object):
                     "body": response.json(),
                     "message": response.text,
                 }
-        except ConnectionError:
-            response = None
-        return response
+        except Exception as e:
+            # Catch both requests.ConnectionError and httpr exceptions
+            error_str = str(e)
+            is_connection_error = (
+                isinstance(e, ConnectionError)
+                or "error sending request" in error_str.lower()
+                or "connection" in error_str.lower()
+                or type(e).__name__ == "RequestError"
+            )
+            if is_connection_error:
+                return None
+            else:
+                raise
+        return None
 
     def feed_data_point(
         self,
@@ -1612,8 +1696,8 @@ class VespaSync(object):
         request_kwargs = {"params": kwargs}
 
         if extra_headers:
-            # Compressed body - use data parameter
-            request_kwargs["data"] = prepared_body
+            # Compressed body - use content parameter for raw bytes
+            request_kwargs["content"] = prepared_body
             request_kwargs["headers"] = extra_headers
         else:
             # Uncompressed - use json parameter
@@ -1667,8 +1751,8 @@ class VespaSync(object):
             request_kwargs = {"params": kwargs}
 
             if extra_headers:
-                # Compressed body - use data parameter
-                request_kwargs["data"] = prepared_body
+                # Compressed body - use content parameter for raw bytes
+                request_kwargs["content"] = prepared_body
                 request_kwargs["headers"] = extra_headers
             else:
                 # Uncompressed - use json parameter
@@ -1696,8 +1780,8 @@ class VespaSync(object):
         request_kwargs = {"params": kwargs}
 
         if extra_headers:
-            # Compressed body - use data parameter
-            request_kwargs["data"] = prepared_body
+            # Compressed body - use content parameter for raw bytes
+            request_kwargs["content"] = prepared_body
             request_kwargs["headers"] = extra_headers
         else:
             # Uncompressed - use json parameter
@@ -1869,7 +1953,7 @@ class VespaSync(object):
         @retry(retry=retry_if_exception_type(HTTPError), stop=stop_after_attempt(3))
         def visit_request(end_point: str, params: Dict[str, str]):
             r = self._request_with_retry("GET", end_point, params=params)
-            r.raise_for_status()
+            raise_for_status(r)
             return VespaVisitResponse(
                 json=r.json(), status_code=r.status_code, url=str(r.url)
             )
@@ -1993,8 +2077,8 @@ class VespaSync(object):
         request_kwargs = {"params": kwargs}
 
         if extra_headers:
-            # Compressed body - use data parameter
-            request_kwargs["data"] = prepared_body
+            # Compressed body - use content parameter for raw bytes
+            request_kwargs["content"] = prepared_body
             request_kwargs["headers"] = extra_headers
         else:
             # Uncompressed - use json parameter
@@ -2017,6 +2101,7 @@ class VespaAsync(object):
         connections: Optional[int] = 1,
         total_timeout: Optional[int] = None,
         timeout: Union[httpx.Timeout, int, float] = 30.0,
+        compress: Union[str, bool] = "auto",
         client: Optional[Union[httpx.AsyncClient, httpr.AsyncClient]] = None,
         **kwargs,
     ) -> None:
@@ -2084,6 +2169,7 @@ class VespaAsync(object):
             connections (Optional[int], optional): Number of connections. Defaults to 1 as HTTP/2 is multiplexed. (Note: httpr manages connection pooling automatically)
             total_timeout (int, optional): **Deprecated**. Will be ignored and removed in future versions.
             timeout (float, optional): Timeout in seconds for the `httpr.AsyncClient`. Defaults to 30 seconds.
+            compress (Union[str, bool], optional): Whether to compress the request body. Defaults to "auto", which will compress if the body is larger than 1024 bytes.
             client (httpr.AsyncClient, optional): An externally managed async client to reuse. When provided, the caller is responsible for closing it. Defaults to None.
             **kwargs: Additional arguments to be passed to the `httpr.AsyncClient`.
 
@@ -2119,6 +2205,14 @@ class VespaAsync(object):
 
         self.kwargs = kwargs
         self.headers = self.app.base_headers.copy()
+
+        # Initialize compression settings
+        if compress not in ["auto", True, False]:
+            raise ValueError(
+                f"compress must be 'auto', True, or False. Got {compress} instead."
+            )
+        self.compress = compress
+        self.compress_larger_than = 1024
 
         # Note: httpr manages connection pooling automatically, limits parameter is kept for compatibility but not used
         if "limits" in kwargs:
@@ -2237,6 +2331,53 @@ class VespaAsync(object):
                     file=sys.stderr,
                 )
 
+    def _prepare_request_body(self, method: str, json_data=None, data=None):
+        """
+        Prepare request body with optional compression.
+
+        Args:
+            method: HTTP method (POST, PUT, GET, DELETE, etc.)
+            json_data: JSON data to send
+            data: Raw data to send
+
+        Returns:
+            Tuple of (body_data, extra_headers)
+            - body_data: The data to send (could be original or compressed)
+            - extra_headers: Dict of additional headers to include
+        """
+        if method not in ["POST", "PUT"]:
+            return json_data, {}
+
+        # Determine body content
+        if json_data is not None:
+            body_bytes = json.dumps(json_data).encode("utf-8")
+            content_type = "application/json"
+        elif data is not None:
+            body_bytes = data if isinstance(data, bytes) else data.encode("utf-8")
+            content_type = "application/octet-stream"
+        else:
+            return json_data, {}
+
+        # Check if compression should be applied
+        should_compress = self.compress is True or (
+            self.compress == "auto" and len(body_bytes) > self.compress_larger_than
+        )
+
+        if should_compress:
+            # Compress the body
+            buf = BytesIO()
+            with gzip.GzipFile(fileobj=buf, mode="wb") as f:
+                f.write(body_bytes)
+            compressed_body = buf.getvalue()
+
+            # Return raw bytes and headers for httpr
+            return compressed_body, {
+                "Content-Encoding": "gzip",
+                "Content-Type": content_type,
+            }
+        else:
+            return json_data, {}
+
     async def _wait(f, args, **kwargs):
         tasks = [asyncio.create_task(f(*arg, **kwargs)) for arg in args]
         await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
@@ -2273,9 +2414,26 @@ class VespaAsync(object):
             kwargs["streaming.groupname"] = groupname
         if profile:
             kwargs.update(get_profiling_params())
-        r = await self.httpr_client.post(
-            self.app.search_end_point, json=body, params=kwargs
+
+        # Prepare request body with optional compression
+        prepared_body, extra_headers = self._prepare_request_body(
+            "POST", json_data=body
         )
+
+        if extra_headers:
+            # Compressed body - use content parameter for raw bytes
+            r = await self.httpr_client.post(
+                self.app.search_end_point,
+                content=prepared_body,
+                headers=extra_headers,
+                params=kwargs,
+            )
+        else:
+            # Uncompressed - use json parameter
+            r = await self.httpr_client.post(
+                self.app.search_end_point, json=prepared_body, params=kwargs
+            )
+
         return VespaQueryResponse(
             json=r.json(), status_code=r.status_code, url=str(r.url)
         )
@@ -2308,15 +2466,38 @@ class VespaAsync(object):
         )
         end_point = "{}{}".format(self.app.end_point, path)
         vespa_format = {"fields": fields}
+
+        # Prepare request body with optional compression
+        prepared_body, extra_headers = self._prepare_request_body(
+            "POST", json_data=vespa_format
+        )
+
         if semaphore:
             async with semaphore:
-                response = await self.httpr_client.post(
-                    end_point, json=vespa_format, params=kwargs
-                )
+                if extra_headers:
+                    response = await self.httpr_client.post(
+                        end_point,
+                        content=prepared_body,
+                        headers=extra_headers,
+                        params=kwargs,
+                    )
+                else:
+                    response = await self.httpr_client.post(
+                        end_point, json=prepared_body, params=kwargs
+                    )
         else:
-            response = await self.httpr_client.post(
-                end_point, json=vespa_format, params=kwargs
-            )
+            if extra_headers:
+                response = await self.httpr_client.post(
+                    end_point,
+                    content=prepared_body,
+                    headers=extra_headers,
+                    params=kwargs,
+                )
+            else:
+                response = await self.httpr_client.post(
+                    end_point, json=prepared_body, params=kwargs
+                )
+
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
@@ -2436,15 +2617,37 @@ class VespaAsync(object):
         else:
             # Can not send 'id' in fields for partial update
             vespa_format = {"fields": {k: v for k, v in fields.items() if k != "id"}}
+
+        # Prepare request body with optional compression
+        prepared_body, extra_headers = self._prepare_request_body(
+            "PUT", json_data=vespa_format
+        )
+
         if semaphore:
             async with semaphore:
-                response = await self.httpr_client.put(
-                    end_point, json=vespa_format, params=kwargs
-                )
+                if extra_headers:
+                    response = await self.httpr_client.put(
+                        end_point,
+                        content=prepared_body,
+                        headers=extra_headers,
+                        params=kwargs,
+                    )
+                else:
+                    response = await self.httpr_client.put(
+                        end_point, json=prepared_body, params=kwargs
+                    )
         else:
-            response = await self.httpr_client.put(
-                end_point, json=vespa_format, params=kwargs
-            )
+            if extra_headers:
+                response = await self.httpr_client.put(
+                    end_point,
+                    content=prepared_body,
+                    headers=extra_headers,
+                    params=kwargs,
+                )
+            else:
+                response = await self.httpr_client.put(
+                    end_point, json=prepared_body, params=kwargs
+                )
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
