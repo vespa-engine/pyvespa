@@ -1421,15 +1421,13 @@ class VespaCloud(VespaDeployment):
             return response
 
         try:
-            parsed = json.load(response)
+            parsed = response.json()
         except json.JSONDecodeError:
-            parsed = response.read()
+            parsed = response.text
 
         if response.status_code != 200:
             print(parsed)
-            raise HTTPError(
-                f"HTTP {response.status_code} error: {response.reason_phrase} for {path}"
-            )
+            raise HTTPError(f"HTTP {response.status_code} error for {path}: {parsed}")
         return parsed
 
     def _get_auth_headers(self, additional_headers: dict = {}) -> dict:
