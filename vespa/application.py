@@ -964,20 +964,10 @@ class Vespa(object):
             async def query_wrapper(query_body: Dict) -> VespaQueryResponse:
                 # Access semaphore dynamically to pick up throttler adjustments
                 async with throttler.semaphore if throttler else sem:
-                    try:
-                        response = await client.query(query_body, **query_kwargs)
-                        if throttler:
-                            await throttler.record_result(response.status_code)
-                        return response
-                    except HTTPError as e:
-                        if throttler:
-                            await throttler.record_result(e.response.status_code)
-                        return VespaQueryResponse(
-                            json=str(e),
-                            status_code=e.response.status_code,
-                            url=e.request.url,
-                            request_body=query_body,
-                        )
+                    response = await client.query(query_body, **query_kwargs)
+                    if throttler:
+                        await throttler.record_result(response.status_code)
+                    return response
 
             tasks = [query_wrapper(q) for q in queries]
             results = await asyncio.gather(*tasks)
