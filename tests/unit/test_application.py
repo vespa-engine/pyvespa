@@ -1043,12 +1043,11 @@ class TestVespaSyncStreaming(unittest.TestCase):
         mock_client_instance.get.return_value = status_response
 
         # Mock streaming response using iter_lines
+        # httpr's iter_lines returns strings, not bytes
         mock_stream = Mock()
         mock_stream.__enter__ = Mock(return_value=mock_stream)
         mock_stream.__exit__ = Mock(return_value=False)
-        mock_stream.iter_lines.return_value = [
-            line.encode("utf-8") for line in sse_data
-        ]
+        mock_stream.iter_lines.return_value = sse_data
 
         mock_client_instance.stream.return_value = mock_stream
 
