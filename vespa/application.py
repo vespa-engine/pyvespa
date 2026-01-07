@@ -1782,7 +1782,7 @@ class VespaSync(object):
         ) as stream:
             for line in stream.iter_lines():
                 if line:
-                    yield line.decode("utf-8")
+                    yield line
 
     def delete_data(
         self,
