@@ -617,7 +617,7 @@ class VespaCloud(VespaDeployment):
                     serialization.Encoding.PEM,
                     serialization.PublicFormat.SubjectPublicKeyInfo,
                 )
-            )
+            ).decode("UTF-8")
             self.control_plane_auth_method = "api_key"
             print(
                 "Api-key found for control plane access. Using api-key.",
@@ -1973,7 +1973,7 @@ class VespaCloud(VespaDeployment):
                 "X-Content-Hash": content_hash,
                 "X-Key-Id": self.tenant + ":" + self.application + ":" + instance,
                 "X-Key": self.api_public_key_bytes,
-                "X-Authorization": standard_b64encode(signature),
+                "X-Authorization": standard_b64encode(signature).decode("UTF-8"),
             }
         elif self.control_plane_auth_method == "access_token":
             headers = {
