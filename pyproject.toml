@@ -12,7 +12,7 @@ readme = "README.md"
 keywords = ["vespa", "search engine", "data science"]
 classifiers = ["License :: OSI Approved :: Apache Software License"]
 dependencies = [
-    "httpr",
+    "httpr>=0.2.9",
     "docker",
     "jinja2",
     "cryptography",
