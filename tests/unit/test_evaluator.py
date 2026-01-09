@@ -3364,13 +3364,19 @@ class TestVespaQueryBenchmarker(unittest.TestCase):
 
         app = MockVespaApp()
         benchmarker = VespaQueryBenchmarker(
-            [{"yql": "foo"}, {"yql": "foo"}, {"yql": "foo"}], app
+            [{"yql": "foo"}, {"yql": "foo"}, {"yql": "foo"}],
+            app,
+            max_concurrent=10,
+            time_limit=11000,
         )
         benchmark = benchmarker.run()
-        self.assertEqual(len(benchmark), 3)
-        self.assertAlmostEqual(benchmark[0], 3000, delta=250)
-        self.assertAlmostEqual(benchmark[1], 3000, delta=250)
-        self.assertAlmostEqual(benchmark[2], 3000, delta=250)
+        self.assertEqual(6, len(benchmark))
+        self.assertAlmostEqual(4000, benchmark[0], delta=250)
+        self.assertAlmostEqual(2000, benchmark[1], delta=250)
+        self.assertAlmostEqual(4000, benchmark[2], delta=250)
+        self.assertAlmostEqual(2000, benchmark[3], delta=250)
+        self.assertAlmostEqual(4000, benchmark[4], delta=250)
+        self.assertAlmostEqual(2000, benchmark[5], delta=250)
 
 
 class TestVespaNNParameterOptimizer(unittest.TestCase):

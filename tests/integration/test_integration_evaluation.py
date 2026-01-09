@@ -1306,7 +1306,12 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
 
         print("Constructing optimizer object")
         optimizer = VespaNNParameterOptimizer(
-            self.app, queries, 100, print_progress=True
+            self.app,
+            queries,
+            100,
+            print_progress=True,
+            benchmark_time_limit=1000,
+            recall_query_limit=10,
         )
 
         print("Running optimizer")
