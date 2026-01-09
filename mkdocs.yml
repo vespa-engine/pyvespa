@@ -53,6 +53,7 @@ nav:
   - Read and write operations: reads-writes.ipynb
   - Evaluating a Vespa Application: evaluating-vespa-application-cloud.ipynb
   - Troubleshooting: troubleshooting.md
+  - ANN Parameter Tuning: ann-parameters.md
   - Examples: /examples/*
   - API Reference: 
       - Summary: api/summary.md
