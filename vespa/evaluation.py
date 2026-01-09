@@ -2012,10 +2012,6 @@ class VespaQueryBenchmarker:
 
         current_chunk = 0
         while time_taken < time_limit:
-            current_chunk = (current_chunk + 1) % len(self.query_chunks)
-
-            # Currently just running one query at a time
-            # Maybe group this into small chunks?
             _, response_times = execute_queries(
                 self.app,
                 self.query_chunks[current_chunk],
@@ -2027,6 +2023,8 @@ class VespaQueryBenchmarker:
             time_taken += max(
                 sum(response_times_ms), 1
             )  # At least add something in every iteration
+
+            current_chunk = (current_chunk + 1) % len(self.query_chunks)
 
         return all_response_times
 
