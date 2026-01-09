@@ -1869,7 +1869,12 @@ class VespaNNRecallEvaluator:
     """
 
     def __init__(
-        self, queries: Sequence[Mapping[str, Any]], hits: int, app: Vespa, query_limit: int = 20, **kwargs
+        self,
+        queries: Sequence[Mapping[str, Any]],
+        hits: int,
+        app: Vespa,
+        query_limit: int = 20,
+        **kwargs,
     ):
         self.queries = queries
         self.hits = hits
@@ -1927,12 +1932,18 @@ class VespaNNRecallEvaluator:
         query_parameters_exact = dict(query_parameters, **VespaNNParameters.EXACT)
 
         queries_with_parameters_exact = list(
-            map(lambda query: dict(query, **query_parameters_exact), self.queries[0:self.query_limit])
+            map(
+                lambda query: dict(query, **query_parameters_exact),
+                self.queries[0 : self.query_limit],
+            )
         )
         responses_exact, _ = execute_queries(self.app, queries_with_parameters_exact)
 
         queries_with_parameters = list(
-            map(lambda query: dict(query, **query_parameters), self.queries[0:self.query_limit])
+            map(
+                lambda query: dict(query, **query_parameters),
+                self.queries[0 : self.query_limit],
+            )
         )
         responses, _ = execute_queries(self.app, queries_with_parameters)
 
@@ -1984,7 +1995,10 @@ class VespaQueryBenchmarker:
                 self.queries,
             )
         )
-        self.query_chunks = [self.queries_with_parameters[x:x + self.max_concurrent] for x in range(0, len(self.queries_with_parameters), self.max_concurrent)]
+        self.query_chunks = [
+            self.queries_with_parameters[x : x + self.max_concurrent]
+            for x in range(0, len(self.queries_with_parameters), self.max_concurrent)
+        ]
 
     def _run_benchmark(self, time_limit) -> List[float]:
         """
@@ -2003,12 +2017,16 @@ class VespaQueryBenchmarker:
             # Currently just running one query at a time
             # Maybe group this into small chunks?
             _, response_times = execute_queries(
-                self.app, self.query_chunks[current_chunk], max_concurrent=self.max_concurrent
+                self.app,
+                self.query_chunks[current_chunk],
+                max_concurrent=self.max_concurrent,
             )
 
             response_times_ms = list(map(lambda x: 1000 * x, response_times))
             all_response_times.extend(response_times_ms)
-            time_taken += max(sum(response_times_ms), 1) # At least add something in every iteration
+            time_taken += max(
+                sum(response_times_ms), 1
+            )  # At least add something in every iteration
 
         return all_response_times
 
@@ -2024,6 +2042,7 @@ class VespaQueryBenchmarker:
 
         # Actual benchmark
         return self._run_benchmark(self.time_limit)
+
 
 class BucketedMetricResults:
     """
@@ -2450,7 +2469,11 @@ class VespaNNParameterOptimizer:
                     )
                 processed_buckets += 1
                 benchmarker = VespaQueryBenchmarker(
-                    bucket, self.app, time_limit=self.benchmark_time_limit, max_concurrent=self.max_concurrent, **kwargs
+                    bucket,
+                    self.app,
+                    time_limit=self.benchmark_time_limit,
+                    max_concurrent=self.max_concurrent,
+                    **kwargs,
                 )
                 response_times = benchmarker.run()
                 results.append(response_times)

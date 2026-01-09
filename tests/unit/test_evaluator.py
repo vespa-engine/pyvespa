@@ -3364,7 +3364,10 @@ class TestVespaQueryBenchmarker(unittest.TestCase):
 
         app = MockVespaApp()
         benchmarker = VespaQueryBenchmarker(
-            [{"yql": "foo"}, {"yql": "foo"}, {"yql": "foo"}], app, max_concurrent=10, time_limit=11000
+            [{"yql": "foo"}, {"yql": "foo"}, {"yql": "foo"}],
+            app,
+            max_concurrent=10,
+            time_limit=11000,
         )
         benchmark = benchmarker.run()
         self.assertEqual(6, len(benchmark))
