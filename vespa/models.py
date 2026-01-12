@@ -550,7 +550,7 @@ def create_semantic_rank_profile(
         # For binarized embeddings with hamming distance, normalize similarity to [0, 1]
         # where 1 = identical vectors, 0 = all bits differ.
         # 768.0 is the max hamming distance (96 int8s * 8 bits)
-        #expression: 1 - (distance(field, my_embedding) / 768.0)
+        # expression: 1 - (distance(field, my_embedding) / 768.0)
         max_distance = config.embedding_dim
         similarity_expr = f"1 - (distance(field, {embedding_field}) / {max_distance})"
     else:
@@ -613,7 +613,7 @@ def create_hybrid_rank_profile(
         # For binarized embeddings with hamming distance, normalize similarity to [0, 1]
         # where 1 = identical vectors, 0 = all bits differ.
         # 768.0 is the max hamming distance (96 int8s * 8 bits)
-        #expression: 1 - (distance(field, my_embedding) / 768.0)
+        # expression: 1 - (distance(field, my_embedding) / 768.0)
         max_distance = config.embedding_dim
         closeness_expr = f"1 - (distance(field, {embedding_field}) / {max_distance})"
     else:
@@ -801,7 +801,6 @@ HF_MODELS: Dict[str, ModelConfig] = {
         query_prepend="query: ",
         document_prepend="passage: ",
     ),
-
     "embeddinggemma-300m": ModelConfig(
         model_id="embeddinggemma-300m",
         embedding_dim=768,
@@ -810,6 +809,7 @@ HF_MODELS: Dict[str, ModelConfig] = {
         distance_metric="angular",
         model_url="https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX/resolve/main/onnx/model_fp16.onnx",
         tokenizer_url="https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX/resolve/main/tokenizer.json",
+        max_tokens=2048,
         query_prepend="task: search result | query: ",
         document_prepend="title: none | text: ",
     ),
@@ -901,19 +901,19 @@ HF_MODELS: Dict[str, ModelConfig] = {
         normalize=True,
     ),
     "snowflake-arctic-embed-m-v2.0-int8": ModelConfig(
-            model_id="snowflake-arctic-embed-m-v2.0-int8",
-            embedding_dim=768,
-            binarized=False,
-            embedding_field_type="float",
-            distance_metric="angular",
-            model_url="https://huggingface.co/Snowflake/snowflake-arctic-embed-m-v2.0/resolve/main/onnx/model_int8.onnx",
-            tokenizer_url="https://huggingface.co/Snowflake/snowflake-arctic-embed-m-v2.0/resolve/main/tokenizer.json",
-            max_tokens=8192,
-            transformer_output="token_embeddings",
-            query_prepend="query: ",
-            pooling_strategy="cls",
-            normalize=True,
-        )
+        model_id="snowflake-arctic-embed-m-v2.0-int8",
+        embedding_dim=768,
+        binarized=False,
+        embedding_field_type="float",
+        distance_metric="angular",
+        model_url="https://huggingface.co/Snowflake/snowflake-arctic-embed-m-v2.0/resolve/main/onnx/model_int8.onnx",
+        tokenizer_url="https://huggingface.co/Snowflake/snowflake-arctic-embed-m-v2.0/resolve/main/tokenizer.json",
+        max_tokens=8192,
+        transformer_output="token_embeddings",
+        query_prepend="query: ",
+        pooling_strategy="cls",
+        normalize=True,
+    ),
 }
 
 
