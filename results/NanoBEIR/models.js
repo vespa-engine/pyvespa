@@ -6,6 +6,7 @@ const models = [
         "modelId": "lightonai-modernbert-large",
         "params": "TODO",
         "maxDim": 1024,
+        "contextLength": 8192,
         "dimensions": {
             "float": [
                 1024
@@ -99,6 +100,7 @@ const models = [
         "modelId": "e5-base-v2",
         "params": "TODO",
         "maxDim": 768,
+        "contextLength": 512,
         "dimensions": {
             "float": [
                 768
@@ -192,6 +194,7 @@ const models = [
         "modelId": "nomic-ai-modernbert",
         "params": "TODO",
         "maxDim": 768,
+        "contextLength": 8192,
         "dimensions": {
             "float": [
                 768
@@ -285,6 +288,7 @@ const models = [
         "modelId": "alibaba-gte-modernbert-int8",
         "params": "TODO",
         "maxDim": 768,
+        "contextLength": 8192,
         "dimensions": {
             "float": [
                 768
@@ -378,6 +382,7 @@ const models = [
         "modelId": "e5-small-v2",
         "params": "TODO",
         "maxDim": 384,
+        "contextLength": 512,
         "dimensions": {
             "float": [
                 384
@@ -471,6 +476,7 @@ const models = [
         "modelId": "e5-large-v2",
         "params": "TODO",
         "maxDim": 1024,
+        "contextLength": 512,
         "dimensions": {
             "float": [
                 1024
@@ -564,6 +570,7 @@ const models = [
         "modelId": "embeddinggemma-300m-q4",
         "params": "TODO",
         "maxDim": 768,
+        "contextLength": 2048,
         "dimensions": {
             "float": [
                 768,
@@ -670,6 +677,7 @@ const models = [
         "modelId": "alibaba-gte-modernbert",
         "params": "TODO",
         "maxDim": 768,
+        "contextLength": 8192,
         "dimensions": {
             "float": [
                 768
@@ -763,6 +771,7 @@ const models = [
         "modelId": "snowflake-arctic-embed-m-v2.0",
         "params": "TODO",
         "maxDim": 768,
+        "contextLength": 8192,
         "dimensions": {
             "float": [
                 768
@@ -856,6 +865,7 @@ const models = [
         "modelId": "multilingual-e5-base",
         "params": "TODO",
         "maxDim": 768,
+        "contextLength": 512,
         "dimensions": {
             "float": [
                 768
@@ -949,6 +959,7 @@ const models = [
         "modelId": "lightonai-modernbert-large-int8",
         "params": "TODO",
         "maxDim": 1024,
+        "contextLength": 8192,
         "dimensions": {
             "float": [
                 1024
@@ -1042,6 +1053,7 @@ const models = [
         "modelId": "nomic-ai-modernbert-int8",
         "params": "TODO",
         "maxDim": 768,
+        "contextLength": 8192,
         "dimensions": {
             "float": [
                 768
@@ -1135,6 +1147,7 @@ const models = [
         "modelId": "snowflake-arctic-embed-m-v2.0-int8",
         "params": "TODO",
         "maxDim": 768,
+        "contextLength": 8192,
         "dimensions": {
             "float": [
                 768
@@ -1228,6 +1241,7 @@ const models = [
         "modelId": "embeddinggemma-300m",
         "params": "TODO",
         "maxDim": 768,
+        "contextLength": 2048,
         "dimensions": {
             "float": [
                 768,
@@ -1351,6 +1365,7 @@ const models = [
         "modelId": "vespa-bm25",
         "params": "N/A",
         "maxDim": null,
+        "contextLength": null,
         "speeds": {
             "t4": 0,
             "c7g": 0

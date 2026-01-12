@@ -321,6 +321,13 @@
                                 </div>
                             ) : '-'}
                         </td>
+                        <td className="p-4 text-center text-gray-400 font-mono text-sm">
+                            {model.contextLength ? (
+                                <div className="flex flex-col items-center">
+                                    <span>{model.contextLength.toLocaleString()}</span>
+                                </div>
+                            ) : '-'}
+                        </td>
                         <td className="p-4 text-right font-mono text-white text-sm">
                             {queryLatency > 0 ? queryLatency.toFixed(1) : '-'}
                         </td>
@@ -348,7 +355,7 @@
                     
                     {/* Expanded Row Content */}
                     <tr>
-                        <td colSpan="8" className="p-0 border-b border-gray-800">
+                        <td colSpan="9" className="p-0 border-b border-gray-800">
                             <div className={`expand-row bg-[#0d1117] ${expanded ? 'open' : ''}`}>
                                 <div className="p-6 pl-12">
                                     <h4 className="text-xs uppercase tracking-wider text-gray-500 mb-4 font-semibold">
@@ -561,6 +568,7 @@
                                     <th className="p-4 font-medium w-1/3 text-white">Model Name</th>
                                     <th className="p-4 font-medium text-center">Dim</th>
                                     <th className="p-4 font-medium text-center">Size</th>
+                                    <th className="p-4 font-medium text-center">Context</th>
                                     <th className="p-4 font-medium w-32 text-right">
                                         Query Latency
                                         <div className="normal-case text-[10px] text-gray-500">Avg (ms)</div>
@@ -627,6 +635,7 @@
                                                     </div>
                                                 </div>
                                             </td>
+                                            <td className="p-4 text-center text-gray-500">-</td>
                                             <td className="p-4 text-center text-gray-500">-</td>
                                             <td className="p-4 text-center text-gray-500">-</td>
                                             <td className="p-4 text-gray-500 text-right">-</td>
