@@ -190,6 +190,7 @@ def process_benchmark_data(file_pattern, benchmark_pattern):
             print(f"  WARNING [{file_path}]: No model_configs found, skipping")
             continue
         primary_model_id = configs[0].get("model_id", "unknown")
+        max_tokens = configs[0].get("max_tokens")
         print(f"  Processing model: {primary_model_id}")
 
         for task_name, task_results in results.items():
@@ -247,6 +248,8 @@ def process_benchmark_data(file_pattern, benchmark_pattern):
                     models_data[raw_model_id]["_binary_supported"] = True
                 if dtype == "bfloat16":
                     models_data[raw_model_id]["_bfloat16_supported"] = True
+                if max_tokens is not None:
+                    models_data[raw_model_id]["_max_tokens"] = max_tokens
 
     # --- Formatting Output ---
     output_list = []
@@ -350,6 +353,7 @@ def process_benchmark_data(file_pattern, benchmark_pattern):
             "modelId": hf_id,
             "params": "TODO",  # Not available in result JSONs
             "maxDim": max_dim,
+            "contextLength": variants.get("_max_tokens"),
             "dimensions": {
                 "float": all_float_dims,
                 "bfloat16": all_bfloat16_dims,
@@ -374,6 +378,7 @@ def process_benchmark_data(file_pattern, benchmark_pattern):
             "modelId": "vespa-bm25",
             "params": "N/A",
             "maxDim": None,
+            "contextLength": None,
             "speeds": {
                 "t4": 0,
                 "c7g": 0,
