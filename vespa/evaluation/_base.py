@@ -1864,15 +1864,22 @@ class VespaNNRecallEvaluator:
         queries (Sequence[Mapping[str, Any]]): List of ANN queries.
         hits (int): Number of hits to use. Should match the parameter targetHits in the used ANN queries.
         app (Vespa): An instance of the Vespa application.
+        query_limit (int): Maximum number of queries to determine the recall for. Defaults to 20.
         **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
     """
 
     def __init__(
-        self, queries: Sequence[Mapping[str, Any]], hits: int, app: Vespa, **kwargs
+        self,
+        queries: Sequence[Mapping[str, Any]],
+        hits: int,
+        app: Vespa,
+        query_limit: int = 20,
+        **kwargs,
     ):
         self.queries = queries
         self.hits = hits
         self.app = app
+        self.query_limit = query_limit
         self.parameters = kwargs
 
     def _compute_recall(
@@ -1925,12 +1932,18 @@ class VespaNNRecallEvaluator:
         query_parameters_exact = dict(query_parameters, **VespaNNParameters.EXACT)
 
         queries_with_parameters_exact = list(
-            map(lambda query: dict(query, **query_parameters_exact), self.queries)
+            map(
+                lambda query: dict(query, **query_parameters_exact),
+                self.queries[0 : self.query_limit],
+            )
         )
         responses_exact, _ = execute_queries(self.app, queries_with_parameters_exact)
 
         queries_with_parameters = list(
-            map(lambda query: dict(query, **query_parameters), self.queries)
+            map(
+                lambda query: dict(query, **query_parameters),
+                self.queries[0 : self.query_limit],
+            )
         )
         responses, _ = execute_queries(self.app, queries_with_parameters)
 
@@ -1950,13 +1963,13 @@ class VespaQueryBenchmarker:
     This class:
 
     - Takes a list of queries.
-    - Runs the queries multiple times.
+    - Runs the queries for the given amount of time.
     - Determines the average searchtime of these runs.
 
     Args:
         queries (Sequence[Mapping[str, Any]]): List of queries.
         app (Vespa): An instance of the Vespa application.
-        repetitions (int, optional): Number of times to repeat the queries.
+        time_limit(int, optional): Time to run the benchmark for (in milliseconds).
         **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
     """
 
@@ -1964,24 +1977,17 @@ class VespaQueryBenchmarker:
         self,
         queries: Sequence[Mapping[str, Any]],
         app: Vespa,
-        repetitions: int = 10,
+        time_limit: int = 2000,
         max_concurrent: int = 10,
         **kwargs,
     ):
         self.queries = queries
         self.app = app
-        self.repetitions = repetitions
+        self.time_limit = time_limit
         self.max_concurrent = max_concurrent
         self.parameters = kwargs
 
-    def _run_benchmark(self) -> List[float]:
-        """
-        Run all queries once and extract the searchtime.
-
-        Returns:
-            List[float]: List of searchtimes, corresponding to the supplied queries.
-        """
-        queries_with_parameters = list(
+        self.queries_with_parameters = list(
             map(
                 lambda query: dict(
                     query, **self.parameters, **{"presentation.timing": True}
@@ -1989,10 +1995,38 @@ class VespaQueryBenchmarker:
                 self.queries,
             )
         )
-        _, response_times = execute_queries(
-            self.app, queries_with_parameters, max_concurrent=self.max_concurrent
-        )
-        return response_times
+        self.query_chunks = [
+            self.queries_with_parameters[x : x + self.max_concurrent]
+            for x in range(0, len(self.queries_with_parameters), self.max_concurrent)
+        ]
+
+    def _run_benchmark(self, time_limit) -> List[float]:
+        """
+        Run all queries once and extract the searchtime.
+
+        Returns:
+            List[float]: List of searchtimes, corresponding to the supplied queries.
+        """
+        all_response_times = []
+        time_taken = 0
+
+        current_chunk = 0
+        while time_taken < time_limit:
+            _, response_times = execute_queries(
+                self.app,
+                self.query_chunks[current_chunk],
+                max_concurrent=self.max_concurrent,
+            )
+
+            response_times_ms = list(map(lambda x: 1000 * x, response_times))
+            all_response_times.extend(response_times_ms)
+            time_taken += max(
+                sum(response_times_ms), 1
+            )  # At least add something in every iteration
+
+            current_chunk = (current_chunk + 1) % len(self.query_chunks)
+
+        return all_response_times
 
     def run(self) -> List[float]:
         """
@@ -2001,23 +2035,11 @@ class VespaQueryBenchmarker:
         Returns:
             List[float]: List of searchtimes, corresponding to the supplied queries.
         """
-        # Two warmup runs
-        for i in range(0, self.repetitions):
-            self._run_benchmark()
+        # Warmup run for 100ms
+        _ = self._run_benchmark(100)
 
-        # Actual benchmark runs
-        response_times_sum = [0] * len(self.queries)
-        for i in range(0, self.repetitions):
-            response_times = self._run_benchmark()
-            response_times_ms = list(map(lambda x: 1000 * x, response_times))
-            response_times_sum = list(
-                map(
-                    lambda pair: pair[0] + pair[1],
-                    zip(response_times_sum, response_times_ms),
-                )
-            )
-
-        return list(map(lambda x: x / self.repetitions, response_times_sum))
+        # Actual benchmark
+        return self._run_benchmark(self.time_limit)
 
 
 class BucketedMetricResults:
@@ -2100,6 +2122,9 @@ class VespaNNParameterOptimizer:
         hits (int): Number of hits to use in recall computations. Has to match the parameter targetHits in the used ANN queries.
         buckets_per_percent (int, optional): How many buckets are created for every percent point, "resolution" of the suggestions. Defaults to 2.
         print_progress (bool, optional): Whether to print progress information while determining suggestions. Defaults to False.
+        benchmark_time_limit (int): Time in milliseconds to spend per bucket benchmark. Defaults to 5000.
+        recall_query_limit(int): Number of queries per bucket to compute the recall for. Defaults to 20.
+        max_concurrent(int): Number of queries to execute concurrently during benchmark/recall calculation. Defaults to 10.
     """
 
     def __init__(
@@ -2109,6 +2134,8 @@ class VespaNNParameterOptimizer:
         hits: int,
         buckets_per_percent: int = 2,
         print_progress: bool = False,
+        benchmark_time_limit: int = 5000,
+        recall_query_limit: int = 20,
         max_concurrent: int = 10,
     ):
         self.app = app
@@ -2120,6 +2147,8 @@ class VespaNNParameterOptimizer:
         self.buckets = [[] for _ in range(100 * buckets_per_percent)]
 
         self.print_progress = print_progress
+        self.benchmark_time_limit = benchmark_time_limit
+        self.recall_query_limit = recall_query_limit
         self.max_concurrent = max_concurrent
 
     def get_bucket_interval_width(self) -> float:
@@ -2438,7 +2467,11 @@ class VespaNNParameterOptimizer:
                     )
                 processed_buckets += 1
                 benchmarker = VespaQueryBenchmarker(
-                    bucket, self.app, max_concurrent=self.max_concurrent, **kwargs
+                    bucket,
+                    self.app,
+                    time_limit=self.benchmark_time_limit,
+                    max_concurrent=self.max_concurrent,
+                    **kwargs,
                 )
                 response_times = benchmarker.run()
                 results.append(response_times)
@@ -2479,7 +2512,7 @@ class VespaNNParameterOptimizer:
                         end="",
                     )
                 recall_evaluator = VespaNNRecallEvaluator(
-                    bucket, self.hits, self.app, **kwargs
+                    bucket, self.hits, self.app, self.recall_query_limit, **kwargs
                 )
                 recall_list = recall_evaluator.run()
                 results.append(recall_list)
