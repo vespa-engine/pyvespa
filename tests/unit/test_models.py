@@ -1,8 +1,11 @@
+import warnings
+
 import pytest
 
 from vespa.configuration.vt import compare_xml
 from vespa.models import (
     COMMON_MODELS,
+    HF_MODELS,
     ModelConfig,
     create_embedder_component,
     create_embedding_field,
@@ -41,11 +44,14 @@ class TestModelConfig:
 
     def test_config_binarized(self):
         """Test binarized model configuration."""
-        config = ModelConfig(
-            model_id="bge-m3",
-            embedding_dim=1024,
-            binarized=True,
-        )
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            config = ModelConfig(
+                model_id="bge-m3",
+                embedding_dim=1024,
+                binarized=True,
+            )
         assert config.binarized is True
 
     def test_config_with_paths(self):
@@ -63,12 +69,18 @@ class TestModelConfig:
         """Test configuration with URLs."""
         config = ModelConfig(
             model_id="url-model",
-            embedding_dim=768,
-            model_url="https://example.com/model.onnx",
-            tokenizer_url="https://example.com/tokenizer.json",
+            embedding_dim=384,
+            model_url="https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/e5-small-v2-int8.onnx",
+            tokenizer_url="https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/tokenizer.json",
         )
-        assert config.model_url == "https://example.com/model.onnx"
-        assert config.tokenizer_url == "https://example.com/tokenizer.json"
+        assert (
+            config.model_url
+            == "https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/e5-small-v2-int8.onnx"
+        )
+        assert (
+            config.tokenizer_url
+            == "https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/tokenizer.json"
+        )
 
     def test_config_with_explicit_parameters(self):
         """Test configuration with explicit huggingface embedder parameters."""
@@ -117,34 +129,39 @@ class TestModelConfig:
 
     def test_binarized_dimension_validation(self):
         """Test that binarized embeddings require dimension divisible by 8."""
-        # Valid binarized dimensions (divisible by 8)
-        config = ModelConfig(model_id="test", embedding_dim=1024, binarized=True)
-        assert config.embedding_dim == 1024
 
-        config = ModelConfig(model_id="test", embedding_dim=768, binarized=True)
-        assert config.embedding_dim == 768
+        # Valid binarized dimensions (divisible by 8)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            config = ModelConfig(model_id="test", embedding_dim=1024, binarized=True)
+            assert config.embedding_dim == 1024
+
+            config = ModelConfig(model_id="test", embedding_dim=768, binarized=True)
+            assert config.embedding_dim == 768
 
         # Invalid binarized dimensions (not divisible by 8)
-        with pytest.raises(
-            ValueError,
-            match="binarized embeddings require embedding_dim divisible by 8",
-        ):
-            ModelConfig(model_id="test", embedding_dim=1023, binarized=True)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            with pytest.raises(
+                ValueError,
+                match="binarized embeddings require embedding_dim divisible by 8",
+            ):
+                ModelConfig(model_id="test", embedding_dim=1023, binarized=True)
 
-        with pytest.raises(
-            ValueError,
-            match="binarized embeddings require embedding_dim divisible by 8",
-        ):
-            ModelConfig(model_id="test", embedding_dim=385, binarized=True)
+            with pytest.raises(
+                ValueError,
+                match="binarized embeddings require embedding_dim divisible by 8",
+            ):
+                ModelConfig(model_id="test", embedding_dim=385, binarized=True)
 
         # Non-binarized embeddings can have any positive dimension
         config = ModelConfig(model_id="test", embedding_dim=385, binarized=False)
         assert config.embedding_dim == 385
 
     def test_embedding_field_type_default(self):
-        """Test that default embedding field type is bfloat16."""
+        """Test that default embedding field type is float."""
         config = ModelConfig(model_id="test", embedding_dim=384)
-        assert config.embedding_field_type == "bfloat16"
+        assert config.embedding_field_type == "float"
 
     def test_embedding_field_type_options(self):
         """Test different embedding field type options."""
@@ -174,22 +191,25 @@ class TestModelConfig:
 
     def test_binarized_overrides_embedding_field_type(self):
         """Test that binarized=True overrides embedding_field_type to int8."""
-        config = ModelConfig(
-            model_id="test",
-            embedding_dim=1024,
-            binarized=True,
-            embedding_field_type="float",
-        )
-        # Should be overridden to int8
-        assert config.embedding_field_type == "int8"
 
-        config = ModelConfig(
-            model_id="test",
-            embedding_dim=1024,
-            binarized=True,
-            embedding_field_type="bfloat16",
-        )
-        assert config.embedding_field_type == "int8"
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            config = ModelConfig(
+                model_id="test",
+                embedding_dim=1024,
+                binarized=True,
+                embedding_field_type="float",
+            )
+            # Should be overridden to int8
+            assert config.embedding_field_type == "int8"
+
+            config = ModelConfig(
+                model_id="test",
+                embedding_dim=1024,
+                binarized=True,
+                embedding_field_type="bfloat16",
+            )
+            assert config.embedding_field_type == "int8"
 
     def test_embedding_field_type_validation(self):
         """Test that invalid embedding field type raises error."""
@@ -217,12 +237,14 @@ class TestModelConfig:
 
     def test_distance_metric_binarized_default_hamming(self):
         """Test that binarized embeddings default to hamming distance."""
-        config = ModelConfig(model_id="test", embedding_dim=1024, binarized=True)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            config = ModelConfig(model_id="test", embedding_dim=1024, binarized=True)
         assert config.distance_metric == "hamming"
 
     def test_distance_metric_binarized_overrides_to_hamming(self):
         """Test that binarized=True overrides distance_metric to hamming with warning."""
-        import warnings
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -234,11 +256,59 @@ class TestModelConfig:
             )
             # Should be overridden to hamming
             assert config.distance_metric == "hamming"
-            # Should have raised a warning
-            assert len(w) == 1
-            assert "binarized embeddings require 'hamming' distance metric" in str(
-                w[0].message
+            # Should have raised warnings (one for embedding_field_type, one for distance_metric)
+            assert len(w) == 2
+            warning_messages = [str(warning.message) for warning in w]
+            assert any(
+                "binarized embeddings require 'hamming' distance_metric" in msg
+                for msg in warning_messages
             )
+
+    def test_config_hash_generated(self):
+        """Test that config_hash is generated automatically."""
+        config = ModelConfig(model_id="test-model", embedding_dim=384)
+        assert config.config_hash is not None
+        assert len(config.config_hash) == 64  # SHA-256 hex string length
+
+    def test_config_hash_deterministic(self):
+        """Test that same configuration produces same hash."""
+        config1 = ModelConfig(model_id="e5-small-v2", embedding_dim=384)
+        config2 = ModelConfig(model_id="e5-small-v2", embedding_dim=384)
+        assert config1.config_hash == config2.config_hash
+
+    def test_config_hash_differs_for_different_configs(self):
+        """Test that different configurations produce different hashes."""
+
+        config1 = ModelConfig(model_id="e5-small-v2", embedding_dim=384)
+        config2 = ModelConfig(model_id="e5-small-v2", embedding_dim=768)
+        config3 = ModelConfig(model_id="e5-base-v2", embedding_dim=384)
+        # Suppress expected warning for binarized config
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            config4 = ModelConfig(
+                model_id="e5-small-v2", embedding_dim=384, binarized=True
+            )
+
+        # All hashes should be different
+        hashes = {
+            config1.config_hash,
+            config2.config_hash,
+            config3.config_hash,
+            config4.config_hash,
+        }
+        assert len(hashes) == 4
+
+    def test_config_hash_differs_for_optional_params(self):
+        """Test that optional parameters affect the hash."""
+        config1 = ModelConfig(model_id="test", embedding_dim=384)
+        config2 = ModelConfig(
+            model_id="test", embedding_dim=384, query_prepend="query: "
+        )
+        config3 = ModelConfig(model_id="test", embedding_dim=384, max_tokens=512)
+
+        assert config1.config_hash != config2.config_hash
+        assert config1.config_hash != config3.config_hash
+        assert config2.config_hash != config3.config_hash
 
 
 class TestCreateEmbedderComponent:
@@ -279,17 +349,17 @@ class TestCreateEmbedderComponent:
         """Test component creation with URLs."""
         config = ModelConfig(
             model_id="url-model",
-            embedding_dim=768,
-            model_url="https://huggingface.co/model.onnx",
-            tokenizer_url="https://huggingface.co/tokenizer.json",
+            embedding_dim=384,
+            model_url="https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/e5-small-v2-int8.onnx",
+            tokenizer_url="https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/tokenizer.json",
         )
         component = create_embedder_component(config)
 
         assert component.parameters[0].args == {
-            "url": "https://huggingface.co/model.onnx"
+            "url": "https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/e5-small-v2-int8.onnx"
         }
         assert component.parameters[1].args == {
-            "url": "https://huggingface.co/tokenizer.json"
+            "url": "https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/tokenizer.json"
         }
 
     def test_component_with_explicit_parameters(self):
@@ -319,9 +389,9 @@ class TestCreateEmbedderComponent:
         """Test component creation with prepend parameters."""
         config = ModelConfig(
             model_id="prepend-model",
-            embedding_dim=768,
-            model_url="https://example.com/model.onnx",
-            tokenizer_url="https://example.com/tokenizer.json",
+            embedding_dim=384,
+            model_url="https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/e5-small-v2-int8.onnx",
+            tokenizer_url="https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/tokenizer.json",
             query_prepend="Represent this sentence for searching relevant passages: ",
             document_prepend="passage: ",
         )
@@ -363,16 +433,18 @@ class TestCreateEmbedderComponent:
             model_id="test-model",
             embedding_dim=384,
             model_path="/path/to/model.onnx",
-            model_url="https://example.com/model.onnx",
+            model_url="https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/e5-small-v2-int8.onnx",
             tokenizer_path="/path/to/tokenizer.json",
-            tokenizer_url="https://example.com/tokenizer.json",
+            tokenizer_url="https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/tokenizer.json",
         )
         component = create_embedder_component(config)
 
         # URLs should take priority
-        assert component.parameters[0].args == {"url": "https://example.com/model.onnx"}
+        assert component.parameters[0].args == {
+            "url": "https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/e5-small-v2-int8.onnx"
+        }
         assert component.parameters[1].args == {
-            "url": "https://example.com/tokenizer.json"
+            "url": "https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/tokenizer.json"
         }
 
 
@@ -380,7 +452,7 @@ class TestCreateEmbeddingField:
     """Test create_embedding_field function."""
 
     def test_float_embedding_field(self):
-        """Test field creation for bfloat16 embeddings (default)."""
+        """Test field creation for float embeddings (default)."""
         config = ModelConfig(
             model_id="e5-small-v2",
             embedding_dim=384,
@@ -390,7 +462,7 @@ class TestCreateEmbeddingField:
 
         assert isinstance(field, Field)
         assert field.name == "embedding"
-        assert field.type == "tensor<bfloat16>(x[384])"
+        assert field.type == "tensor<float>(x[384])"
         assert field.is_document_field is False
 
         # Check indexing statement includes embedder ID
@@ -406,11 +478,14 @@ class TestCreateEmbeddingField:
 
     def test_binarized_embedding_field(self):
         """Test field creation for binarized embeddings."""
-        config = ModelConfig(
-            model_id="bge-m3",
-            embedding_dim=1024,
-            binarized=True,
-        )
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            config = ModelConfig(
+                model_id="bge-m3",
+                embedding_dim=1024,
+                binarized=True,
+            )
         field = create_embedding_field(config)
 
         assert field.name == "embedding"
@@ -488,7 +563,7 @@ class TestCreateSemanticRankProfile:
     """Test create_semantic_rank_profile function."""
 
     def test_float_semantic_profile(self):
-        """Test semantic profile for bfloat16 embeddings (default)."""
+        """Test semantic profile for float embeddings (default)."""
         config = ModelConfig(
             model_id="e5-small-v2",
             embedding_dim=384,
@@ -500,7 +575,7 @@ class TestCreateSemanticRankProfile:
         assert profile.name == "semantic"
         assert len(profile.inputs) == 1
         assert profile.inputs[0][0] == "query(q)"
-        assert profile.inputs[0][1] == "tensor<bfloat16>(x[384])"
+        assert profile.inputs[0][1] == "tensor<float>(x[384])"
 
         # Check functions
         assert len(profile.functions) == 1
@@ -512,11 +587,14 @@ class TestCreateSemanticRankProfile:
 
     def test_binarized_semantic_profile(self):
         """Test semantic profile for binarized embeddings."""
-        config = ModelConfig(
-            model_id="bge-m3",
-            embedding_dim=1024,
-            binarized=True,
-        )
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            config = ModelConfig(
+                model_id="bge-m3",
+                embedding_dim=1024,
+                binarized=True,
+            )
         profile = create_semantic_rank_profile(config)
 
         # Query tensor should be int8 with packed dimensions
@@ -524,8 +602,7 @@ class TestCreateSemanticRankProfile:
 
         # Similarity function should handle hamming distance
         similarity_func = profile.functions[0]
-        assert "closeness(field, embedding)" in similarity_func.expression
-        # Should have transformation for hamming distance
+        assert "1 - (distance(field, embedding) / 1024)" in similarity_func.expression
 
     def test_custom_profile_name(self):
         """Test semantic profile with custom name."""
@@ -595,14 +672,14 @@ class TestCreateHybridRankProfile:
         # first_phase should be a FirstPhaseRanking object
         assert isinstance(profile.first_phase, FirstPhaseRanking)
         # Should use atan-normalized sum in first phase
-        assert "normalized_bm25 + cos_sim" in profile.first_phase.expression
-        # Should have scale, normalized_bm25, and cos_sim functions
+        assert "normalized_bm25 + similarity" in profile.first_phase.expression
+        # Should have scale, normalized_bm25, and similarity functions
         func_names = [f.name for f in profile.functions]
         assert "scale" in func_names
         assert "normalized_bm25" in func_names
-        assert "cos_sim" in func_names
+        assert "similarity" in func_names
         # Check match features
-        assert "cos_sim" in profile.match_features
+        assert "similarity" in profile.match_features
         assert "normalized_bm25" in profile.match_features
 
     def test_hybrid_profile_norm_linear(self):
@@ -617,19 +694,27 @@ class TestCreateHybridRankProfile:
         assert profile.global_phase is not None
         assert "normalize_linear" in profile.global_phase.expression
         assert "bm25(text)" in profile.global_phase.expression
-        assert "closeness" in profile.global_phase.expression
+        # Uses similarity function (which wraps closeness) instead of raw closeness
+        assert "similarity" in profile.global_phase.expression
 
     def test_hybrid_profile_binarized(self):
         """Test hybrid profile for binarized embeddings."""
-        config = ModelConfig(
-            model_id="bge-m3",
-            embedding_dim=1024,
-            binarized=True,
-        )
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            config = ModelConfig(
+                model_id="bge-m3",
+                embedding_dim=1024,
+                binarized=True,
+            )
         profile = create_hybrid_rank_profile(config)
 
         # Query tensor should be int8
         assert profile.inputs[0][1] == "tensor<int8>(x[128])"
+
+        # Similarity function should handle hamming distance
+        similarity_func = [f for f in profile.functions if f.name == "similarity"][0]
+        assert "1 - (distance(field, embedding) / 1024)" in similarity_func.expression
 
     def test_hybrid_profile_invalid_fusion(self):
         """Test that invalid fusion method raises error."""
@@ -774,19 +859,22 @@ class TestIntegration:
 
         # Verify all components work together
         assert component.id == config.component_id
-        assert field.type == "tensor<bfloat16>(x[384])"
+        assert field.type == "tensor<float>(x[384])"
         assert field.ann.distance_metric == "angular"
-        assert semantic_profile.inputs[0][1] == "tensor<bfloat16>(x[384])"
-        assert hybrid_profile.inputs[0][1] == "tensor<bfloat16>(x[384])"
+        assert semantic_profile.inputs[0][1] == "tensor<float>(x[384])"
+        assert hybrid_profile.inputs[0][1] == "tensor<float>(x[384])"
         assert "closeness(field, embedding)" in semantic_profile.functions[0].expression
 
     def test_complete_binarized_setup(self):
         """Test complete setup for binarized embeddings."""
-        config = ModelConfig(
-            model_id="bge-m3",
-            embedding_dim=1024,
-            binarized=True,
-        )
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            config = ModelConfig(
+                model_id="bge-m3",
+                embedding_dim=1024,
+                binarized=True,
+            )
 
         component = create_embedder_component(config)
         field = create_embedding_field(config)
@@ -800,6 +888,14 @@ class TestIntegration:
         assert "pack_bits" in field.indexing
         assert semantic_profile.inputs[0][1] == "tensor<int8>(x[128])"
         assert hybrid_profile.inputs[0][1] == "tensor<int8>(x[128])"
+
+        # Verify similarity expressions
+        assert (
+            "1 - (distance(field, embedding) / 1024)"
+            in semantic_profile.functions[0].expression
+        )
+        hybrid_sim = [f for f in hybrid_profile.functions if f.name == "similarity"][0]
+        assert "1 - (distance(field, embedding) / 1024)" in hybrid_sim.expression
 
     def test_complete_advanced_setup(self):
         """Test complete setup with URL-based model and explicit parameters."""
@@ -834,12 +930,12 @@ class TestIntegration:
         assert len(component.parameters[4].children) == 2
 
         # Verify field configuration
-        assert field.type == "tensor<bfloat16>(x[768])"
+        assert field.type == "tensor<float>(x[768])"
         assert field.ann.distance_metric == "angular"
 
         # Verify profiles
-        assert semantic_profile.inputs[0][1] == "tensor<bfloat16>(x[768])"
-        assert hybrid_profile.inputs[0][1] == "tensor<bfloat16>(x[768])"
+        assert semantic_profile.inputs[0][1] == "tensor<float>(x[768])"
+        assert hybrid_profile.inputs[0][1] == "tensor<float>(x[768])"
 
 
 class TestCommonModelsXMLGeneration:
@@ -996,7 +1092,7 @@ class TestCreateHybridPackage:
             bolding: on
         }
     }
-    field embedding_e5_small_v2 type tensor<bfloat16>(x[384]) {
+    field embedding_e5_small_v2 type tensor<float>(x[384]) {
         indexing: input text | embed e5_small_v2 | index | attribute
         attribute {
             distance-metric: angular
@@ -1008,7 +1104,7 @@ class TestCreateHybridPackage:
             }
         }
     }
-    field embedding_e5_base_v2 type tensor<bfloat16>(x[768]) {
+    field embedding_e5_base_v2 type tensor<float>(x[768]) {
         indexing: input text | embed e5_base_v2 | index | attribute
         attribute {
             distance-metric: angular
@@ -1025,8 +1121,8 @@ class TestCreateHybridPackage:
     }
     rank-profile match-only {
         inputs {
-            query(q_e5_small_v2) tensor<bfloat16>(x[384])
-            query(q_e5_base_v2) tensor<bfloat16>(x[768])
+            query(q_e5_small_v2) tensor<float>(x[384])
+            query(q_e5_base_v2) tensor<float>(x[768])
         }
         first-phase {
             expression {
@@ -1036,7 +1132,7 @@ class TestCreateHybridPackage:
     }
     rank-profile bm25_e5_small_v2 {
         inputs {
-            query(q_e5_small_v2) tensor<bfloat16>(x[384])
+            query(q_e5_small_v2) tensor<float>(x[384])
         }
         function bm25text() {
             expression {
@@ -1054,7 +1150,7 @@ class TestCreateHybridPackage:
     }
     rank-profile semantic_e5_small_v2 {
         inputs {
-            query(q_e5_small_v2) tensor<bfloat16>(x[384])
+            query(q_e5_small_v2) tensor<float>(x[384])
         }
         function similarity() {
             expression {
@@ -1072,7 +1168,7 @@ class TestCreateHybridPackage:
     }
     rank-profile fusion_e5_small_v2 inherits bm25_e5_small_v2 {
         inputs {
-            query(q_e5_small_v2) tensor<bfloat16>(x[384])
+            query(q_e5_small_v2) tensor<float>(x[384])
         }
         function similarity() {
             expression {
@@ -1086,7 +1182,7 @@ class TestCreateHybridPackage:
         }
         global-phase {
             expression {
-                reciprocal_rank_fusion(bm25text, closeness(field, embedding_e5_small_v2))
+                reciprocal_rank_fusion(bm25text, similarity)
             }
             rerank-count: 1000
         }
@@ -1097,7 +1193,7 @@ class TestCreateHybridPackage:
     }
     rank-profile atan_norm_e5_small_v2 inherits bm25_e5_small_v2 {
         inputs {
-            query(q_e5_small_v2) tensor<bfloat16>(x[384])
+            query(q_e5_small_v2) tensor<float>(x[384])
         }
         function scale(val) {
             expression {
@@ -1109,49 +1205,49 @@ class TestCreateHybridPackage:
                 scale(bm25(text))
             }
         }
-        function cos_sim() {
+        function similarity() {
             expression {
                 closeness(field, embedding_e5_small_v2)
             }
         }
         first-phase {
             expression {
-                normalized_bm25 + cos_sim
+                normalized_bm25 + similarity
             }
         }
         match-features {
-            cos_sim
+            similarity
             normalized_bm25
         }
     }
     rank-profile norm_linear_e5_small_v2 inherits bm25_e5_small_v2 {
         inputs {
-            query(q_e5_small_v2) tensor<bfloat16>(x[384])
+            query(q_e5_small_v2) tensor<float>(x[384])
         }
-        function cos_sim() {
+        function similarity() {
             expression {
                 closeness(field, embedding_e5_small_v2)
             }
         }
         first-phase {
             expression {
-                cos_sim
+                similarity
             }
         }
         global-phase {
             expression {
-                normalize_linear(bm25(text)) + normalize_linear(closeness(field, embedding_e5_small_v2))
+                normalize_linear(bm25(text)) + normalize_linear(similarity)
             }
             rerank-count: 1000
         }
         match-features {
-            cos_sim
+            similarity
             bm25(text)
         }
     }
     rank-profile bm25_e5_base_v2 {
         inputs {
-            query(q_e5_base_v2) tensor<bfloat16>(x[768])
+            query(q_e5_base_v2) tensor<float>(x[768])
         }
         function bm25text() {
             expression {
@@ -1169,7 +1265,7 @@ class TestCreateHybridPackage:
     }
     rank-profile semantic_e5_base_v2 {
         inputs {
-            query(q_e5_base_v2) tensor<bfloat16>(x[768])
+            query(q_e5_base_v2) tensor<float>(x[768])
         }
         function similarity() {
             expression {
@@ -1187,7 +1283,7 @@ class TestCreateHybridPackage:
     }
     rank-profile fusion_e5_base_v2 inherits bm25_e5_base_v2 {
         inputs {
-            query(q_e5_base_v2) tensor<bfloat16>(x[768])
+            query(q_e5_base_v2) tensor<float>(x[768])
         }
         function similarity() {
             expression {
@@ -1201,7 +1297,7 @@ class TestCreateHybridPackage:
         }
         global-phase {
             expression {
-                reciprocal_rank_fusion(bm25text, closeness(field, embedding_e5_base_v2))
+                reciprocal_rank_fusion(bm25text, similarity)
             }
             rerank-count: 1000
         }
@@ -1212,7 +1308,7 @@ class TestCreateHybridPackage:
     }
     rank-profile atan_norm_e5_base_v2 inherits bm25_e5_base_v2 {
         inputs {
-            query(q_e5_base_v2) tensor<bfloat16>(x[768])
+            query(q_e5_base_v2) tensor<float>(x[768])
         }
         function scale(val) {
             expression {
@@ -1224,43 +1320,43 @@ class TestCreateHybridPackage:
                 scale(bm25(text))
             }
         }
-        function cos_sim() {
+        function similarity() {
             expression {
                 closeness(field, embedding_e5_base_v2)
             }
         }
         first-phase {
             expression {
-                normalized_bm25 + cos_sim
+                normalized_bm25 + similarity
             }
         }
         match-features {
-            cos_sim
+            similarity
             normalized_bm25
         }
     }
     rank-profile norm_linear_e5_base_v2 inherits bm25_e5_base_v2 {
         inputs {
-            query(q_e5_base_v2) tensor<bfloat16>(x[768])
+            query(q_e5_base_v2) tensor<float>(x[768])
         }
-        function cos_sim() {
+        function similarity() {
             expression {
                 closeness(field, embedding_e5_base_v2)
             }
         }
         first-phase {
             expression {
-                cos_sim
+                similarity
             }
         }
         global-phase {
             expression {
-                normalize_linear(bm25(text)) + normalize_linear(closeness(field, embedding_e5_base_v2))
+                normalize_linear(bm25(text)) + normalize_linear(similarity)
             }
             rerank-count: 1000
         }
         match-features {
-            cos_sim
+            similarity
             bm25(text)
         }
     }
@@ -1299,6 +1395,540 @@ class TestCreateHybridPackage:
         assert "norm_linear_e5_small_v2" in profile_names
         assert "norm_linear_e5_base_v2" in profile_names
 
+    def test_create_hybrid_package_same_model_different_configs(self):
+        """Test that same model with different configs creates properly namespaced fields and profiles.
+
+        When the same model_id is used with different embedding_dim, binarized, or embedding_field_type
+        settings, each configuration should get a unique identifier that includes the dimension and type
+        to avoid naming collisions.
+        """
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            model_configs = [
+                ModelConfig(
+                    model_id="e5-small-v2",
+                    embedding_dim=384,
+                    binarized=True,
+                    model_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx",
+                    tokenizer_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/tokenizer.json",
+                    query_prepend="query: ",
+                    document_prepend="passage: ",
+                ),
+                ModelConfig(
+                    model_id="e5-small-v2",
+                    embedding_dim=384,
+                    binarized=False,
+                    embedding_field_type="float",
+                    model_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx",
+                    tokenizer_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/tokenizer.json",
+                    query_prepend="query: ",
+                    document_prepend="passage: ",
+                ),
+                ModelConfig(
+                    model_id="e5-small-v2",
+                    embedding_dim=384,
+                    binarized=False,
+                    embedding_field_type="bfloat16",
+                    model_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx",
+                    tokenizer_url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/tokenizer.json",
+                    query_prepend="query: ",
+                    document_prepend="passage: ",
+                ),
+            ]
+        package = create_hybrid_package(model_configs)
+
+        # Check that we only have ONE component (same model_id = same embedder)
+        # Even though we have 3 configs, they all share the same underlying model
+        assert len(package.components) == 1
+        assert package.components[0].id == "e5_small_v2"
+
+        # Check that we have 3 embedding fields with unique identifiers
+        embedding_fields = [
+            f for f in package.schema.document.fields if "embedding" in f.name
+        ]
+        assert len(embedding_fields) == 3
+        field_names = {f.name for f in embedding_fields}
+        # Binarized: 384/8 = 48 bytes
+        assert "embedding_e5_small_v2_48_int8" in field_names
+        # Full float: 384 dimensions
+        assert "embedding_e5_small_v2_384_float" in field_names
+        # Full bfloat16: 384 dimensions
+        assert "embedding_e5_small_v2_384_bfloat16" in field_names
+
+        # Check that rank profiles are properly namespaced with full unique identifiers
+        profile_names = set(package.schema.rank_profiles.keys())
+
+        # Should have match-only profile
+        assert "match-only" in profile_names
+
+        # Check profiles for the binarized model (48_int8)
+        assert "bm25_e5_small_v2_48_int8" in profile_names
+        assert "semantic_e5_small_v2_48_int8" in profile_names
+        assert "fusion_e5_small_v2_48_int8" in profile_names
+        assert "atan_norm_e5_small_v2_48_int8" in profile_names
+        assert "norm_linear_e5_small_v2_48_int8" in profile_names
+
+        # Check profiles for the float model (384_float)
+        assert "bm25_e5_small_v2_384_float" in profile_names
+        assert "semantic_e5_small_v2_384_float" in profile_names
+        assert "fusion_e5_small_v2_384_float" in profile_names
+        assert "atan_norm_e5_small_v2_384_float" in profile_names
+        assert "norm_linear_e5_small_v2_384_float" in profile_names
+
+        # Check profiles for the bfloat16 model (384_bfloat16)
+        assert "bm25_e5_small_v2_384_bfloat16" in profile_names
+        assert "semantic_e5_small_v2_384_bfloat16" in profile_names
+        assert "fusion_e5_small_v2_384_bfloat16" in profile_names
+        assert "atan_norm_e5_small_v2_384_bfloat16" in profile_names
+        assert "norm_linear_e5_small_v2_384_bfloat16" in profile_names
+
+        # Check field types are correct
+        int8_field = next(
+            f for f in embedding_fields if f.name == "embedding_e5_small_v2_48_int8"
+        )
+        assert "int8" in int8_field.type
+        assert "48" in int8_field.type  # 384 / 8 = 48
+        assert int8_field.ann.distance_metric == "hamming"
+
+        float_field = next(
+            f for f in embedding_fields if f.name == "embedding_e5_small_v2_384_float"
+        )
+        assert "float" in float_field.type
+        assert "384" in float_field.type
+        assert float_field.ann.distance_metric == "angular"
+
+        bfloat16_field = next(
+            f
+            for f in embedding_fields
+            if f.name == "embedding_e5_small_v2_384_bfloat16"
+        )
+        assert "bfloat16" in bfloat16_field.type
+        assert "384" in bfloat16_field.type
+        assert bfloat16_field.ann.distance_metric == "angular"
+
+        # Check query functions have unique names
+        query_functions = package.get_query_functions()
+        assert "semantic_e5_small_v2_48_int8" in query_functions
+        assert "semantic_e5_small_v2_384_float" in query_functions
+        assert "semantic_e5_small_v2_384_bfloat16" in query_functions
+        assert "fusion_e5_small_v2_48_int8" in query_functions
+        assert "fusion_e5_small_v2_384_float" in query_functions
+        assert "fusion_e5_small_v2_384_bfloat16" in query_functions
+
+        expected_schema = """schema doc {
+    document doc {
+        field id type string {
+            indexing: summary | attribute
+        }
+        field text type string {
+            indexing: index | summary
+            index: enable-bm25
+            bolding: on
+        }
+    }
+    field embedding_e5_small_v2_48_int8 type tensor<int8>(x[48]) {
+        indexing: input text | embed e5_small_v2 | pack_bits | index | attribute
+        attribute {
+            distance-metric: hamming
+        }
+        index {
+            hnsw {
+                max-links-per-node: 16
+                neighbors-to-explore-at-insert: 200
+            }
+        }
+    }
+    field embedding_e5_small_v2_384_float type tensor<float>(x[384]) {
+        indexing: input text | embed e5_small_v2 | index | attribute
+        attribute {
+            distance-metric: angular
+        }
+        index {
+            hnsw {
+                max-links-per-node: 16
+                neighbors-to-explore-at-insert: 200
+            }
+        }
+    }
+    field embedding_e5_small_v2_384_bfloat16 type tensor<bfloat16>(x[384]) {
+        indexing: input text | embed e5_small_v2 | index | attribute
+        attribute {
+            distance-metric: angular
+        }
+        index {
+            hnsw {
+                max-links-per-node: 16
+                neighbors-to-explore-at-insert: 200
+            }
+        }
+    }
+    fieldset default {
+        fields: text
+    }
+    rank-profile match-only {
+        inputs {
+            query(q_e5_small_v2_48_int8) tensor<int8>(x[48])
+            query(q_e5_small_v2_384_float) tensor<float>(x[384])
+            query(q_e5_small_v2_384_bfloat16) tensor<bfloat16>(x[384])
+        }
+        first-phase {
+            expression {
+                random
+            }
+        }
+    }
+    rank-profile bm25_e5_small_v2_48_int8 {
+        inputs {
+            query(q_e5_small_v2_48_int8) tensor<int8>(x[48])
+        }
+        function bm25text() {
+            expression {
+                bm25(text)
+            }
+        }
+        first-phase {
+            expression {
+                bm25text
+            }
+        }
+        match-features {
+            bm25text
+        }
+    }
+    rank-profile semantic_e5_small_v2_48_int8 {
+        inputs {
+            query(q_e5_small_v2_48_int8) tensor<int8>(x[48])
+        }
+        function similarity() {
+            expression {
+                1 - (distance(field, embedding_e5_small_v2_48_int8) / 384)
+            }
+        }
+        first-phase {
+            expression {
+                similarity
+            }
+        }
+        match-features {
+            similarity
+        }
+    }
+    rank-profile fusion_e5_small_v2_48_int8 inherits bm25_e5_small_v2_48_int8 {
+        inputs {
+            query(q_e5_small_v2_48_int8) tensor<int8>(x[48])
+        }
+        function similarity() {
+            expression {
+                1 - (distance(field, embedding_e5_small_v2_48_int8) / 384)
+            }
+        }
+        first-phase {
+            expression {
+                similarity
+            }
+        }
+        global-phase {
+            expression {
+                reciprocal_rank_fusion(bm25text, similarity)
+            }
+            rerank-count: 1000
+        }
+        match-features {
+            similarity
+            bm25text
+        }
+    }
+    rank-profile atan_norm_e5_small_v2_48_int8 inherits bm25_e5_small_v2_48_int8 {
+        inputs {
+            query(q_e5_small_v2_48_int8) tensor<int8>(x[48])
+        }
+        function scale(val) {
+            expression {
+                2*atan(val)/(3.14159)
+            }
+        }
+        function normalized_bm25() {
+            expression {
+                scale(bm25(text))
+            }
+        }
+        function similarity() {
+            expression {
+                1 - (distance(field, embedding_e5_small_v2_48_int8) / 384)
+            }
+        }
+        first-phase {
+            expression {
+                normalized_bm25 + similarity
+            }
+        }
+        match-features {
+            similarity
+            normalized_bm25
+        }
+    }
+    rank-profile norm_linear_e5_small_v2_48_int8 inherits bm25_e5_small_v2_48_int8 {
+        inputs {
+            query(q_e5_small_v2_48_int8) tensor<int8>(x[48])
+        }
+        function similarity() {
+            expression {
+                1 - (distance(field, embedding_e5_small_v2_48_int8) / 384)
+            }
+        }
+        first-phase {
+            expression {
+                similarity
+            }
+        }
+        global-phase {
+            expression {
+                normalize_linear(bm25(text)) + normalize_linear(similarity)
+            }
+            rerank-count: 1000
+        }
+        match-features {
+            similarity
+            bm25(text)
+        }
+    }
+    rank-profile bm25_e5_small_v2_384_float {
+        inputs {
+            query(q_e5_small_v2_384_float) tensor<float>(x[384])
+        }
+        function bm25text() {
+            expression {
+                bm25(text)
+            }
+        }
+        first-phase {
+            expression {
+                bm25text
+            }
+        }
+        match-features {
+            bm25text
+        }
+    }
+    rank-profile semantic_e5_small_v2_384_float {
+        inputs {
+            query(q_e5_small_v2_384_float) tensor<float>(x[384])
+        }
+        function similarity() {
+            expression {
+                closeness(field, embedding_e5_small_v2_384_float)
+            }
+        }
+        first-phase {
+            expression {
+                similarity
+            }
+        }
+        match-features {
+            similarity
+        }
+    }
+    rank-profile fusion_e5_small_v2_384_float inherits bm25_e5_small_v2_384_float {
+        inputs {
+            query(q_e5_small_v2_384_float) tensor<float>(x[384])
+        }
+        function similarity() {
+            expression {
+                closeness(field, embedding_e5_small_v2_384_float)
+            }
+        }
+        first-phase {
+            expression {
+                similarity
+            }
+        }
+        global-phase {
+            expression {
+                reciprocal_rank_fusion(bm25text, similarity)
+            }
+            rerank-count: 1000
+        }
+        match-features {
+            similarity
+            bm25text
+        }
+    }
+    rank-profile atan_norm_e5_small_v2_384_float inherits bm25_e5_small_v2_384_float {
+        inputs {
+            query(q_e5_small_v2_384_float) tensor<float>(x[384])
+        }
+        function scale(val) {
+            expression {
+                2*atan(val)/(3.14159)
+            }
+        }
+        function normalized_bm25() {
+            expression {
+                scale(bm25(text))
+            }
+        }
+        function similarity() {
+            expression {
+                closeness(field, embedding_e5_small_v2_384_float)
+            }
+        }
+        first-phase {
+            expression {
+                normalized_bm25 + similarity
+            }
+        }
+        match-features {
+            similarity
+            normalized_bm25
+        }
+    }
+    rank-profile norm_linear_e5_small_v2_384_float inherits bm25_e5_small_v2_384_float {
+        inputs {
+            query(q_e5_small_v2_384_float) tensor<float>(x[384])
+        }
+        function similarity() {
+            expression {
+                closeness(field, embedding_e5_small_v2_384_float)
+            }
+        }
+        first-phase {
+            expression {
+                similarity
+            }
+        }
+        global-phase {
+            expression {
+                normalize_linear(bm25(text)) + normalize_linear(similarity)
+            }
+            rerank-count: 1000
+        }
+        match-features {
+            similarity
+            bm25(text)
+        }
+    }
+    rank-profile bm25_e5_small_v2_384_bfloat16 {
+        inputs {
+            query(q_e5_small_v2_384_bfloat16) tensor<bfloat16>(x[384])
+        }
+        function bm25text() {
+            expression {
+                bm25(text)
+            }
+        }
+        first-phase {
+            expression {
+                bm25text
+            }
+        }
+        match-features {
+            bm25text
+        }
+    }
+    rank-profile semantic_e5_small_v2_384_bfloat16 {
+        inputs {
+            query(q_e5_small_v2_384_bfloat16) tensor<bfloat16>(x[384])
+        }
+        function similarity() {
+            expression {
+                closeness(field, embedding_e5_small_v2_384_bfloat16)
+            }
+        }
+        first-phase {
+            expression {
+                similarity
+            }
+        }
+        match-features {
+            similarity
+        }
+    }
+    rank-profile fusion_e5_small_v2_384_bfloat16 inherits bm25_e5_small_v2_384_bfloat16 {
+        inputs {
+            query(q_e5_small_v2_384_bfloat16) tensor<bfloat16>(x[384])
+        }
+        function similarity() {
+            expression {
+                closeness(field, embedding_e5_small_v2_384_bfloat16)
+            }
+        }
+        first-phase {
+            expression {
+                similarity
+            }
+        }
+        global-phase {
+            expression {
+                reciprocal_rank_fusion(bm25text, similarity)
+            }
+            rerank-count: 1000
+        }
+        match-features {
+            similarity
+            bm25text
+        }
+    }
+    rank-profile atan_norm_e5_small_v2_384_bfloat16 inherits bm25_e5_small_v2_384_bfloat16 {
+        inputs {
+            query(q_e5_small_v2_384_bfloat16) tensor<bfloat16>(x[384])
+        }
+        function scale(val) {
+            expression {
+                2*atan(val)/(3.14159)
+            }
+        }
+        function normalized_bm25() {
+            expression {
+                scale(bm25(text))
+            }
+        }
+        function similarity() {
+            expression {
+                closeness(field, embedding_e5_small_v2_384_bfloat16)
+            }
+        }
+        first-phase {
+            expression {
+                normalized_bm25 + similarity
+            }
+        }
+        match-features {
+            similarity
+            normalized_bm25
+        }
+    }
+    rank-profile norm_linear_e5_small_v2_384_bfloat16 inherits bm25_e5_small_v2_384_bfloat16 {
+        inputs {
+            query(q_e5_small_v2_384_bfloat16) tensor<bfloat16>(x[384])
+        }
+        function similarity() {
+            expression {
+                closeness(field, embedding_e5_small_v2_384_bfloat16)
+            }
+        }
+        first-phase {
+            expression {
+                similarity
+            }
+        }
+        global-phase {
+            expression {
+                normalize_linear(bm25(text)) + normalize_linear(similarity)
+            }
+            rerank-count: 1000
+        }
+        match-features {
+            similarity
+            bm25(text)
+        }
+    }
+}"""
+        schema_text = package.schema.schema_to_text
+        assert (
+            schema_text == expected_schema
+        ), f"Schema mismatch:\nGot:\n{schema_text}\n\nExpected:\n{expected_schema}"
+
     def test_create_hybrid_package_single_model_string(self):
         """Test single model setup using model name string."""
         package = create_hybrid_package("e5-small-v2")
@@ -1331,9 +1961,9 @@ class TestCreateHybridPackage:
         """Test single model setup using ModelConfig instance."""
         config = ModelConfig(
             model_id="custom-model",
-            embedding_dim=512,
-            model_url="https://example.com/model.onnx",
-            tokenizer_url="https://example.com/tokenizer.json",
+            embedding_dim=384,
+            model_url="https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/e5-small-v2-int8.onnx",
+            tokenizer_url="https://data.vespa-cloud.com/sample-apps-data/e5-small-v2-int8/tokenizer.json",
         )
         package = create_hybrid_package(config)
 
@@ -1346,7 +1976,7 @@ class TestCreateHybridPackage:
             f for f in package.schema.document.fields if "embedding" in f.name
         ]
         assert len(embedding_fields) == 1
-        assert "512" in embedding_fields[0].type
+        assert "384" in embedding_fields[0].type
 
     def test_create_hybrid_package_custom_names(self):
         """Test custom app_name and schema_name."""
@@ -1404,11 +2034,14 @@ class TestCreateHybridPackage:
 
     def test_create_hybrid_package_binarized_model(self):
         """Test hybrid package with binarized embedding model."""
-        config = ModelConfig(
-            model_id="binarized-model",
-            embedding_dim=1024,
-            binarized=True,
-        )
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            config = ModelConfig(
+                model_id="binarized-model",
+                embedding_dim=1024,
+                binarized=True,
+            )
         package = create_hybrid_package(config)
 
         # Check embedding field type is int8 with packed dimensions
@@ -1421,3 +2054,27 @@ class TestCreateHybridPackage:
 
         # Check distance metric is hamming
         assert embedding_fields[0].ann.distance_metric == "hamming"
+
+
+class TestHFModelsURLValidation:
+    """Test that all HF_MODELS have valid URLs."""
+
+    @pytest.mark.parametrize("model_name", list(HF_MODELS.keys()))
+    def test_hf_model_urls_are_valid(self, model_name):
+        """Test that all URLs in HF_MODELS are accessible.
+
+        This test validates that the model_url and tokenizer_url for each
+        HF_MODELS entry return HTTP 200 status codes.
+        """
+        config = HF_MODELS[model_name]
+        # URL validation happens in __post_init__, so if we get here without
+        # an exception, the URLs are valid. But let's also verify the config
+        # has the expected URLs set.
+        print(f"Validating URLs for model: {model_name}")
+        assert config.model_url is not None, f"{model_name} should have model_url"
+        assert (
+            config.tokenizer_url is not None
+        ), f"{model_name} should have tokenizer_url"
+        assert (
+            config.validate_urls is True
+        ), f"{model_name} should have validate_urls=True"

@@ -1,9 +1,13 @@
 from __future__ import annotations
+import hashlib
+import json
 import re
 import warnings
 from difflib import get_close_matches
-from typing import Dict, List, Optional, Union, Literal
-from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional, Union, Literal
+import requests
+from dataclasses import dataclass, fields, field
+
 from vespa.package import (
     ApplicationPackage,
     Component,
@@ -17,6 +21,7 @@ from vespa.package import (
     Document,
     FieldSet,
 )
+import vespa.querybuilder as qb
 
 PoolingStrategy = Literal["mean", "cls", "none"]
 
@@ -89,13 +94,18 @@ class ModelConfig:
         binarized: Whether the embeddings should be binarized (packed to bits).
             When True, overrides embedding_field_type to int8 and embedding_dim
             must be divisible by 8.
-        embedding_field_type: Tensor cell type for embeddings. Options:
+        embedding_field_type: Tensor cell type for embeddings (default: "float").
+            Note: When binarized=True, this is automatically overridden to "int8".
+            Options:
             - "double": 64-bit float (highest precision, highest memory)
             - "float": 32-bit float (good balance)
-            - "bfloat16": 16-bit brain float (reduced memory, good for large scale) - DEFAULT
+            - "bfloat16": 16-bit brain float (reduced memory, good for large scale)
             - "int8": 8-bit integer (quantized, or used automatically when binarized=True)
-        distance_metric: Distance metric for HNSW index. Options:
-            - "angular": Cosine similarity (default for non-binarized)
+        distance_metric: Distance metric for HNSW index (default: None, auto-set based on binarized).
+            When binarized=True, automatically set to "hamming".
+            When binarized=False and not specified, defaults to "angular".
+            Options:
+            - "angular": Cosine similarity
             - "hamming": Hamming distance (required for binarized embeddings)
             - "euclidean", "dotproduct", "prenormalized-angular", "geodegrees"
         component_id: The ID to use for the Vespa component (defaults to sanitized model_id)
@@ -103,23 +113,31 @@ class ModelConfig:
         tokenizer_path: Optional local path to the tokenizer file
         model_url: Optional URL to the ONNX model file (alternative to model_id)
         tokenizer_url: Optional URL to the tokenizer file (alternative to tokenizer_id)
-        max_tokens: Maximum number of tokens accepted by the transformer model (default: 512)
-        transformer_input_ids: Name/identifier for transformer input IDs (default: "input_ids")
-        transformer_attention_mask: Name/identifier for transformer attention mask (default: "attention_mask")
-        transformer_token_type_ids: Name/identifier for transformer token type IDs (default: "token_type_ids")
-            Set to None to disable token_type_ids
-        transformer_output: Name/identifier for transformer output (default: "last_hidden_state")
-        pooling_strategy: How to pool output vectors ("mean", "cls", or "none") (default: "mean")
-        normalize: Whether to normalize output to unit length (default: False)
+        max_tokens: Maximum number of tokens accepted by the transformer model.
+            Optional, if not set the Vespa embedder uses its internal default (512).
+        transformer_input_ids: Name/identifier for transformer input IDs.
+            Optional, if not set the Vespa embedder uses its internal default ("input_ids").
+        transformer_attention_mask: Name/identifier for transformer attention mask.
+            Optional, if not set the Vespa embedder uses its internal default ("attention_mask").
+        transformer_token_type_ids: Name/identifier for transformer token type IDs.
+            Optional, if not set the Vespa embedder uses its internal default ("token_type_ids").
+            Set to empty string "" to explicitly disable token_type_ids.
+        transformer_output: Name/identifier for transformer output.
+            Optional, if not set the Vespa embedder uses its internal default ("last_hidden_state").
+        pooling_strategy: How to pool output vectors ("mean", "cls", or "none").
+            Optional, if not set the Vespa embedder uses its internal default ("mean").
+        normalize: Whether to normalize output to unit length.
+            Optional, if not set the Vespa embedder uses its internal default (False).
         query_prepend: Optional instruction to prepend to query text
         document_prepend: Optional instruction to prepend to document text
+        validate_urls: Whether to validate URLs by checking they return HTTP 200 (default: True)
     """
 
     model_id: str
     embedding_dim: int
     tokenizer_id: Optional[str] = None
     binarized: bool = False
-    embedding_field_type: EmbeddingFieldType = "bfloat16"
+    embedding_field_type: EmbeddingFieldType = "float"
     distance_metric: Optional[DistanceMetric] = None
     component_id: Optional[str] = None
     model_path: Optional[str] = None
@@ -135,6 +153,8 @@ class ModelConfig:
     normalize: Optional[bool] = None
     query_prepend: Optional[str] = None
     document_prepend: Optional[str] = None
+    validate_urls: bool = True
+    config_hash: str = field(default="", init=False)
 
     def __post_init__(self):
         """Set defaults and validate configuration."""
@@ -154,6 +174,12 @@ class ModelConfig:
 
         # Override embedding_field_type to int8 if binarized is True
         if self.binarized:
+            if self.embedding_field_type != "int8":
+                warnings.warn(
+                    f"binarized embeddings require 'int8' embedding_field_type, "
+                    f"but got '{self.embedding_field_type}'. Overriding to 'int8'.",
+                    UserWarning,
+                )
             object.__setattr__(self, "embedding_field_type", "int8")
             # Validate binarized embeddings require dimension divisible by 8
             if self.embedding_dim % 8 != 0:
@@ -164,8 +190,8 @@ class ModelConfig:
             # Set distance_metric to hamming for binarized embeddings
             if self.distance_metric is not None and self.distance_metric != "hamming":
                 warnings.warn(
-                    f"binarized embeddings require 'hamming' distance metric, "
-                    f"but got '{self.distance_metric}'. Setting to 'hamming'.",
+                    f"binarized embeddings require 'hamming' distance_metric, "
+                    f"but got '{self.distance_metric}'. Overriding to 'hamming'.",
                     UserWarning,
                 )
             object.__setattr__(self, "distance_metric", "hamming")
@@ -188,6 +214,97 @@ class ModelConfig:
                 raise ValueError(
                     f"pooling_strategy must be one of {valid_strategies}, got {self.pooling_strategy}"
                 )
+
+        # Validate URLs if validation is enabled
+        if self.validate_urls:
+            self._validate_urls()
+
+        # Generate unique hash for this configuration
+        object.__setattr__(self, "config_hash", self._generate_hash())
+
+    def _generate_hash(self) -> str:
+        """
+        Generate a unique hash for this model configuration.
+
+        The hash is based on all configuration attributes (excluding config_hash itself)
+        and can be used to uniquely identify a specific model configuration.
+
+        Returns:
+            A hex string representing the SHA-256 hash of the configuration.
+
+        Example:
+            >>> config = ModelConfig(model_id="e5-small-v2", embedding_dim=384)
+            >>> len(config.config_hash)
+            64
+            >>> config2 = ModelConfig(model_id="e5-small-v2", embedding_dim=384)
+            >>> config.config_hash == config2.config_hash
+            True
+            >>> config3 = ModelConfig(model_id="e5-small-v2", embedding_dim=768)
+            >>> config.config_hash == config3.config_hash
+            False
+        """
+        # Build a dict of all attributes except config_hash
+        hash_dict = {}
+        for f in fields(self):
+            if f.name != "config_hash":
+                hash_dict[f.name] = getattr(self, f.name)
+
+        # Create a stable JSON representation and hash it
+        json_str = json.dumps(hash_dict, sort_keys=True, default=str)
+        return hashlib.sha256(json_str.encode()).hexdigest()
+
+    def _validate_urls(self) -> None:
+        """Validate that provided URLs are accessible (return HTTP 200)."""
+        urls_to_check = []
+        if self.model_url:
+            urls_to_check.append(("model_url", self.model_url))
+        if self.tokenizer_url:
+            urls_to_check.append(("tokenizer_url", self.tokenizer_url))
+
+        for url_name, url in urls_to_check:
+            try:
+                response = requests.head(url, timeout=10, allow_redirects=True)
+                if response.status_code != 200:
+                    # Some servers don't support HEAD, try GET with stream
+                    response = requests.get(
+                        url, timeout=10, stream=True, allow_redirects=True
+                    )
+                    response.close()
+                if response.status_code != 200:
+                    raise ValueError(
+                        f"{url_name} returned HTTP {response.status_code}: {url}"
+                    )
+            except requests.RequestException as e:
+                raise ValueError(f"Failed to validate {url_name} '{url}': {e}") from e
+
+    def to_dict(self, include_none: bool = False) -> Dict[str, Any]:
+        """
+        Convert the ModelConfig to a dictionary for serialization.
+
+        Args:
+            include_none: If True, include fields with None values. Default False.
+
+        Returns:
+            Dict with all model configuration attributes.
+
+        Example:
+            >>> config = ModelConfig(model_id="e5-small-v2", embedding_dim=384)
+            >>> d = config.to_dict()
+            >>> d["model_id"]
+            'e5-small-v2'
+            >>> d["embedding_dim"]
+            384
+            >>> d["binarized"]
+            False
+        """
+        from dataclasses import fields
+
+        result = {}
+        for f in fields(self):
+            value = getattr(self, f.name)
+            if include_none or value is not None:
+                result[f.name] = value
+        return result
 
 
 def create_embedder_component(config: ModelConfig) -> Component:
@@ -306,6 +423,8 @@ def create_embedder_component(config: ModelConfig) -> Component:
             )
         parameters.append(Parameter("prepend", args={}, children=prepend_children))
 
+    # component_id is guaranteed to be set in __post_init__
+    assert config.component_id is not None
     return Component(
         id=config.component_id,
         type="hugging-face-embedder",
@@ -384,13 +503,15 @@ def create_embedding_field(
             ]
 
     # Use provided distance metric or config's distance metric
-    distance_metric = distance_metric or config.distance_metric
+    # distance_metric is guaranteed to be set in __post_init__
+    effective_distance_metric = distance_metric or config.distance_metric
+    assert effective_distance_metric is not None
 
     return Field(
         name=field_name,
         type=field_type,
         indexing=indexing,
-        ann=HNSW(distance_metric=distance_metric),
+        ann=HNSW(distance_metric=effective_distance_metric),
         is_document_field=False,
     )
 
@@ -426,13 +547,17 @@ def create_semantic_rank_profile(
     if config.binarized:
         packed_dim = config.embedding_dim // 8
         tensor_type = f"tensor<int8>(x[{packed_dim}])"
-
+        # For binarized embeddings with hamming distance, normalize similarity to [0, 1]
+        # where 1 = identical vectors, 0 = all bits differ.
+        # 768.0 is the max hamming distance (96 int8s * 8 bits)
+        # expression: 1 - (distance(field, my_embedding) / 768.0)
+        max_distance = config.embedding_dim
+        similarity_expr = f"1 - (distance(field, {embedding_field}) / {max_distance})"
     else:
         tensor_type = (
             f"tensor<{config.embedding_field_type}>(x[{config.embedding_dim}])"
         )
-
-    similarity_expr = f"closeness(field, {embedding_field})"
+        similarity_expr = f"closeness(field, {embedding_field})"
 
     return RankProfile(
         name=profile_name,
@@ -481,22 +606,27 @@ def create_hybrid_rank_profile(
         FirstPhaseRanking,
     )
 
-    # Determine tensor type for query input
+    # Determine tensor type for query input and similarity expression
     if config.binarized:
         packed_dim = config.embedding_dim // 8
         tensor_type = f"tensor<int8>(x[{packed_dim}])"
+        # For binarized embeddings with hamming distance, normalize similarity to [0, 1]
+        # where 1 = identical vectors, 0 = all bits differ.
+        # 768.0 is the max hamming distance (96 int8s * 8 bits)
+        # expression: 1 - (distance(field, my_embedding) / 768.0)
+        max_distance = config.embedding_dim
+        closeness_expr = f"1 - (distance(field, {embedding_field}) / {max_distance})"
     else:
         tensor_type = (
             f"tensor<{config.embedding_field_type}>(x[{config.embedding_dim}])"
         )
+        closeness_expr = f"closeness(field, {embedding_field})"
 
-    similarity_expr = f"closeness(field, {embedding_field})"
+    similarity_expr = closeness_expr
 
     # Choose global phase expression based on fusion method
     if fusion_method == "rrf":
-        global_expr = (
-            f"reciprocal_rank_fusion(bm25text, closeness(field, {embedding_field}))"
-        )
+        global_expr = "reciprocal_rank_fusion(bm25text, similarity)"
         functions = [Function(name="similarity", expression=similarity_expr)]
         first_phase_expr = "similarity"
         match_features_list = ["similarity", "bm25text"]
@@ -513,19 +643,19 @@ def create_hybrid_rank_profile(
                 expression="2*atan(val)/(3.14159)",
             ),
             Function(name="normalized_bm25", expression="scale(bm25(text))"),
-            Function(name="cos_sim", expression=f"closeness(field, {embedding_field})"),
+            Function(name="similarity", expression=closeness_expr),
         ]
-        first_phase_expr = "normalized_bm25 + cos_sim"
-        match_features_list = ["cos_sim", "normalized_bm25"]
+        first_phase_expr = "normalized_bm25 + similarity"
+        match_features_list = ["similarity", "normalized_bm25"]
         global_phase = None
     elif fusion_method == "norm_linear":
         # Use linear normalization in global phase (no atan)
-        global_expr = f"normalize_linear(bm25(text)) + normalize_linear(closeness(field, {embedding_field}))"
+        global_expr = "normalize_linear(bm25(text)) + normalize_linear(similarity)"
         functions = [
-            Function(name="cos_sim", expression=f"closeness(field, {embedding_field})"),
+            Function(name="similarity", expression=closeness_expr),
         ]
-        first_phase_expr = "cos_sim"
-        match_features_list = ["cos_sim", "bm25(text)"]
+        first_phase_expr = "similarity"
+        match_features_list = ["similarity", "bm25(text)"]
         global_phase = GlobalPhaseRanking(
             expression=global_expr,
             rerank_count=global_rerank_count,
@@ -611,6 +741,180 @@ COMMON_MODELS: Dict[str, ModelConfig] = {
         document_prepend="passage: ",
     ),
 }
+# Please keep this alphabetically sorted by model ID
+HF_MODELS: Dict[str, ModelConfig] = {
+    "alibaba-gte-modernbert": ModelConfig(
+        model_id="alibaba-gte-modernbert",
+        embedding_dim=768,
+        binarized=False,
+        embedding_field_type="float",
+        distance_metric="angular",
+        model_url="https://huggingface.co/Alibaba-NLP/gte-modernbert-base/resolve/main/onnx/model.onnx",
+        tokenizer_url="https://huggingface.co/Alibaba-NLP/gte-modernbert-base/resolve/main/tokenizer.json",
+        max_tokens=8192,
+        pooling_strategy="cls",
+    ),
+    "alibaba-gte-modernbert-int8": ModelConfig(
+        model_id="alibaba-gte-modernbert-int8",
+        embedding_dim=768,
+        binarized=False,
+        embedding_field_type="float",
+        distance_metric="angular",
+        model_url="https://huggingface.co/Alibaba-NLP/gte-modernbert-base/resolve/main/onnx/model_int8.onnx",
+        tokenizer_url="https://huggingface.co/Alibaba-NLP/gte-modernbert-base/resolve/main/tokenizer.json",
+        max_tokens=8192,
+        pooling_strategy="cls",
+    ),
+    "e5-base-v2": ModelConfig(
+        model_id="e5-base-v2",
+        embedding_dim=768,
+        binarized=False,
+        embedding_field_type="float",
+        distance_metric="angular",
+        model_url="https://huggingface.co/intfloat/e5-base-v2/resolve/main/onnx/model.onnx",
+        tokenizer_url="https://huggingface.co/intfloat/e5-base-v2/resolve/main/tokenizer.json",
+        max_tokens=512,
+        query_prepend="query: ",
+        document_prepend="passage: ",
+    ),
+    "e5-large-v2": ModelConfig(
+        model_id="e5-large-v2",
+        embedding_dim=1024,
+        binarized=False,
+        embedding_field_type="float",
+        distance_metric="angular",
+        model_url="https://huggingface.co/intfloat/e5-large-v2/resolve/main/onnx/model.onnx",
+        tokenizer_url="https://huggingface.co/intfloat/e5-large-v2/resolve/main/tokenizer.json",
+        max_tokens=512,
+        query_prepend="query: ",
+        document_prepend="passage: ",
+    ),
+    "e5-small-v2-int8": ModelConfig(
+        model_id="e5-small-v2",
+        embedding_dim=384,
+        binarized=False,
+        embedding_field_type="float",
+        distance_metric="angular",
+        model_url="https://huggingface.co/Xenova/e5-small-v2/resolve/main/onnx/model_int8.onnx",
+        tokenizer_url="https://huggingface.co/Xenova/e5-small-v2/resolve/main/tokenizer.json",
+        max_tokens=512,
+        query_prepend="query: ",
+        document_prepend="passage: ",
+    ),
+    "embeddinggemma-300m": ModelConfig(
+        model_id="embeddinggemma-300m",
+        embedding_dim=768,
+        binarized=False,
+        embedding_field_type="float",
+        distance_metric="angular",
+        model_url="https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX/resolve/main/onnx/model_fp16.onnx",
+        tokenizer_url="https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX/resolve/main/tokenizer.json",
+        max_tokens=2048,
+        query_prepend="task: search result | query: ",
+        document_prepend="title: none | text: ",
+    ),
+    "embeddinggemma-300m-q4": ModelConfig(
+        model_id="embeddinggemma-300m-q4",
+        embedding_dim=768,
+        binarized=False,
+        embedding_field_type="float",
+        distance_metric="angular",
+        model_url="https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX/resolve/main/onnx/model_q4.onnx",
+        tokenizer_url="https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX/resolve/main/tokenizer.json",
+        query_prepend="task: search result | query: ",
+        document_prepend="title: none | text: ",
+    ),
+    "lightonai-modernbert-large": ModelConfig(
+        model_id="lightonai-modernbert-large",
+        embedding_dim=1024,
+        binarized=False,
+        embedding_field_type="float",
+        distance_metric="angular",
+        model_url="https://huggingface.co/lightonai/modernbert-embed-large/resolve/main/onnx/model.onnx",
+        tokenizer_url="https://huggingface.co/lightonai/modernbert-embed-large/resolve/main/tokenizer.json",
+        max_tokens=8192,
+        query_prepend="search_query: ",
+        document_prepend="search_document: ",
+    ),
+    "lightonai-modernbert-large-int8": ModelConfig(
+        model_id="lightonai-modernbert-large-int8",
+        embedding_dim=1024,
+        binarized=False,
+        embedding_field_type="float",
+        distance_metric="angular",
+        model_url="https://huggingface.co/lightonai/modernbert-embed-large/resolve/main/onnx/model_int8.onnx",
+        tokenizer_url="https://huggingface.co/lightonai/modernbert-embed-large/resolve/main/tokenizer.json",
+        max_tokens=8192,
+        query_prepend="search_query: ",
+        document_prepend="search_document: ",
+    ),
+    "multilingual-e5-base": ModelConfig(
+        model_id="multilingual-e5-base",
+        embedding_dim=768,
+        binarized=False,
+        embedding_field_type="float",
+        distance_metric="angular",
+        model_url="https://huggingface.co/intfloat/multilingual-e5-base/resolve/main/onnx/model.onnx",
+        tokenizer_url="https://huggingface.co/intfloat/multilingual-e5-base/resolve/main/tokenizer.json",
+        max_tokens=512,
+        query_prepend="query: ",
+        document_prepend="passage: ",
+    ),
+    "nomic-ai-modernbert": ModelConfig(
+        model_id="nomic-ai-modernbert",
+        embedding_dim=768,
+        binarized=False,
+        embedding_field_type="float",
+        distance_metric="angular",
+        model_url="https://huggingface.co/nomic-ai/modernbert-embed-base/resolve/main/onnx/model.onnx",
+        tokenizer_url="https://huggingface.co/nomic-ai/modernbert-embed-base/resolve/main/tokenizer.json",
+        max_tokens=8192,
+        transformer_output="token_embeddings",
+        query_prepend="search_query: ",
+        document_prepend="search_document: ",
+    ),
+    "nomic-ai-modernbert-int8": ModelConfig(
+        model_id="nomic-ai-modernbert-int8",
+        embedding_dim=768,
+        binarized=False,
+        embedding_field_type="float",
+        distance_metric="angular",
+        model_url="https://huggingface.co/nomic-ai/modernbert-embed-base/resolve/main/onnx/model_int8.onnx",
+        tokenizer_url="https://huggingface.co/nomic-ai/modernbert-embed-base/resolve/main/tokenizer.json",
+        max_tokens=8192,
+        transformer_output="token_embeddings",
+        query_prepend="search_query: ",
+        document_prepend="search_document: ",
+    ),
+    "snowflake-arctic-embed-m-v2.0": ModelConfig(
+        model_id="snowflake-arctic-embed-m-v2.0",
+        embedding_dim=768,
+        binarized=False,
+        embedding_field_type="float",
+        distance_metric="angular",
+        model_url="https://huggingface.co/Snowflake/snowflake-arctic-embed-m-v2.0/resolve/main/onnx/model.onnx",
+        tokenizer_url="https://huggingface.co/Snowflake/snowflake-arctic-embed-m-v2.0/resolve/main/tokenizer.json",
+        max_tokens=8192,
+        transformer_output="token_embeddings",
+        query_prepend="query: ",
+        pooling_strategy="cls",
+        normalize=True,
+    ),
+    "snowflake-arctic-embed-m-v2.0-int8": ModelConfig(
+        model_id="snowflake-arctic-embed-m-v2.0-int8",
+        embedding_dim=768,
+        binarized=False,
+        embedding_field_type="float",
+        distance_metric="angular",
+        model_url="https://huggingface.co/Snowflake/snowflake-arctic-embed-m-v2.0/resolve/main/onnx/model_int8.onnx",
+        tokenizer_url="https://huggingface.co/Snowflake/snowflake-arctic-embed-m-v2.0/resolve/main/tokenizer.json",
+        max_tokens=8192,
+        transformer_output="token_embeddings",
+        query_prepend="query: ",
+        pooling_strategy="cls",
+        normalize=True,
+    ),
+}
 
 
 def get_model_config(model_name: str) -> ModelConfig:
@@ -666,6 +970,33 @@ def list_models() -> List[str]:
         True
     """
     return sorted(COMMON_MODELS.keys())
+
+
+def _get_model_string(config: ModelConfig) -> str:
+    """
+    Generate a unique identifier for a model config that includes dimension and type info.
+
+    This is used when multiple configs share the same model_id but differ in
+    embedding_dim or binarization settings.
+
+    Args:
+        config: ModelConfig instance
+
+    Returns:
+        Unique identifier string like "e5_small_v2_384_float" or "e5_small_v2_384_int8"
+
+    Example:
+        >>> config1 = ModelConfig(model_id="e5-small-v2", embedding_dim=384)
+        >>> _get_model_string(config1)
+        'e5_small_v2_384_float'
+        >>> config2 = ModelConfig(model_id="e5-small-v2", embedding_dim=384, binarized=True)
+        >>> _get_model_string(config2)
+        'e5_small_v2_48_int8'
+    """
+    effective_dim = (
+        config.embedding_dim // 8 if config.binarized else config.embedding_dim
+    )
+    return f"{config.component_id}_{effective_dim}_{config.embedding_field_type}"
 
 
 def _create_model_profiles(
@@ -736,12 +1067,157 @@ def _create_model_profiles(
     return profiles
 
 
+def _create_query_functions(
+    config: ModelConfig,
+    embedding_field_name: str,
+    schema_name: str,
+    query_tensor: str = "q",
+    profile_suffix: str = "",
+) -> Dict[str, Callable[[str, int], dict]]:
+    """
+    Helper function to create query functions for a single model.
+
+    Args:
+        config: ModelConfig instance
+        embedding_field_name: Name of the embedding field
+        schema_name: Name of the schema to query
+        query_tensor: Name of the query tensor (default: "q")
+        profile_suffix: Suffix to add to profile names (empty string for single model)
+    Returns:
+        Dict of query functions for this model
+    """
+    functions = {}
+
+    # Create one query function per: bm25, semantic, fusion, atan_norm, norm_linear
+    def semantic_query_fn(query_text: str, top_k: int) -> dict:
+        return {
+            "yql": str(
+                qb.select("*")
+                .from_(schema_name)
+                .where(
+                    qb.nearestNeighbor(
+                        field=embedding_field_name,
+                        query_vector=query_tensor,
+                        annotations={"targetHits": 1000},
+                    )
+                )
+            ),
+            "query": query_text,
+            "ranking": f"semantic{profile_suffix}",
+            f"input.query({query_tensor})": "embed(@query)",
+            "hits": top_k,
+        }
+
+    def bm25_query_fn(query_text: str, top_k: int) -> dict:
+        return {
+            "yql": "select * from sources * where userQuery();",  # provide the yql directly as a string
+            "query": query_text,
+            "ranking": f"bm25{profile_suffix}",
+            "hits": top_k,
+        }
+
+    def fusion_query_fn(query_text: str, top_k: int) -> dict:
+        return {
+            "yql": str(
+                qb.select("*")
+                .from_(schema_name)
+                .where(
+                    qb.nearestNeighbor(
+                        field=embedding_field_name,
+                        query_vector=query_tensor,
+                        annotations={"targetHits": 1000},
+                    )
+                    | qb.userQuery()
+                )
+            ),
+            "query": query_text,
+            "ranking": f"fusion{profile_suffix}",
+            f"input.query({query_tensor})": "embed(@query)",
+            "hits": top_k,
+        }
+
+    def atan_norm_query_fn(query_text: str, top_k: int) -> dict:
+        return {
+            "yql": str(
+                qb.select("*")
+                .from_(schema_name)
+                .where(
+                    qb.nearestNeighbor(
+                        field=embedding_field_name,
+                        query_vector=query_tensor,
+                        annotations={"targetHits": 1000},
+                    )
+                    | qb.userQuery()
+                )
+            ),
+            "query": query_text,
+            "ranking": f"atan_norm{profile_suffix}",
+            f"input.query({query_tensor})": "embed(@query)",
+            "hits": top_k,
+        }
+
+    def norm_linear_query_fn(query_text: str, top_k: int) -> dict:
+        return {
+            "yql": str(
+                qb.select("*")
+                .from_(schema_name)
+                .where(
+                    qb.nearestNeighbor(
+                        field=embedding_field_name,
+                        query_vector=query_tensor,
+                        annotations={"targetHits": 1000},
+                    )
+                    | qb.userQuery()
+                )
+            ),
+            "query": query_text,
+            "ranking": f"norm_linear{profile_suffix}",
+            f"input.query({query_tensor})": "embed(@query)",
+            "hits": top_k,
+        }
+
+    # Use profile_suffix for dictionary keys to avoid collisions in multi-model setup
+    # For single model (no suffix), keys are: "semantic", "bm25", etc.
+    # For multi-model, keys include suffix: "semantic_e5_small_v2", "bm25_e5_small_v2", etc.
+    suffix = profile_suffix.lstrip("_") if profile_suffix else ""
+    key_suffix = f"_{suffix}" if suffix else ""
+
+    functions[f"semantic{key_suffix}"] = semantic_query_fn
+    functions[f"bm25{key_suffix}"] = bm25_query_fn
+    functions[f"fusion{key_suffix}"] = fusion_query_fn
+    functions[f"atan_norm{key_suffix}"] = atan_norm_query_fn
+    functions[f"norm_linear{key_suffix}"] = norm_linear_query_fn
+
+    return functions
+
+
+class ApplicationPackageWithQueryFunctions(ApplicationPackage):
+    # Extending ApplicationPackage to add method for retrieving query functions
+    # This is needed for the VespaMTEBEvaluator to access the query functions.
+    def __init__(
+        self,
+        query_functions: Optional[Dict[str, Callable[[str, int], dict]]] = None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.query_functions = query_functions or {}
+
+    def get_query_functions(self) -> Dict[str, Callable[[str, int], dict]]:
+        """
+        Get the query functions for this application package.
+
+        Returns:
+            Dict of query functions
+        """
+        return self.query_functions
+
+
 def create_hybrid_package(
-    models: Union[str, ModelConfig, List[Union[str, ModelConfig]]],
+    models: Union[str, ModelConfig, List[Union[str, ModelConfig]], List[ModelConfig]],
     app_name: str = "hybridapp",
     schema_name: str = "doc",
     global_rerank_count: int = 1000,
-) -> ApplicationPackage:
+) -> ApplicationPackageWithQueryFunctions:
     """
     Create a Vespa application package configured for hybrid search evaluation.
 
@@ -820,22 +1296,38 @@ def create_hybrid_package(
     # Determine if we have multiple models (affects naming)
     is_multi_model = len(resolved_configs) > 1
 
+    # Check for component_id collisions (same model_id but different dim/type)
+    # If collisions exist, we need to use full unique identifiers for all configs
+    component_ids = [c.component_id for c in resolved_configs]
+    has_component_id_collisions = len(component_ids) != len(set(component_ids))
+
     # Build components, fields, and profiles for each model
     all_components = []
+    seen_component_ids = set()  # Track which component_ids we've already added
     all_embedding_fields = []
     all_rank_profiles = []
     match_only_inputs = []
+    query_functions = {}
 
     for config in resolved_configs:
         # Create unique identifiers for multi-model setup
-        profile_suffix = f"_{config.component_id}" if is_multi_model else ""
+        # Use full unique identifier (with dim/type) if there are component_id collisions
+        if has_component_id_collisions:
+            unique_id = _get_model_string(config)
+        else:
+            unique_id = config.component_id
+
+        profile_suffix = f"_{unique_id}" if is_multi_model else ""
         embedding_field_name = (
-            f"embedding_{config.component_id}" if is_multi_model else "embedding"
+            f"embedding_{unique_id}" if is_multi_model else "embedding"
         )
         query_tensor = f"q{profile_suffix}"
 
-        # Create and collect component
-        all_components.append(create_embedder_component(config))
+        # Create and collect component - only if we haven't seen this component_id yet
+        # Multiple ModelConfigs with the same model_id share the same embedder
+        if config.component_id not in seen_component_ids:
+            all_components.append(create_embedder_component(config))
+            seen_component_ids.add(config.component_id)
 
         # Create and collect embedding field
         embedding_field = create_embedding_field(
@@ -856,6 +1348,15 @@ def create_hybrid_package(
                 global_rerank_count,
             )
         )
+        # Create and collect query functions for this model
+        model_query_functions = _create_query_functions(
+            config,
+            embedding_field_name,
+            schema_name,
+            query_tensor,
+            profile_suffix,
+        )
+        query_functions.update(model_query_functions)
 
     # Create match-only profile with inputs for all models
     match_only_profile = RankProfile(
@@ -889,8 +1390,9 @@ def create_hybrid_package(
     )
 
     # Create the application package
-    return ApplicationPackage(
+    return ApplicationPackageWithQueryFunctions(
         name=app_name,
         schema=[schema],
         components=all_components,
+        query_functions=query_functions,
     )
