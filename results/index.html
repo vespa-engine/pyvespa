@@ -483,21 +483,24 @@
                 ? 'c7g.2xlarge' 
                 : availableHardwareTypes[0] || 'c7g.2xlarge';
             const [hardware, setHardware] = useState(defaultHardware);
-            const [sortColumn, setSortColumn] = useState('semantic'); // 'semantic', 'hybrid', or 'binary'
-            
+            const [sortColumn, setSortColumn] = useState('semantic'); // 'semantic', 'hybrid', 'binary', 'latency', or 'throughput'
+
             // Memoize sorted models - sort inline to capture sortColumn correctly
             const sortedModels = useMemo(() => {
                 const getSortValue = (model) => {
+                    const benchmark = model.benchmarks?.[hardware] || {};
                     switch (sortColumn) {
                         case 'hybrid': return getBestHybrid(model);
                         case 'binary': return getBestBinary(model);
+                        case 'latency': return -(benchmark.queries_avg_latency_ms || Infinity); // Negative so lower latency sorts first
+                        case 'throughput': return benchmark.docs_throughput || 0;
                         default: return getBestSemantic(model);
                     }
                 };
                 return models
                     .filter(m => !m.isBM25)
                     .sort((a, b) => getSortValue(b) - getSortValue(a));
-            }, [sortColumn]);
+            }, [sortColumn, hardware]);
 
             // Calculate max throughput for progress bar scaling (based on selected hardware)
             const maxThroughput = useMemo(() => {
@@ -560,6 +563,20 @@
                         </div>
                     </header>
 
+                    {/* Blog Context Banner */}
+                    <div className="mb-6 px-4 py-3 bg-[#B7E2F1]/5 border border-[#B7E2F1]/20 rounded-lg flex items-center justify-center gap-2 text-sm">
+                        <i className="ph ph-article text-[#B7E2F1]"></i>
+                        <span className="text-gray-400">This leaderboard accompanies our deep-dive on embedding tradeoffs</span>
+                        <a
+                            href="https://blog.vespa.ai/embedding-tradeoffs-quantified"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#B7E2F1] hover:text-white font-semibold inline-flex items-center gap-1 hover:underline"
+                        >
+                            Read the blog post <i className="ph ph-arrow-right"></i>
+                        </a>
+                    </div>
+
                     {/* Main Table */}
                     <div className="overflow-hidden bg-vespa-dark rounded-xl border border-vespa shadow-2xl">
                         <table className="w-full text-left border-collapse">
@@ -569,12 +586,24 @@
                                     <th className="p-4 font-medium text-center">Dim</th>
                                     <th className="p-4 font-medium text-center">Size</th>
                                     <th className="p-4 font-medium text-center">Context</th>
-                                    <th className="p-4 font-medium w-32 text-right">
-                                        Query Latency
+                                    <th
+                                        className="p-4 font-medium w-32 text-right cursor-pointer hover:bg-[#1f2428] transition-colors"
+                                        onClick={() => setSortColumn('latency')}
+                                    >
+                                        <div className="flex items-center justify-end">
+                                            Query Latency
+                                            <SortIcon active={sortColumn === 'latency'} />
+                                        </div>
                                         <div className="normal-case text-[10px] text-gray-500">Avg (ms)</div>
                                     </th>
-                                    <th className="p-4 font-medium w-48">
-                                        Doc Throughput
+                                    <th
+                                        className="p-4 font-medium w-48 cursor-pointer hover:bg-[#1f2428] transition-colors"
+                                        onClick={() => setSortColumn('throughput')}
+                                    >
+                                        <div className="flex items-center">
+                                            Doc Throughput
+                                            <SortIcon active={sortColumn === 'throughput'} />
+                                        </div>
                                         <div className="normal-case text-[10px] text-gray-500">Docs / Sec</div>
                                     </th>
                                     <th 
@@ -665,12 +694,11 @@
                                 <i className="ph ph-cpu text-[#B7E2F1]"></i> Hardware Benchmark
                             </h3>
                             <p className="text-xs leading-relaxed text-gray-400">
-                                Performance varies significantly between GPU and CPU. 
-                                We benchmark on AWS standard instances. 
-                                <strong>c7g.2xlarge</strong> uses Graviton3 (ARM) processors, highly efficient for scalar workloads but slower for heavy transformers compared to T4 GPUs.
+                                Performance varies significantly by hardware. T4 GPU runs 4-7x faster than Graviton3 for embedding inference.
+                                We benchmark on AWS instances: <strong>c7g.2xlarge</strong> (Graviton3 ARM), <strong>m8g.xlarge</strong> (Graviton4 ARM), and <strong>g4dn.xlarge</strong> (T4 GPU).
                             </p>
                             <p className="text-xs leading-relaxed text-gray-400 mt-2">
-                                <strong>Metrics:</strong> Latency and throughput include tokenization and ONNX inference for a sample query (8 words) and document (100 words). Indexing and ranking overheads are not included.
+                                <strong>Metrics:</strong> Query latency (8-word query) and document throughput (103-word docs). Pure ONNX inference time - indexing/ranking overheads not included.
                             </p>
                         </div>
                         <div>
@@ -678,9 +706,9 @@
                                 <i className="ph ph-arrows-in-line-horizontal text-[#B7E2F1]"></i> Matryoshka & Binary
                             </h3>
                             <p className="text-xs leading-relaxed text-gray-400">
-                                Expand any row to see efficiency variants. 
-                                <strong>Matryoshka (MRL)</strong> models allow dimension truncation. 
-                                <strong>Binary Quantization</strong> reduces size by 32x but requires models trained for it (like MDBR) to avoid large quality drops.
+                                Expand any row to see efficiency variants.
+                                <strong>Matryoshka (MRL)</strong> models allow dimension truncation - check the model card before truncating.
+                                <strong>Binary Quantization</strong> reduces size by 32x. ModernBERT models retain 98% quality with binary; E5 models drop to 87-92%. Check compatibility before binarizing.
                             </p>
                         </div>
                         <div>
@@ -688,17 +716,18 @@
                                 <i className="ph ph-graph text-[#B7E2F1]"></i> Hybrid vs RRF
                             </h3>
                             <p className="text-xs leading-relaxed text-gray-400">
-                                <strong>Hybrid:</strong> Linear combination of normalized BM25 and Vector scores using <code className="bg-gray-800 px-1 rounded text-[#B6AED5]">atan</code>.
+                                <strong>Hybrid methods:</strong> Combine BM25 and vector scores. <code className="bg-gray-800 px-1 rounded text-[#B6AED5]">Atan</code> normalizes with arctangent, <code className="bg-gray-800 px-1 rounded text-[#B6AED5]">Linear</code> uses linear normalization. Hybrid consistently beats semantic-only by 3-5 percentage points.
                                 <br/>
-                                <strong>RRF:</strong> Reciprocal Rank Fusion, often provides stable uplifts without parameter tuning.
+                                <strong>RRF:</strong> Reciprocal Rank Fusion combines rankings (not scores) - stable uplifts without parameter tuning.
                             </p>
                         </div>
                     </div>
                     
                     <div className="mt-12 text-center">
-                         <a 
-                            href="https://vespa.ai" 
+                        <a
+                            href="https://vespa.ai"
                             target="_blank"
+                            rel="noopener noreferrer"
                             className="inline-flex items-center gap-2 px-8 py-3 bg-[#61D790] hover:bg-[#4ec980] text-[#0d1117] rounded-full font-bold transition-transform hover:scale-105"
                         >
                             Start building with Vespa <i className="ph ph-arrow-right font-bold"></i>
