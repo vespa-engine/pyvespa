@@ -77,7 +77,7 @@ jobs:
           sh .github/scripts/replace_pip_install_notebooks.sh ${{ matrix.notebook }}
 
           # Install additional requirements with uv
-          uv add -r additional_requirements.txt
+          uv pip install-r additional_requirements.txt
 
           # Run the modified notebook
           uv run papermill --log-output ${{ matrix.notebook }} ${{ matrix.notebook }}-out.ipynb
