@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Callable, Optional, List
+from typing import Any, Callable, Optional, List, Literal
 from pathlib import Path
 import hashlib
 from vespa.application import Vespa
@@ -30,7 +30,7 @@ except ImportError as e:
 import httpx
 from vespa.models import ApplicationPackageWithQueryFunctions
 from vespa.models import create_hybrid_package, ModelConfig, get_model_config
-from vespa.deployment import VespaDocker
+from vespa.deployment import VespaDocker, VespaCloud
 from vespa.application import Vespa as VespaApp
 from vespa.io import VespaResponse
 
@@ -44,10 +44,11 @@ logger = logging.getLogger(__name__)
 
 
 class VespaMTEBApp(SearchProtocol):
-    """Vespa search using pyvespa"""
+    """Vespa search using pyvespa with support for Docker and Vespa Cloud deployments."""
 
     app: Optional[Any] = None
     vespa_docker: Optional[VespaDocker] = None
+    vespa_cloud: Optional[VespaCloud] = None
     _fed_indices: set[str] = set()  # Class-level cache of fed indices
     mteb_model_meta: Optional[ModelMeta] = None  # Will be set by MTEB
 
@@ -83,44 +84,127 @@ class VespaMTEBApp(SearchProtocol):
         self.port = port
         self._current_task_name: Optional[str] = None
 
+        # Deployment target configuration
+        self.deployment_target: Literal["docker", "cloud"] = kwargs.pop(
+            "deployment_target", "cloud"
+        )
+
+        # Cloud-specific configuration
+        self.tenant: Optional[str] = kwargs.pop("tenant", None)
+        self.application: Optional[str] = kwargs.pop("application", None)
+        self.instance: str = kwargs.pop("instance", "default")
+        self.key_content: Optional[str] = kwargs.pop("key_content", None)
+        self.key_location: Optional[str] = kwargs.pop("key_location", None)
+        self.auto_cleanup: bool = kwargs.pop("auto_cleanup", True)
+        self.disk_folder: Optional[str] = kwargs.pop("disk_folder", None)
+
+        # Validate cloud configuration
+        if self.deployment_target == "cloud":
+            if self.tenant is None:
+                raise ValueError("'tenant' is required when deployment_target='cloud'")
+            if self.application is None:
+                raise ValueError(
+                    "'application' is required when deployment_target='cloud'"
+                )
+
     def cleanup(self) -> None:
-        """Stop and remove the Vespa Docker container."""
-        if self.vespa_docker is not None and self.vespa_docker.container is not None:
-            container_id = self.vespa_docker.container.short_id
-            try:
-                logger.info(f"Stopping Vespa container {container_id}...")
-                self.vespa_docker.container.stop(timeout=10)
-                logger.info(f"Removing Vespa container {container_id}...")
-                self.vespa_docker.container.remove()
-                logger.info(f"Vespa container {container_id} cleaned up successfully.")
-            except Exception as e:
-                logger.warning(f"Error during container cleanup: {e}")
-                # Try force removal as fallback
+        """Stop and remove the Vespa deployment (Docker container or Cloud instance)."""
+        if self.deployment_target == "docker":
+            # Docker cleanup: stop and remove container
+            if (
+                self.vespa_docker is not None
+                and self.vespa_docker.container is not None
+            ):
+                container_id = self.vespa_docker.container.short_id
                 try:
-                    self.vespa_docker.container.remove(force=True)
-                    logger.info(f"Force removed container {container_id}.")
-                except Exception as force_err:
-                    logger.error(f"Failed to force remove container: {force_err}")
-        # Clear the fed indices cache since the container (and its data) is gone
+                    logger.info(f"Stopping Vespa container {container_id}...")
+                    self.vespa_docker.container.stop(timeout=10)
+                    logger.info(f"Removing Vespa container {container_id}...")
+                    self.vespa_docker.container.remove()
+                    logger.info(
+                        f"Vespa container {container_id} cleaned up successfully."
+                    )
+                except Exception as e:
+                    logger.warning(f"Error during container cleanup: {e}")
+                    # Try force removal as fallback
+                    try:
+                        self.vespa_docker.container.remove(force=True)
+                        logger.info(f"Force removed container {container_id}.")
+                    except Exception as force_err:
+                        logger.error(f"Failed to force remove container: {force_err}")
+            self.vespa_docker = None
+        else:
+            # Cloud cleanup: delete the deployment if auto_cleanup is enabled
+            if self.vespa_cloud is not None and self.auto_cleanup:
+                try:
+                    logger.info(
+                        f"Deleting Vespa Cloud deployment (instance={self.instance})..."
+                    )
+                    self.vespa_cloud.delete(instance=self.instance, environment="dev")
+                    logger.info("Vespa Cloud deployment deleted successfully.")
+                except Exception as e:
+                    logger.warning(f"Error during cloud cleanup: {e}")
+            elif self.vespa_cloud is not None:
+                logger.info(
+                    "auto_cleanup=False, skipping Vespa Cloud deployment deletion."
+                )
+            self.vespa_cloud = None
+
+        # Clear the fed indices cache since the data is gone
         VespaMTEBApp._fed_indices.clear()
         self.app = None
-        self.vespa_docker = None
 
     def ensure_clean_state(self) -> None:
         """
-        Ensure a clean state by removing any existing container.
+        Ensure a clean state before starting a new task.
 
-        This should be called before starting a new task to ensure
-        no stale data from previous tasks remains in the index.
+        For Docker: destroys the container and creates a new one.
+        For Cloud: deletes all documents but keeps the deployment running (faster).
         """
-        if self.app is not None or self.vespa_docker is not None:
-            logger.info("Cleaning up existing container before new task...")
-            self.cleanup()
+        if self.deployment_target == "docker":
+            # Docker: destroy container and recreate
+            if self.app is not None or self.vespa_docker is not None:
+                logger.info("Cleaning up existing container before new task...")
+                self.cleanup()
+        else:
+            # Cloud: delete all documents but keep deployment running
+            if self.app is not None:
+                logger.info("Deleting all documents before new task...")
+                try:
+                    # Get the content cluster name from the package
+                    content_cluster_name = f"{self.package.name}_content"
+                    self.app.delete_all_docs(
+                        content_cluster_name=content_cluster_name, schema="doc"
+                    )
+                    logger.info("All documents deleted successfully.")
+                    # Clear the fed indices cache since documents are gone
+                    VespaMTEBApp._fed_indices.clear()
+                except Exception as e:
+                    logger.warning(
+                        f"Error deleting documents: {e}. Falling back to full cleanup."
+                    )
+                    self.cleanup()
 
     def _deploy(self) -> VespaApp:
-        """Deploy the Vespa application."""
-        self.vespa_docker = VespaDocker(port=self.port)
-        return self.vespa_docker.deploy(self.package)
+        """Deploy the Vespa application to Docker or Vespa Cloud."""
+        if self.deployment_target == "docker":
+            self.vespa_docker = VespaDocker(port=self.port)
+            return self.vespa_docker.deploy(self.package)
+        else:
+            # Cloud deployment
+            self.vespa_cloud = VespaCloud(
+                tenant=self.tenant,
+                application=self.application,
+                application_package=self.package,
+                key_content=self.key_content,
+                key_location=self.key_location,
+                instance=self.instance,
+            )
+            return self.vespa_cloud.deploy(
+                instance=self.instance,
+                disk_folder=self.disk_folder,
+                environment="dev",
+            )
 
     @staticmethod
     def _get_cache_key(model_configs: List[ModelConfig], task_name: str) -> str:
@@ -193,7 +277,24 @@ class VespaMTEBApp(SearchProtocol):
             # Connect to existing application if not already connected
             if self.app is None:
                 logger.info("Connecting to existing Vespa application for querying...")
-                self.app = VespaApp(url=f"http://localhost:{self.port}")
+                if self.deployment_target == "docker":
+                    self.app = VespaApp(url=f"http://localhost:{self.port}")
+                else:
+                    # For cloud, use get_application to reconnect
+                    if self.vespa_cloud is None:
+                        self.vespa_cloud = VespaCloud(
+                            tenant=self.tenant,
+                            application=self.application,
+                            application_package=self.package,
+                            key_content=self.key_content,
+                            key_location=self.key_location,
+                            instance=self.instance,
+                        )
+                    self.app = self.vespa_cloud.get_application(
+                        instance=self.instance,
+                        environment="dev",
+                        endpoint_type="mtls",
+                    )
             return
 
         model_ids = ", ".join([mc.model_id for mc in self.model_configs])
@@ -352,20 +453,39 @@ class VespaMTEBEvaluator:
     as the search backend. It supports single tasks or full benchmarks, with
     incremental result saving and optional overwrite control.
 
+    Supports both Docker (local) and Vespa Cloud deployments via the
+    `deployment_target` parameter.
+
     Args:
         model_configs: One or more ModelConfig instances or model name strings.
         task_name: Name of a single MTEB task to evaluate (mutually exclusive with benchmark_name).
         benchmark_name: Name of an MTEB benchmark to evaluate (mutually exclusive with task_name).
         results_dir: Directory to save results. Defaults to "results".
         overwrite: If False, skip evaluations where results already exist. Defaults to False.
-        url: Vespa application URL. Defaults to "http://localhost".
-        port: Vespa application port. Defaults to 8080.
+        deployment_target: Where to deploy Vespa. Either "docker" or "cloud". Defaults to "cloud".
+        port: Vespa application port (Docker only). Defaults to 8080.
+        tenant: Vespa Cloud tenant name. Required when deployment_target="cloud".
+        application: Vespa Cloud application name. Defaults to benchmark/task name if not specified.
+        instance: Vespa Cloud instance name. Defaults to "default".
+        key_content: Vespa Cloud API key content (string).
+        key_location: Path to Vespa Cloud API key file.
+        auto_cleanup: Whether to delete cloud deployment after evaluation. Defaults to True.
 
-    Example:
+    Example (Docker):
         >>> evaluator = VespaMTEBEvaluator(
         ...     model_configs="e5-small-v2",
         ...     benchmark_name="NanoBEIR",
-        ...     overwrite=False,
+        ...     deployment_target="docker",
+        ... )
+        >>> evaluator.evaluate()
+
+    Example (Vespa Cloud):
+        >>> evaluator = VespaMTEBEvaluator(
+        ...     model_configs="e5-small-v2",
+        ...     benchmark_name="NanoBEIR",
+        ...     deployment_target="cloud",
+        ...     tenant="my-tenant",
+        ...     key_content=os.getenv("VESPA_API_KEY"),
         ... )
         >>> evaluator.evaluate()
     """
@@ -377,8 +497,15 @@ class VespaMTEBEvaluator:
         benchmark_name: str | None = None,
         results_dir: str | Path = "results",
         overwrite: bool = False,
-        url: str = "http://localhost",
+        deployment_target: Literal["docker", "cloud"] = "cloud",
         port: int = 8080,
+        # Cloud-specific parameters
+        tenant: str | None = None,
+        application: str | None = None,
+        instance: str = "default",
+        key_content: str | None = None,
+        key_location: str | None = None,
+        auto_cleanup: bool = True,
     ):
         # Validate mutually exclusive parameters
         if task_name is not None and benchmark_name is not None:
@@ -397,8 +524,28 @@ class VespaMTEBEvaluator:
         self.benchmark_name = benchmark_name
         self.results_dir = Path(results_dir)
         self.overwrite = overwrite
-        self.url = url
         self.port = port
+
+        # Deployment configuration
+        self.deployment_target = deployment_target
+        self.tenant = tenant
+        self.instance = instance
+        self.key_content = key_content
+        self.key_location = key_location
+        self.auto_cleanup = auto_cleanup
+
+        # Derive application name from benchmark/task name if not specified
+        if application is None:
+            eval_name = benchmark_name or task_name
+            # Sanitize the name for Vespa Cloud (lowercase, alphanumeric and hyphens)
+            self.application = eval_name.lower().replace("_", "-")
+        else:
+            self.application = application
+
+        # Validate cloud configuration
+        if deployment_target == "cloud":
+            if tenant is None:
+                raise ValueError("'tenant' is required when deployment_target='cloud'")
 
         # Create the application package
         self.package = create_hybrid_package(self.model_configs)
@@ -519,12 +666,23 @@ class VespaMTEBEvaluator:
         Returns:
             ModelMeta instance configured for Vespa search.
         """
+        # Prepare disk folder for cloud config files
+        disk_folder = str(self.results_dir / "cloud_config" / self.application)
+
         return ModelMeta(
             loader=self._create_loader(),
             loader_kwargs={
                 "model_config": self.model_configs,
                 "package": self.package,
                 "port": self.port,
+                "deployment_target": self.deployment_target,
+                "tenant": self.tenant,
+                "application": self.application,
+                "instance": self.instance,
+                "key_content": self.key_content,
+                "key_location": self.key_location,
+                "auto_cleanup": self.auto_cleanup,
+                "disk_folder": disk_folder,
             },
             name=f"vespa/{self.model_suffix}_hybrid_vespa",
             languages=["eng-Latn"],
@@ -659,9 +817,14 @@ class VespaMTEBEvaluator:
                     # Save incremental progress (started)
                     self._save_benchmark_results(results_path, benchmark_results)
 
+                    # Get a fresh task instance to avoid state corruption between evaluations
+                    # MTEB tasks can have internal state (like dataset) that gets corrupted
+                    # when reused across multiple evaluate() calls
+                    fresh_task = mteb.get_task(task_name)
+
                     results = mteb.evaluate(
                         vespa_model_meta,
-                        task,
+                        fresh_task,
                         encode_kwargs={"query_function": query_function},
                         overwrite_strategy="always",
                     )
@@ -715,20 +878,38 @@ class VespaMTEBEvaluator:
 
 if __name__ == "__main__":
     # Run benchmark evaluation for all HF_MODELS with multiple configurations
+    import os
     from dataclasses import replace
     from vespa.models import HF_MODELS, ModelConfig
+
+    # Deployment configuration via environment variables
+    # Set VESPA_DEPLOYMENT_TARGET to "cloud" or "docker" (default: "docker" for local testing)
+    deployment_target = os.getenv("VESPA_DEPLOYMENT_TARGET", "docker")
+
+    # Cloud-specific configuration (required when deployment_target="cloud")
+    vespa_tenant = os.getenv("VESPA_TENANT")
+    vespa_api_key = os.getenv("VESPA_API_KEY")
+
+    if deployment_target == "cloud":
+        if vespa_tenant is None:
+            raise ValueError(
+                "VESPA_TENANT environment variable is required for cloud deployment"
+            )
+        print(f"Using Vespa Cloud deployment (tenant={vespa_tenant})")
+    else:
+        print("Using Docker deployment")
 
     # Matryoshka models get additional dimension variations
     MATRYOSHKA_DIMS = {
         "embeddinggemma-300m": [768, 512, 128],
-        "embeddinggemma-300m-q4": [768, 512, 128], 
+        "embeddinggemma-300m-q4": [768, 512, 128],
     }
 
     # 3 variations: (binarized, embedding_field_type)
     VARIATIONS = [
-        (True, "int8", "hamming"),      # binary
-        (False, "bfloat16", "angular"), # bfloat16
-        (False, "float", "angular"),    # float
+        (True, "int8", "hamming"),  # binary
+        (False, "bfloat16", "angular"),  # bfloat16
+        (False, "float", "angular"),  # float
     ]
 
     all_configs: list[ModelConfig] = []
@@ -759,19 +940,34 @@ if __name__ == "__main__":
 
     # Run evaluations one model at a time
     for i, model_config in enumerate(all_configs):
-        print(f"\n[{i+1}/{len(all_configs)}] Evaluating: {model_config.model_id}")
+        print(f"\n[{i + 1}/{len(all_configs)}] Evaluating: {model_config.model_id}")
         print(f"  Embedding dim: {model_config.embedding_dim}")
         print(f"  Binarized: {model_config.binarized}")
         print(f"  Field type: {model_config.embedding_field_type}")
         print("-" * 40)
 
         try:
-            evaluator = VespaMTEBEvaluator(
-                model_configs=model_config,
-                benchmark_name="NanoBEIR",
-                results_dir="results",
-                overwrite=False,
-            )
+            if deployment_target == "cloud":
+                evaluator = VespaMTEBEvaluator(
+                    model_configs=model_config,
+                    benchmark_name="NanoBEIR",
+                    results_dir="results",
+                    overwrite=False,
+                    deployment_target="cloud",
+                    tenant=vespa_tenant,
+                    application="mteb-benchmark",
+                    key_content=vespa_api_key,
+                    auto_cleanup=True,
+                )
+            else:
+                evaluator = VespaMTEBEvaluator(
+                    model_configs=model_config,
+                    benchmark_name="NanoBEIR",
+                    results_dir="results",
+                    overwrite=False,
+                    deployment_target="docker",
+                    port=8080,
+                )
             results = evaluator.evaluate()
         except Exception as e:
             print(f"  ERROR: {e}")
