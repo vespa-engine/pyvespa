@@ -34,6 +34,8 @@ from vespa.package import (
     ValidationID,
     sample_package,
 )
+from vespa.evaluation._mteb import VespaMTEBEvaluator
+from vespa.models import ModelConfig
 
 APP_INIT_TIMEOUT = 900
 
@@ -638,3 +640,41 @@ class TestDeployPerf(unittest.TestCase):
         # Wait a little bit to make sure the deployment is finished
         time.sleep(10)
         self.vespa_cloud.delete(instance=self.instance, environment=self.environment)
+
+
+class TestVespaMTEBEvaluatorCloud(unittest.TestCase):
+    """Test VespaMTEBEvaluator with Vespa Cloud deployment."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.model_config = ModelConfig(
+            model_id="e5-small-v2",
+            embedding_dim=384,
+            binarized=False,
+            max_tokens=512,
+            query_prepend="query: ",
+            document_prepend="passage: ",
+        )
+        cls.vespa_tenant = "vespa-team"
+        cls.vespa_api_key = os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n")
+
+    def test_evaluate_nanomsarco_retrieval_cloud(self):
+        """Test running small evaluation on Vespa Cloud."""
+        evaluator = VespaMTEBEvaluator(
+            model_configs=self.model_config,
+            task_name="NanoMSMARCORetrieval",  # Small task for quick testing
+            results_dir="results",
+            overwrite=True,
+            deployment_target="cloud",
+            tenant=self.vespa_tenant,
+            application="mteb-test",
+            key_content=self.vespa_api_key,
+            auto_cleanup=True,
+        )
+        results = evaluator.evaluate()
+        print(results)
+        # Verify results structure
+        self.assertIn("metadata", results)
+        self.assertIn("results", results)
+        self.assertIn("NanoMSMARCORetrieval", results["results"])
+        self.assertIsNotNone(results["metadata"]["benchmark_finished_at"])
