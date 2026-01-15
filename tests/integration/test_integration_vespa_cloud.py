@@ -679,7 +679,7 @@ class TestVespaMTEBEvaluatorCloud(unittest.TestCase):
         self.assertIsNotNone(results["metadata"]["benchmark_finished_at"])
         # Finished evaluation for 'NanoMSMARCORetrieval' with 'semantic':
         # NDCG@10: 0.60092
-        self.assertAlmostEquals(
+        self.assertAlmostEqual(
             results["results"]["NanoMSMARCORetrieval"]["semantic"]["scores"]["train"][
                 0
             ]["ndcg_at_10"],
@@ -688,7 +688,7 @@ class TestVespaMTEBEvaluatorCloud(unittest.TestCase):
         )
         # Finished evaluation for 'NanoMSMARCORetrieval' with 'bm25':
         # NDCG@10: 0.52063
-        self.assertAlmostEquals(
+        self.assertAlmostEqual(
             results["results"]["NanoMSMARCORetrieval"]["bm25"]["scores"]["train"][0][
                 "ndcg_at_10"
             ],
@@ -697,7 +697,7 @@ class TestVespaMTEBEvaluatorCloud(unittest.TestCase):
         )
         # Finished evaluation for 'NanoMSMARCORetrieval' with 'fusion':
         # NDCG@10: 0.60338
-        self.assertAlmostEquals(
+        self.assertAlmostEqual(
             results["results"]["NanoMSMARCORetrieval"]["fusion"]["scores"]["train"][0][
                 "ndcg_at_10"
             ],
@@ -706,7 +706,7 @@ class TestVespaMTEBEvaluatorCloud(unittest.TestCase):
         )
         # Finished evaluation for 'NanoMSMARCORetrieval' with 'atan_norm':
         # NDCG@10: 0.62851
-        self.assertAlmostEquals(
+        self.assertAlmostEqual(
             results["results"]["NanoMSMARCORetrieval"]["atan_norm"]["scores"]["train"][
                 0
             ]["ndcg_at_10"],
@@ -715,7 +715,7 @@ class TestVespaMTEBEvaluatorCloud(unittest.TestCase):
         )
         # Finished evaluation for 'NanoMSMARCORetrieval' with 'norm_linear':
         # NDCG@10: 0.64687
-        self.assertAlmostEquals(
+        self.assertAlmostEqual(
             results["results"]["NanoMSMARCORetrieval"]["norm_linear"]["scores"][
                 "train"
             ][0]["ndcg_at_10"],
