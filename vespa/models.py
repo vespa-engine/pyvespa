@@ -7,6 +7,7 @@ from difflib import get_close_matches
 from typing import Any, Callable, Dict, List, Optional, Union, Literal
 import requests
 from dataclasses import dataclass, fields, field
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from vespa.package import (
     ApplicationPackage,
@@ -262,20 +263,29 @@ class ModelConfig:
             urls_to_check.append(("tokenizer_url", self.tokenizer_url))
 
         for url_name, url in urls_to_check:
-            try:
-                response = requests.head(url, timeout=10, allow_redirects=True)
-                if response.status_code != 200:
-                    # Some servers don't support HEAD, try GET with stream
-                    response = requests.get(
-                        url, timeout=10, stream=True, allow_redirects=True
-                    )
-                    response.close()
-                if response.status_code != 200:
-                    raise ValueError(
-                        f"{url_name} returned HTTP {response.status_code}: {url}"
-                    )
-            except requests.RequestException as e:
-                raise ValueError(f"Failed to validate {url_name} '{url}': {e}") from e
+            self._validate_single_url(url_name, url)
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        reraise=True,
+    )
+    def _validate_single_url(self, url_name: str, url: str) -> None:
+        """Validate a single URL with retry logic."""
+        try:
+            response = requests.head(url, timeout=10, allow_redirects=True)
+            if response.status_code != 200:
+                # Some servers don't support HEAD, try GET with stream
+                response = requests.get(
+                    url, timeout=10, stream=True, allow_redirects=True
+                )
+                response.close()
+            if response.status_code != 200:
+                raise ValueError(
+                    f"{url_name} returned HTTP {response.status_code}: {url}"
+                )
+        except requests.RequestException as e:
+            raise ValueError(f"Failed to validate {url_name} '{url}': {e}") from e
 
     def to_dict(self, include_none: bool = False) -> Dict[str, Any]:
         """
