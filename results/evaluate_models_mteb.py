@@ -25,18 +25,28 @@ else:
 MATRYOSHKA_DIMS = {
     "embeddinggemma-300m": [768, 512, 128],
     "embeddinggemma-300m-q4": [768, 512, 128],
+    "voyage-4-nano-onnx": [2048, 1024],
+    "voyage-4-nano-onnx-int8": [2048, 1024],
 }
 
-# 3 variations: (binarized, embedding_field_type)
+# Filter to only run specific models (set to None to run all)
+MODELS_TO_RUN = [
+    "voyage-4-nano-onnx",
+    "voyage-4-nano-onnx-int8",
+]
+
+# 2 variations: (binarized, embedding_field_type, distance_metric)
 VARIATIONS = [
     (True, "int8", "hamming"),  # binary
     (False, "bfloat16", "angular"),  # bfloat16
-    (False, "float", "angular"),  # float
 ]
 
 all_configs: list[ModelConfig] = []
 
 for model_name, base_config in HF_MODELS.items():
+    # Skip models not in the filter list
+    if MODELS_TO_RUN and model_name not in MODELS_TO_RUN:
+        continue
     print(f"Creating variations for: {model_name}")
 
     # Get dimensions to test (just base dim for normal models)

@@ -7,6 +7,7 @@ from difflib import get_close_matches
 from typing import Any, Callable, Dict, List, Optional, Union, Literal
 import requests
 from dataclasses import dataclass, fields, field
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from vespa.package import (
     ApplicationPackage,
@@ -262,20 +263,29 @@ class ModelConfig:
             urls_to_check.append(("tokenizer_url", self.tokenizer_url))
 
         for url_name, url in urls_to_check:
-            try:
-                response = requests.head(url, timeout=10, allow_redirects=True)
-                if response.status_code != 200:
-                    # Some servers don't support HEAD, try GET with stream
-                    response = requests.get(
-                        url, timeout=10, stream=True, allow_redirects=True
-                    )
-                    response.close()
-                if response.status_code != 200:
-                    raise ValueError(
-                        f"{url_name} returned HTTP {response.status_code}: {url}"
-                    )
-            except requests.RequestException as e:
-                raise ValueError(f"Failed to validate {url_name} '{url}': {e}") from e
+            self._validate_single_url(url_name, url)
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        reraise=True,
+    )
+    def _validate_single_url(self, url_name: str, url: str) -> None:
+        """Validate a single URL with retry logic."""
+        try:
+            response = requests.head(url, timeout=10, allow_redirects=True)
+            if response.status_code != 200:
+                # Some servers don't support HEAD, try GET with stream
+                response = requests.get(
+                    url, timeout=10, stream=True, allow_redirects=True
+                )
+                response.close()
+            if response.status_code != 200:
+                raise ValueError(
+                    f"{url_name} returned HTTP {response.status_code}: {url}"
+                )
+        except requests.RequestException as e:
+            raise ValueError(f"Failed to validate {url_name} '{url}': {e}") from e
 
     def to_dict(self, include_none: bool = False) -> Dict[str, Any]:
         """
@@ -913,6 +923,36 @@ HF_MODELS: Dict[str, ModelConfig] = {
         query_prepend="query: ",
         pooling_strategy="cls",
         normalize=True,
+    ),
+    "voyage-4-nano-onnx": ModelConfig(
+        model_id="voyage-4-nano-onnx",
+        embedding_dim=2048,
+        binarized=False,
+        embedding_field_type="float",
+        distance_metric="prenormalized-angular",
+        model_url="https://huggingface.co/thomasht86/voyage-4-nano-ONNX/resolve/main/model_fp32.onnx",
+        tokenizer_url="https://huggingface.co/thomasht86/voyage-4-nano-ONNX/resolve/main/tokenizer.json",
+        max_tokens=32000,
+        transformer_token_type_ids="",  # Disable token_type_ids
+        transformer_output="embeddings",  # Model outputs pooled embeddings
+        pooling_strategy="none",  # No additional pooling needed
+        normalize=False,  # Already normalized
+        query_prepend="Represent the query for retrieving supporting documents: ",
+    ),
+    "voyage-4-nano-onnx-int8": ModelConfig(
+        model_id="voyage-4-nano-onnx-int8",
+        embedding_dim=2048,
+        binarized=False,
+        embedding_field_type="float",
+        distance_metric="prenormalized-angular",
+        model_url="https://huggingface.co/thomasht86/voyage-4-nano-ONNX/resolve/main/model_int8.onnx",
+        tokenizer_url="https://huggingface.co/thomasht86/voyage-4-nano-ONNX/resolve/main/tokenizer.json",
+        max_tokens=32000,
+        transformer_token_type_ids="",  # Disable token_type_ids
+        transformer_output="embeddings",  # Model outputs pooled embeddings
+        pooling_strategy="none",  # No additional pooling needed
+        normalize=False,  # Already normalized
+        query_prepend="Represent the query for retrieving supporting documents: ",
     ),
 }
 
