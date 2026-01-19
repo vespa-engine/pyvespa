@@ -1,6 +1,5 @@
 import httpr
 
-# Temporarily keeping for comparison testing
 from urllib3.exceptions import HTTPError
 import json
 import os
@@ -25,7 +24,6 @@ from urllib.parse import urlparse
 
 import docker
 
-# Temporarily keeping for comparison testing
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
