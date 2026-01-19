@@ -205,7 +205,7 @@ class Vespa(object):
         self,
         connections: Optional[int] = 1,
         total_timeout: Optional[int] = None,
-        timeout: Union[httpx.Timeout, int] = httpx.Timeout(5.0, read=30.0),
+        timeout: Union[httpx.Timeout, int, float] = 30.0,
         client: Optional[httpx.AsyncClient] = None,
         **kwargs,
     ) -> "VespaAsync":
@@ -218,10 +218,8 @@ class Vespa(object):
             async with app.asyncio() as async_app:
                 response = await async_app.query(body=body)
 
-            # passing kwargs
-            limits = httpx.Limits(max_keepalive_connections=5, max_connections=5, keepalive_expiry=15)
-            timeout = httpx.Timeout(connect=3, read=4, write=2, pool=5)
-            async with app.asyncio(connections=5, timeout=timeout, limits=limits) as async_app:
+            # passing kwargs with custom timeout
+            async with app.asyncio(connections=5, timeout=60.0) as async_app:
                 response = await async_app.query(body=body)
 
             ```
@@ -230,7 +228,8 @@ class Vespa(object):
         Args:
             connections (int): Number of maximum_keepalive_connections.
             total_timeout (int, optional): Deprecated. Will be ignored. Use timeout instead.
-            timeout (httpx.Timeout, optional): httpx.Timeout object. See [Timeouts](https://www.python-httpx.org/advanced/timeouts/). Defaults to 5 seconds for connect/write/pool and 30 seconds for read.
+            timeout (float | int | httpx.Timeout, optional): Timeout in seconds. Defaults to 30.0.
+                httpx.Timeout is deprecated but still supported for backward compatibility.
             client (httpx.AsyncClient, optional): Reusable httpx.AsyncClient to use instead of creating a new
                 one. When provided, the caller is responsible for closing the client.
             **kwargs (dict, optional): Additional arguments to be passed to the httpx.AsyncClient.
@@ -252,7 +251,7 @@ class Vespa(object):
         self,
         connections: Optional[int] = 1,
         total_timeout: Optional[int] = None,
-        timeout: Union[httpx.Timeout, int] = httpx.Timeout(5.0, read=30.0),
+        timeout: Union[httpx.Timeout, int, float] = 30.0,
         **kwargs,
     ) -> httpx.AsyncClient:
         """Return a configured `httpx.AsyncClient` for reuse.
@@ -263,7 +262,8 @@ class Vespa(object):
 
         Args:
             connections (int, optional): Number of logical connections to keep alive.
-            timeout (httpx.Timeout | int, optional): Timeout configuration for the client.
+            timeout (float | int | httpx.Timeout, optional): Timeout in seconds. Defaults to 30.0.
+                httpx.Timeout is deprecated but still supported for backward compatibility.
             **kwargs: Additional keyword arguments forwarded to `httpx.AsyncClient`.
 
         Returns:
