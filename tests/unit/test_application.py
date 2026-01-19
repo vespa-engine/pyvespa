@@ -13,7 +13,6 @@ from vespa.package import ApplicationPackage, Schema, Document
 from vespa.application import Vespa, raise_for_status
 from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse
-import requests_mock
 from unittest.mock import Mock
 from vespa.application import (
     VespaAsync,
@@ -133,24 +132,31 @@ class TestVespaRequestsUsage(unittest.TestCase):
             "http://localhost:8080/document/v1/foo/foo/docid/0?route=default&timeout=10s&dryRun=True",
         )
 
-    def test_delete_all_docs(self):
+    @patch("vespa.application.httpr.Client")
+    def test_delete_all_docs(self, MockClient):
+        mock_client_instance = Mock()
+        MockClient.return_value = mock_client_instance
+        mock_client_instance.close = Mock()
+
+        # Mock ApplicationStatus GET
+        status_response = create_mock_httpr_response(status_code=200)
+        mock_client_instance.get.return_value = status_response
+
+        # Mock DELETE for delete_all_docs
+        delete_response = create_mock_httpr_response(
+            status_code=200,
+            text="{}",
+            url="http://localhost:8080/document/v1/foo/foo/docid/?cluster=content&selection=true&timeout=200s",
+        )
+        mock_client_instance.delete.return_value = delete_response
+
         app = Vespa(url="http://localhost", port=8080)
-        with requests_mock.Mocker() as m:
-            m.get(
-                "http://localhost:8080/ApplicationStatus",
-                status_code=200,
-            )
-            m.delete(
-                "http://localhost:8080/document/v1/foo/foo/docid/",
-                status_code=200,
-                text="{}",
-            )
-            app.delete_all_docs(
-                schema="foo",
-                namespace="foo",
-                content_cluster_name="content",
-                timeout="200s",
-            )
+        app.delete_all_docs(
+            schema="foo",
+            namespace="foo",
+            content_cluster_name="content",
+            timeout="200s",
+        )
 
     @patch("vespa.application.httpr.Client")
     def test_visit(self, MockClient):
