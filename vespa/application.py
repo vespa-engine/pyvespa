@@ -11,7 +11,6 @@ from queue import Queue, Empty
 import threading
 import httpr
 
-# Temporarily keeping for comparison testing
 from requests import Session
 from requests.models import Response
 from requests.exceptions import ConnectionError, HTTPError, JSONDecodeError
@@ -36,12 +35,10 @@ from vespa.io import VespaQueryResponse, VespaResponse, VespaVisitResponse
 from vespa.package import ApplicationPackage
 from vespa.throttling import AdaptiveThrottler
 
-# Temporarily keeping for comparison testing
 import httpx
 import vespa
 import gzip
 
-# Temporarily keeping for comparison testing
 from io import BytesIO
 import logging
 import tempfile
