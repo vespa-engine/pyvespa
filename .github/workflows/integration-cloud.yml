@@ -82,3 +82,25 @@ jobs:
           VESPA_TEAM_API_KEY: ${{ secrets.VESPA_TEAM_API_KEY }}
         run: |
           pytest tests/integration/test_integration_vespa_cloud_vector_search.py -s -v
+
+  integration-cloud-mteb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        id: setup-python
+        with:
+          python-version: "3.10"
+          cache: "pip"
+      - run: echo '${{ steps.setup-python.outputs.cache-hit }}' # true if cache-hit occurred on the primary key
+      - name: Install dependencies
+        run: |
+          pip install -e .[dev,mteb]
+
+      - name: Run MTEB cloud integration tests
+        env:
+          VESPA_TEAM_API_KEY: ${{ secrets.VESPA_TEAM_API_KEY }}
+        run: |
+          pytest tests/integration/test_integration_vespa_cloud_mteb.py -s -v
