@@ -2295,11 +2295,43 @@ class VespaAsync(object):
                     file=sys.stderr,
                 )
 
-    def _prepare_request_body(self, method: str, json_data=None, data=None):
-        """Prepare request body with optional compression."""
-        return _prepare_request_body(
-            method, json_data, data, self.compress, self.compress_larger_than
-        )
+    async def _make_request(
+        self,
+        method: str,
+        url: str,
+        json_data=None,
+        semaphore: Optional[asyncio.Semaphore] = None,
+        **kwargs,
+    ):
+        """
+        Execute async HTTP request with optional compression and rate-limiting.
+
+        Args:
+            method: HTTP method (GET, POST, PUT, DELETE, etc.)
+            url: URL to request
+            json_data: JSON data to send (will be compressed if configured)
+            semaphore: Optional semaphore for rate-limiting
+            **kwargs: Additional arguments to pass to httpr.AsyncClient request method
+
+        Returns:
+            httpr.Response object
+        """
+        if json_data is not None:
+            prepared_body, extra_headers = _prepare_request_body(
+                method, json_data, None, self.compress, self.compress_larger_than
+            )
+            if extra_headers:
+                kwargs["content"] = prepared_body
+                kwargs["headers"] = extra_headers
+            else:
+                kwargs["json"] = prepared_body
+
+        http_method = getattr(self.httpr_client, method.lower())
+
+        if semaphore:
+            async with semaphore:
+                return await http_method(url, **kwargs)
+        return await http_method(url, **kwargs)
 
     async def _wait(f, args, **kwargs):
         tasks = [asyncio.create_task(f(*arg, **kwargs)) for arg in args]
@@ -2338,24 +2370,9 @@ class VespaAsync(object):
         if profile:
             kwargs.update(get_profiling_params())
 
-        # Prepare request body with optional compression
-        prepared_body, extra_headers = self._prepare_request_body(
-            "POST", json_data=body
+        r = await self._make_request(
+            "POST", self.app.search_end_point, json_data=body, params=kwargs
         )
-
-        if extra_headers:
-            # Compressed body - use content parameter for raw bytes
-            r = await self.httpr_client.post(
-                self.app.search_end_point,
-                content=prepared_body,
-                headers=extra_headers,
-                params=kwargs,
-            )
-        else:
-            # Uncompressed - use json parameter
-            r = await self.httpr_client.post(
-                self.app.search_end_point, json=prepared_body, params=kwargs
-            )
 
         return VespaQueryResponse(
             json=r.json(), status_code=r.status_code, url=str(r.url)
@@ -2390,36 +2407,13 @@ class VespaAsync(object):
         end_point = "{}{}".format(self.app.end_point, path)
         vespa_format = {"fields": fields}
 
-        # Prepare request body with optional compression
-        prepared_body, extra_headers = self._prepare_request_body(
-            "POST", json_data=vespa_format
+        response = await self._make_request(
+            "POST",
+            end_point,
+            json_data=vespa_format,
+            semaphore=semaphore,
+            params=kwargs,
         )
-
-        if semaphore:
-            async with semaphore:
-                if extra_headers:
-                    response = await self.httpr_client.post(
-                        end_point,
-                        content=prepared_body,
-                        headers=extra_headers,
-                        params=kwargs,
-                    )
-                else:
-                    response = await self.httpr_client.post(
-                        end_point, json=prepared_body, params=kwargs
-                    )
-        else:
-            if extra_headers:
-                response = await self.httpr_client.post(
-                    end_point,
-                    content=prepared_body,
-                    headers=extra_headers,
-                    params=kwargs,
-                )
-            else:
-                response = await self.httpr_client.post(
-                    end_point, json=prepared_body, params=kwargs
-                )
 
         return VespaResponse(
             json=response.json(),
@@ -2541,36 +2535,13 @@ class VespaAsync(object):
             # Can not send 'id' in fields for partial update
             vespa_format = {"fields": {k: v for k, v in fields.items() if k != "id"}}
 
-        # Prepare request body with optional compression
-        prepared_body, extra_headers = self._prepare_request_body(
-            "PUT", json_data=vespa_format
+        response = await self._make_request(
+            "PUT",
+            end_point,
+            json_data=vespa_format,
+            semaphore=semaphore,
+            params=kwargs,
         )
-
-        if semaphore:
-            async with semaphore:
-                if extra_headers:
-                    response = await self.httpr_client.put(
-                        end_point,
-                        content=prepared_body,
-                        headers=extra_headers,
-                        params=kwargs,
-                    )
-                else:
-                    response = await self.httpr_client.put(
-                        end_point, json=prepared_body, params=kwargs
-                    )
-        else:
-            if extra_headers:
-                response = await self.httpr_client.put(
-                    end_point,
-                    content=prepared_body,
-                    headers=extra_headers,
-                    params=kwargs,
-                )
-            else:
-                response = await self.httpr_client.put(
-                    end_point, json=prepared_body, params=kwargs
-                )
         return VespaResponse(
             json=response.json(),
             status_code=response.status_code,
