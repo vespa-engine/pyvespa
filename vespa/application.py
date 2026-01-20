@@ -1497,24 +1497,30 @@ class VespaSync(object):
             print(f"Error preparing mTLS certificate: {e}", file=sys.stderr)
             raise
 
-    def _prepare_request_body(self, method: str, json_data=None, data=None):
-        """Prepare request body with optional compression."""
-        return _prepare_request_body(
-            method, json_data, data, self.compress, self.compress_larger_than
-        )
-
-    def _request_with_retry(self, method: str, url: str, **kwargs):
+    def _request_with_retry(self, method: str, url: str, json_data=None, **kwargs):
         """
         Execute HTTP request with 429 retry logic using exponential backoff.
 
         Args:
             method: HTTP method (GET, POST, PUT, DELETE, etc.)
             url: URL to request
+            json_data: JSON data to send (will be compressed if configured)
             **kwargs: Additional arguments to pass to httpr.Client request method
 
         Returns:
             httpr.Response object
         """
+        # Handle compression if json_data provided
+        if json_data is not None:
+            prepared_body, extra_headers = _prepare_request_body(
+                method, json_data, None, self.compress, self.compress_larger_than
+            )
+            if extra_headers:
+                kwargs["content"] = prepared_body
+                kwargs["headers"] = extra_headers
+            else:
+                kwargs["json"] = prepared_body
+
         for attempt in range(self.num_retries_429 + 1):
             try:
                 # Make the request using httpr.Client
@@ -1687,21 +1693,9 @@ class VespaSync(object):
         end_point = "{}{}".format(self.app.end_point, path)
         vespa_format = {"fields": fields}
 
-        # Prepare request body with optional compression
-        prepared_body, extra_headers = self._prepare_request_body(
-            "POST", json_data=vespa_format
+        response = self._request_with_retry(
+            "POST", end_point, json_data=vespa_format, params=kwargs
         )
-        request_kwargs = {"params": kwargs}
-
-        if extra_headers:
-            # Compressed body - use content parameter for raw bytes
-            request_kwargs["content"] = prepared_body
-            request_kwargs["headers"] = extra_headers
-        else:
-            # Uncompressed - use json parameter
-            request_kwargs["json"] = prepared_body
-
-        response = self._request_with_retry("POST", end_point, **request_kwargs)
         raise_for_status(response)
         return VespaResponse(
             json=response.json(),
@@ -1742,22 +1736,8 @@ class VespaSync(object):
         if streaming:
             return self._query_streaming(body, **kwargs)
         else:
-            # Prepare request body with optional compression
-            prepared_body, extra_headers = self._prepare_request_body(
-                "POST", json_data=body
-            )
-            request_kwargs = {"params": kwargs}
-
-            if extra_headers:
-                # Compressed body - use content parameter for raw bytes
-                request_kwargs["content"] = prepared_body
-                request_kwargs["headers"] = extra_headers
-            else:
-                # Uncompressed - use json parameter
-                request_kwargs["json"] = prepared_body
-
             response = self._request_with_retry(
-                "POST", self.app.search_end_point, **request_kwargs
+                "POST", self.app.search_end_point, json_data=body, params=kwargs
             )
             raise_for_status(response)
 
@@ -1772,17 +1752,15 @@ class VespaSync(object):
     ) -> Generator[str, None, None]:
         """Helper method for streaming queries to avoid generator function issues."""
         # Prepare request body with optional compression
-        prepared_body, extra_headers = self._prepare_request_body(
-            "POST", json_data=body
+        prepared_body, extra_headers = _prepare_request_body(
+            "POST", body, None, self.compress, self.compress_larger_than
         )
         request_kwargs = {"params": kwargs}
 
         if extra_headers:
-            # Compressed body - use content parameter for raw bytes
             request_kwargs["content"] = prepared_body
             request_kwargs["headers"] = extra_headers
         else:
-            # Uncompressed - use json parameter
             request_kwargs["json"] = prepared_body
 
         with self.http_client.stream(
@@ -2068,21 +2046,9 @@ class VespaSync(object):
             # Can not send 'id' in fields for partial update
             vespa_format = {"fields": {k: v for k, v in fields.items() if k != "id"}}
 
-        # Prepare request body with optional compression
-        prepared_body, extra_headers = self._prepare_request_body(
-            "PUT", json_data=vespa_format
+        response = self._request_with_retry(
+            "PUT", end_point, json_data=vespa_format, params=kwargs
         )
-        request_kwargs = {"params": kwargs}
-
-        if extra_headers:
-            # Compressed body - use content parameter for raw bytes
-            request_kwargs["content"] = prepared_body
-            request_kwargs["headers"] = extra_headers
-        else:
-            # Uncompressed - use json parameter
-            request_kwargs["json"] = prepared_body
-
-        response = self._request_with_retry("PUT", end_point, **request_kwargs)
         raise_for_status(response)
         return VespaResponse(
             json=response.json(),
