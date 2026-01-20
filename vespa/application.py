@@ -95,6 +95,62 @@ def _is_connection_error(e: Exception) -> bool:
     )
 
 
+def _prepare_request_body(
+    method: str,
+    json_data=None,
+    data=None,
+    compress: Union[str, bool] = "auto",
+    compress_larger_than: int = 1024,
+) -> Tuple[any, Dict[str, str]]:
+    """
+    Prepare request body with optional compression.
+
+    Args:
+        method: HTTP method (POST, PUT, GET, DELETE, etc.)
+        json_data: JSON data to send
+        data: Raw data to send
+        compress: Whether to compress ("auto", True, or False)
+        compress_larger_than: Threshold in bytes for auto compression
+
+    Returns:
+        Tuple of (body_data, extra_headers)
+        - body_data: The data to send (could be original or compressed)
+        - extra_headers: Dict of additional headers to include
+    """
+    if method not in ["POST", "PUT"]:
+        return json_data, {}
+
+    # Determine body content
+    if json_data is not None:
+        body_bytes = json.dumps(json_data).encode("utf-8")
+        content_type = "application/json"
+    elif data is not None:
+        body_bytes = data if isinstance(data, bytes) else data.encode("utf-8")
+        content_type = "application/octet-stream"
+    else:
+        return json_data, {}
+
+    # Check if compression should be applied
+    should_compress = compress is True or (
+        compress == "auto" and len(body_bytes) > compress_larger_than
+    )
+
+    if should_compress:
+        # Compress the body
+        buf = BytesIO()
+        with gzip.GzipFile(fileobj=buf, mode="wb") as f:
+            f.write(body_bytes)
+        compressed_body = buf.getvalue()
+
+        # Return raw bytes and headers for httpr
+        return compressed_body, {
+            "Content-Encoding": "gzip",
+            "Content-Type": content_type,
+        }
+    else:
+        return json_data, {}
+
+
 def raise_for_status(
     response: Response, raise_on_not_found: Optional[bool] = False
 ) -> None:
@@ -1442,51 +1498,10 @@ class VespaSync(object):
             raise
 
     def _prepare_request_body(self, method: str, json_data=None, data=None):
-        """
-        Prepare request body with optional compression.
-
-        Args:
-            method: HTTP method (POST, PUT, GET, DELETE, etc.)
-            json_data: JSON data to send
-            data: Raw data to send
-
-        Returns:
-            Tuple of (body_data, extra_headers)
-            - body_data: The data to send (could be original or compressed)
-            - extra_headers: Dict of additional headers to include
-        """
-        if method not in ["POST", "PUT"]:
-            return json_data, {}
-
-        # Determine body content
-        if json_data is not None:
-            body_bytes = json.dumps(json_data).encode("utf-8")
-            content_type = "application/json"
-        elif data is not None:
-            body_bytes = data if isinstance(data, bytes) else data.encode("utf-8")
-            content_type = "application/octet-stream"
-        else:
-            return json_data, {}
-
-        # Check if compression should be applied
-        should_compress = self.compress is True or (
-            self.compress == "auto" and len(body_bytes) > self.compress_larger_than
+        """Prepare request body with optional compression."""
+        return _prepare_request_body(
+            method, json_data, data, self.compress, self.compress_larger_than
         )
-
-        if should_compress:
-            # Compress the body
-            buf = BytesIO()
-            with gzip.GzipFile(fileobj=buf, mode="wb") as f:
-                f.write(body_bytes)
-            compressed_body = buf.getvalue()
-
-            # Return raw bytes and headers for httpr
-            return compressed_body, {
-                "Content-Encoding": "gzip",
-                "Content-Type": content_type,
-            }
-        else:
-            return json_data, {}
 
     def _request_with_retry(self, method: str, url: str, **kwargs):
         """
@@ -2315,51 +2330,10 @@ class VespaAsync(object):
                 )
 
     def _prepare_request_body(self, method: str, json_data=None, data=None):
-        """
-        Prepare request body with optional compression.
-
-        Args:
-            method: HTTP method (POST, PUT, GET, DELETE, etc.)
-            json_data: JSON data to send
-            data: Raw data to send
-
-        Returns:
-            Tuple of (body_data, extra_headers)
-            - body_data: The data to send (could be original or compressed)
-            - extra_headers: Dict of additional headers to include
-        """
-        if method not in ["POST", "PUT"]:
-            return json_data, {}
-
-        # Determine body content
-        if json_data is not None:
-            body_bytes = json.dumps(json_data).encode("utf-8")
-            content_type = "application/json"
-        elif data is not None:
-            body_bytes = data if isinstance(data, bytes) else data.encode("utf-8")
-            content_type = "application/octet-stream"
-        else:
-            return json_data, {}
-
-        # Check if compression should be applied
-        should_compress = self.compress is True or (
-            self.compress == "auto" and len(body_bytes) > self.compress_larger_than
+        """Prepare request body with optional compression."""
+        return _prepare_request_body(
+            method, json_data, data, self.compress, self.compress_larger_than
         )
-
-        if should_compress:
-            # Compress the body
-            buf = BytesIO()
-            with gzip.GzipFile(fileobj=buf, mode="wb") as f:
-                f.write(body_bytes)
-            compressed_body = buf.getvalue()
-
-            # Return raw bytes and headers for httpr
-            return compressed_body, {
-                "Content-Encoding": "gzip",
-                "Content-Type": content_type,
-            }
-        else:
-            return json_data, {}
 
     async def _wait(f, args, **kwargs):
         tasks = [asyncio.create_task(f(*arg, **kwargs)) for arg in args]
