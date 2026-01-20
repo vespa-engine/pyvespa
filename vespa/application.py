@@ -70,6 +70,31 @@ def get_profiling_params() -> Dict[str, str]:
     }
 
 
+def _is_connection_error(e: Exception) -> bool:
+    """
+    Check if an exception is a connection-related error.
+
+    This handles both requests.ConnectionError and httpr exceptions
+    (RequestError, ConnectError) as well as generic network errors.
+
+    Args:
+        e: The exception to check
+
+    Returns:
+        True if this is a connection/network error, False otherwise
+    """
+    error_str = str(e).lower()
+    return (
+        isinstance(e, ConnectionError)
+        or isinstance(e, ConnectionResetError)
+        or (hasattr(httpr, "RequestError") and isinstance(e, httpr.RequestError))
+        or (hasattr(httpr, "ConnectError") and isinstance(e, httpr.ConnectError))
+        or "error sending request" in error_str
+        or "connection" in error_str
+        or type(e).__name__ == "RequestError"
+    )
+
+
 def raise_for_status(
     response: Response, raise_on_not_found: Optional[bool] = False
 ) -> None:
@@ -424,14 +449,7 @@ class Vespa(object):
             except Exception as e:
                 # During startup, connection errors are expected
                 # Catch both requests.ConnectionError and httpr exceptions
-                error_str = str(e)
-                is_connection_error = (
-                    isinstance(e, ConnectionError)
-                    or "error sending request" in error_str.lower()
-                    or "connection" in error_str.lower()
-                    or type(e).__name__ == "RequestError"
-                )
-                if not is_connection_error:
+                if not _is_connection_error(e):
                     # If it's not a connection error, re-raise
                     raise
                 # Otherwise, silently continue waiting
@@ -1497,22 +1515,14 @@ class VespaSync(object):
             except (ConnectionResetError, Exception) as e:
                 # Check if it's a connection/network error that should be retried
                 # This includes httpr.RequestError, httpr.ConnectError, ConnectionResetError, and other network errors
-                error_str = str(e)
-                is_connection_error = (
-                    isinstance(e, ConnectionResetError)
-                    or isinstance(e, (httpr.RequestError, httpr.ConnectError))
-                    or "error sending request" in error_str.lower()
-                    or "connection" in error_str.lower()
-                )
-
-                if is_connection_error and attempt < self.num_retries_429:
+                if _is_connection_error(e) and attempt < self.num_retries_429:
                     print(
                         f"Connection error on attempt {attempt}: {type(e).__name__}",
                         file=sys.stderr,
                     )
                     wait_time = 0.1 * 1.618**attempt + random.uniform(0, 1)
                     time.sleep(wait_time)
-                elif is_connection_error:
+                elif _is_connection_error(e):
                     print(
                         f"Connection error on attempt {attempt}: {type(e).__name__}",
                         file=sys.stderr,
@@ -1589,14 +1599,7 @@ class VespaSync(object):
                 return {"status_code": response.status_code, "message": response.text}
         except Exception as e:
             # Catch both requests.ConnectionError and httpr exceptions
-            error_str = str(e)
-            is_connection_error = (
-                isinstance(e, ConnectionError)
-                or "error sending request" in error_str.lower()
-                or "connection" in error_str.lower()
-                or type(e).__name__ == "RequestError"
-            )
-            if is_connection_error:
+            if _is_connection_error(e):
                 return None
             else:
                 raise
@@ -1630,14 +1633,7 @@ class VespaSync(object):
                 }
         except Exception as e:
             # Catch both requests.ConnectionError and httpr exceptions
-            error_str = str(e)
-            is_connection_error = (
-                isinstance(e, ConnectionError)
-                or "error sending request" in error_str.lower()
-                or "connection" in error_str.lower()
-                or type(e).__name__ == "RequestError"
-            )
-            if is_connection_error:
+            if _is_connection_error(e):
                 return None
             else:
                 raise
