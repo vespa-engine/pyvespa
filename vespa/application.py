@@ -41,8 +41,6 @@ import gzip
 
 from io import BytesIO
 import logging
-import tempfile
-import os
 import json
 
 logging.getLogger("urllib3").setLevel(logging.ERROR)
@@ -93,6 +91,41 @@ def _is_connection_error(e: Exception) -> bool:
         or "connection" in error_str
         or type(e).__name__ == "RequestError"
     )
+
+
+def _prepare_mtls_cert_data(cert: Optional[str], key: Optional[str]) -> Optional[bytes]:
+    """
+    Prepare mTLS certificate data for httpr.
+
+    Reads certificate and key files and combines them into a single bytes object
+    for use with httpr's client_pem_data parameter.
+
+    Args:
+        cert: Path to certificate file (may also contain key)
+        key: Path to key file (optional if cert contains both)
+
+    Returns:
+        Combined certificate and key data as bytes, or None if no cert provided
+    """
+    if not cert:
+        return None
+
+    # Read cert file
+    with open(cert, "rb") as f:
+        cert_content = f.read()
+
+    if not key or key == cert:
+        # Single file with both cert and key
+        return cert_content
+
+    # Read key file and combine
+    with open(key, "rb") as f:
+        key_content = f.read()
+
+    # Combine cert and key
+    if not cert_content.endswith(b"\n"):
+        return cert_content + b"\n" + key_content
+    return cert_content + key_content
 
 
 def _prepare_request_body(
@@ -1451,51 +1484,11 @@ class VespaSync(object):
         # Automatically determine ownership based on whether client was provided
         self._owns_client = session is None
         self._client_configured = False
-        self._temp_cert_file = None  # For cleanup of temporary mTLS cert files
         # pool_maxsize and pool_connections are kept for API compatibility but httpr manages pooling automatically
 
-    def _prepare_mtls_cert(self):
-        """
-        Prepare mTLS certificate for httpr.
-
-        httpr requires cert and key in a single PEM file.
-        If separate files are provided, combine them temporarily.
-
-        Returns:
-            str: Path to combined PEM file, or None if no cert
-        """
-        if not self.cert:
-            return None
-
-        if not self.key or self.key == self.cert:
-            # Single file with both cert and key, or no key
-            return self.cert
-
-        # Read both files and combine them
-        try:
-            with open(self.cert, "rb") as f:
-                cert_content = f.read()
-            with open(self.key, "rb") as f:
-                key_content = f.read()
-
-            # Create temporary combined file
-            fd, temp_path = tempfile.mkstemp(suffix=".pem", text=False)
-            try:
-                with os.fdopen(fd, "wb") as tmp:
-                    tmp.write(cert_content)
-                    if not cert_content.endswith(b"\n"):
-                        tmp.write(b"\n")
-                    tmp.write(key_content)
-            except:
-                os.unlink(temp_path)
-                raise
-
-            # Store for cleanup
-            self._temp_cert_file = temp_path
-            return temp_path
-        except Exception as e:
-            print(f"Error preparing mTLS certificate: {e}", file=sys.stderr)
-            raise
+    def _prepare_mtls_cert(self) -> Optional[bytes]:
+        """Prepare mTLS certificate data for httpr."""
+        return _prepare_mtls_cert_data(self.cert, self.key)
 
     def _request_with_retry(self, method: str, url: str, json_data=None, **kwargs):
         """
@@ -1575,9 +1568,9 @@ class VespaSync(object):
 
             # Handle mTLS if cert/key are provided
             if self.cert:
-                client_pem_path = self._prepare_mtls_cert()
-                if client_pem_path:
-                    client_config["client_pem"] = client_pem_path
+                client_pem_data = self._prepare_mtls_cert()
+                if client_pem_data:
+                    client_config["client_pem_data"] = client_pem_data
 
             # Handle token authentication (already in headers)
             # httpr will use headers automatically
@@ -1589,23 +1582,12 @@ class VespaSync(object):
         return self.http_client
 
     def _close_http_client(self):
-        """Close the httpr.Client and clean up temporary files."""
+        """Close the httpr.Client."""
         if self.http_client is None:
             return
         if self._owns_client:
             self.http_client.close()
         self._client_configured = False
-
-        # Clean up temporary cert file if created
-        if self._temp_cert_file and os.path.exists(self._temp_cert_file):
-            try:
-                os.unlink(self._temp_cert_file)
-                self._temp_cert_file = None
-            except Exception as e:
-                print(
-                    f"Warning: Could not delete temporary cert file: {e}",
-                    file=sys.stderr,
-                )
 
     def get_model_endpoint(self, model_id: Optional[str] = None) -> Optional[dict]:
         """Get model evaluation endpoints."""
@@ -2191,51 +2173,9 @@ class VespaAsync(object):
                 {"Authorization": f"Bearer {self.app.vespa_cloud_secret_token}"}
             )
 
-        # For cleanup of temporary mTLS cert files
-        self._temp_cert_file = None
-
-    def _prepare_mtls_cert(self):
-        """
-        Prepare mTLS certificate for httpr.
-
-        httpr requires cert and key in a single PEM file.
-        If separate files are provided, combine them temporarily.
-
-        Returns:
-            str: Path to combined PEM file, or None if no cert
-        """
-        if not self.app.cert:
-            return None
-
-        if not self.app.key or self.app.key == self.app.cert:
-            # Single file with both cert and key, or no key
-            return self.app.cert
-
-        # Read both files and combine them
-        try:
-            with open(self.app.cert, "rb") as f:
-                cert_content = f.read()
-            with open(self.app.key, "rb") as f:
-                key_content = f.read()
-
-            # Create temporary combined file
-            fd, temp_path = tempfile.mkstemp(suffix=".pem", text=False)
-            try:
-                with os.fdopen(fd, "wb") as tmp:
-                    tmp.write(cert_content)
-                    if not cert_content.endswith(b"\n"):
-                        tmp.write(b"\n")
-                    tmp.write(key_content)
-            except:
-                os.unlink(temp_path)
-                raise
-
-            # Store for cleanup
-            self._temp_cert_file = temp_path
-            return temp_path
-        except Exception as e:
-            print(f"Error preparing mTLS certificate: {e}", file=sys.stderr)
-            raise
+    def _prepare_mtls_cert(self) -> Optional[bytes]:
+        """Prepare mTLS certificate data for httpr."""
+        return _prepare_mtls_cert_data(self.app.cert, self.app.key)
 
     async def __aenter__(self):
         self._open_httpr_client()
@@ -2259,9 +2199,9 @@ class VespaAsync(object):
 
         # Handle mTLS if cert/key are provided
         if self.app.cert:
-            client_pem_path = self._prepare_mtls_cert()
-            if client_pem_path:
-                client_config["client_pem"] = client_pem_path
+            client_pem_data = self._prepare_mtls_cert()
+            if client_pem_data:
+                client_config["client_pem_data"] = client_pem_data
 
         # Handle token authentication (already in headers)
         # httpr will use headers automatically
@@ -2278,22 +2218,11 @@ class VespaAsync(object):
         return self.httpr_client
 
     async def _close_httpr_client(self):
-        """Close the httpr.AsyncClient and clean up temporary files."""
+        """Close the httpr.AsyncClient."""
         if self.httpr_client is None:
             return
         if self._owns_client:
             await self.httpr_client.aclose()
-
-        # Clean up temporary cert file if created
-        if self._temp_cert_file and os.path.exists(self._temp_cert_file):
-            try:
-                os.unlink(self._temp_cert_file)
-                self._temp_cert_file = None
-            except Exception as e:
-                print(
-                    f"Warning: Could not delete temporary cert file: {e}",
-                    file=sys.stderr,
-                )
 
     async def _make_request(
         self,
