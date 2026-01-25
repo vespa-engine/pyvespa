@@ -1420,7 +1420,8 @@ class VespaCloud(VespaDeployment):
 
         try:
             parsed = response.json()
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, RuntimeError):
+            # httpr raises RuntimeError for JSON parsing errors
             parsed = response.text
 
         if response.status_code != 200:
@@ -1635,7 +1636,7 @@ class VespaCloud(VespaDeployment):
         schemas = {
             schema_endpoint.split("/")[-1][:-3]: self._request(
                 "GET", urlparse(schema_endpoint).path
-            ).decode("utf-8")
+            )
             for schema_endpoint in self._request(
                 "GET",
                 "/application/v4/tenant/{}/application/{}/instance/{}/environment/{}/region/{}/content/schemas/".format(
