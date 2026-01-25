@@ -43,53 +43,6 @@ CONTAINER_STOP_TIMEOUT = 10
 RESOURCES_DIR = get_resource_path()
 
 
-def assert_dicts_almost_equal(actual, expected, rel_tol=1e-9, abs_tol=1e-15, path=""):
-    """
-    Recursively compare two dictionaries, using approximate equality for floats.
-
-    Args:
-        actual: The actual dictionary
-        expected: The expected dictionary
-        rel_tol: Relative tolerance for float comparison
-        abs_tol: Absolute tolerance for float comparison
-        path: Current path in the dict (for error messages)
-
-    Raises:
-        AssertionError: If the dictionaries differ
-    """
-    if type(actual) is not type(expected):
-        raise AssertionError(
-            f"Type mismatch at {path}: {type(actual).__name__} vs {type(expected).__name__}"
-        )
-
-    if isinstance(actual, dict):
-        if actual.keys() != expected.keys():
-            raise AssertionError(
-                f"Keys differ at {path}: {actual.keys()} vs {expected.keys()}"
-            )
-        for key in actual:
-            assert_dicts_almost_equal(
-                actual[key], expected[key], rel_tol, abs_tol, f"{path}.{key}"
-            )
-    elif isinstance(actual, list):
-        if len(actual) != len(expected):
-            raise AssertionError(
-                f"List length differs at {path}: {len(actual)} vs {len(expected)}"
-            )
-        for i, (a, e) in enumerate(zip(actual, expected)):
-            assert_dicts_almost_equal(a, e, rel_tol, abs_tol, f"{path}[{i}]")
-    elif isinstance(actual, float) and isinstance(expected, float):
-        import math
-
-        if not math.isclose(actual, expected, rel_tol=rel_tol, abs_tol=abs_tol):
-            raise AssertionError(
-                f"Float values differ at {path}: {actual} vs {expected}"
-            )
-    else:
-        if actual != expected:
-            raise AssertionError(f"Values differ at {path}: {actual} vs {expected}")
-
-
 def create_msmarco_application_package(auth_clients: List[AuthClient] = None):
     #
     # Application package
@@ -349,16 +302,10 @@ class TestDockerCommon(unittest.TestCase):
 
     def _safe_get_application_status(self, app, retries=5, interval=1):
         """Try to get the application status, returning None if it fails."""
-        import httpr
-
         for _ in range(retries):
             try:
                 return app.get_application_status()
-            except (
-                requests.exceptions.ConnectionError,
-                httpr.RequestError,
-                httpr.ConnectError,
-            ):
+            except requests.exceptions.ConnectionError:
                 time.sleep(interval)
         return None
 
@@ -370,24 +317,23 @@ class TestApplicationCommon(unittest.TestCase):
     async def handle_longlived_connection(self, app, n_seconds=10):
         # Test that the connection can live for at least n_seconds
         async with app.asyncio(connections=1) as async_app:
-            response = await async_app.httpr_client.get(
+            response = await async_app.httpx_client.get(
                 app.end_point + "/ApplicationStatus"
             )
             self.assertEqual(response.status_code, 200)
             await asyncio.sleep(n_seconds)
-            response = await async_app.httpr_client.get(
+            response = await async_app.httpx_client.get(
                 app.end_point + "/ApplicationStatus"
             )
             self.assertEqual(response.status_code, 200)
 
     async def async_is_http2_client(self, app):
         async with app.asyncio() as async_app:
-            response = await async_app.httpr_client.get(
+            response = await async_app.httpx_client.get(
                 app.end_point + "/ApplicationStatus"
             )
             self.assertEqual(response.status_code, 200)
-            # Note: httpr doesn't expose http_version attribute
-            # HTTP/2 is enabled by default in VespaAsync (http2_only=True)
+            self.assertEqual(response.http_version, "HTTP/2")
 
     def sync_client_accept_encoding_gzip(self, app):
         data = {
@@ -395,16 +341,11 @@ class TestApplicationCommon(unittest.TestCase):
             "hits": 10,
         }
         with app.syncio() as sync_app:
-            response = sync_app.http_client.post(app.search_end_point, json=data)
+            response = sync_app.http_session.post(app.search_end_point, json=data)
             self.assertEqual(response.status_code, 200)
-            # Check if gzip encoding is present (may be case-insensitive)
-            content_encoding = response.headers.get(
-                "content-encoding"
-            ) or response.headers.get("Content-Encoding")
-            if content_encoding:
-                self.assertEqual(content_encoding.lower(), "gzip")
-            # Note: httpr doesn't expose request details via response.request
-            # The Accept-Encoding: gzip header is set by default in httpr
+            self.assertEqual(response.headers["content-encoding"], "gzip")
+            # Check that gzip is in request headers
+            self.assertIn("gzip", response.request.headers["Accept-Encoding"])
 
     async def async_client_accept_encoding_gzip(self, app):
         data = {
@@ -412,18 +353,13 @@ class TestApplicationCommon(unittest.TestCase):
             "hits": 10,
         }
         async with app.asyncio() as async_app:
-            response = await async_app.httpr_client.post(
+            response = await async_app.httpx_client.post(
                 app.search_end_point, json=data
             )
             self.assertEqual(response.status_code, 200)
-            # Check if gzip encoding is present (may be case-insensitive)
-            content_encoding = response.headers.get(
-                "content-encoding"
-            ) or response.headers.get("Content-Encoding")
-            if content_encoding:
-                self.assertEqual(content_encoding.lower(), "gzip")
-            # Note: httpr doesn't expose request details via response.request
-            # The Accept-Encoding: gzip header is set by default in httpr
+            self.assertEqual(response.headers["content-encoding"], "gzip")
+            # Check that gzip is in request headers
+            self.assertIn("gzip", response.request.headers["Accept-Encoding"])
 
     def execute_data_operations(
         self,
@@ -480,7 +416,7 @@ class TestApplicationCommon(unittest.TestCase):
             schema=schema_name, data_id=fields_to_send["id"], **kwargs
         )
         self.assertEqual(response.status_code, 200)
-        assert_dicts_almost_equal(
+        self.assertDictEqual(
             response.json,
             {
                 "fields": expected_fields_from_get_operation,
@@ -504,7 +440,7 @@ class TestApplicationCommon(unittest.TestCase):
             for response in slice:
                 visit_results.append(response)
 
-        assert_dicts_almost_equal(
+        self.assertDictEqual(
             visit_results[0].json,
             {
                 "pathId": "/document/v1/{}/{}/docid/".format(schema_name, schema_name),
@@ -548,7 +484,7 @@ class TestApplicationCommon(unittest.TestCase):
         else:
             expected_result = expected_fields_after_update
 
-        assert_dicts_almost_equal(
+        self.assertDictEqual(
             response.json,
             {
                 "fields": expected_result,
@@ -609,7 +545,7 @@ class TestApplicationCommon(unittest.TestCase):
                 for k, v in expected_fields_after_update.items()
                 if k in field_to_update
             }
-        assert_dicts_almost_equal(
+        self.assertDictEqual(
             response.json,
             {
                 "fields": expected_fields,
@@ -723,7 +659,7 @@ class TestApplicationCommon(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.is_successful(), True)
             result = response.json
-            assert_dicts_almost_equal(
+            self.assertDictEqual(
                 result,
                 {
                     "fields": expected_fields_from_get_operation[0],
@@ -770,7 +706,7 @@ class TestApplicationCommon(unittest.TestCase):
                     for k, v in expected_fields_after_update.items()
                     if k in field_to_update
                 }
-            assert_dicts_almost_equal(
+            self.assertDictEqual(
                 result,
                 {
                     "fields": expected_result,
@@ -1100,9 +1036,9 @@ class TestMsmarcoApplication(TestApplicationCommon):
         response = app_with_header.get_application_status()
         # Check that the request was successful
         self.assertEqual(response.status_code, 200)
-        # Note: httpr doesn't expose request details via response.request
-        # Custom headers are configured on the client and sent with all requests
-        # but cannot be verified from the response object with httpr
+        # Verify the custom header was sent
+        self.assertIn("X-Custom-Header", response.request.headers)
+        self.assertEqual(response.request.headers["X-Custom-Header"], "myheadervalue")
 
     def test_handle_longlived_connection(self):
         asyncio.run(self.handle_longlived_connection(app=self.app))
