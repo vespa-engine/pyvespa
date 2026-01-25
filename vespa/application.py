@@ -438,27 +438,26 @@ class Vespa(object):
         self,
         connections: Optional[int] = 8,
         compress: Union[str, bool] = "auto",
-    ) -> Session:
-        """Return a configured `requests.Session` for reuse.
+    ) -> httpr.Client:
+        """Return a configured httpr.Client for reuse.
 
-        The returned session is configured with the same headers, authentication, and
-        connection pooling behaviour as the `VespaSync` context manager. Callers are
-        responsible for closing the session when it is no longer needed.
+        The returned client is configured with the same headers, authentication, and
+        mTLS certificates as the VespaSync context manager. Callers are responsible
+        for closing the client when it is no longer needed.
 
         Args:
-            connections (int, optional): Number of allowed concurrent connections.
+            connections (int, optional): Kept for API compatibility (httpr manages pooling).
             compress (Union[str, bool], optional): Whether to compress request bodies.
 
         Returns:
-            Session: Configured requests session using `CustomHTTPAdapter` pooling.
+            httpr.Client: Configured HTTP client.
         """
-
         sync_layer = VespaSync(
             app=self,
             pool_connections=connections,
             pool_maxsize=connections,
             compress=compress,
-            session=Session(),
+            session=None,  # Let VespaSync create httpr.Client
         )
         session = sync_layer._open_http_client()
         sync_layer._owns_client = False
