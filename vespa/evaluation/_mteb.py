@@ -27,7 +27,6 @@ except ImportError as e:
         "    uv add 'pyvespa[mteb]'"
     ) from e
 
-import httpx
 from vespa.models import ApplicationPackageWithQueryFunctions
 from vespa.models import create_hybrid_package, ModelConfig, get_model_config
 from vespa.deployment import VespaDocker, VespaCloud
@@ -240,13 +239,8 @@ class VespaMTEBApp(SearchProtocol):
     def get_query_functions(self) -> dict[str, Callable]:
         return self.package.get_query_functions()
 
-    def get_timeout(self) -> httpx.Timeout:
-        return httpx.Timeout(
-            connect=20.0,
-            read=60.0,  # Override to 60 seconds for read
-            write=20.0,
-            pool=20.0,
-        )
+    def get_timeout(self) -> float:
+        return 60.0
 
     def index(
         self,
