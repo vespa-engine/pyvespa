@@ -139,7 +139,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
     def test_data_plane_useragent_sync(self):
         with self.app.syncio() as session:
             # Verify User-Agent is set on the http_client
-            user_agent = session.http_client.headers.get("User-Agent")
+            user_agent = session.http_client.headers.get("user-agent")
             self.assertEqual(
                 user_agent,
                 f"pyvespa/{vespa.__version__}",
@@ -149,7 +149,7 @@ class TestMsmarcoApplication(TestApplicationCommon):
         async def get_user_agent():
             async with self.app.asyncio() as session:
                 # Verify User-Agent is set on the httpr_client
-                return session.httpr_client.headers.get("User-Agent")
+                return session.httpr_client.headers.get("user-agent")
 
         user_agent = asyncio.run(get_user_agent())
         self.assertEqual(

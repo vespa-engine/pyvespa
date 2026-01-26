@@ -250,6 +250,7 @@ class VespaMTEBApp(SearchProtocol):
         hf_split: str,
         hf_subset: str,
         encode_kwargs: dict[str, Any],
+        num_proc: int = 1,  # Not used, but required by MTEB interface
     ) -> None:
         task_name = task_metadata.name
         self._current_task_name = task_name
@@ -353,6 +354,7 @@ class VespaMTEBApp(SearchProtocol):
         encode_kwargs: dict[str, Any],
         instructions: InstructionDatasetType | None = None,
         top_ranked: TopRankedDocumentsType | None = None,
+        num_proc: int = 1,  # Not used, but required by MTEB interface
     ) -> RetrievalOutputType:
         if self.app is None:
             raise ValueError("Application not deployed. Call index() first.")
