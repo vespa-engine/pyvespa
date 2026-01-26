@@ -20,23 +20,19 @@ jobs:
           ruby-version: 3.3
           bundler-cache: true
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb # v6
-        with:
-          version: "0.6.16"
-
       - name: Setup Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.9"
 
-      - name: Install dependencies
+      - name: Install Sphinx
         run: |
-          uv sync --extra docs --extra feed
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -e .[docs,feed]
 
       - name: Build site
         run: |
-          uv run mkdocs build --site-dir docs/sphinx/build
+          mkdocs build --site-dir docs/sphinx/build
 
           # Add front matter and strip liquid macros from html files
           find docs/sphinx/build -name \*.html | \
@@ -55,18 +51,18 @@ jobs:
           # use the key/cert files in .vespa and paste their content into GitHub Secrets.
           export VESPA_CLI_DATA_PLANE_CERT
           export VESPA_CLI_DATA_PLANE_KEY
-          uv run ./feed_to_vespa.py _config.yml
+          ./feed_to_vespa.py _config.yml
 
       - name: Convert all notebooks to md
         run: |
-          uv run jupyter nbconvert --to markdown docs/sphinx/source/examples/*.ipynb --output-dir='./markdown_notebooks/'
-          uv run jupyter nbconvert --to markdown docs/sphinx/source/*.ipynb --output-dir='./markdown_nooteboks/'
+          jupyter nbconvert --to markdown docs/sphinx/source/examples/*.ipynb --output-dir='./markdown_notebooks/'
+          jupyter nbconvert --to markdown docs/sphinx/source/*.ipynb --output-dir='./markdown_nooteboks/'
 
       - name: Feed paragraphs site
         run: |
-          uv run ./feed-split.py pyvespa_index.json https://vespa-engine.github.io/pyvespa/ questions.jsonl
-          uv run ./feed_to_vespa.py _paragraphs_config.yml
+          ./feed-split.py pyvespa_index.json https://vespa-engine.github.io/pyvespa/ questions.jsonl
+          ./feed_to_vespa.py _paragraphs_config.yml
 
       - name: Feed suggestions
         run: |
-          uv run ./feed_to_vespa.py _suggestions_config.yml
+          ./feed_to_vespa.py _suggestions_config.yml
