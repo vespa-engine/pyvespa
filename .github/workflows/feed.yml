@@ -55,7 +55,7 @@ jobs:
           # use the key/cert files in .vespa and paste their content into GitHub Secrets.
           export VESPA_CLI_DATA_PLANE_CERT
           export VESPA_CLI_DATA_PLANE_KEY
-          ./feed_to_vespa.py _config.yml
+          uv run ./feed_to_vespa.py _config.yml
 
       - name: Convert all notebooks to md
         run: |
@@ -64,9 +64,9 @@ jobs:
 
       - name: Feed paragraphs site
         run: |
-          ./feed-split.py pyvespa_index.json https://vespa-engine.github.io/pyvespa/ questions.jsonl
-          ./feed_to_vespa.py _paragraphs_config.yml
+          uv run ./feed-split.py pyvespa_index.json https://vespa-engine.github.io/pyvespa/ questions.jsonl
+          uv run ./feed_to_vespa.py _paragraphs_config.yml
 
       - name: Feed suggestions
         run: |
-          ./feed_to_vespa.py _suggestions_config.yml
+          uv run ./feed_to_vespa.py _suggestions_config.yml
