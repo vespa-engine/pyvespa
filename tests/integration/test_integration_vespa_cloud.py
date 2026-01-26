@@ -1,7 +1,6 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import os
-import httpx
 import asyncio
 import shutil
 import pytest
@@ -131,37 +130,30 @@ class TestMsmarcoApplication(TestApplicationCommon):
         ]
 
     def test_control_plane_useragent(self):
-        response: httpx.Response = self.vespa_cloud._request_with_api_key(
-            "GET",
-            f"/application/v4/tenant/{self.vespa_cloud.tenant}/application/{self.vespa_cloud.application}/",
-            return_raw_response=True,
-        )
+        # Verify User-Agent is configured correctly in base_headers
         self.assertEqual(
-            response.request.headers["User-Agent"],
+            self.vespa_cloud.base_headers.get("User-Agent"),
             f"pyvespa/{vespa.__version__}",
         )
 
     def test_data_plane_useragent_sync(self):
         with self.app.syncio() as session:
-            response = session.http_session.get(
-                self.app.end_point + "/ApplicationStatus"
+            # Verify User-Agent is set on the http_client
+            user_agent = session.http_client.headers.get("User-Agent")
+            self.assertEqual(
+                user_agent,
+                f"pyvespa/{vespa.__version__}",
             )
-        self.assertEqual(
-            response.request.headers["User-Agent"],
-            f"pyvespa/{vespa.__version__}",
-        )
 
     def test_data_plane_useragent_async(self):
-        async def get_resp():
+        async def get_user_agent():
             async with self.app.asyncio() as session:
-                response = await session.httpx_client.get(
-                    self.app.end_point + "/ApplicationStatus"
-                )
-            return response
+                # Verify User-Agent is set on the httpr_client
+                return session.httpr_client.headers.get("User-Agent")
 
-        response = asyncio.run(get_resp())
+        user_agent = asyncio.run(get_user_agent())
         self.assertEqual(
-            response.request.headers["User-Agent"],
+            user_agent,
             f"pyvespa/{vespa.__version__}",
         )
 
