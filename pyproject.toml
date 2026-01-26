@@ -105,7 +105,7 @@ notebooks = [
     "matplotlib",
 ]
 mteb = [
-    "mteb>=2.0.0; python_version>='3.10'",
+    "mteb>=2.7.5; python_version>='3.10'",
     "simplejson; python_version>='3.10'",
 ]
 dev = [
