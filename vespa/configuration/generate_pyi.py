@@ -14,5 +14,5 @@ for mod, tag_set in [
     with open(pyi_file, "w") as f:
         # write import statement for VT
         f.write("from vespa.configuration.vt import VT\n\n")
-        for tag in tag_set:
+        for tag in sorted(tag_set):
             f.write(f"def {tag}(*c, **kwargs) -> VT: ...\n")
