@@ -1529,17 +1529,9 @@ class VespaSync(object):
                 # Check if it's a connection/network error that should be retried
                 # This includes httpr.RequestError, httpr.ConnectError, ConnectionResetError, and other network errors
                 if _is_connection_error(e) and attempt < self.num_retries_429:
-                    print(
-                        f"Connection error on attempt {attempt}: {type(e).__name__}",
-                        file=sys.stderr,
-                    )
                     wait_time = 0.1 * 1.618**attempt + random.uniform(0, 1)
                     time.sleep(wait_time)
                 elif _is_connection_error(e):
-                    print(
-                        f"Connection error on attempt {attempt}: {type(e).__name__}",
-                        file=sys.stderr,
-                    )
                     raise
                 else:
                     # Not a connection error, re-raise immediately
