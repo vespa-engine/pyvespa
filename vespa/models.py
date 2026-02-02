@@ -131,7 +131,7 @@ class ModelConfig:
             Optional, if not set the Vespa embedder uses its internal default (False).
         query_prepend: Optional instruction to prepend to query text
         document_prepend: Optional instruction to prepend to document text
-        validate_urls: Whether to validate URLs by checking they return HTTP 200 (default: True)
+        validate_urls: Whether to validate URLs by checking they return HTTP 200 (default: False)
     """
 
     model_id: str
@@ -154,7 +154,7 @@ class ModelConfig:
     normalize: Optional[bool] = None
     query_prepend: Optional[str] = None
     document_prepend: Optional[str] = None
-    validate_urls: bool = True
+    validate_urls: bool = False
     config_hash: str = field(default="", init=False)
 
     def __post_init__(self):
