@@ -2067,14 +2067,20 @@ class TestHFModelsURLValidation:
         HF_MODELS entry return HTTP 200 status codes.
         """
         config = HF_MODELS[model_name]
-        # URL validation happens in __post_init__, so if we get here without
-        # an exception, the URLs are valid. But let's also verify the config
-        # has the expected URLs set.
-        print(f"Validating URLs for model: {model_name}")
+
+        # Verify config has URLs set
         assert config.model_url is not None, f"{model_name} should have model_url"
         assert (
             config.tokenizer_url is not None
         ), f"{model_name} should have tokenizer_url"
-        assert (
-            config.validate_urls is True
-        ), f"{model_name} should have validate_urls=True"
+
+        # Explicitly validate URLs by creating a new config with validation enabled
+        # (HF_MODELS uses validate_urls=False by default for fast import)
+        print(f"Validating URLs for model: {model_name}")
+        ModelConfig(
+            model_id=config.model_id,
+            embedding_dim=config.embedding_dim,
+            model_url=config.model_url,
+            tokenizer_url=config.tokenizer_url,
+            validate_urls=True,  # Explicitly enable validation
+        )
