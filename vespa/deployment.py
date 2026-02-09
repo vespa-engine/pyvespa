@@ -998,6 +998,8 @@ class VespaCloud(VespaDeployment):
             status = self.check_production_build_status(build_no)
             if status["status"] == "done":
                 return status["deployed"]
+            if "detailed-status" in status and status["detailed-status"] not in ["success", "running"]:
+                raise RuntimeError(f"The build failed with status code: {status['detailed-status']}")
             time.sleep(poll_interval)
         raise TimeoutError(f"Deployment did not finish within {max_wait} seconds. ")
 
