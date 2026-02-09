@@ -24,6 +24,7 @@ from vespa.configuration.services import (
     document_api,
     document_processing,
     component,
+    components,
     model,
     api_key_secret_ref,
     dimensions,
@@ -35,6 +36,13 @@ from vespa.configuration.services import (
     threadpool,
     threads,
     redundancy,
+    transformer_model,
+    tokenizer_model,
+    pooling_strategy,
+    normalize,
+    prepend,
+    max_tokens,
+    query,
 )
 from vespa.configuration.vt import vt
 from vespa.deployment import VespaCloud
@@ -44,12 +52,13 @@ import vespa.querybuilder as qb
 
 # Configuration
 TENANT_NAME = "thttest04"
+APPLICATION_NAME = "voyagetest2"
 SCHEMA_NAME = "doc"
 SECRET_STORE_VAULT_NAME = "thtvault"
 VOYAGE_SECRET_NAME = "voyage_api_key"
 
 FEED_MODEL_ID = "voyage-4-large"
-QUERY_MODEL_ID = "voyage-4-lite"
+QUERY_MODEL_ID = "voyage-4-nano-int8"
 
 # Define the schema with document fields
 schema = Schema(
@@ -145,29 +154,53 @@ schema.add_rank_profile(
 
 # Define services configuration with Voyage AI embedders
 services_config = ServicesConfiguration(
-    application_name="voyagetest",
+    application_name=APPLICATION_NAME,
     services_config=services(
-        container(id="voyagetest_container", version="1.0")(
+        container(id=f"{APPLICATION_NAME}_container", version="1.0")(
             secrets(
                 vt(tag="apiKey", vault=SECRET_STORE_VAULT_NAME, name=VOYAGE_SECRET_NAME)
             ),
             search(),
             document_api(),
             document_processing(threadpool(threads("1000"))),
-            # Voyage AI lite embedder
-            component(id="voyage-lite", type_="voyage-ai-embedder")(
-                model("voyage-4-lite"),
-                api_key_secret_ref("apiKey"),
-                dimensions("1024"),
-            ),
-            # Voyage AI large embedder (used by the embedding fields)
-            component(id="voyage-large", type_="voyage-ai-embedder")(
-                model("voyage-4-large"),
-                api_key_secret_ref("apiKey"),
-                dimensions("1024"),
+            # Voyage AI nano embedder (used for query embedding)
+            # <component id="my-embedder-id" type="hugging-face-embedder">
+            #     <transformer-model model-id="voyage-4-nano-int8"/>
+            #     <max-tokens>32768</max-tokens>
+            #     <pooling-strategy>mean</pooling-strategy>
+            #     <normalize>true</normalize>
+            #     <prepend>
+            #         <query>Represent the query for retrieving supporting documents: </query>
+            #     </prepend>
+            # </component>
+            components(
+                component(id="voyage-4-nano-int8", type_="hugging-face-embedder")(
+                    transformer_model(model_id="voyage-4-nano-int8"),
+                    tokenizer_model(model_id="voyage-4-nano-vocab"),
+                    max_tokens("32768"),
+                    pooling_strategy("mean"),
+                    normalize("true"),
+                    prepend(
+                        query(
+                            "Represent the query for retrieving supporting documents: "
+                        )
+                    ),
+                ),
+                # Voyage AI lite embedder
+                component(id="voyage-4-lite", type_="voyage-ai-embedder")(
+                    model("voyage-4-lite"),
+                    api_key_secret_ref("apiKey"),
+                    dimensions("1024"),
+                ),
+                # Voyage AI large embedder (used by the embedding fields)
+                component(id="voyage-4-large", type_="voyage-ai-embedder")(
+                    model("voyage-4-large"),
+                    api_key_secret_ref("apiKey"),
+                    dimensions("1024"),
+                ),
             ),
         ),
-        content(id="voyagetest_content", version="1.0")(
+        content(id=f"{APPLICATION_NAME}_content", version="1.0")(
             redundancy("1"),
             documents(document(type_="doc", mode="index")),
             nodes(node(distribution_key="0", hostalias="node1")),
@@ -177,7 +210,7 @@ services_config = ServicesConfiguration(
 
 # Create the application package
 app_package = ApplicationPackage(
-    name="voyagetest",
+    name=APPLICATION_NAME,
     schema=[schema],
     services_config=services_config,
 )
@@ -219,8 +252,8 @@ if __name__ == "__main__":
     print("Deploying to Vespa Cloud...")
     vespa_cloud = VespaCloud(
         tenant=TENANT_NAME,
-        application="voyagetest",
-        key_location="/Users/thomas/.vespa/thttest04.api-key.pem",
+        application=APPLICATION_NAME,
+        key_location=f"/Users/thomas/.vespa/{TENANT_NAME}.api-key.pem",
         application_package=app_package,
     )
     app = vespa_cloud.deploy()
