@@ -153,6 +153,9 @@ def _prepare_request_body(
     if method not in ["POST", "PUT"]:
         return json_data, {}
 
+    if compress is False:
+        return json_data or data, {}
+
     # Determine body content
     if json_data is not None:
         body_bytes = json.dumps(json_data).encode("utf-8")
