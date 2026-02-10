@@ -79,7 +79,7 @@ schema = Schema(
 schema.add_fields(
     Field(
         name="embedding_float",
-        type="tensor<float>(x[1024])",
+        type="tensor<float>(x[2048])",
         indexing=["input text", f"embed {FEED_MODEL_ID}", "attribute"],
         attribute=["distance-metric: prenormalized-angular"],
         is_document_field=False,
@@ -90,7 +90,7 @@ schema.add_fields(
 schema.add_fields(
     Field(
         name="embedding_binary_int8",
-        type="tensor<int8>(x[128])",
+        type="tensor<int8>(x[256])",  # 2048 // 8 = 256
         indexing=["input text", f"embed {FEED_MODEL_ID}", "attribute"],
         attribute=["distance-metric: hamming"],
         is_document_field=False,
@@ -101,7 +101,7 @@ schema.add_fields(
 schema.add_fields(
     Field(
         name="embedding_int8",
-        type="tensor<int8>(x[1024])",
+        type="tensor<int8>(x[2048])",
         indexing=["input text", f"embed {FEED_MODEL_ID}", "attribute"],
         attribute=["distance-metric: prenormalized-angular"],
         is_document_field=False,
@@ -112,7 +112,7 @@ schema.add_fields(
 schema.add_rank_profile(
     RankProfile(
         name="float_angular",
-        inputs=[("query(embedding_float)", "tensor<float>(x[1024])")],
+        inputs=[("query(embedding_float)", "tensor<float>(x[2048])")],
         first_phase="closeness(embedding_float)",
         summary_features=[
             "query(embedding_float)",
@@ -124,7 +124,7 @@ schema.add_rank_profile(
 schema.add_rank_profile(
     RankProfile(
         name="binary_int8",
-        inputs=[("query(embedding_binary_int8)", "tensor<int8>(x[128])")],
+        inputs=[("query(embedding_binary_int8)", "tensor<int8>(x[256])")],
         first_phase="closeness(embedding_binary_int8)",
         summary_features=[
             "query(embedding_binary_int8)",
@@ -190,13 +190,13 @@ services_config = ServicesConfiguration(
                 component(id="voyage-4-lite", type_="voyage-ai-embedder")(
                     model("voyage-4-lite"),
                     api_key_secret_ref("apiKey"),
-                    dimensions("1024"),
+                    dimensions("2048"),
                 ),
                 # Voyage AI large embedder (used by the embedding fields)
                 component(id="voyage-4-large", type_="voyage-ai-embedder")(
                     model("voyage-4-large"),
                     api_key_secret_ref("apiKey"),
-                    dimensions("1024"),
+                    dimensions("2048"),
                 ),
             ),
         ),
