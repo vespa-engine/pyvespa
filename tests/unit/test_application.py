@@ -1149,5 +1149,83 @@ class TestQueryProfiling(unittest.TestCase):
         self.assertIn("presentation.timing=true", r.url)
 
 
+class TestCborAcceptHeader(unittest.TestCase):
+    @patch("vespa.application.httpr.Client")
+    def test_query_sends_cbor_accept_header(self, MockClient):
+        """Verify sync query passes Accept: application/cbor in the POST call."""
+        mock_client_instance = Mock()
+        MockClient.return_value = mock_client_instance
+        mock_client_instance.close = Mock()
+
+        status_response = create_mock_httpr_response(status_code=200)
+        search_response = create_mock_httpr_response(
+            status_code=200, text="{}", url="http://localhost:8080/search/"
+        )
+        mock_client_instance.get.return_value = status_response
+        mock_client_instance.post.return_value = search_response
+
+        app = Vespa(url="http://localhost", port=8080)
+        app.query(body={"yql": "select * from sources * where true"})
+
+        # Inspect the POST call kwargs
+        _, call_kwargs = mock_client_instance.post.call_args
+        assert "headers" in call_kwargs
+        assert call_kwargs["headers"]["Accept"] == "application/cbor"
+
+    @patch("vespa.application.httpr.Client")
+    def test_query_cbor_accept_with_compression(self, MockClient):
+        """Verify Accept header survives when compression adds its own headers."""
+        mock_client_instance = Mock()
+        MockClient.return_value = mock_client_instance
+        mock_client_instance.close = Mock()
+
+        status_response = create_mock_httpr_response(status_code=200)
+        search_response = create_mock_httpr_response(
+            status_code=200, text="{}", url="http://localhost:8080/search/"
+        )
+        mock_client_instance.get.return_value = status_response
+        mock_client_instance.post.return_value = search_response
+
+        # Enable compression (compress=True always compresses regardless of size)
+        app = Vespa(url="http://localhost", port=8080)
+        with app.syncio(compress=True) as session:
+            session.query(body={"yql": "select * from sources * where true"})
+
+        _, call_kwargs = mock_client_instance.post.call_args
+        headers = call_kwargs["headers"]
+        # Accept header must survive alongside compression headers
+        assert headers["Accept"] == "application/cbor"
+        # Compression headers should also be present
+        assert "Content-Encoding" in headers
+
+    @patch("vespa.application.httpr.Client")
+    def test_feed_does_not_send_cbor_accept_header(self, MockClient):
+        """Verify feed POST does NOT include Accept: application/cbor."""
+        mock_client_instance = Mock()
+        MockClient.return_value = mock_client_instance
+        mock_client_instance.close = Mock()
+
+        status_response = create_mock_httpr_response(status_code=200)
+        feed_response = create_mock_httpr_response(
+            status_code=200,
+            text="{}",
+            url="http://localhost:8080/document/v1/foo/foo/docid/0",
+        )
+        mock_client_instance.get.return_value = status_response
+        mock_client_instance.post.return_value = feed_response
+
+        app = Vespa(url="http://localhost", port=8080)
+        app.feed_data_point(
+            schema="foo",
+            data_id="0",
+            fields={"body": "test"},
+        )
+
+        _, call_kwargs = mock_client_instance.post.call_args
+        # Feed should not have any headers with Accept: application/cbor
+        headers = call_kwargs.get("headers", {})
+        assert headers.get("Accept") != "application/cbor"
+
+
 if __name__ == "__main__":
     unittest.main()
