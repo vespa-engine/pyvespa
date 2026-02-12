@@ -648,8 +648,12 @@ class TestDeployPerf(unittest.TestCase):
 
 
 @unittest.skip("Creates cloud resources — run manually to verify vault access flow")
-class TestVaultAccessRulesCloud(unittest.TestCase):
-    """Minimal end-to-end test: deploy an app with secrets to verify vault access rule setup."""
+class TestDeployAddsVaultAccessCloud(unittest.TestCase):
+    """
+    Minimal end-to-end test: deploy an app with secrets to verify vault access rule setup.
+    Note that this requires a pre-existing vault and secret in the tenant.
+    The app does not need to exist beforehand.
+    """
 
     def setUp(self) -> None:
         self.tenant = "vespa-team"
