@@ -630,3 +630,28 @@ class TestDeployPerf(unittest.TestCase):
         # Wait a little bit to make sure the deployment is finished
         time.sleep(10)
         self.vespa_cloud.delete(instance=self.instance, environment=self.environment)
+
+
+@unittest.skip(
+    "This test relies on a fixed deployment with private services, which may not always be available."
+)
+class TestGetPrivateServices(unittest.TestCase):
+    """Test get_private_services against an existing deployment."""
+
+    def setUp(self) -> None:
+        self.vespa_cloud = VespaCloud(
+            tenant="vespa-team",
+            application="privateservicesapp",
+            key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
+            application_root="./testapps/rag-blueprint",  # Just reusing an existing test-application as it does not matter for this test.
+        )
+        self.instance_name = "myinstance"
+
+    def test_get_private_services(self):
+        result = self.vespa_cloud.get_private_services(
+            instance=self.instance_name, environment="dev"
+        )
+        print(f"Private services response: {result}")
+        self.assertIsInstance(result, dict)
+        # assert 'privateServices' key exists and is a list
+        self.assertIn("privateServices", result)
