@@ -647,18 +647,25 @@ class TestDeployPerf(unittest.TestCase):
         self.vespa_cloud.delete(instance=self.instance, environment=self.environment)
 
 
-@unittest.skip("Creates cloud resources — run manually to verify vault access flow")
+# @unittest.skip("Creates cloud resources — run manually to verify vault access flow")
+@unittest.skip(
+    "Requires interactive (Auth0) login — API key auth cannot set vault access rules. "
+    "To run manually: comment out this @unittest.skip decorator."
+)
 class TestDeployAddsVaultAccessCloud(unittest.TestCase):
     """
-    Minimal end-to-end test: deploy an app with secrets to verify vault access rule setup.
-    Note that this requires a pre-existing vault and secret in the tenant.
-    The app does not need to exist beforehand.
+    End-to-end test: deploy an app with secrets to verify vault access rule setup.
+
+    Requires:
+    - Interactive (Auth0) login (not API key auth) — needed for vault rule modifications
+    - A pre-existing vault and secret in the tenant
+    - The app does not need to exist beforehand
     """
 
     def setUp(self) -> None:
-        self.tenant = "vespa-team"
+        self.tenant = "thttest04"
         self.app_name = "test" + hashlib.md5(str(time.time()).encode()).hexdigest()[:8]
-        self.vault_name = "my-vault"
+        self.vault_name = "pyvespa-testvault"
         self.secret_name = "my-api-key"
 
         schema = Schema(
@@ -698,10 +705,10 @@ class TestDeployAddsVaultAccessCloud(unittest.TestCase):
             tenant=self.tenant,
             application=self.app_name,
             application_package=self.app_package,
-            key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
         )
 
     def test_deploy_with_secrets(self):
+        """Deploy an app with vault secrets — verifies vault access rules are auto-configured."""
         # Verify services.xml contains the secrets/vault reference
         services_xml = self.app_package.services_to_text
         self.assertIn("<secrets>", services_xml)
