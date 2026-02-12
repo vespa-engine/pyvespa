@@ -29,10 +29,25 @@ from datetime import datetime, timedelta
 
 from vespa.package import (
     EmptyDeploymentConfiguration,
+    ServicesConfiguration,
     Validation,
     ValidationID,
     sample_package,
 )
+from vespa.configuration.services import (
+    container,
+    content,
+    document,
+    documents,
+    node,
+    nodes,
+    redundancy,
+    search,
+    secrets,
+    services,
+)
+from vespa.configuration.vt import vt
+import hashlib
 
 APP_INIT_TIMEOUT = 900
 
@@ -630,3 +645,71 @@ class TestDeployPerf(unittest.TestCase):
         # Wait a little bit to make sure the deployment is finished
         time.sleep(10)
         self.vespa_cloud.delete(instance=self.instance, environment=self.environment)
+
+
+@unittest.skip("Creates cloud resources — run manually to verify vault access flow")
+class TestVaultAccessRulesCloud(unittest.TestCase):
+    """Minimal end-to-end test: deploy an app with secrets to verify vault access rule setup."""
+
+    def setUp(self) -> None:
+        self.tenant = "vespa-team"
+        self.app_name = "test" + hashlib.md5(str(time.time()).encode()).hexdigest()[:8]
+        self.vault_name = "my-vault"
+        self.secret_name = "my-api-key"
+
+        schema = Schema(
+            name="doc",
+            document=Document(
+                fields=[
+                    Field(name="text", type="string", indexing=["index", "summary"]),
+                ]
+            ),
+        )
+        services_config = ServicesConfiguration(
+            application_name=self.app_name,
+            services_config=services(
+                container(id=f"{self.app_name}_container", version="1.0")(
+                    secrets(
+                        vt(
+                            tag="apiKey",
+                            vault=self.vault_name,
+                            name=self.secret_name,
+                        ),
+                    ),
+                    search(),
+                ),
+                content(id=f"{self.app_name}_content", version="1.0")(
+                    redundancy("1"),
+                    documents(document(type_="doc", mode="index")),
+                    nodes(node(distribution_key="0", hostalias="node1")),
+                ),
+            ),
+        )
+        self.app_package = ApplicationPackage(
+            name=self.app_name,
+            schema=[schema],
+            services_config=services_config,
+        )
+        self.vespa_cloud = VespaCloud(
+            tenant=self.tenant,
+            application=self.app_name,
+            application_package=self.app_package,
+            key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
+        )
+
+    def test_deploy_with_secrets(self):
+        # Verify services.xml contains the secrets/vault reference
+        services_xml = self.app_package.services_to_text
+        self.assertIn("<secrets>", services_xml)
+        self.assertIn(self.vault_name, services_xml)
+
+        # Verify vault names are parsed correctly
+        vault_names = VespaCloud._parse_vault_names_from_services_xml(services_xml)
+        self.assertEqual(vault_names, {self.vault_name})
+
+        # Deploy — _ensure_vault_access_for_dev runs automatically
+        app = self.vespa_cloud.deploy()
+        self.assertIsNotNone(app)
+
+    def tearDown(self) -> None:
+        self.vespa_cloud.delete()
