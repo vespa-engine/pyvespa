@@ -1367,16 +1367,14 @@ class VespaCloud(VespaDeployment):
     def _get_csrf_token(self) -> Optional[str]:
         """Fetch a CSRF token from the Vespa Cloud API.
 
-        CSRF tokens are only needed for access token (cookie/session) auth,
-        not for API key signed requests.
-
         Returns:
-            The CSRF token string, or None if not using access token auth.
+            The CSRF token string, or None if the token could not be fetched.
         """
-        if self.control_plane_auth_method != "access_token":
+        try:
+            response = self._request("GET", "/csrf/v1")
+            return response.get("token")
+        except Exception:
             return None
-        response = self._request("GET", "/csrf/v1")
-        return response["token"]
 
     def _ensure_vault_access_rule(self, vault_name: str) -> None:
         """Ensure the current application has dev (secret_store_dev_alias) access to the given vault.
@@ -1405,7 +1403,17 @@ class VespaCloud(VespaDeployment):
             ):
                 return  # Already has access
 
-        # Add new rule
+        # Need to add a new rule - check auth method
+        if self.control_plane_auth_method == "api_key":
+            raise ValueError(
+                f"Vault '{vault_name}' does not have an access rule for application "
+                f"'{self.application}' in the '{self.secret_store_dev_alias}' context.\n"
+                f"API key authentication does not have permission to modify vault access rules.\n"
+                f"To fix this, remove the 'key_location' or 'key_content' parameter from "
+                f"VespaCloud() and deploy again to use interactive login, which has the "
+                f"required permissions."
+            )
+
         new_rule = {
             "application": self.application,
             "contexts": [self.secret_store_dev_alias],
@@ -1415,6 +1423,12 @@ class VespaCloud(VespaDeployment):
         csrf_token = self._get_csrf_token()
         headers = {"vespa-csrf-token": csrf_token} if csrf_token else {}
         put_body = {**response, "rules": existing_rules + [new_rule]}
+        logging.info(
+            "Adding vault access rule for application '%s' to vault '%s': %s",
+            self.application,
+            vault_name,
+            new_rule,
+        )
         put_response = self._request(
             "PUT",
             path,
@@ -1460,7 +1474,7 @@ class VespaCloud(VespaDeployment):
         for vault_name in sorted(vault_names):
             try:
                 self._ensure_vault_access_rule(vault_name)
-            except (RuntimeError, ConnectionError, OSError, KeyError, ValueError) as e:
+            except (RuntimeError, ConnectionError, OSError, KeyError, HTTPError) as e:
                 logging.warning(
                     "Failed to set vault access rule for '%s': %s. "
                     "You may need to configure vault access manually in the Vespa Cloud console.",
