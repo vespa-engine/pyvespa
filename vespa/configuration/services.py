@@ -149,6 +149,7 @@ services_tags = [
     "searcher",
     "searchnode",
     "secret-store",
+    "secrets",
     "server",
     "services",
     "slobrok",
