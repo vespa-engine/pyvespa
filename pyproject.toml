@@ -15,7 +15,7 @@ dependencies = [
     "httpr>=0.4.0",
     "docker",
     "jinja2",
-    "cryptography",
+    "cryptography>=46.0.5",
     "aiohttp",
     "tenacity>=8.4.1",
     "typing_extensions",
@@ -29,7 +29,7 @@ dependencies = [
     "httpx[http2]",
 ]
 
-requires-python = ">=3.9,<3.14"
+requires-python = ">=3.10,<3.14"
 
 [[project.authors]]
 name = "Thiago G. Martins"
@@ -174,3 +174,8 @@ docstring-code-line-length = "dynamic"
 "*.ipynb" = [
     "E402",
 ] # Ignore module level import not at top of file for notebooks
+
+[tool.uv]
+constraint-dependencies = [
+    "pillow>=12.1.1",
+]
