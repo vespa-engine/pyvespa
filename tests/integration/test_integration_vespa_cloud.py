@@ -664,6 +664,7 @@ class TestDeployAddsVaultAccessCloud(unittest.TestCase):
 
     def setUp(self) -> None:
         self.tenant = "thttest04"
+        # generate a random application name
         self.app_name = "test" + hashlib.md5(str(time.time()).encode()).hexdigest()[:8]
         self.vault_name = "pyvespa-testvault"
         self.secret_name = "my-api-key"
