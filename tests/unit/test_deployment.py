@@ -453,6 +453,42 @@ class TestVaultAccessRules(unittest.TestCase):
         warning_msg = mock_logging.warning.call_args[0][0]
         self.assertIn("Failed to set vault access rule", warning_msg)
 
+    @patch("vespa.deployment.VespaCloud._request")
+    def test_ensure_vault_access_rule_api_key_raises(self, mock_request):
+        """When auth is api_key and the rule is missing, ValueError is raised."""
+        mock_request.return_value = {"rules": []}
+        self.vespa_cloud.control_plane_auth_method = "api_key"
+        with self.assertRaises(ValueError) as ctx:
+            self.vespa_cloud._ensure_vault_access_rule("my-vault")
+        self.assertIn(
+            "API key authentication does not have permission", str(ctx.exception)
+        )
+        self.assertIn("key_location", str(ctx.exception))
+        # Should only GET, no PUT attempted
+        mock_request.assert_called_once()
+
+    @patch("vespa.deployment.logging")
+    @patch("vespa.deployment.VespaCloud._request")
+    def test_ensure_vault_access_for_dev_api_key_raises(
+        self, mock_request, mock_logging
+    ):
+        """ValueError from api_key auth check propagates (not caught as warning)."""
+        self.application_package.services_to_text = """<services>
+          <container>
+            <secrets>
+              <token vault="my-vault" name="key"/>
+            </secrets>
+          </container>
+        </services>"""
+        mock_request.return_value = {"rules": []}
+        self.vespa_cloud.control_plane_auth_method = "api_key"
+        with self.assertRaises(ValueError) as ctx:
+            self.vespa_cloud._ensure_vault_access_for_dev()
+        self.assertIn(
+            "API key authentication does not have permission", str(ctx.exception)
+        )
+        mock_logging.warning.assert_not_called()
+
     # --- Integration: _ensure_vault_access_for_dev ---
 
     @patch("vespa.deployment.VespaCloud._ensure_vault_access_rule")
