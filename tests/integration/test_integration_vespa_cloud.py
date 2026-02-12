@@ -647,7 +647,6 @@ class TestDeployPerf(unittest.TestCase):
         self.vespa_cloud.delete(instance=self.instance, environment=self.environment)
 
 
-<<<<<<< ean/expose-experimental-private-servics
 @unittest.skip(
     "This test relies on a fixed deployment with private services, which may not always be available."
 )
@@ -671,7 +670,8 @@ class TestGetPrivateServices(unittest.TestCase):
         self.assertIsInstance(result, dict)
         # assert 'privateServices' key exists and is a list
         self.assertIn("privateServices", result)
-=======
+
+
 # @unittest.skip("Creates cloud resources — run manually to verify vault access flow")
 @unittest.skip(
     "Requires interactive (Auth0) login — API key auth cannot set vault access rules. "
@@ -750,4 +750,3 @@ class TestDeployAddsVaultAccessCloud(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.vespa_cloud.delete()
->>>>>>> master
