@@ -59,6 +59,32 @@ class TestVespaCloud(unittest.TestCase):
         self.assertEqual(mtls_endpoint, "https://endpoint1.vespa.oath.cloud:4443")
 
     @patch("vespa.deployment.VespaCloud._request")
+    def test_get_private_services(self, mock_request):
+        mock_response = {
+            "privateServices": [
+                {
+                    "allowedUrns": [
+                        {"type": "aws-private-link", "urn": "arn:aws:iam::123456:root"}
+                    ],
+                    "authMethods": ["mtls"],
+                    "cluster": "default",
+                    "endpoints": [],
+                    "serviceId": "com.amazonaws.vpce.us-east-1.vpce-svc-abc123",
+                    "type": "aws-private-link",
+                }
+            ]
+        }
+        mock_request.return_value = mock_response
+
+        result = self.vespa_cloud.get_private_services()
+
+        self.assertEqual(result, mock_response)
+        mock_request.assert_called_once_with(
+            "GET",
+            "/application/v4/tenant/test_tenant/application/test_app/instance/default/environment/dev/region/dev-region/private-services",
+        )
+
+    @patch("vespa.deployment.VespaCloud._request")
     def test_get_app_package_contents(self, mock_request):
         mock_request.return_value = [
             "https://endpoint/content/README.md",

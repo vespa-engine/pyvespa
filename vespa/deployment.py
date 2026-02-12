@@ -1570,6 +1570,45 @@ class VespaCloud(VespaDeployment):
         )["endpoints"]
         return endpoints
 
+    def get_private_services(
+        self,
+        instance: Optional[str] = "default",
+        region: Optional[str] = None,
+        environment: Optional[str] = "dev",
+    ) -> dict:
+        """
+        Get private services for the application instance.
+
+        Args:
+            instance (str): Application instance name.
+            region (str): Region name, e.g. 'aws-us-east-1c'.
+            environment (str): Environment (dev/perf/prod).
+
+        Returns:
+            dict: Private services response.
+
+
+        warning:: This method is experimental and may change.
+        """
+        if region is None:
+            if environment == "dev":
+                region = self.get_dev_region()
+            elif environment == "perf":
+                region = self.get_perf_region()
+            elif environment == "prod":
+                region = self.get_prod_region()
+            else:
+                raise ValueError(
+                    "Invalid environment. Must be 'dev', 'perf', or 'prod'"
+                )
+
+        return self._request(
+            "GET",
+            "/application/v4/tenant/{}/application/{}/instance/{}/environment/{}/region/{}/private-services".format(
+                self.tenant, self.application, instance, environment, region
+            ),
+        )
+
     def get_app_package_contents(
         self,
         instance: Optional[str] = "default",
