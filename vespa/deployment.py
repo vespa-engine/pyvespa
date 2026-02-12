@@ -6,12 +6,13 @@ import os
 import sys
 import zipfile
 import logging
+import xml.etree.ElementTree as ET
 from base64 import standard_b64encode
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from time import sleep, strftime, gmtime
-from typing import Tuple, Union, IO, Optional, List, Dict, Literal
+from typing import Tuple, Union, IO, Optional, List, Dict, Literal, Set
 from tenacity import retry, stop_after_attempt, wait_exponential
 from datetime import timezone
 import platform
@@ -523,6 +524,8 @@ class VespaDocker(VespaDeployment):
 
 
 class VespaCloud(VespaDeployment):
+    secret_store_dev_alias = "SANDBOX"
+
     def __init__(
         self,
         tenant: str,
@@ -716,6 +719,8 @@ class VespaCloud(VespaDeployment):
             raise ValueError(
                 f"Invalid environment: {environment}. Must be 'dev' or 'perf'."
             )
+        if environment == "dev":
+            self._ensure_vault_access_for_dev()
         if self.application_package is not None:
             if disk_folder is None:
                 disk_folder = os.path.join(os.getcwd(), self.application)
@@ -998,8 +1003,13 @@ class VespaCloud(VespaDeployment):
             status = self.check_production_build_status(build_no)
             if status["status"] == "done":
                 return status["deployed"]
-            if "detailed-status" in status and status["detailed-status"] not in ["success", "running"]:
-                raise RuntimeError(f"The build failed with status code: {status['detailed-status']}")
+            if "detailed-status" in status and status["detailed-status"] not in [
+                "success",
+                "running",
+            ]:
+                raise RuntimeError(
+                    f"The build failed with status code: {status['detailed-status']}"
+                )
             time.sleep(poll_interval)
         raise TimeoutError(f"Deployment did not finish within {max_wait} seconds. ")
 
@@ -1038,6 +1048,9 @@ class VespaCloud(VespaDeployment):
         Returns:
             Vespa: A Vespa connection instance. This connects to the mtls endpoint. To connect to the token endpoint, use `VespaCloud.get_application(endpoint_type="token")`.
         """
+
+        if environment == "dev":
+            self._ensure_vault_access_for_dev(application_root=str(application_root))
 
         data = BytesIO(self.read_app_package_from_disk(application_root))
 
@@ -1301,6 +1314,174 @@ class VespaCloud(VespaDeployment):
         # Only one available for now (https://cloud.vespa.ai/en/reference/zones)
         return "aws-us-east-1c"  # Default perf region
 
+    def _get_services_xml_content(
+        self, application_root: Optional[str] = None
+    ) -> Optional[str]:
+        """Get services.xml content from the application package or disk.
+
+        Args:
+            application_root: Optional path override for deploy_from_disk() case.
+
+        Returns:
+            The services.xml content as a string, or None if not available.
+        """
+        if self.application_package is not None:
+            try:
+                return self.application_package.services_to_text
+            except AttributeError:
+                return None
+        root = application_root or self.application_root
+        if root is not None:
+            services_path = Path(root) / "services.xml"
+            if services_path.exists():
+                return services_path.read_text()
+        return None
+
+    @staticmethod
+    def _parse_vault_names_from_services_xml(services_xml: str) -> Set[str]:
+        """Parse vault names referenced in <secrets> elements of services.xml.
+
+        Args:
+            services_xml: The services.xml content as a string.
+
+        Returns:
+            A set of unique vault names found in the XML.
+        """
+        try:
+            root = ET.fromstring(services_xml)
+        except ET.ParseError:
+            logging.warning(
+                "Failed to parse services.xml for vault references. "
+                "Skipping automatic vault access rule setup."
+            )
+            return set()
+
+        vault_names: Set[str] = set()
+        for secrets_elem in root.iter("secrets"):
+            for child in secrets_elem:
+                vault = child.get("vault")
+                if vault:
+                    vault_names.add(vault)
+        return vault_names
+
+    def _get_csrf_token(self) -> Optional[str]:
+        """Fetch a CSRF token from the Vespa Cloud API.
+
+        Returns:
+            The CSRF token string, or None if the token could not be fetched.
+        """
+        try:
+            response = self._request("GET", "/csrf/v1")
+            return response.get("token")
+        except Exception:
+            return None
+
+    def _ensure_vault_access_rule(self, vault_name: str) -> None:
+        """Ensure the current application has dev (secret_store_dev_alias) access to the given vault.
+
+        Checks existing access rules and adds a new one if needed.
+
+        Args:
+            vault_name: The name of the vault to ensure access for.
+
+        Raises:
+            RuntimeError: If the PUT response does not contain the expected access rule.
+        """
+        path = f"/tenant-secret/v1/tenant/{self.tenant}/vault/{vault_name}"
+        response = self._request("GET", path)
+
+        # Check if app already has access for dev zone
+        existing_rules = response.get("rules", [])
+        logging.info(
+            "Existing access rules for vault '%s': %s", vault_name, existing_rules
+        )
+        for rule in existing_rules:
+            if rule.get(
+                "application"
+            ) == self.application and self.secret_store_dev_alias in rule.get(
+                "contexts", []
+            ):
+                return  # Already has access
+
+        # Need to add a new rule - check auth method
+        if self.control_plane_auth_method == "api_key":
+            raise ValueError(
+                f"Vault '{vault_name}' does not have an access rule for application "
+                f"'{self.application}' in the '{self.secret_store_dev_alias}' context.\n"
+                f"API key authentication does not have permission to modify vault access rules.\n"
+                f"To fix this, remove the 'key_location' or 'key_content' parameter from "
+                f"VespaCloud() and deploy again to use interactive login, which has the "
+                f"required permissions."
+            )
+
+        new_rule = {
+            "application": self.application,
+            "contexts": [self.secret_store_dev_alias],
+            "id": len(existing_rules),
+        }
+
+        csrf_token = self._get_csrf_token()
+        headers = {"vespa-csrf-token": csrf_token} if csrf_token else {}
+        put_body = {**response, "rules": existing_rules + [new_rule]}
+        logging.info(
+            "Adding vault access rule for application '%s' to vault '%s': %s",
+            self.application,
+            vault_name,
+            new_rule,
+        )
+        put_response = self._request(
+            "PUT",
+            path,
+            put_body,
+            headers,
+        )
+
+        # Verify the rule was applied
+        if not isinstance(put_response, dict):
+            raise RuntimeError(
+                f"Unexpected response when setting vault access rule for '{vault_name}': "
+                f"expected JSON object, got {type(put_response).__name__}"
+            )
+        updated = put_response.get("rules", [])
+        if not any(
+            r.get("application") == self.application
+            and self.secret_store_dev_alias in r.get("contexts", [])
+            for r in updated
+        ):
+            raise RuntimeError(
+                f"Vault access rule for application '{self.application}' on vault "
+                f"'{vault_name}' was not confirmed in the API response."
+            )
+
+    def _ensure_vault_access_for_dev(
+        self, application_root: Optional[str] = None
+    ) -> None:
+        """Ensure vault access rules are set for all vaults referenced in services.xml.
+
+        This is called before dev deployments. Failures are warnings, not errors.
+
+        Args:
+            application_root: Optional path override for deploy_from_disk() case.
+        """
+        services_xml = self._get_services_xml_content(application_root)
+        if services_xml is None:
+            return
+
+        vault_names = self._parse_vault_names_from_services_xml(services_xml)
+        if not vault_names:
+            return
+
+        for vault_name in sorted(vault_names):
+            try:
+                self._ensure_vault_access_rule(vault_name)
+            except (RuntimeError, ConnectionError, OSError, KeyError, HTTPError) as e:
+                logging.warning(
+                    "Failed to set vault access rule for '%s': %s. "
+                    "You may need to configure vault access manually in the Vespa Cloud console.",
+                    vault_name,
+                    e,
+                )
+
     def get_prod_region(self):
         regions = self.get_prod_regions()
         return regions[0]
@@ -1445,7 +1626,7 @@ class VespaCloud(VespaDeployment):
         self,
         method: str,
         path: str,
-        body: Union[BytesIO, MultipartEncoder] = BytesIO(),
+        body: Union[BytesIO, MultipartEncoder, dict, None] = None,
         headers: dict = {},
         return_raw_response: bool = False,
     ) -> Union[dict, httpr.Response]:
@@ -1464,7 +1645,7 @@ class VespaCloud(VespaDeployment):
         self,
         method: str,
         path: str,
-        body: Union[BytesIO, MultipartEncoder] = BytesIO(),
+        body: Union[BytesIO, MultipartEncoder, dict, None] = None,
         headers: dict = {},
         return_raw_response: bool = False,
     ) -> Union[dict, httpr.Response]:
@@ -1483,7 +1664,7 @@ class VespaCloud(VespaDeployment):
         self,
         method: str,
         path: str,
-        body: Union[BytesIO, MultipartEncoder] = BytesIO(),
+        body: Union[BytesIO, MultipartEncoder, dict, None] = None,
         headers: dict = {},
         return_raw_response: bool = False,
     ) -> Union[dict, httpr.Response]:
@@ -1502,11 +1683,18 @@ class VespaCloud(VespaDeployment):
             headers.update({"Content-Length": str(len(multipart_data_bytes))})
             # Convert multipart_data_bytes to type BytesIO
             body_data: BytesIO = BytesIO(multipart_data_bytes)
-        else:
-            if hasattr(body, "seek"):
-                body.seek(0)
+        elif isinstance(body, dict):
+            body_bytes = json.dumps(body).encode("utf-8")
+            digest.update(body_bytes)
+            body_data = BytesIO(body_bytes)
+            headers = {**headers, "Content-Type": "application/json"}
+        elif isinstance(body, BytesIO):
+            body.seek(0)
             digest.update(body.read())
             body_data = body
+        else:
+            digest.update(b"")
+            body_data = BytesIO()
         # Create signature
         content_hash = standard_b64encode(digest.finalize()).decode("UTF-8")
         timestamp = datetime.utcnow().isoformat() + "Z"
