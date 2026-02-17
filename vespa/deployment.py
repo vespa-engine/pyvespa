@@ -951,6 +951,7 @@ class VespaCloud(VespaDeployment):
             dict: A dictionary with the aggregated status of all deployment jobs for the given build number. The dictionary contains:
                 - "deployed" (bool): Whether the build has successfully converged.
                 - "status" (str): The current status of the build ("done", "deploying").
+                - "jobs" (list): Per-zone deployment details, each with "jobName" and "runStatus".
 
         Raises:
             RuntimeError: If there are issues with retrieving the status of the build.
@@ -1003,13 +1004,15 @@ class VespaCloud(VespaDeployment):
             status = self.check_production_build_status(build_no)
             if status["status"] == "done":
                 return status["deployed"]
-            if "detailed-status" in status and status["detailed-status"] not in [
-                "success",
-                "running",
-            ]:
-                raise RuntimeError(
-                    f"The build failed with status code: {status['detailed-status']}"
+            failed_jobs = [
+                job for job in status.get("jobs", [])
+                if job["runStatus"] not in ("success", "running")
+            ]
+            if failed_jobs:
+                failures = ", ".join(
+                    f"{job['jobName']}: {job['runStatus']}" for job in failed_jobs
                 )
+                raise RuntimeError(f"Deployment failed: {failures}")
             time.sleep(poll_interval)
         raise TimeoutError(f"Deployment did not finish within {max_wait} seconds. ")
 
