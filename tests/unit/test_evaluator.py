@@ -3311,6 +3311,51 @@ class TestVespaNNRecallEvaluator(unittest.TestCase):
             delta=0.0001,
         )
 
+    class InternalIDResponse(MockVespaResponse):
+        def __init__(
+            self,
+            hits,
+            first_group_id=0,
+            _total_count=None,
+            _timing=None,
+            _status_code=200,
+        ):
+            super().__init__(hits, _total_count, _timing, _status_code)
+            self.next_group_num = first_group_id
+
+        def add_namespace_to_hit_ids(self, hits_list) -> List[Dict[str, Any]]:
+            new_hits = []
+            for hit_item in hits_list:
+                hit_id = hit_item.get("id")
+                if isinstance(hit_id, str) and not hit_id.startswith("index:"):
+                    hit_item["id"] = f"index:cluster/{self.next_group_num}/{hit_id}"
+                    self.next_group_num += 1
+                new_hits.append(hit_item)
+            return new_hits
+
+        def is_successful(self):
+            return True
+
+    def test_compute_recall_internal_ids(self):
+        response_exact = self.InternalIDResponse(
+            [{"id": "1"}, {"id": "2"}, {"id": "3"}, {"id": "4"}, {"id": "5"}],
+            first_group_id=0,
+        )
+        self.assertAlmostEqual(
+            self.recall_evaluator._compute_recall(response_exact, response_exact),
+            1.0,
+            delta=0.0001,
+        )
+
+        response_approx = self.InternalIDResponse(
+            [{"id": "1"}, {"id": "2"}, {"id": "3"}, {"id": "4"}], first_group_id=1
+        )
+        self.assertAlmostEqual(
+            self.recall_evaluator._compute_recall(response_exact, response_approx),
+            0.8,
+            delta=0.0001,
+        )
+
     def test_run(self):
         class MockVespaApp:
             def __init__(self, first_mock_responses, second_mock_responses):
