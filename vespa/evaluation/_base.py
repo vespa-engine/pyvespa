@@ -1907,7 +1907,7 @@ class VespaNNRecallEvaluator:
         ids_exact = list(map(lambda x: x["id"], results_exact))
         ids_approx = list(map(lambda x: x["id"], results_approx))
 
-        # Check if internal ids of the form "index:mycluster/group/id" are used and remove everything up to id
+        # Check if internal ids of the form "index:mycluster/node/id" are used and remove everything up to id
         ids_exact = list(
             map(
                 lambda id: id.split("/", 2)[2] if id.startswith("index:") else id,
