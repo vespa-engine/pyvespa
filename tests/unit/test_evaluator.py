@@ -3311,6 +3311,36 @@ class TestVespaNNRecallEvaluator(unittest.TestCase):
             delta=0.0001,
         )
 
+    def test_compute_recall_id_field(self):
+        response_exact = self.SuccessfullMockVespaResponse(
+            [
+                {"id": "1", "fields": {"id": "1"}},
+                {"id": "2", "fields": {"id": "2"}},
+                {"id": "3", "fields": {"id": "3"}},
+                {"id": "4", "fields": {"id": "4"}},
+                {"id": "5", "fields": {"id": "5"}},
+            ]
+        )
+        self.assertAlmostEqual(
+            self.recall_evaluator._compute_recall(response_exact, response_exact),
+            1.0,
+            delta=0.0001,
+        )
+
+        response_approx = self.SuccessfullMockVespaResponse(
+            [
+                {"id": "1", "fields": {"id": "1"}},
+                {"id": "2", "fields": {"id": "2"}},
+                {"id": "3", "fields": {"id": "3"}},
+                {"id": "4", "fields": {"id": "4"}},
+            ]
+        )
+        self.assertAlmostEqual(
+            self.recall_evaluator._compute_recall(response_exact, response_approx),
+            0.8,
+            delta=0.0001,
+        )
+
     class InternalIDResponse(MockVespaResponse):
         def __init__(
             self,
