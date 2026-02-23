@@ -1865,6 +1865,7 @@ class VespaNNRecallEvaluator:
         hits (int): Number of hits to use. Should match the parameter targetHits in the used ANN queries.
         app (Vespa): An instance of the Vespa application.
         query_limit (int): Maximum number of queries to determine the recall for. Defaults to 20.
+        id_field (str): Name of the field containing a unique id. Defaults to "id".
         **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
     """
 
@@ -1874,12 +1875,14 @@ class VespaNNRecallEvaluator:
         hits: int,
         app: Vespa,
         query_limit: int = 20,
+        id_field: str = "id",
         **kwargs,
     ):
         self.queries = queries
         self.hits = hits
         self.app = app
         self.query_limit = query_limit
+        self.id_field = id_field
         self.parameters = kwargs
 
     def _compute_recall(
@@ -1904,8 +1907,39 @@ class VespaNNRecallEvaluator:
         except KeyError:
             results_approx = []
 
-        ids_exact = list(map(lambda x: x["id"], results_exact))
-        ids_approx = list(map(lambda x: x["id"], results_approx))
+        def extract_id(hit: dict, id_field: str) -> Tuple[str, str]:
+            """Extract document ID from a Vespa hit."""
+
+            # id as specified by field
+            fields = hit.get("fields", {})
+            if id_field in fields:
+                return fields[id_field], "id_field"
+
+            # document id
+            id = hit.get("id", "")
+            if "::" in id:
+                return id, "document_id"
+
+            # internal id
+            if id.startswith(
+                "index:"
+            ):  # id is an internal id of the form index:[source]/[node-index]/[hex-gid], return hex-gid
+                return id.split("/", 2)[2], "internal_id"
+
+            raise ValueError(f"Could not extract a document id from hit: {hit}")
+
+        ids_exact = list(map(lambda x: extract_id(x, self.id_field)[0], results_exact))
+        ids_approx = list(
+            map(lambda x: extract_id(x, self.id_field)[0], results_approx)
+        )
+
+        id_types = set()
+        id_types.update(map(lambda x: extract_id(x, self.id_field)[1], results_exact))
+        id_types.update(map(lambda x: extract_id(x, self.id_field)[1], results_approx))
+        if len(id_types) > 1:
+            print(
+                f"Warning: Multiple id types obtained for hits: {id_types}. The recall computation will not be reliable. Please specify id_field correctly."
+            )
 
         if len(ids_exact) != self.hits:
             print(
@@ -2125,6 +2159,7 @@ class VespaNNParameterOptimizer:
         benchmark_time_limit (int): Time in milliseconds to spend per bucket benchmark. Defaults to 5000.
         recall_query_limit(int): Number of queries per bucket to compute the recall for. Defaults to 20.
         max_concurrent(int): Number of queries to execute concurrently during benchmark/recall calculation. Defaults to 10.
+        id_field (str): Name of the field containing a unique id for recall computation. Defaults to "id".
     """
 
     def __init__(
@@ -2137,6 +2172,7 @@ class VespaNNParameterOptimizer:
         benchmark_time_limit: int = 5000,
         recall_query_limit: int = 20,
         max_concurrent: int = 10,
+        id_field: str = "id",
     ):
         self.app = app
         self.queries = queries
@@ -2150,6 +2186,7 @@ class VespaNNParameterOptimizer:
         self.benchmark_time_limit = benchmark_time_limit
         self.recall_query_limit = recall_query_limit
         self.max_concurrent = max_concurrent
+        self.id_field = id_field
 
     def get_bucket_interval_width(self) -> float:
         """
@@ -2512,7 +2549,12 @@ class VespaNNParameterOptimizer:
                         end="",
                     )
                 recall_evaluator = VespaNNRecallEvaluator(
-                    bucket, self.hits, self.app, self.recall_query_limit, **kwargs
+                    bucket,
+                    self.hits,
+                    self.app,
+                    self.recall_query_limit,
+                    self.id_field,
+                    **kwargs,
                 )
                 recall_list = recall_evaluator.run()
                 results.append(recall_list)
