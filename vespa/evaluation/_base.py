@@ -1865,7 +1865,7 @@ class VespaNNRecallEvaluator:
         hits (int): Number of hits to use. Should match the parameter targetHits in the used ANN queries.
         app (Vespa): An instance of the Vespa application.
         query_limit (int): Maximum number of queries to determine the recall for. Defaults to 20.
-        id_field (str: Name of the field containing a unique id. Defaults to "id".
+        id_field (str): Name of the field containing a unique id. Defaults to "id".
         **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
     """
 
