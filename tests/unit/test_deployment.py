@@ -172,6 +172,21 @@ class TestVespaCloud(unittest.TestCase):
 
         self.assertEqual(status, {"deployed": False, "status": "deploying"})
 
+    @patch("vespa.deployment.VespaCloud._request")
+    def test_wait_for_prod_deployment_raises_on_failed_job(self, mock_request):
+        mock_request.return_value = {
+            "deployed": False,
+            "status": "deploying",
+            "jobs": [
+                {"jobName": "production-us-central-1", "runStatus": "success"},
+                {"jobName": "production-us-east-3", "runStatus": "deploymentFailed"},
+            ],
+        }
+
+        with self.assertRaises(RuntimeError) as ctx:
+            self.vespa_cloud.wait_for_prod_deployment(456)
+        self.assertIn("production-us-east-3: deploymentFailed", str(ctx.exception))
+
     @patch("vespa.deployment.VespaCloud._try_get_access_token")
     def test_try_get_access_token(self, mock_get_token):
         mock_get_token.return_value = "fake_access_token"
