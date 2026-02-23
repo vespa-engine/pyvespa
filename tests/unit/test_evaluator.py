@@ -3221,7 +3221,28 @@ class TestVespaNNGlobalFilterHitratioEvaluator(unittest.TestCase):
             def query_many(self, queries, max_concurrent=100, **kwargs):
                 return [SuccessfullMockVespaResponse()]
 
+        class SuccessfullMockTwoSCVespaResponse(SuccessfullMockVespaResponse):
+            def __init__(
+                self, hits=[], _total_count=None, _timing=None, _status_code=200
+            ):
+                super().__init__(hits, _total_count, _timing, _status_code)
+
+            def get_json(self):
+                super_trace = super().get_json()
+                super_trace["trace"]["children"][0]["[0]"]["global_filter"][
+                    "upper_limit"
+                ] = 0.489
+                super_trace["trace"]["children"][0]["[0]"]["global_filter"][
+                    "upper_limit"
+                ] = 0.498
+                return super_trace
+
+        class MockTwoSCVespaApp:
+            def query_many(self, queries, max_concurrent=100, **kwargs):
+                return [SuccessfullMockTwoSCVespaResponse()]
+
         self.mock_app = MockVespaApp()
+        self.two_sc_mock_app = MockTwoSCVespaApp()
 
     def test_run(self):
         hitratio_evaluator = VespaNNGlobalFilterHitratioEvaluator(
@@ -3232,6 +3253,19 @@ class TestVespaNNGlobalFilterHitratioEvaluator(unittest.TestCase):
         self.assertEqual(len(hitratios[0]), 2)
         self.assertAlmostEqual(hitratios[0][0], 0.01, delta=0.001)
         self.assertAlmostEqual(hitratios[0][1], 0.02, delta=0.001)
+
+    def test_get_searchable_copies(self):
+        hitratio_evaluator = VespaNNGlobalFilterHitratioEvaluator(
+            [{"yql": "foo"}], self.mock_app, verify_target_hits=100
+        )
+        hitratio_evaluator.run()
+        self.assertEqual(hitratio_evaluator.get_searchable_copies(), 1)
+
+        two_sc_hitratio_evaluator = VespaNNGlobalFilterHitratioEvaluator(
+            [{"yql": "foo"}], self.two_sc_mock_app, verify_target_hits=100
+        )
+        two_sc_hitratio_evaluator.run()
+        self.assertEqual(two_sc_hitratio_evaluator.get_searchable_copies(), 2)
 
 
 class TestVespaNNRecallEvaluator(unittest.TestCase):
@@ -3400,6 +3434,10 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
             self.mock_app, [], 100, buckets_per_percent=1
         )  # 100 buckets
 
+        self.two_sc_optimizer = VespaNNParameterOptimizer(
+            self.mock_app, [], 100, buckets_per_percent=2
+        )  # 200 buckets
+
         # Percentages: 1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 99
         self.buckets = [2, 10, 20, 40, 60, 80, 100, 120, 140, 160, 180, 190, 198]
         self.num = len(self.buckets)
@@ -3422,6 +3460,10 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         ]
         self.optimizer.distribute_to_buckets(self.queries_with_hitratios)
         self.optimizerOneBucket.distribute_to_buckets(self.queries_with_hitratios)
+        self.two_sc_optimizer.distribute_to_buckets(
+            list(map(lambda x: (x[0], x[1] / 2), self.queries_with_hitratios))
+        )
+        self.two_sc_optimizer.searchable_copies = 2
 
     def test_get_bucket_interval_width(self):
         self.assertAlmostEqual(
@@ -3597,6 +3639,8 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
 
     def _assert_post_filter_threshold(
         self,
+        optimizer,
+        buckets,
         response_times_post_filtering,
         recall_post_filtering,
         response_times_pre_filtering,
@@ -3604,10 +3648,7 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
         lower,
         upper,
     ):
-        buckets = self.buckets
-        filtered_out_ratios = [
-            self.optimizer.bucket_to_filtered_out(b) for b in buckets
-        ]
+        filtered_out_ratios = [optimizer.bucket_to_filtered_out(b) for b in buckets]
 
         benchmark_post_filtering = BucketedMetricResults(
             metric_name="searchtime",
@@ -3635,7 +3676,7 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
             filtered_out_ratios=filtered_out_ratios,
         )
 
-        post_filter_threshold = self.optimizer._suggest_post_filter_threshold(
+        post_filter_threshold = optimizer._suggest_post_filter_threshold(
             benchmark_post_filtering,
             recall_post_filtering,
             benchmark_pre_filtering,
@@ -3647,6 +3688,8 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
     def test_suggest_post_filter_threshold(self):
         # Should be somewhere between 40 and 50 percent
         self._assert_post_filter_threshold(
+            self.optimizer,
+            self.buckets,
             [5.0, 5.0, 5.0, 10.0, 10.0, 10.0, 15.0, 15.0, 15.0, 20.0, 20.0, 20.0, 25.0],
             [0.80] * self.num,
             [13.0] * self.num,
@@ -3657,6 +3700,8 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
 
         # Should switch earlier since recall becomes bad
         self._assert_post_filter_threshold(
+            self.optimizer,
+            self.buckets,
             [5.0, 5.0, 5.0, 10.0, 10.0, 10.0, 15.0, 15.0, 15.0, 20.0, 20.0, 20.0, 25.0],
             [
                 0.80,
@@ -3681,6 +3726,8 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
 
         # Should not switch since recall too bad
         self._assert_post_filter_threshold(
+            self.optimizer,
+            self.buckets,
             [5.0, 5.0, 5.0, 10.0, 10.0, 10.0, 15.0, 15.0, 15.0, 20.0, 20.0, 20.0, 25.0],
             [0.70] * self.num,
             [13.0] * self.num,
@@ -3691,12 +3738,68 @@ class TestVespaNNParameterOptimizer(unittest.TestCase):
 
         # Should not switch since response time bad
         self._assert_post_filter_threshold(
+            self.optimizer,
+            self.buckets,
             [25.0] * self.num,
             [0.80] * self.num,
             [13.0] * self.num,
             [0.80] * self.num,
             0.00,
             0.001,
+        )
+
+    def test_suggest_post_filter_threshold_with_two_searchable_copies(self):
+        two_sc_buckets = self.two_sc_optimizer.get_non_empty_buckets()
+        two_sc_num = len(two_sc_buckets)
+
+        # Do not use post filtering
+        self._assert_post_filter_threshold(
+            self.two_sc_optimizer,
+            two_sc_buckets,
+            [25.0] * two_sc_num,
+            [0.80] * two_sc_num,
+            [13.0] * two_sc_num,
+            [0.80] * two_sc_num,
+            0.0,
+            0.001,
+        )
+
+        # Should be somewhere between 40 and 50 percent
+        self._assert_post_filter_threshold(
+            self.two_sc_optimizer,
+            two_sc_buckets,
+            [5.0, 5.0, 5.0, 10.0, 10.0, 10.0, 15.0, 15.0, 15.0, 20.0, 20.0, 20.0, 25.0],
+            [0.80] * two_sc_num,
+            [13.0] * two_sc_num,
+            [0.80] * two_sc_num,
+            0.40,
+            0.50,
+        )
+
+        # Should switch earlier since recall becomes bad
+        self._assert_post_filter_threshold(
+            self.two_sc_optimizer,
+            two_sc_buckets,
+            [5.0, 5.0, 5.0, 10.0, 10.0, 10.0, 15.0, 15.0, 15.0, 20.0, 20.0, 20.0, 25.0],
+            [
+                0.80,
+                0.80,
+                0.70,
+                0.70,
+                0.70,
+                0.70,
+                0.70,
+                0.70,
+                0.70,
+                0.70,
+                0.70,
+                0.70,
+                0.70,
+            ],
+            [13] * two_sc_num,
+            [0.80] * two_sc_num,
+            0.05,
+            0.10,
         )
 
     def _assert_approximate_threshold(
