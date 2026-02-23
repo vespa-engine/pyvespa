@@ -2159,7 +2159,7 @@ class VespaNNParameterOptimizer:
         benchmark_time_limit (int): Time in milliseconds to spend per bucket benchmark. Defaults to 5000.
         recall_query_limit(int): Number of queries per bucket to compute the recall for. Defaults to 20.
         max_concurrent(int): Number of queries to execute concurrently during benchmark/recall calculation. Defaults to 10.
-        id_field (str: Name of the field containing a unique id for recall computation. Defaults to "id".
+        id_field (str): Name of the field containing a unique id for recall computation. Defaults to "id".
     """
 
     def __init__(
