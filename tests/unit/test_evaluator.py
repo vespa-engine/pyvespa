@@ -3232,7 +3232,7 @@ class TestVespaNNGlobalFilterHitratioEvaluator(unittest.TestCase):
                 super_trace["trace"]["children"][0]["[0]"]["global_filter"][
                     "upper_limit"
                 ] = 0.489
-                super_trace["trace"]["children"][0]["[0]"]["global_filter"][
+                super_trace["trace"]["children"][0]["[1]"]["global_filter"][
                     "upper_limit"
                 ] = 0.498
                 return super_trace
