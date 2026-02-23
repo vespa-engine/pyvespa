@@ -925,32 +925,31 @@ class VespaCloud(VespaDeployment):
             vespa_cloud = VespaCloud(...)
             build_no = vespa_cloud.deploy_to_prod()
             status = vespa_cloud.check_production_build_status(build_no)
-            # This can yield one of three responses:
-            # 1. If the revision (build_no), or higher, has successfully converged everywhere, and nothing older has then been deployed on top of that again. Nothing more will happen in this case.
-            # {
-            #     "deployed": True,
-            #     "status": "done"
-            # }
-
-            # 2. If the revision (build_no), or newer, has not yet converged, but the system is (most likely) still trying to deploy it. There is a point in polling again later when this is the response.
-            # {
-            #     "deployed": False,
-            #     "status": "deploying"
-            # }
-            # 3. If the revision, or newer, has not yet converged everywhere, and it's never going to, because it was similar to the previous build, or marked obsolete by a user. There is no point in asking again for this revision.
-            # {
-            #     "deployed": False,
-            #     "status": "done"
-            # }
+            # The response contains:
+            # - "deployed" (bool): True if the build has converged everywhere.
+            # - "status" (str): "deploying" or "done".
+            # - "skipReason" (str, optional): Why the build was skipped, e.g. "no-changes" or "cancelled".
+            # - "jobs" (list): Per-zone deployment details, each with "jobName" and "runStatus".
+            #
+            # Example responses:
+            # 1. Successfully deployed everywhere:
+            #    {"deployed": True, "status": "done", "jobs": [{"jobName": "production-us-east-3", "runStatus": "success"}]}
+            #
+            # 2. Still deploying:
+            #    {"deployed": False, "status": "deploying", "jobs": [{"jobName": "production-us-east-3", "runStatus": "running"}]}
+            #
+            # 3. Skipped (no changes to deploy):
+            #    {"deployed": False, "status": "done", "skipReason": "no-changes", "jobs": []}
+            #
+            # 4. A job failed:
+            #    {"deployed": False, "status": "deploying", "jobs": [{"jobName": "production-us-east-3", "runStatus": "deploymentFailed"}]}
             ```
 
         Args:
             build_no (int): The build number to check.
 
         Returns:
-            dict: A dictionary with the aggregated status of all deployment jobs for the given build number. The dictionary contains:
-                - "deployed" (bool): Whether the build has successfully converged.
-                - "status" (str): The current status of the build ("done", "deploying").
+            dict: The build status response from the API. See example responses above for the full shape.
 
         Raises:
             RuntimeError: If there are issues with retrieving the status of the build.
@@ -993,23 +992,27 @@ class VespaCloud(VespaDeployment):
             poll_interval (int, optional): Polling interval in seconds. Default is 5 seconds.
 
         Returns:
-            bool: True if the deployment is done and converged, False if the deployment has failed.
+            bool: True if the build was deployed to all production zones, False if it completed
+                without deploying (e.g. no changes).
 
         Raises:
+            RuntimeError: If any production job failed (e.g. deploymentFailed, installationFailed).
             TimeoutError: If the deployment did not finish within `max_wait` seconds.
         """
         start_time = time.time()
         while time.time() - start_time < max_wait:
             status = self.check_production_build_status(build_no)
+            failed_jobs = [
+                job for job in status.get("jobs", [])
+                if job["runStatus"] not in ("success", "running")
+            ]
+            if failed_jobs:
+                failures = ", ".join(
+                    f"{job['jobName']}: {job['runStatus']}" for job in failed_jobs
+                )
+                raise RuntimeError(f"Deployment failed: {failures}")
             if status["status"] == "done":
                 return status["deployed"]
-            if "detailed-status" in status and status["detailed-status"] not in [
-                "success",
-                "running",
-            ]:
-                raise RuntimeError(
-                    f"The build failed with status code: {status['detailed-status']}"
-                )
             time.sleep(poll_interval)
         raise TimeoutError(f"Deployment did not finish within {max_wait} seconds. ")
 
