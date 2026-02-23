@@ -1858,14 +1858,13 @@ class VespaNNGlobalFilterHitratioEvaluator:
 
         return all_hit_ratios
 
-    """
-    Returns number of searchable copies determined during hit-ratio computation.
+    def get_searchable_copies(self) -> int | None:
+        """
+        Returns number of searchable copies determined during hit-ratio computation.
 
-    Returns:
-        int: Number of searchable copies used by Vespa application.
-    """
-
-    def get_searchable_copies(self):
+        Returns:
+            int: Number of searchable copies used by Vespa application.
+        """
         return self.searchable_copies
 
 
