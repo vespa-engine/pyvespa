@@ -3234,7 +3234,7 @@ class TestVespaNNGlobalFilterHitratioEvaluator(unittest.TestCase):
                 ] = 0.489
                 super_trace["trace"]["children"][0]["[1]"]["global_filter"][
                     "upper_limit"
-                ] = 0.498
+                ] = 0.51
                 return super_trace
 
         class MockTwoSCVespaApp:
