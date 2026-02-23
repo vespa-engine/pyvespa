@@ -1780,6 +1780,7 @@ class VespaNNGlobalFilterHitratioEvaluator:
         self.queries = queries
         self.app = app
         self.verify_target_hits = verify_target_hits
+        self.searchable_copies = None
 
     def run(self):
         """
@@ -1834,6 +1835,16 @@ class VespaNNGlobalFilterHitratioEvaluator:
                     and blueprint["global_filter"]["calculated"]
                 ):
                     hit_ratios.append(blueprint["global_filter"]["hit_ratio"])
+                    actual_upper_limit = blueprint["global_filter"]["upper_limit"]
+                    if actual_upper_limit is not None and actual_upper_limit > 0.0:
+                        searchable_copies = round(1.0 / actual_upper_limit)
+                        if self.searchable_copies is None:
+                            self.searchable_copies = searchable_copies
+                        else:
+                            if self.searchable_copies != searchable_copies:
+                                print(
+                                    f"Searchable copies mismatch: {searchable_copies} vs. {self.searchable_copies} found earlier"
+                                )
 
                 if (
                     self.verify_target_hits is not None
@@ -1846,6 +1857,15 @@ class VespaNNGlobalFilterHitratioEvaluator:
             all_hit_ratios.append(hit_ratios)
 
         return all_hit_ratios
+
+    def get_searchable_copies(self) -> int | None:
+        """
+        Returns number of searchable copies determined during hit-ratio computation.
+
+        Returns:
+            int: Number of searchable copies used by Vespa application.
+        """
+        return self.searchable_copies
 
 
 class VespaNNRecallEvaluator:
@@ -2188,6 +2208,8 @@ class VespaNNParameterOptimizer:
         self.max_concurrent = max_concurrent
         self.id_field = id_field
 
+        self.searchable_copies = None
+
     def get_bucket_interval_width(self) -> float:
         """
         Gets the width of the interval represented by a single bucket.
@@ -2336,6 +2358,7 @@ class VespaNNParameterOptimizer:
             queries, self.app, verify_target_hits=self.hits
         )
         hitratio_list = hitratio_evaluator.run()
+        self.searchable_copies = hitratio_evaluator.get_searchable_copies()
 
         for i in range(0, len(hitratio_list)):
             hitratios = hitratio_list[i]
@@ -2890,7 +2913,12 @@ class VespaNNParameterOptimizer:
                 threshold = i
                 response_time_gain = current_gain
 
-        return self.bucket_to_hitratio(threshold)
+        suggestion = self.bucket_to_hitratio(threshold)
+        if self.searchable_copies is not None:
+            suggestion = suggestion * self.searchable_copies
+            suggestion = min(suggestion, 1.0)
+
+        return suggestion
 
     def _test_filter_first_exploration(
         self, filter_first_exploration: float
