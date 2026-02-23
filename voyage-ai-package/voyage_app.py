@@ -15,6 +15,8 @@ from vespa.package import (
     Field,
     RankProfile,
     ServicesConfiguration,
+    Function,
+    SecondPhaseRanking,
 )
 from vespa.configuration.services import (
     services,
@@ -60,6 +62,10 @@ VOYAGE_SECRET_NAME = "voyage_api_key"
 FEED_MODEL_ID = "voyage-4-large"
 QUERY_MODEL_ID = "voyage-4-nano-int8"
 
+#
+TARGET_HITS_RETRIEVAL = 10_000
+RERANK_COUNT_DISK = 2_000
+
 # Define the schema with document fields
 schema = Schema(
     name=SCHEMA_NAME,
@@ -81,7 +87,7 @@ schema.add_fields(
         name="embedding_float",
         type="tensor<float>(x[2048])",
         indexing=["input text", f"embed {FEED_MODEL_ID}", "attribute"],
-        attribute=["distance-metric: prenormalized-angular"],
+        attribute=["distance-metric: prenormalized-angular", "paged"],
         is_document_field=False,
     )
 )
@@ -89,7 +95,7 @@ schema.add_fields(
 # Binary int8 embedding field with hamming distance metric
 schema.add_fields(
     Field(
-        name="embedding_binary_int8",
+        name="embedding_binary",
         type="tensor<int8>(x[256])",  # 2048 // 8 = 256
         indexing=["input text", f"embed {FEED_MODEL_ID}", "attribute"],
         attribute=["distance-metric: hamming"],
@@ -97,53 +103,49 @@ schema.add_fields(
     )
 )
 
-# Int8 embedding field with prenormalized-angular distance metric
-schema.add_fields(
-    Field(
-        name="embedding_int8",
-        type="tensor<int8>(x[2048])",
-        indexing=["input text", f"embed {FEED_MODEL_ID}", "attribute"],
-        attribute=["distance-metric: prenormalized-angular"],
-        is_document_field=False,
-    )
-)
-
 # Add rank profiles for each embedding type
+# function similarity() {
+#             expression {
+#                 1 - (distance(field, embedding_alibaba_gte_modernbert_int8_96_int8) / 768)
+#             }
+#         }
+#         first-phase {
+#             expression {
+#                 similarity
+#             }
+#         }
+#         match-features {
+#             similarity
+#         }
 schema.add_rank_profile(
     RankProfile(
-        name="float_angular",
-        inputs=[("query(embedding_float)", "tensor<float>(x[2048])")],
-        first_phase="closeness(embedding_float)",
+        name="binary-with-rerank",
+        inputs=[
+            ("query(q_float)", "tensor<float>(x[2048])"),
+            ("query(q_bin)", "tensor<int8>(x[256])"),
+        ],
+        functions=[
+            Function(
+                name="binary_closeness",
+                expression="""
+        1 - (distance(field, embedding_binary) / 2048)
+        """,
+            ),
+            Function(
+                name="float_closeness", expression="closeness(field, embedding_float)"
+            ),
+        ],
+        first_phase="binary_closeness",
+        second_phase=SecondPhaseRanking(
+            expression="float_closeness", rerank_count=RERANK_COUNT_DISK
+        ),
         summary_features=[
-            "query(embedding_float)",
-            "attribute(embedding_float)",
+            "binary_closeness",
+            "closeness(field, embedding_float)",
         ],
     )
 )
 
-schema.add_rank_profile(
-    RankProfile(
-        name="binary_int8",
-        inputs=[("query(embedding_binary_int8)", "tensor<int8>(x[256])")],
-        first_phase="closeness(embedding_binary_int8)",
-        summary_features=[
-            "query(embedding_binary_int8)",
-            "attribute(embedding_binary_int8)",
-        ],
-    )
-)
-
-schema.add_rank_profile(
-    RankProfile(
-        name="int8_angular",
-        inputs=[("query(embedding_int8)", "tensor<int8>(x[1024])")],
-        first_phase="closeness(embedding_int8)",
-        summary_features=[
-            "query(embedding_int8)",
-            "attribute(embedding_int8)",
-        ],
-    )
-)
 # <document-processing>
 #     <!-- Docproc worker thread pool -->
 #     <threadpool>
@@ -163,16 +165,6 @@ services_config = ServicesConfiguration(
             search(),
             document_api(),
             document_processing(threadpool(threads("1000"))),
-            # Voyage AI nano embedder (used for query embedding)
-            # <component id="my-embedder-id" type="hugging-face-embedder">
-            #     <transformer-model model-id="voyage-4-nano-int8"/>
-            #     <max-tokens>32768</max-tokens>
-            #     <pooling-strategy>mean</pooling-strategy>
-            #     <normalize>true</normalize>
-            #     <prepend>
-            #         <query>Represent the query for retrieving supporting documents: </query>
-            #     </prepend>
-            # </component>
             components(
                 component(id="voyage-4-nano-int8", type_="hugging-face-embedder")(
                     transformer_model(model_id="voyage-4-nano-int8"),
@@ -185,12 +177,6 @@ services_config = ServicesConfiguration(
                             "Represent the query for retrieving supporting documents: "
                         )
                     ),
-                ),
-                # Voyage AI lite embedder
-                component(id="voyage-4-lite", type_="voyage-ai-embedder")(
-                    model("voyage-4-lite"),
-                    api_key_secret_ref("apiKey"),
-                    dimensions("2048"),
                 ),
                 # Voyage AI large embedder (used by the embedding fields)
                 component(id="voyage-4-large", type_="voyage-ai-embedder")(
@@ -231,13 +217,14 @@ def semantic_query_fn(query_text: str, top_k: int) -> dict:
             .where(
                 qb.nearestNeighbor(
                     field="embedding_float",
-                    query_vector="embedding_float",
-                    annotations={"targetHits": 1000},
+                    query_vector="q_float",
+                    annotations={"targetHits": TARGET_HITS_RETRIEVAL},
                 )
             )
         ),
-        "ranking": "float_angular",
-        "input.query(embedding_float)": f'embed({QUERY_MODEL_ID}, "{query_text}")',
+        "ranking": "binary-with-rerank",
+        "input.query(q_bin)": f'embed({QUERY_MODEL_ID}, "{query_text}")',
+        "input.query(q_float)": f'embed({QUERY_MODEL_ID}, "{query_text}")',
         "hits": top_k,
     }
 
@@ -267,10 +254,8 @@ if __name__ == "__main__":
             "id": x["_id"],
             "fields": {"text": x["text"], "id": x["_id"]},
         }
-    )
-    app.feed_iterable(
-        vespa_feed, schema=SCHEMA_NAME, namespace="tutorial", callback=callback
-    )
+    ).take(100)
+    app.feed_iterable(vespa_feed, schema=SCHEMA_NAME, callback=callback)
 
     # 3. Load evaluation data
     print("Loading evaluation data...")
