@@ -1780,6 +1780,7 @@ class VespaNNGlobalFilterHitratioEvaluator:
         self.queries = queries
         self.app = app
         self.verify_target_hits = verify_target_hits
+        self.searchable_copies = None
 
     def run(self):
         """
@@ -1834,6 +1835,16 @@ class VespaNNGlobalFilterHitratioEvaluator:
                     and blueprint["global_filter"]["calculated"]
                 ):
                     hit_ratios.append(blueprint["global_filter"]["hit_ratio"])
+                    actual_upper_limit = blueprint["global_filter"]["upper_limit"]
+                    if actual_upper_limit is not None and actual_upper_limit > 0.0:
+                        searchable_copies = round(1.0 / actual_upper_limit)
+                        if self.searchable_copies is None:
+                            self.searchable_copies = searchable_copies
+                        else:
+                            if self.searchable_copies != searchable_copies:
+                                print(
+                                    f"Searchable copies mismatch: {searchable_copies} vs. {self.searchable_copies} found earlier"
+                                )
 
                 if (
                     self.verify_target_hits is not None
@@ -1846,6 +1857,15 @@ class VespaNNGlobalFilterHitratioEvaluator:
             all_hit_ratios.append(hit_ratios)
 
         return all_hit_ratios
+
+    def get_searchable_copies(self) -> int | None:
+        """
+        Returns number of searchable copies determined during hit-ratio computation.
+
+        Returns:
+            int: Number of searchable copies used by Vespa application.
+        """
+        return self.searchable_copies
 
 
 class VespaNNRecallEvaluator:
@@ -1865,6 +1885,7 @@ class VespaNNRecallEvaluator:
         hits (int): Number of hits to use. Should match the parameter targetHits in the used ANN queries.
         app (Vespa): An instance of the Vespa application.
         query_limit (int): Maximum number of queries to determine the recall for. Defaults to 20.
+        id_field (str): Name of the field containing a unique id. Defaults to "id".
         **kwargs (dict, optional): Additional HTTP request parameters. See: <https://docs.vespa.ai/en/reference/document-v1-api-reference.html#request-parameters>.
     """
 
@@ -1874,12 +1895,14 @@ class VespaNNRecallEvaluator:
         hits: int,
         app: Vespa,
         query_limit: int = 20,
+        id_field: str = "id",
         **kwargs,
     ):
         self.queries = queries
         self.hits = hits
         self.app = app
         self.query_limit = query_limit
+        self.id_field = id_field
         self.parameters = kwargs
 
     def _compute_recall(
@@ -1904,8 +1927,39 @@ class VespaNNRecallEvaluator:
         except KeyError:
             results_approx = []
 
-        ids_exact = list(map(lambda x: x["id"], results_exact))
-        ids_approx = list(map(lambda x: x["id"], results_approx))
+        def extract_id(hit: dict, id_field: str) -> Tuple[str, str]:
+            """Extract document ID from a Vespa hit."""
+
+            # id as specified by field
+            fields = hit.get("fields", {})
+            if id_field in fields:
+                return fields[id_field], "id_field"
+
+            # document id
+            id = hit.get("id", "")
+            if "::" in id:
+                return id, "document_id"
+
+            # internal id
+            if id.startswith(
+                "index:"
+            ):  # id is an internal id of the form index:[source]/[node-index]/[hex-gid], return hex-gid
+                return id.split("/", 2)[2], "internal_id"
+
+            raise ValueError(f"Could not extract a document id from hit: {hit}")
+
+        ids_exact = list(map(lambda x: extract_id(x, self.id_field)[0], results_exact))
+        ids_approx = list(
+            map(lambda x: extract_id(x, self.id_field)[0], results_approx)
+        )
+
+        id_types = set()
+        id_types.update(map(lambda x: extract_id(x, self.id_field)[1], results_exact))
+        id_types.update(map(lambda x: extract_id(x, self.id_field)[1], results_approx))
+        if len(id_types) > 1:
+            print(
+                f"Warning: Multiple id types obtained for hits: {id_types}. The recall computation will not be reliable. Please specify id_field correctly."
+            )
 
         if len(ids_exact) != self.hits:
             print(
@@ -2125,6 +2179,7 @@ class VespaNNParameterOptimizer:
         benchmark_time_limit (int): Time in milliseconds to spend per bucket benchmark. Defaults to 5000.
         recall_query_limit(int): Number of queries per bucket to compute the recall for. Defaults to 20.
         max_concurrent(int): Number of queries to execute concurrently during benchmark/recall calculation. Defaults to 10.
+        id_field (str): Name of the field containing a unique id for recall computation. Defaults to "id".
     """
 
     def __init__(
@@ -2137,6 +2192,7 @@ class VespaNNParameterOptimizer:
         benchmark_time_limit: int = 5000,
         recall_query_limit: int = 20,
         max_concurrent: int = 10,
+        id_field: str = "id",
     ):
         self.app = app
         self.queries = queries
@@ -2150,6 +2206,9 @@ class VespaNNParameterOptimizer:
         self.benchmark_time_limit = benchmark_time_limit
         self.recall_query_limit = recall_query_limit
         self.max_concurrent = max_concurrent
+        self.id_field = id_field
+
+        self.searchable_copies = None
 
     def get_bucket_interval_width(self) -> float:
         """
@@ -2299,6 +2358,7 @@ class VespaNNParameterOptimizer:
             queries, self.app, verify_target_hits=self.hits
         )
         hitratio_list = hitratio_evaluator.run()
+        self.searchable_copies = hitratio_evaluator.get_searchable_copies()
 
         for i in range(0, len(hitratio_list)):
             hitratios = hitratio_list[i]
@@ -2512,7 +2572,12 @@ class VespaNNParameterOptimizer:
                         end="",
                     )
                 recall_evaluator = VespaNNRecallEvaluator(
-                    bucket, self.hits, self.app, self.recall_query_limit, **kwargs
+                    bucket,
+                    self.hits,
+                    self.app,
+                    self.recall_query_limit,
+                    self.id_field,
+                    **kwargs,
                 )
                 recall_list = recall_evaluator.run()
                 results.append(recall_list)
@@ -2848,7 +2913,12 @@ class VespaNNParameterOptimizer:
                 threshold = i
                 response_time_gain = current_gain
 
-        return self.bucket_to_hitratio(threshold)
+        suggestion = self.bucket_to_hitratio(threshold)
+        if self.searchable_copies is not None:
+            suggestion = suggestion * self.searchable_copies
+            suggestion = min(suggestion, 1.0)
+
+        return suggestion
 
     def _test_filter_first_exploration(
         self, filter_first_exploration: float
