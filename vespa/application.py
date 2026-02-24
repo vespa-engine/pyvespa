@@ -5,7 +5,8 @@ import asyncio
 import traceback
 import concurrent.futures
 import warnings
-from typing import Optional, Dict, Generator, List, IO, Iterable, Callable, Tuple, Union
+from typing import Optional, Dict, Generator, List, IO, Iterable, Callable, Tuple, Union, TypeVar
+from collections.abc import Awaitable
 from concurrent.futures import ThreadPoolExecutor, Future, as_completed
 from queue import Queue, Empty
 import threading
@@ -46,6 +47,35 @@ import json
 logging.getLogger("urllib3").setLevel(logging.ERROR)
 
 VESPA_CLOUD_SECRET_TOKEN: str = "VESPA_CLOUD_SECRET_TOKEN"
+
+
+_T = TypeVar("_T")
+
+
+async def bounded_gather(
+    *awaitables: Awaitable[_T],
+    max_concurrency: int,
+) -> list[_T]:
+    """Gather awaitables with a sliding-window concurrency limit.
+
+    Unlike batching (gather N, wait for all N, then start the next N),
+    this starts a new awaitable as soon as any one completes, so a single
+    slow request does not block the remaining work.
+
+    Args:
+        *awaitables: The awaitables to run concurrently.
+        max_concurrency: Maximum number of awaitables allowed to run at the same time.
+
+    Returns:
+        List of results in the same order as the input awaitables.
+    """
+    semaphore = asyncio.Semaphore(max_concurrency)
+
+    async def run_under_semaphore(awaitable: Awaitable[_T]) -> _T:
+        async with semaphore:
+            return await awaitable
+
+    return list(await asyncio.gather(*(run_under_semaphore(a) for a in awaitables)))
 
 
 def get_profiling_params() -> Dict[str, str]:
@@ -905,8 +935,8 @@ class Vespa(object):
             namespace (str, optional): The Vespa document id namespace. If no namespace is provided, the schema is used.
             callback (function): A callback function to be called on each result. Signature `callback(response: VespaResponse, id: str)`.
             operation_type (str, optional): The operation to perform. Defaults to `feed`. Valid values are `feed`, `update`, or `delete`.
-            max_queue_size (int, optional): The maximum number of tasks waiting to be processed. Useful to limit memory usage. Default is 1000.
-            max_workers (int, optional): Maximum number of concurrent requests to have in-flight, bound by an asyncio.Semaphore, that needs to be acquired by a submit task. Increase if the server is scaled to handle more requests.
+            max_queue_size (int, optional): Deprecated and no longer used. Kept for backwards compatibility. Default is 1000.
+            max_workers (int, optional): Maximum number of concurrent in-flight requests (sliding-window concurrency limit). A new request starts as soon as any in-flight request completes. Increase if the server is scaled to handle more requests. Default is 64.
             max_connections (int, optional): The maximum number of connections passed to httpx.AsyncClient to the Vespa endpoint. As HTTP/2 is used, only one connection is needed.
             **kwargs (dict, optional): Additional parameters passed to the respective operation type-specific function (`_data_point`).
 
@@ -929,98 +959,97 @@ class Vespa(object):
                     "Not possible to infer schema name. Specify schema parameter."
                 )
 
-        async def handle_result(task: asyncio.Task, id: str):
-            # Wrapper around the task to handle exceptions and call the user callback
-            try:
-                response = await task
-            except Exception as e:
-                response = VespaResponse(
-                    status_code=599,
-                    json={
-                        "Exception": str(e),
-                        "id": id,
-                        "message": "Exception during feed_data_point",
-                    },
-                    url="n/a",
-                    operation_type=operation_type,
-                )
-            if callback is not None:
-                try:
-                    callback(response, id)
-                except Exception as e:
-                    print(f"Exception in user callback for id {id}", file=sys.stderr)
-                    traceback.print_exception(
-                        type(e), e, e.__traceback__, file=sys.stderr
-                    )
-
         # Wrapping in async function to be able to use asyncio.run, and avoid that the feed_async_iterable have to be async
         async def run():
             async with self.asyncio(connections=max_connections) as async_session:
-                semaphore = asyncio.Semaphore(max_workers)
-                tasks = []
-                for doc in iter:
-                    id = doc.get("id")
+
+                async def process_document(doc: Dict) -> None:
+                    doc_id = doc.get("id")
                     fields = doc.get("fields")
                     groupname = doc.get("groupname")
 
-                    if id is None:
+                    if doc_id is None:
                         response = VespaResponse(
                             status_code=499,
-                            json={"id": id, "message": "Missing id in input dict"},
+                            json={
+                                "id": doc_id,
+                                "message": "Missing id in input dict",
+                            },
                             url="n/a",
                             operation_type=operation_type,
                         )
                         if callback is not None:
-                            callback(response, id)
-                        continue
+                            callback(response, doc_id)
+                        return
                     if fields is None and operation_type != "delete":
                         response = VespaResponse(
                             status_code=499,
-                            json={"id": id, "message": "Missing fields in input dict"},
+                            json={
+                                "id": doc_id,
+                                "message": "Missing fields in input dict",
+                            },
                             url="n/a",
                             operation_type=operation_type,
                         )
                         if callback is not None:
-                            callback(response, id)
-                        continue
+                            callback(response, doc_id)
+                        return
 
-                    async with semaphore:
+                    try:
                         if operation_type == "feed":
-                            task = async_session.feed_data_point(
+                            response = await async_session.feed_data_point(
                                 schema=schema,
                                 namespace=namespace,
                                 groupname=groupname,
-                                data_id=id,
+                                data_id=doc_id,
                                 fields=fields,
                                 **kwargs,
                             )
                         elif operation_type == "update":
-                            task = async_session.update_data(
+                            response = await async_session.update_data(
                                 schema=schema,
                                 namespace=namespace,
                                 groupname=groupname,
-                                data_id=id,
+                                data_id=doc_id,
                                 fields=fields,
                                 **kwargs,
                             )
                         elif operation_type == "delete":
-                            task = async_session.delete_data(
+                            response = await async_session.delete_data(
                                 schema=schema,
                                 namespace=namespace,
-                                data_id=id,
+                                data_id=doc_id,
                                 groupname=groupname,
                                 **kwargs,
                             )
+                    except Exception as e:
+                        response = VespaResponse(
+                            status_code=599,
+                            json={
+                                "Exception": str(e),
+                                "id": doc_id,
+                                "message": "Exception during feed_data_point",
+                            },
+                            url="n/a",
+                            operation_type=operation_type,
+                        )
 
-                        tasks.append(handle_result(asyncio.create_task(task), id))
+                    if callback is not None:
+                        try:
+                            callback(response, doc_id)
+                        except Exception as e:
+                            print(
+                                f"Exception in user callback for id {doc_id}",
+                                file=sys.stderr,
+                            )
+                            traceback.print_exception(
+                                type(e), e, e.__traceback__, file=sys.stderr
+                            )
 
-                        # Control the number of in-flight tasks
-                        if len(tasks) >= max_queue_size:
-                            await asyncio.gather(*tasks)
-                            tasks = []
-
-                if tasks:
-                    await asyncio.gather(*tasks)
+                await bounded_gather(
+                    *(process_document(doc) for doc in iter),
+                    max_concurrency=max_workers,
+                )
 
         asyncio.run(run())
         return
