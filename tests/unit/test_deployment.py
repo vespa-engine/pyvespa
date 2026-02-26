@@ -177,6 +177,7 @@ class TestVespaCloud(unittest.TestCase):
         mock_request.return_value = {
             "deployed": False,
             "status": "deploying",
+            "hasFailed": True,
             "jobs": [
                 {"jobName": "production-us-central-1", "runStatus": "success"},
                 {"jobName": "production-us-east-3", "runStatus": "deploymentFailed"},
@@ -185,7 +186,20 @@ class TestVespaCloud(unittest.TestCase):
 
         with self.assertRaises(RuntimeError) as ctx:
             self.vespa_cloud.wait_for_prod_deployment(456)
-        self.assertIn("production-us-east-3: deploymentFailed", str(ctx.exception))
+        self.assertIn("Deployment has failed", str(ctx.exception))
+
+    @patch("vespa.deployment.VespaCloud._request")
+    def test_wait_for_prod_deployment_hasFailed_sticky_during_retry(self, mock_request):
+        """hasFailed stays true even when the system retries (latest run is 'running')."""
+        mock_request.side_effect = [
+            # Poll 1: system is retrying — latest run is running, but hasFailed is sticky
+            {"deployed": False, "status": "deploying", "hasFailed": True,
+             "jobs": [{"jobName": "staging-test", "runStatus": "running"}]},
+        ]
+        with self.assertRaises(RuntimeError):
+            self.vespa_cloud.wait_for_prod_deployment(456)
+        # Exits immediately on hasFailed, does not hang waiting for retry
+        self.assertEqual(mock_request.call_count, 1)
 
     @patch("vespa.deployment.VespaCloud._try_get_access_token")
     def test_try_get_access_token(self, mock_get_token):
