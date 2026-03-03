@@ -915,7 +915,9 @@ class VespaCloud(VespaDeployment):
         app.wait_for_application_up(max_wait=max_wait)
         return app
 
-    def check_production_build_status(self, build_no: Optional[int], quiet: bool = False) -> dict:
+    def check_production_build_status(
+        self, build_no: Optional[int], quiet: bool = False
+    ) -> dict:
         """
         Check the status of a production build.
         Useful for example in CI/CD pipelines to check when a build has converged.
@@ -1034,7 +1036,9 @@ class VespaCloud(VespaDeployment):
                     last_status[job["jobName"]] = job["runStatus"]
                     print(f"{job['jobName']}: {job['runStatus']}", file=self.output)
             if status.get("hasFailed", False):
-                raise RuntimeError("Deployment has failed. The system may retry, but this client will not wait.")
+                raise RuntimeError(
+                    "Deployment has failed. The system may retry, but this client will not wait."
+                )
             if status["status"] == "done":
                 skip_reason = status.get("skipReason")
                 if skip_reason:

@@ -193,8 +193,12 @@ class TestVespaCloud(unittest.TestCase):
         """hasFailed stays true even when the system retries (latest run is 'running')."""
         mock_request.side_effect = [
             # Poll 1: system is retrying — latest run is running, but hasFailed is sticky
-            {"deployed": False, "status": "deploying", "hasFailed": True,
-             "jobs": [{"jobName": "staging-test", "runStatus": "running"}]},
+            {
+                "deployed": False,
+                "status": "deploying",
+                "hasFailed": True,
+                "jobs": [{"jobName": "staging-test", "runStatus": "running"}],
+            },
         ]
         with self.assertRaises(RuntimeError):
             self.vespa_cloud.wait_for_prod_deployment(456)
