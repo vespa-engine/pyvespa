@@ -915,7 +915,9 @@ class VespaCloud(VespaDeployment):
         app.wait_for_application_up(max_wait=max_wait)
         return app
 
-    def check_production_build_status(self, build_no: Optional[int]) -> dict:
+    def check_production_build_status(
+        self, build_no: Optional[int], quiet: bool = False
+    ) -> dict:
         """
         Check the status of a production build.
         Useful for example in CI/CD pipelines to check when a build has converged.
@@ -928,25 +930,44 @@ class VespaCloud(VespaDeployment):
             # The response contains:
             # - "deployed" (bool): True if the build has converged everywhere.
             # - "status" (str): "deploying" or "done".
+            # - "hasFailed" (bool): True if any job for this build has ever failed.
+            #       Once true, it stays true even if the system retries with a new run.
             # - "skipReason" (str, optional): Why the build was skipped, e.g. "no-changes" or "cancelled".
-            # - "jobs" (list): Per-zone deployment details, each with "jobName" and "runStatus".
+            # - "jobs" (list): Per-job deployment details, each with "jobName", "runStatus",
+            #       "runId", and "instance". The list grows as jobs are triggered.
             #
-            # Example responses:
-            # 1. Successfully deployed everywhere:
-            #    {"deployed": True, "status": "done", "jobs": [{"jobName": "production-us-east-3", "runStatus": "success"}]}
+            # Each job shows the most recent run's status for this build.
             #
-            # 2. Still deploying:
-            #    {"deployed": False, "status": "deploying", "jobs": [{"jobName": "production-us-east-3", "runStatus": "running"}]}
+            # Example: early in deployment (only tests triggered so far):
+            #    {"deployed": False, "status": "deploying", "hasFailed": False,
+            #     "jobs": [{"jobName": "system-test", "runStatus": "running"},
+            #              {"jobName": "staging-test", "runStatus": "running"}]}
             #
-            # 3. Skipped (no changes to deploy):
-            #    {"deployed": False, "status": "done", "skipReason": "no-changes", "jobs": []}
+            # Example: fully deployed:
+            #    {"deployed": True, "status": "done", "hasFailed": False,
+            #     "jobs": [{"jobName": "system-test", "runStatus": "success"},
+            #              {"jobName": "staging-test", "runStatus": "success"},
+            #              {"jobName": "production-us-east-3", "runStatus": "success"}]}
             #
-            # 4. A job failed:
-            #    {"deployed": False, "status": "deploying", "jobs": [{"jobName": "production-us-east-3", "runStatus": "deploymentFailed"}]}
+            # Example: a job failed (system retries, but hasFailed stays true):
+            #    {"deployed": False, "status": "deploying", "hasFailed": True,
+            #     "jobs": [{"jobName": "system-test", "runStatus": "success"},
+            #              {"jobName": "staging-test", "runStatus": "installationFailed"}]}
+            #
+            # Example: skipped before any jobs triggered (no changes):
+            #    {"deployed": False, "status": "done", "hasFailed": False,
+            #     "skipReason": "no-changes", "jobs": []}
+            #
+            # Example: cancelled after some jobs ran:
+            #    {"deployed": False, "status": "done", "hasFailed": True,
+            #     "skipReason": "cancelled",
+            #     "jobs": [{"jobName": "system-test", "runStatus": "success"},
+            #              {"jobName": "staging-test", "runStatus": "running"}]}
             ```
 
         Args:
             build_no (int): The build number to check.
+            quiet (bool): If True, suppress status print. Default is False.
 
         Returns:
             dict: The build status response from the API. See example responses above for the full shape.
@@ -960,7 +981,8 @@ class VespaCloud(VespaDeployment):
                 raise ValueError("No build number provided, and no build number set.")
             else:
                 build_no = int(self.build_no)
-        print(f"Checking status of build number: {build_no}", file=self.output)
+        if not quiet:
+            print(f"Checking status of build number: {build_no}", file=self.output)
         status = self._request(
             "GET",
             f"/application/v4/tenant/{self.tenant}/application/{self.application}/build-status/{build_no}",
@@ -974,8 +996,8 @@ class VespaCloud(VespaDeployment):
         poll_interval: int = 5,
     ) -> bool:
         """
-        Wait for a production deployment to finish.
-        Useful for example in CI/CD pipelines to wait for a deployment to finish.
+        Wait for a production deployment to finish by polling build status.
+        Prints per-job status changes as they happen (only prints when a job's status changes).
 
         Example usage:
             ```python
@@ -993,25 +1015,34 @@ class VespaCloud(VespaDeployment):
 
         Returns:
             bool: True if the build was deployed to all production zones, False if it completed
-                without deploying (e.g. no changes).
+                without deploying (e.g. skipped due to no changes).
 
         Raises:
-            RuntimeError: If any production job failed (e.g. deploymentFailed, installationFailed).
+            RuntimeError: If any job for this build has failed. The deployment system may
+                continue retrying, but this method exits immediately
+                on first failure.
             TimeoutError: If the deployment did not finish within `max_wait` seconds.
         """
         start_time = time.time()
+        last_status = {}  # Track per-job status to only print changes
+        first = True
         while time.time() - start_time < max_wait:
-            status = self.check_production_build_status(build_no)
-            failed_jobs = [
-                job for job in status.get("jobs", [])
-                if job["runStatus"] not in ("success", "running")
-            ]
-            if failed_jobs:
-                failures = ", ".join(
-                    f"{job['jobName']}: {job['runStatus']}" for job in failed_jobs
+            status = self.check_production_build_status(build_no, quiet=not first)
+            first = False
+            # Print only when job statuses change
+            for job in status.get("jobs", []):
+                prev = last_status.get(job["jobName"])
+                if prev != job["runStatus"]:
+                    last_status[job["jobName"]] = job["runStatus"]
+                    print(f"{job['jobName']}: {job['runStatus']}", file=self.output)
+            if status.get("hasFailed", False):
+                raise RuntimeError(
+                    "Deployment has failed. The system may retry, but this client will not wait."
                 )
-                raise RuntimeError(f"Deployment failed: {failures}")
             if status["status"] == "done":
+                skip_reason = status.get("skipReason")
+                if skip_reason:
+                    print(f"Build skipped: {skip_reason}", file=self.output)
                 return status["deployed"]
             time.sleep(poll_interval)
         raise TimeoutError(f"Deployment did not finish within {max_wait} seconds. ")
