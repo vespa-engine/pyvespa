@@ -1,0 +1,4058 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="io.html">
+      
+      
+        <link rel="next" href="package.html">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../_static/logo-symbol/Vespa-isolated-symbol-white-rgb.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.3">
+    
+    
+      
+        <title>Models - Vespa python API</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Merriweather+Sans:300,300i,400,400i,700,700i%7CRed+Hat+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Merriweather Sans";--md-code-font:"Red Hat Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="green" data-md-color-accent="yellow">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#vespa.models" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Vespa python API" class="md-header__button md-logo" aria-label="Vespa python API" data-md-component="logo">
+      
+  <img src="../../_static/logo/Vespa-logo-white-rgb.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Vespa python API
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Models
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="green" data-md-color-accent="yellow"  aria-label="Dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="deep-purple"  aria-label="Light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/vespa-engine/pyvespa" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Vespa python API" class="md-nav__button md-logo" aria-label="Vespa python API" data-md-component="logo">
+      
+  <img src="../../_static/logo/Vespa-logo-white-rgb.svg" alt="logo">
+
+    </a>
+    Vespa python API
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/vespa-engine/pyvespa" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started-pyvespa.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hybrid Search - Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started-pyvespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hybrid Search - Quickstart on Vespa Cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced-configuration.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../authenticating-to-vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authenticating to Vespa Cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../application-packages.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Application packages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../query.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Querying Vespa
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reads-writes.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read and write operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../evaluating-vespa-application-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluating a Vespa Application
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../troubleshooting.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ann-parameters.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ANN Parameter Tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/Matryoshka_embeddings_in_Vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matryoshka embeddings in Vespa cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/ann-parameter-tuning-vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ann parameter tuning vespa cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/billion-scale-vector-search-with-cohere-embeddings-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Billion scale vector search with cohere embeddings cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/chat_with_your_pdfs_using_colbert_langchain_and_Vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    chat with your pdfs using colbert langchain and Vespa cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/cohere-binary-vectors-in-vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cohere binary vectors in vespa cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/colbert_standalone_Vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    colbert standalone Vespa cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/colbert_standalone_long_context_Vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    colbert standalone long context Vespa cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/colpali-benchmark-vqa-vlm_Vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    colpali benchmark vqa vlm Vespa cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/colpali-document-retrieval-vision-language-models-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Colpali document retrieval vision language models cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/cross-encoders-for-global-reranking.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cross encoders for global reranking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/evaluating-with-snowflake-arctic-embed.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluating with snowflake arctic embed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/feed_performance.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feed performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/feed_performance_cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feed performance cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/lightgbm-with-categorical-mapping.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lightgbm with categorical mapping
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/lightgbm-with-categorical.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lightgbm with categorical
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/mixedbread-binary-embeddings-with-sentence-transformers-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mixedbread binary embeddings with sentence transformers cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/mother-of-all-embedding-models-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mother of all embedding models cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/multi-vector-indexing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi vector indexing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/multilingual-multi-vector-reps-with-cohere-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multilingual multi vector reps with cohere cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/pdf-retrieval-with-ColQwen2-vlm_Vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    pdf retrieval with ColQwen2 vlm Vespa cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/pyvespa-examples.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pyvespa examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/rag-blueprint-vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rag blueprint vespa cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/scaling-personal-ai-assistants-with-streaming-mode-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scaling personal ai assistants with streaming mode cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/simplified-retrieval-with-colpali-vlm_Vespa-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    simplified retrieval with colpali vlm Vespa cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/turbocharge-rag-with-langchain-and-vespa-streaming-mode-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Turbocharge rag with langchain and vespa streaming mode cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/video_search_twelvelabs_cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Video search twelvelabs cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/visual_pdf_rag_with_vespa_colpali_cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visual pdf rag with vespa colpali cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/voyage-ai-embeddings-cloud.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Voyage ai embeddings cloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../summary.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Summary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="application.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Application
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="deployment.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="evaluation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="exceptions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exceptions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="io.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="models.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#vespa.models" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;models
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" models">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.ModelConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ModelConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" ModelConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.ModelConfig.__post_init__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__post_init__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.ModelConfig.to_dict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;to_dict
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.ApplicationPackageWithQueryFunctions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ApplicationPackageWithQueryFunctions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" ApplicationPackageWithQueryFunctions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.ApplicationPackageWithQueryFunctions.get_query_functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_query_functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.sanitize_component_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;sanitize_component_id
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_embedder_component" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;create_embedder_component
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" create_embedder_component">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_embedder_component--example-with-url-based-model-and-custom-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example with URL-based model and custom parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_embedding_field" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;create_embedding_field
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_semantic_rank_profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;create_semantic_rank_profile
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_hybrid_rank_profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;create_hybrid_rank_profile
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.get_model_config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_model_config
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.list_models" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;list_models
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_hybrid_package" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;create_hybrid_package
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" create_hybrid_package">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_hybrid_package--single-model-by-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single model by name
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_hybrid_package--single-model-with-custom-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single model with custom config
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_hybrid_package--multiple-models-creates-separate-fields-and-profiles-for-each" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multiple models - creates separate fields and profiles for each
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_hybrid_package--fields-will-be-named-embedding_e5_small_v2-embedding_e5_base_v2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fields will be named: embedding_e5_small_v2, embedding_e5_base_v2
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_hybrid_package--multiple-models-with-mixed-configs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multiple models with mixed configs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="package.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Package
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_12_9" id="__nav_12_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Querybuilder
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_12_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Querybuilder
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="querybuilder/builder/builder.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Builder
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="querybuilder/grouping/grouping.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grouping
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="throttling.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Throttling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#vespa.models" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;models
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" models">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.ModelConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ModelConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" ModelConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.ModelConfig.__post_init__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__post_init__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.ModelConfig.to_dict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;to_dict
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.ApplicationPackageWithQueryFunctions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ApplicationPackageWithQueryFunctions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" ApplicationPackageWithQueryFunctions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.ApplicationPackageWithQueryFunctions.get_query_functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_query_functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.sanitize_component_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;sanitize_component_id
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_embedder_component" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;create_embedder_component
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" create_embedder_component">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_embedder_component--example-with-url-based-model-and-custom-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example with URL-based model and custom parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_embedding_field" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;create_embedding_field
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_semantic_rank_profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;create_semantic_rank_profile
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_hybrid_rank_profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;create_hybrid_rank_profile
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.get_model_config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;get_model_config
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.list_models" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;list_models
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_hybrid_package" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;create_hybrid_package
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" create_hybrid_package">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_hybrid_package--single-model-by-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single model by name
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_hybrid_package--single-model-with-custom-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single model with custom config
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_hybrid_package--multiple-models-creates-separate-fields-and-profiles-for-each" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multiple models - creates separate fields and profiles for each
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_hybrid_package--fields-will-be-named-embedding_e5_small_v2-embedding_e5_base_v2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fields will be named: embedding_e5_small_v2, embedding_e5_base_v2
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vespa.models.create_hybrid_package--multiple-models-with-mixed-configs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multiple models with mixed configs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+  <h1>Models</h1>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="vespa.models" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-module"></code>            <code>vespa.models</code>
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="vespa.models.ModelConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>              <code class="highlight language-python"><span class="n">ModelConfig</span><span class="p">(</span><span class="n">model_id</span><span class="p">,</span> <span class="n">embedding_dim</span><span class="p">,</span> <span class="n">tokenizer_id</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">binarized</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">embedding_field_type</span><span class="o">=</span><span class="s1">&#39;float&#39;</span><span class="p">,</span> <span class="n">distance_metric</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">component_id</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">model_path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tokenizer_path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">model_url</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tokenizer_url</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">max_tokens</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">transformer_input_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">transformer_attention_mask</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">transformer_token_type_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">transformer_output</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pooling_strategy</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">query_prepend</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">document_prepend</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">validate_urls</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+        <p>Configuration for an embedding model.</p>
+<p>This class encapsulates all model-specific parameters that affect
+the Vespa schema, component configuration, and ranking expressions.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.model_id">model_id</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The model identifier (e.g., 'e5-small-v2', 'snowflake-arctic-embed-xs')</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.embedding_dim">embedding_dim</span></code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The dimension of the embedding vectors (e.g., 384, 768).
+When binarized=True, specify the original model dimension - it will be
+automatically divided by 8 for storage (e.g., 1024 -&gt; 128 bytes).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.tokenizer_id">tokenizer_id</span></code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The tokenizer model identifier (if different from model_id)</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.binarized">binarized</span></code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether the embeddings should be binarized (packed to bits).
+When True, overrides embedding_field_type to int8 and embedding_dim
+must be divisible by 8.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.embedding_field_type">embedding_field_type</span></code></td>
+            <td>
+                  <code><span title="vespa.models.EmbeddingFieldType">EmbeddingFieldType</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Tensor cell type for embeddings (default: "float").
+Note: When binarized=True, this is automatically overridden to "int8".
+Options:
+- "double": 64-bit float (highest precision, highest memory)
+- "float": 32-bit float (good balance)
+- "bfloat16": 16-bit brain float (reduced memory, good for large scale)
+- "int8": 8-bit integer (quantized, or used automatically when binarized=True)</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.distance_metric">distance_metric</span></code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="vespa.package.DistanceMetric">DistanceMetric</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Distance metric for HNSW index (default: None, auto-set based on binarized).
+When binarized=True, automatically set to "hamming".
+When binarized=False and not specified, defaults to "angular".
+Options:
+- "angular": Cosine similarity
+- "hamming": Hamming distance (required for binarized embeddings)
+- "euclidean", "dotproduct", "prenormalized-angular", "geodegrees"</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.component_id">component_id</span></code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The ID to use for the Vespa component (defaults to sanitized model_id)</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.model_path">model_path</span></code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional local path to the model file</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.tokenizer_path">tokenizer_path</span></code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional local path to the tokenizer file</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.model_url">model_url</span></code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional URL to the ONNX model file (alternative to model_id)</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.tokenizer_url">tokenizer_url</span></code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional URL to the tokenizer file (alternative to tokenizer_id)</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.max_tokens">max_tokens</span></code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="int">int</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Maximum number of tokens accepted by the transformer model.
+Optional, if not set the Vespa embedder uses its internal default (512).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.transformer_input_ids">transformer_input_ids</span></code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name/identifier for transformer input IDs.
+Optional, if not set the Vespa embedder uses its internal default ("input_ids").</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.transformer_attention_mask">transformer_attention_mask</span></code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name/identifier for transformer attention mask.
+Optional, if not set the Vespa embedder uses its internal default ("attention_mask").</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.transformer_token_type_ids">transformer_token_type_ids</span></code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name/identifier for transformer token type IDs.
+Optional, if not set the Vespa embedder uses its internal default ("token_type_ids").
+Set to empty string "" to explicitly disable token_type_ids.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.transformer_output">transformer_output</span></code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name/identifier for transformer output.
+Optional, if not set the Vespa embedder uses its internal default ("last_hidden_state").</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.pooling_strategy">pooling_strategy</span></code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="vespa.models.PoolingStrategy">PoolingStrategy</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>How to pool output vectors ("mean", "cls", or "none").
+Optional, if not set the Vespa embedder uses its internal default ("mean").</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.normalize">normalize</span></code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="bool">bool</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether to normalize output to unit length.
+Optional, if not set the Vespa embedder uses its internal default (False).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.query_prepend">query_prepend</span></code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional instruction to prepend to query text</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.document_prepend">document_prepend</span></code></td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional instruction to prepend to document text</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="vespa.models.ModelConfig.validate_urls">validate_urls</span></code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether to validate URLs by checking they return HTTP 200 (default: False)</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.models.ModelConfig.__post_init__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">__post_init__</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Set defaults and validate configuration.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.models.ModelConfig.to_dict" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">to_dict</span><span class="p">(</span><span class="n">include_none</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Convert the ModelConfig to a dictionary for serialization.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>include_none</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, include fields with None values. Default False.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Dict">Dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Dict with all model configuration attributes.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<p>config = ModelConfig(model_id="e5-small-v2", embedding_dim=384)
+d = config.to_dict()
+d["model_id"]
+'e5-small-v2'
+d["embedding_dim"]
+384
+d["binarized"]
+False</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="vespa.models.ApplicationPackageWithQueryFunctions" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>              <code class="highlight language-python"><span class="n">ApplicationPackageWithQueryFunctions</span><span class="p">(</span><span class="n">query_functions</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="              ApplicationPackage(name, schema=None, query_profile=None, query_profile_type=None, stateless_model_evaluation=False, create_schema_by_default=True, create_query_profile_by_default=True, configurations=None, validations=None, components=None, auth_clients=None, clusters=None, deployment_config=None, services_config=None, query_profile_config=None) (vespa.package.ApplicationPackage)" href="package.html#vespa.package.ApplicationPackage">ApplicationPackage</a></code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="vespa.models.ApplicationPackageWithQueryFunctions.get_query_functions" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">get_query_functions</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Get the query functions for this application package.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Dict">Dict</span>[<span title="str">str</span>, <span title="typing.Callable">Callable</span>[[<span title="str">str</span>, <span title="int">int</span>], <span title="dict">dict</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Dict of query functions</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="vespa.models.sanitize_component_id" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">sanitize_component_id</span><span class="p">(</span><span class="n">model_id</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Sanitize a model ID to create a valid Vespa component identifier.</p>
+<p>Vespa component IDs must match the pattern [a-zA-Z][a-zA-Z0-9_]*
+(start with a letter, followed by letters, digits, or underscores).</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>model_id</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The model identifier to sanitize</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A valid Vespa component ID</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<p>sanitize_component_id("e5-small-v2")
+'e5_small_v2'
+sanitize_component_id("sentence-transformers/all-MiniLM-L6-v2")
+'sentence_transformers_all_MiniLM_L6_v2'
+sanitize_component_id("model.v1.0")
+'model_v1_0'
+sanitize_component_id("123-model")
+'model_123_model'</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="vespa.models.create_embedder_component" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">create_embedder_component</span><span class="p">(</span><span class="n">config</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Create a Vespa hugging-face-embedder component from a model configuration.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>config</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="              ModelConfig(model_id, embedding_dim, tokenizer_id=None, binarized=False, embedding_field_type='float', distance_metric=None, component_id=None, model_path=None, tokenizer_path=None, model_url=None, tokenizer_url=None, max_tokens=None, transformer_input_ids=None, transformer_attention_mask=None, transformer_token_type_ids=None, transformer_output=None, pooling_strategy=None, normalize=None, query_prepend=None, document_prepend=None, validate_urls=False)
+
+  
+      dataclass
+   (vespa.models.ModelConfig)" href="#vespa.models.ModelConfig">ModelConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>ModelConfig instance with model parameters</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Component</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="              Component(id, cls=None, bundle=None, type=None, parameters=None) (vespa.package.Component)" href="package.html#vespa.package.Component">Component</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A Vespa Component configured as a hugging-face-embedder</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<p>config = ModelConfig(model_id="e5-small-v2", embedding_dim=384)
+component = create_embedder_component(config)
+component.id
+'e5_small_v2'</p>
+<h4 id="vespa.models.create_embedder_component--example-with-url-based-model-and-custom-parameters">Example with URL-based model and custom parameters</h4>
+<p>config = ModelConfig(
+...     model_id="gte-multilingual",
+...     embedding_dim=768,
+...     model_url="https://huggingface.co/onnx-community/gte-multilingual-base/resolve/main/onnx/model_quantized.onnx",
+...     tokenizer_url="https://huggingface.co/onnx-community/gte-multilingual-base/resolve/main/tokenizer.json",
+...     transformer_output="token_embeddings",
+...     max_tokens=8192,
+...     query_prepend="Represent this sentence for searching relevant passages: ",
+...     document_prepend="passage: ",
+... )
+component = create_embedder_component(config)
+component.id
+'gte_multilingual'</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="vespa.models.create_embedding_field" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">create_embedding_field</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">field_name</span><span class="o">=</span><span class="s1">&#39;embedding&#39;</span><span class="p">,</span> <span class="n">indexing</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">distance_metric</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">embedder_id</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Create a Vespa embedding field from a model configuration.</p>
+<p>The field type and indexing statement are automatically configured based on
+whether the embeddings are binarized.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>config</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="              ModelConfig(model_id, embedding_dim, tokenizer_id=None, binarized=False, embedding_field_type='float', distance_metric=None, component_id=None, model_path=None, tokenizer_path=None, model_url=None, tokenizer_url=None, max_tokens=None, transformer_input_ids=None, transformer_attention_mask=None, transformer_token_type_ids=None, transformer_output=None, pooling_strategy=None, normalize=None, query_prepend=None, document_prepend=None, validate_urls=False)
+
+  
+      dataclass
+   (vespa.models.ModelConfig)" href="#vespa.models.ModelConfig">ModelConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>ModelConfig instance with model parameters</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>field_name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of the embedding field (default: "embedding")</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;embedding&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>indexing</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="typing.List">List</span>[<span title="str">str</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Custom indexing statement (default: auto-generated based on config)</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>distance_metric</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="vespa.package.DistanceMetric">DistanceMetric</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Distance metric for HNSW (default: "hamming" for binarized, "angular" for float)</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>embedder_id</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Embedder ID to use in the indexing statement (default: uses config.component_id)</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Field</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="              Field(name, type, indexing=None, index=None, attribute=None, ann=None, match=None, weight=None, bolding=None, summary=None, is_document_field=True, **kwargs) (vespa.package.Field)" href="package.html#vespa.package.Field">Field</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A Vespa Field configured for embeddings</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<p>config = ModelConfig(model_id="e5-small-v2", embedding_dim=384)
+field = create_embedding_field(config)
+field.type
+'tensor<bfloat16>(x[384])'</p>
+<p>config_float = ModelConfig(model_id="e5-small-v2", embedding_dim=384, embedding_field_type="float")
+field_float = create_embedding_field(config_float)
+field_float.type
+'tensor<float>(x[384])'</p>
+<p>config_binary = ModelConfig(model_id="bge-m3", embedding_dim=1024, binarized=True)
+field_binary = create_embedding_field(config_binary)
+field_binary.type
+'tensor<int8>(x[128])'</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="vespa.models.create_semantic_rank_profile" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">create_semantic_rank_profile</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">profile_name</span><span class="o">=</span><span class="s1">&#39;semantic&#39;</span><span class="p">,</span> <span class="n">embedding_field</span><span class="o">=</span><span class="s1">&#39;embedding&#39;</span><span class="p">,</span> <span class="n">query_tensor</span><span class="o">=</span><span class="s1">&#39;q&#39;</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Create a semantic ranking profile based on model configuration.</p>
+<p>The ranking expression is automatically configured to use hamming distance
+for binarized embeddings or cosine similarity for float embeddings.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>config</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="              ModelConfig(model_id, embedding_dim, tokenizer_id=None, binarized=False, embedding_field_type='float', distance_metric=None, component_id=None, model_path=None, tokenizer_path=None, model_url=None, tokenizer_url=None, max_tokens=None, transformer_input_ids=None, transformer_attention_mask=None, transformer_token_type_ids=None, transformer_output=None, pooling_strategy=None, normalize=None, query_prepend=None, document_prepend=None, validate_urls=False)
+
+  
+      dataclass
+   (vespa.models.ModelConfig)" href="#vespa.models.ModelConfig">ModelConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>ModelConfig instance with model parameters</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>profile_name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of the rank profile (default: "semantic")</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;semantic&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>embedding_field</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of the embedding field (default: "embedding")</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;embedding&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>query_tensor</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of the query tensor (default: "q")</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;q&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>RankProfile</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="              RankProfile(name, first_phase=None, inherits=None, constants=None, functions=None, summary_features=None, match_features=None, second_phase=None, global_phase=None, match_phase=None, num_threads_per_search=None, diversity=None, **kwargs) (vespa.package.RankProfile)" href="package.html#vespa.package.RankProfile">RankProfile</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A Vespa RankProfile configured for semantic search</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<p>config = ModelConfig(model_id="e5-small-v2", embedding_dim=384, binarized=False)
+profile = create_semantic_rank_profile(config)
+profile.name
+'semantic'</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="vespa.models.create_hybrid_rank_profile" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">create_hybrid_rank_profile</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">profile_name</span><span class="o">=</span><span class="s1">&#39;fusion&#39;</span><span class="p">,</span> <span class="n">base_profile</span><span class="o">=</span><span class="s1">&#39;bm25&#39;</span><span class="p">,</span> <span class="n">embedding_field</span><span class="o">=</span><span class="s1">&#39;embedding&#39;</span><span class="p">,</span> <span class="n">query_tensor</span><span class="o">=</span><span class="s1">&#39;q&#39;</span><span class="p">,</span> <span class="n">fusion_method</span><span class="o">=</span><span class="s1">&#39;rrf&#39;</span><span class="p">,</span> <span class="n">global_rerank_count</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">first_phase_keep_rank_count</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Create a hybrid ranking profile combining BM25 and semantic search.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>config</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="              ModelConfig(model_id, embedding_dim, tokenizer_id=None, binarized=False, embedding_field_type='float', distance_metric=None, component_id=None, model_path=None, tokenizer_path=None, model_url=None, tokenizer_url=None, max_tokens=None, transformer_input_ids=None, transformer_attention_mask=None, transformer_token_type_ids=None, transformer_output=None, pooling_strategy=None, normalize=None, query_prepend=None, document_prepend=None, validate_urls=False)
+
+  
+      dataclass
+   (vespa.models.ModelConfig)" href="#vespa.models.ModelConfig">ModelConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>ModelConfig instance with model parameters</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>profile_name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of the rank profile (default: "fusion")</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;fusion&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>base_profile</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of the BM25 profile to inherit from (default: "bm25")</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;bm25&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>embedding_field</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of the embedding field (default: "embedding")</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;embedding&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>query_tensor</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of the query tensor (default: "q")</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;q&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>fusion_method</code>
+            </td>
+            <td>
+                  <code><span title="vespa.models.FusionMethod">FusionMethod</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Fusion method - "rrf" for reciprocal rank fusion, "atan_norm" for atan-normalized sum in first phase, or "norm_linear" for linear normalization in global phase.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;rrf&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>global_rerank_count</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Number of hits to rerank in global phase (default: 1000)</p>
+              </div>
+            </td>
+            <td>
+                  <code>1000</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>first_phase_keep_rank_count</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="int">int</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>How many documents to keep the first phase top rank values for (default: None, uses Vespa default of 10000)</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>RankProfile</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="              RankProfile(name, first_phase=None, inherits=None, constants=None, functions=None, summary_features=None, match_features=None, second_phase=None, global_phase=None, match_phase=None, num_threads_per_search=None, diversity=None, **kwargs) (vespa.package.RankProfile)" href="package.html#vespa.package.RankProfile">RankProfile</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A Vespa RankProfile configured for hybrid search</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<p>config = ModelConfig(model_id="e5-small-v2", embedding_dim=384)
+profile = create_hybrid_rank_profile(config)
+profile.name
+'fusion'</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="vespa.models.get_model_config" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">get_model_config</span><span class="p">(</span><span class="n">model_name</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Get a predefined model configuration by name.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>model_name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of a predefined model</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>ModelConfig</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="              ModelConfig(model_id, embedding_dim, tokenizer_id=None, binarized=False, embedding_field_type='float', distance_metric=None, component_id=None, model_path=None, tokenizer_path=None, model_url=None, tokenizer_url=None, max_tokens=None, transformer_input_ids=None, transformer_attention_mask=None, transformer_token_type_ids=None, transformer_output=None, pooling_strategy=None, normalize=None, query_prepend=None, document_prepend=None, validate_urls=False)
+
+  
+      dataclass
+   (vespa.models.ModelConfig)" href="#vespa.models.ModelConfig">ModelConfig</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The model configuration</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="KeyError">KeyError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the model name is not found</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<p>config = get_model_config("e5-small-v2")
+config.embedding_dim
+384</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="vespa.models.list_models" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">list_models</span><span class="p">()</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>List all available predefined model configurations.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.List">List</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>List of model names that can be used with get_model_config()</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<p>models = list_models()
+'e5-small-v2' in models
+True
+'nomic-ai-modernbert' in models
+True</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="vespa.models.create_hybrid_package" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">create_hybrid_package</span><span class="p">(</span><span class="n">models</span><span class="p">,</span> <span class="n">app_name</span><span class="o">=</span><span class="s1">&#39;hybridapp&#39;</span><span class="p">,</span> <span class="n">schema_name</span><span class="o">=</span><span class="s1">&#39;doc&#39;</span><span class="p">,</span> <span class="n">global_rerank_count</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Create a Vespa application package configured for hybrid search evaluation.</p>
+<p>This function creates a complete Vespa application package with all necessary
+components, fields, and rank profiles for evaluation. It supports single or
+multiple embedding models, automatically handling naming conflicts by using
+model-specific field and component names.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>models</code>
+            </td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="              ModelConfig(model_id, embedding_dim, tokenizer_id=None, binarized=False, embedding_field_type='float', distance_metric=None, component_id=None, model_path=None, tokenizer_path=None, model_url=None, tokenizer_url=None, max_tokens=None, transformer_input_ids=None, transformer_attention_mask=None, transformer_token_type_ids=None, transformer_output=None, pooling_strategy=None, normalize=None, query_prepend=None, document_prepend=None, validate_urls=False)
+
+  
+      dataclass
+   (vespa.models.ModelConfig)" href="#vespa.models.ModelConfig">ModelConfig</a>, <span title="typing.List">List</span>[<span title="typing.Union">Union</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="              ModelConfig(model_id, embedding_dim, tokenizer_id=None, binarized=False, embedding_field_type='float', distance_metric=None, component_id=None, model_path=None, tokenizer_path=None, model_url=None, tokenizer_url=None, max_tokens=None, transformer_input_ids=None, transformer_attention_mask=None, transformer_token_type_ids=None, transformer_output=None, pooling_strategy=None, normalize=None, query_prepend=None, document_prepend=None, validate_urls=False)
+
+  
+      dataclass
+   (vespa.models.ModelConfig)" href="#vespa.models.ModelConfig">ModelConfig</a>]], <span title="typing.List">List</span>[<a class="autorefs autorefs-internal" title="              ModelConfig(model_id, embedding_dim, tokenizer_id=None, binarized=False, embedding_field_type='float', distance_metric=None, component_id=None, model_path=None, tokenizer_path=None, model_url=None, tokenizer_url=None, max_tokens=None, transformer_input_ids=None, transformer_attention_mask=None, transformer_token_type_ids=None, transformer_output=None, pooling_strategy=None, normalize=None, query_prepend=None, document_prepend=None, validate_urls=False)
+
+  
+      dataclass
+   (vespa.models.ModelConfig)" href="#vespa.models.ModelConfig">ModelConfig</a>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Single model or list of models to configure. Each can be:
+- A string model name (e.g., "e5-small-v2") to use a predefined config
+- A ModelConfig instance for custom configuration</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>app_name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of the application (default: "hybridapp")</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;hybridapp&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>schema_name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of the schema (default: "doc")</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;doc&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>global_rerank_count</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Number of hits to rerank in global phase (default: 1000)</p>
+              </div>
+            </td>
+            <td>
+                  <code>1000</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>ApplicationPackage</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="              ApplicationPackageWithQueryFunctions(query_functions=None, **kwargs) (vespa.models.ApplicationPackageWithQueryFunctions)" href="#vespa.models.ApplicationPackageWithQueryFunctions">ApplicationPackageWithQueryFunctions</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Configured Vespa application package with:
+- Components for each embedding model
+- Embedding fields for each model (named "embedding" for single model,
+  "embedding_{component_id}" for multiple models)
+- BM25 and semantic rank profiles for each model
+- Hybrid rank profiles (RRF, atan_norm, norm_linear) for each model
+- A match-only rank profile for baseline evaluation</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If models list is empty</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="KeyError">KeyError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If a model name is not found in COMMON_MODELS</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<h4 id="vespa.models.create_hybrid_package--single-model-by-name">Single model by name</h4>
+<p>package = create_hybrid_package("e5-small-v2")
+len(package.components)
+1
+package.schema.document.fields[2].name
+'embedding'</p>
+<h4 id="vespa.models.create_hybrid_package--single-model-with-custom-config">Single model with custom config</h4>
+<p>config = ModelConfig(model_id="my-model", embedding_dim=512)
+package = create_hybrid_package(config)
+package.schema.document.fields[2].name
+'embedding'</p>
+<h4 id="vespa.models.create_hybrid_package--multiple-models-creates-separate-fields-and-profiles-for-each">Multiple models - creates separate fields and profiles for each</h4>
+<p>package = create_hybrid_package(["e5-small-v2", "e5-base-v2"])
+len(package.components)
+2</p>
+<h4 id="vespa.models.create_hybrid_package--fields-will-be-named-embedding_e5_small_v2-embedding_e5_base_v2">Fields will be named: embedding_e5_small_v2, embedding_e5_base_v2</h4>
+<p>field_names = [f.name for f in package.schema.document.fields if f.name.startswith('embedding')]
+len(field_names)
+2</p>
+<h4 id="vespa.models.create_hybrid_package--multiple-models-with-mixed-configs">Multiple models with mixed configs</h4>
+<p>custom = ModelConfig(model_id="custom-model", embedding_dim=384)
+package = create_hybrid_package(["e5-small-v2", custom])
+len(package.components)
+2</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
