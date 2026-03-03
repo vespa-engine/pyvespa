@@ -25,7 +25,7 @@ jobs:
       - name: Set output variable (Make sure it is this quote format - "[path/to/notebook1.ipynb", "path/to/notebook2.ipynb]")
         id: set_output
         run: |
-          notebooks=$(find docs/sphinx/source -name '*cloud.ipynb' ! -name 'pdf-retrieval-with-ColQwen2-vlm_Vespa-cloud.ipynb' ! -name 'mother-of-all-embedding-models-cloud.ipynb' ! -name 'scaling-personal-ai-assistants-with-streaming-mode-cloud.ipynb' ! -name 'colpali-benchmark-vqa-vlm_Vespa-cloud.ipynb' ! -name 'video_search_twelvelabs_cloud.ipynb' ! -name 'simplified-retrieval-with-colpali-vlm_Vespa-cloud.ipynb' ! -name 'visual_pdf_rag_with_vespa_colpali_cloud.ipynb' ! -name 'colpali-document-retrieval-vision-language-models-cloud.ipynb' | jq -R -s -c 'split("\n")[:-1]')
+          notebooks=$(find docs/sphinx/source -name '*cloud.ipynb' ! -name 'pdf-retrieval-with-ColQwen2-vlm_Vespa-cloud.ipynb' ! -name 'mother-of-all-embedding-models-cloud.ipynb' ! -name 'scaling-personal-ai-assistants-with-streaming-mode-cloud.ipynb' ! -name 'colpali-benchmark-vqa-vlm_Vespa-cloud.ipynb' ! -name 'video_search_twelvelabs_cloud.ipynb' ! -name 'simplified-retrieval-with-colpali-vlm_Vespa-cloud.ipynb' ! -name 'visual_pdf_rag_with_vespa_colpali_cloud.ipynb' ! -name 'colpali-document-retrieval-vision-language-models-cloud.ipynb' ! -name 'voyage-ai-embeddings-cloud.ipynb' | jq -R -s -c 'split("\n")[:-1]')
           # Print all notebooks echo
           echo $notebooks
           echo "notebooks=$notebooks" >> $GITHUB_OUTPUT
