@@ -1464,18 +1464,12 @@ class VespaCloud(VespaDeployment):
             new_rule,
         )
 
-        put_response = self._request(
+        self._request(
             "PUT",
             path,
             put_body,
             headers,
         )
-        # Verify the rule was applied
-        if not isinstance(put_response, dict):
-            raise RuntimeError(
-                f"Unexpected response when setting vault access rule for '{vault_name}': "
-                f"expected JSON object, got {type(put_response).__name__}"
-            )
 
         get_response = self._request("GET", path)
 

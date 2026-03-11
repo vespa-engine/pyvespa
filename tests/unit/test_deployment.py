@@ -398,7 +398,9 @@ class TestVaultAccessRules(unittest.TestCase):
             },
             # GET CSRF token
             {"token": "fake-csrf-token"},
-            # PUT response: confirms both rules
+            # PUT response: message string
+            "Set access rules for tenant test_tenant, vault my-vault",
+            # GET verify response: confirms rule is present
             {
                 "rules": [
                     {
@@ -415,7 +417,7 @@ class TestVaultAccessRules(unittest.TestCase):
             },
         ]
         self.vespa_cloud._ensure_vault_access_rule("my-vault")
-        self.assertEqual(mock_request.call_count, 3)
+        self.assertEqual(mock_request.call_count, 4)
         # Verify CSRF fetch
         self.assertEqual(mock_request.call_args_list[1][0], ("GET", "/csrf/v1"))
         # Verify PUT call
@@ -444,7 +446,9 @@ class TestVaultAccessRules(unittest.TestCase):
             {"rules": []},
             # GET CSRF token
             {"token": "fake-csrf-token"},
-            # PUT response confirms the new rule
+            # PUT response: message string
+            "Set access rules for tenant test_tenant, vault my-vault",
+            # GET verify response: confirms rule is present
             {
                 "rules": [
                     {
@@ -456,7 +460,7 @@ class TestVaultAccessRules(unittest.TestCase):
             },
         ]
         self.vespa_cloud._ensure_vault_access_rule("my-vault")
-        self.assertEqual(mock_request.call_count, 3)
+        self.assertEqual(mock_request.call_count, 4)
         self.assertEqual(
             mock_request.call_args_list[2][0][2]["rules"],
             [
@@ -474,19 +478,10 @@ class TestVaultAccessRules(unittest.TestCase):
             {"rules": []},
             # GET CSRF token
             {"token": "fake-csrf-token"},
-            # PUT response does not confirm the rule
+            # PUT response: message string
+            "Set access rules for tenant test_tenant, vault my-vault",
+            # GET verify response: rule is still missing
             {"rules": []},
-        ]
-        with self.assertRaises(RuntimeError):
-            self.vespa_cloud._ensure_vault_access_rule("my-vault")
-
-    @patch("vespa.deployment.VespaCloud._request")
-    def test_ensure_vault_access_rule_put_response_not_dict(self, mock_request):
-        mock_request.side_effect = [
-            {"rules": []},
-            # GET CSRF token
-            {"token": "fake-csrf-token"},
-            "unexpected string response",
         ]
         with self.assertRaises(RuntimeError):
             self.vespa_cloud._ensure_vault_access_rule("my-vault")
