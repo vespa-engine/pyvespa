@@ -1457,29 +1457,29 @@ class VespaCloud(VespaDeployment):
         csrf_token = self._get_csrf_token()
         headers = {"vespa-csrf-token": csrf_token} if csrf_token else {}
         put_body = {**response, "rules": existing_rules + [new_rule]}
+
         logging.info(
-            "Adding vault access rule for application '%s' to vault '%s': %s",
-            self.application,
-            vault_name,
-            new_rule,
+            "Existing access rules for vault '%s': %s", vault_name, existing_rules
         )
 
-        self._request(
+        # TODO(17.03.2026) BrageHK: This is a temporary fix because Vespa Cloud only returns a 
+        # message instead of a list of the new rules. It is also not possible to GET the new rules
+        # because they need to be deployed before you can GET them.
+        response_msg = self._request(
             "PUT",
             path,
             put_body,
             headers,
         )
 
-        get_response = self._request("GET", path)
+        response_txt = response_msg.get("message", None)
 
-        updated_rules = get_response.get("rules", [])
+        if not response_txt:
+            raise RuntimeError(
+                f"Vault access rule not set or API has changed."
+            )
 
-        if not any(
-            r.get("application") == self.application
-            and self.secret_store_dev_alias in r.get("contexts", [])
-            for r in updated_rules
-        ):
+        if "Set access rules for tenant" not in response_txt:
             raise RuntimeError(
                 f"Vault access rule for application '{self.application}' on vault "
                 f"'{vault_name}' was not confirmed in the API response."
