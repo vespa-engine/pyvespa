@@ -881,21 +881,48 @@ class GroupingQueries:
     def test_range_lower_inclusive_only(self):
         # Vespa defaults: lower inclusive (true), upper exclusive (false)
         # Setting only lower_inclusive should use the default for upper (false)
-        expr = G.range_(1990, 2012, "year", False)
-        expected = "range(1990, 2012, year, false, false)"
-        assert str(expr) == expected, f"\n{expr}\n\ndiffers from:\n\n{expected}"
+        grouping = G.all(
+            G.group("a"),
+            G.filter_(G.range_(1, 5, "n", False)),
+            G.each(G.output(G.count())),
+        )
+        q = qb.select("*").from_("test").where(True).groupby(grouping)
+        expected = (
+            "select * from test where true "
+            "| all(group(a) filter(range(1, 5, n, false, false)) each(output(count())))"
+        )
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
+        return q
 
     def test_range_both_explicit(self):
         # Setting both explicitly
-        expr = G.range_(1990, 2012, "year", True, True)
-        expected = "range(1990, 2012, year, true, true)"
-        assert str(expr) == expected, f"\n{expr}\n\ndiffers from:\n\n{expected}"
+        grouping = G.all(
+            G.group("a"),
+            G.filter_(G.range_(1, 5, "n", True, True)),
+            G.each(G.output(G.count())),
+        )
+        q = qb.select("*").from_("test").where(True).groupby(grouping)
+        expected = (
+            "select * from test where true "
+            "| all(group(a) filter(range(1, 5, n, true, true)) each(output(count())))"
+        )
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
+        return q
 
     def test_range_upper_inclusive_only(self):
         # Setting only upper_inclusive should use the default for lower (true)
-        expr = G.range_(1990, 2012, "year", upper_inclusive=True)
-        expected = "range(1990, 2012, year, true, true)"
-        assert str(expr) == expected, f"\n{expr}\n\ndiffers from:\n\n{expected}"
+        grouping = G.all(
+            G.group("a"),
+            G.filter_(G.range_(1, 5, "n", upper_inclusive=True)),
+            G.each(G.output(G.count())),
+        )
+        q = qb.select("*").from_("test").where(True).groupby(grouping)
+        expected = (
+            "select * from test where true "
+            "| all(group(a) filter(range(1, 5, n, true, true)) each(output(count())))"
+        )
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
+        return q
 
     def test_filter_multiple_groupings(self):
         g1 = G.all(
