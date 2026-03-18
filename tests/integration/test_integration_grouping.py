@@ -1166,9 +1166,8 @@ class TestGroupingIntegration(unittest.TestCase):
         ]
         for method in test_methods:
             q = method()
-            # purchase data is handled separately, and filter predicate tests
-            # return bare grouping expressions (not full YQL queries)
-            if "purchase" not in str(q) and str(q).startswith("select"):
+            # purchase data is handled separately
+            if "purchase" not in str(q):
                 print(f"Executing query: {q}")
                 try:
                     with self.app.syncio() as sess:

@@ -718,88 +718,116 @@ class GroupingQueries:
     #
     def test_filter_regex(self):
         grouping = G.all(
-            G.group("my_array"),
-            G.filter_(G.regex("foo.*", "my_array")),
+            G.group("a"),
+            G.filter_(G.regex("a1.*", "a")),
             G.each(G.output(G.count())),
         )
-        expected = 'all(group(my_array) filter(regex("foo.*", my_array)) each(output(count())))'
-        assert str(grouping) == expected, f"\n{grouping}\n\ndiffers from:\n\n{expected}"
-        return grouping
+        q = qb.select("*").from_("test").where(True).groupby(grouping)
+        expected = (
+            "select * from test where true "
+            '| all(group(a) filter(regex("a1.*", a)) each(output(count())))'
+        )
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
+        return q
 
     def test_filter_range(self):
         grouping = G.all(
-            G.group("some_field"),
-            G.filter_(G.range_(1990, 2012, "year")),
+            G.group("a"),
+            G.filter_(G.range_(1, 5, "n")),
             G.each(G.output(G.count())),
         )
-        expected = "all(group(some_field) filter(range(1990, 2012, year)) each(output(count())))"
-        assert str(grouping) == expected, f"\n{grouping}\n\ndiffers from:\n\n{expected}"
-        return grouping
+        q = qb.select("*").from_("test").where(True).groupby(grouping)
+        expected = (
+            "select * from test where true "
+            "| all(group(a) filter(range(1, 5, n)) each(output(count())))"
+        )
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
+        return q
 
     def test_filter_range_with_bounds(self):
         grouping = G.all(
-            G.group("some_field"),
-            G.filter_(G.range_(1990, 2012, "year", True, True)),
+            G.group("a"),
+            G.filter_(G.range_(1, 5, "n", True, True)),
             G.each(G.output(G.count())),
         )
-        expected = "all(group(some_field) filter(range(1990, 2012, year, true, true)) each(output(count())))"
-        assert str(grouping) == expected, f"\n{grouping}\n\ndiffers from:\n\n{expected}"
-        return grouping
+        q = qb.select("*").from_("test").where(True).groupby(grouping)
+        expected = (
+            "select * from test where true "
+            "| all(group(a) filter(range(1, 5, n, true, true)) each(output(count())))"
+        )
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
+        return q
 
     def test_filter_istrue(self):
         grouping = G.all(
-            G.group("some_field"),
-            G.filter_(G.istrue("my_bool")),
+            G.group("a"),
+            G.filter_(G.istrue("boool")),
             G.each(G.output(G.count())),
         )
+        q = qb.select("*").from_("test").where(True).groupby(grouping)
         expected = (
-            "all(group(some_field) filter(istrue(my_bool)) each(output(count())))"
+            "select * from test where true "
+            "| all(group(a) filter(istrue(boool)) each(output(count())))"
         )
-        assert str(grouping) == expected, f"\n{grouping}\n\ndiffers from:\n\n{expected}"
-        return grouping
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
+        return q
 
     def test_filter_not(self):
         grouping = G.all(
-            G.group("my_field"),
-            G.filter_(~G.regex("bar.*", "my_field")),
+            G.group("a"),
+            G.filter_(~G.regex("a1.*", "a")),
             G.each(G.output(G.count())),
         )
-        expected = 'all(group(my_field) filter(not regex("bar.*", my_field)) each(output(count())))'
-        assert str(grouping) == expected, f"\n{grouping}\n\ndiffers from:\n\n{expected}"
-        return grouping
+        q = qb.select("*").from_("test").where(True).groupby(grouping)
+        expected = (
+            "select * from test where true "
+            '| all(group(a) filter(not regex("a1.*", a)) each(output(count())))'
+        )
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
+        return q
 
     def test_filter_and(self):
         grouping = G.all(
-            G.group("my_field"),
-            G.filter_(G.regex("bar.*", "f1") & G.regex("baz.*", "f2")),
+            G.group("a"),
+            G.filter_(G.regex("a.*", "a") & G.regex("b1.*", "b")),
             G.each(G.output(G.count())),
         )
-        expected = 'all(group(my_field) filter(regex("bar.*", f1) and regex("baz.*", f2)) each(output(count())))'
-        assert str(grouping) == expected, f"\n{grouping}\n\ndiffers from:\n\n{expected}"
-        return grouping
+        q = qb.select("*").from_("test").where(True).groupby(grouping)
+        expected = (
+            "select * from test where true "
+            '| all(group(a) filter(regex("a.*", a) and regex("b1.*", b)) each(output(count())))'
+        )
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
+        return q
 
     def test_filter_or(self):
         grouping = G.all(
-            G.group("my_field"),
-            G.filter_(G.regex("bar.*", "f1") | G.regex("baz.*", "f2")),
+            G.group("a"),
+            G.filter_(G.regex("a1.*", "a") | G.regex("a2.*", "a")),
             G.each(G.output(G.count())),
         )
-        expected = 'all(group(my_field) filter((regex("bar.*", f1) or regex("baz.*", f2))) each(output(count())))'
-        assert str(grouping) == expected, f"\n{grouping}\n\ndiffers from:\n\n{expected}"
-        return grouping
+        q = qb.select("*").from_("test").where(True).groupby(grouping)
+        expected = (
+            "select * from test where true "
+            '| all(group(a) filter((regex("a1.*", a) or regex("a2.*", a))) each(output(count())))'
+        )
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
+        return q
 
     def test_filter_complex(self):
-        predicate = (G.regex("bar.*", "f1") | G.regex("baz.*", "f2")) & ~G.regex(
-            ".*foo", "f1"
-        )
+        predicate = (G.regex("a1.*", "a") | G.regex("a2.*", "a")) & ~G.regex(".*3", "b")
         grouping = G.all(
-            G.group("my_field"),
+            G.group("a"),
             G.filter_(predicate),
             G.each(G.output(G.count())),
         )
-        expected = 'all(group(my_field) filter((regex("bar.*", f1) or regex("baz.*", f2)) and not regex(".*foo", f1)) each(output(count())))'
-        assert str(grouping) == expected, f"\n{grouping}\n\ndiffers from:\n\n{expected}"
-        return grouping
+        q = qb.select("*").from_("test").where(True).groupby(grouping)
+        expected = (
+            "select * from test where true "
+            '| all(group(a) filter((regex("a1.*", a) or regex("a2.*", a)) and not regex(".*3", b)) each(output(count())))'
+        )
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
+        return q
 
     def test_filter_multiple_groupings(self):
         g1 = G.all(
