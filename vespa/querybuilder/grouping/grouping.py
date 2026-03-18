@@ -13,8 +13,10 @@ class Expression(str):
         return Expression(f"-{self}")
 
     def __invert__(self) -> Expression:
-        """~expr → 'not expr' for filter predicates."""
-        return Expression(f"not {self}")
+        """~expr → 'not (expr)' for filter predicates.
+        Always wraps in parens so Vespa's precedence (not > and > or)
+        does not reinterpret compound expressions."""
+        return Expression(f"not ({self})")
 
     def __and__(self, other) -> Expression:
         """expr & expr → 'expr and expr' for filter predicates."""
@@ -174,7 +176,7 @@ class Grouping:
                 G.each(G.output(G.sum("price"))),
             )
             print(expr)
-            all(group(customer) filter(regex("Bonn.*", attributes{"sales_rep"}) and not range(0, 1000, price)) each(output(sum(price))))
+            all(group(customer) filter(regex("Bonn.*", attributes{"sales_rep"}) and not (range(0, 1000, price))) each(output(sum(price))))
             ```
         """
         return Expression(f"filter({predicate})")
@@ -211,12 +213,19 @@ class Grouping:
     ) -> Expression:
         """Creates a ``range(...)`` filter predicate.
 
+        Vespa defaults: lower bound is inclusive, upper bound is exclusive.
+        If either ``lower_inclusive`` or ``upper_inclusive`` is provided,
+        both are emitted using Vespa defaults (``true``/``false``) for
+        any omitted value.
+
         Args:
             min_val: Lower bound of the range.
             max_val: Upper bound of the range.
             expr: The field or expression to check.
-            lower_inclusive: Whether the lower bound is inclusive (optional).
-            upper_inclusive: Whether the upper bound is inclusive (optional).
+            lower_inclusive: Whether the lower bound is inclusive
+                (default: True, matching Vespa).
+            upper_inclusive: Whether the upper bound is inclusive
+                (default: False, matching Vespa).
 
         Returns:
             Expression: ``range(<min>, <max>, <expr>[, <lower>, <upper>])``
@@ -234,10 +243,12 @@ class Grouping:
             range(1990, 2012, year, true, true)
             ```
         """
-        if lower_inclusive is not None and upper_inclusive is not None:
+        if lower_inclusive is not None or upper_inclusive is not None:
+            lower = lower_inclusive if lower_inclusive is not None else True
+            upper = upper_inclusive if upper_inclusive is not None else False
             return Expression(
                 f"range({min_val}, {max_val}, {expr}, "
-                f"{str(lower_inclusive).lower()}, {str(upper_inclusive).lower()})"
+                f"{str(lower).lower()}, {str(upper).lower()})"
             )
         return Expression(f"range({min_val}, {max_val}, {expr})")
 

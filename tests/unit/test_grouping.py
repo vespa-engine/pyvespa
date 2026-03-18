@@ -781,7 +781,7 @@ class GroupingQueries:
         q = qb.select("*").from_("test").where(True).groupby(grouping)
         expected = (
             "select * from test where true "
-            '| all(group(a) filter(not regex("a1.*", a)) each(output(count())))'
+            '| all(group(a) filter(not (regex("a1.*", a))) each(output(count())))'
         )
         assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
@@ -824,10 +824,78 @@ class GroupingQueries:
         q = qb.select("*").from_("test").where(True).groupby(grouping)
         expected = (
             "select * from test where true "
-            '| all(group(a) filter((regex("a1.*", a) or regex("a2.*", a)) and not regex(".*3", b)) each(output(count())))'
+            '| all(group(a) filter((regex("a1.*", a) or regex("a2.*", a)) and not (regex(".*3", b))) each(output(count())))'
         )
         assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
+
+    def test_filter_not_compound_and(self):
+        # ~(a & b) should produce "not (A and B)", not "not A and B"
+        # Vespa precedence: not > and > or, so "not A and B" parses as "(not A) and B"
+        predicate = ~(G.regex("a1.*", "a") & G.range_(1, 5, "n"))
+        grouping = G.all(
+            G.group("a"),
+            G.filter_(predicate),
+            G.each(G.output(G.count())),
+        )
+        q = qb.select("*").from_("test").where(True).groupby(grouping)
+        expected = (
+            "select * from test where true "
+            '| all(group(a) filter(not (regex("a1.*", a) and range(1, 5, n))) each(output(count())))'
+        )
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
+        return q
+
+    def test_filter_not_compound_or(self):
+        # ~(a | b) should produce "not ((A or B))"
+        predicate = ~(G.regex("a1.*", "a") | G.regex("a2.*", "a"))
+        grouping = G.all(
+            G.group("a"),
+            G.filter_(predicate),
+            G.each(G.output(G.count())),
+        )
+        q = qb.select("*").from_("test").where(True).groupby(grouping)
+        expected = (
+            "select * from test where true "
+            '| all(group(a) filter(not ((regex("a1.*", a) or regex("a2.*", a)))) each(output(count())))'
+        )
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
+        return q
+
+    def test_filter_double_not(self):
+        # ~(~a) should produce "not (not (A))"
+        predicate = ~(~G.istrue("boool"))
+        grouping = G.all(
+            G.group("a"),
+            G.filter_(predicate),
+            G.each(G.output(G.count())),
+        )
+        q = qb.select("*").from_("test").where(True).groupby(grouping)
+        expected = (
+            "select * from test where true "
+            "| all(group(a) filter(not (not (istrue(boool)))) each(output(count())))"
+        )
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
+        return q
+
+    def test_range_lower_inclusive_only(self):
+        # Vespa defaults: lower inclusive (true), upper exclusive (false)
+        # Setting only lower_inclusive should use the default for upper (false)
+        expr = G.range_(1990, 2012, "year", False)
+        expected = "range(1990, 2012, year, false, false)"
+        assert str(expr) == expected, f"\n{expr}\n\ndiffers from:\n\n{expected}"
+
+    def test_range_both_explicit(self):
+        # Setting both explicitly
+        expr = G.range_(1990, 2012, "year", True, True)
+        expected = "range(1990, 2012, year, true, true)"
+        assert str(expr) == expected, f"\n{expr}\n\ndiffers from:\n\n{expected}"
+
+    def test_range_upper_inclusive_only(self):
+        # Setting only upper_inclusive should use the default for lower (true)
+        expr = G.range_(1990, 2012, "year", upper_inclusive=True)
+        expected = "range(1990, 2012, year, true, true)"
+        assert str(expr) == expected, f"\n{expr}\n\ndiffers from:\n\n{expected}"
 
     def test_filter_multiple_groupings(self):
         g1 = G.all(
@@ -872,7 +940,7 @@ class GroupingQueries:
         q = qb.select("*").from_("purchase").where(True).set_limit(0).groupby(grouping)
         expected = (
             "select * from purchase where true limit 0 "
-            "| all(group(customer) filter(not istrue(is_paid)) each(output(count())))"
+            "| all(group(customer) filter(not (istrue(is_paid))) each(output(count())))"
         )
         assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
@@ -893,7 +961,7 @@ class GroupingQueries:
         expected = (
             "select * from purchase where true limit 0 "
             '| all(group(customer) filter(regex("Bonn.*", attributes{"sales_rep"}) '
-            "and not range(0, 1000, price)) "
+            "and not (range(0, 1000, price))) "
             "each(output(sum(price)) each(output(summary()))))"
         )
         assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
@@ -1058,6 +1126,24 @@ class TestQueryBuilderGrouping(unittest.TestCase):
 
     def test_filter_complex(self):
         self.queries.test_filter_complex()
+
+    def test_filter_not_compound_and(self):
+        self.queries.test_filter_not_compound_and()
+
+    def test_filter_not_compound_or(self):
+        self.queries.test_filter_not_compound_or()
+
+    def test_filter_double_not(self):
+        self.queries.test_filter_double_not()
+
+    def test_range_lower_inclusive_only(self):
+        self.queries.test_range_lower_inclusive_only()
+
+    def test_range_both_explicit(self):
+        self.queries.test_range_both_explicit()
+
+    def test_range_upper_inclusive_only(self):
+        self.queries.test_range_upper_inclusive_only()
 
     def test_filter_multiple_groupings(self):
         self.queries.test_filter_multiple_groupings()
