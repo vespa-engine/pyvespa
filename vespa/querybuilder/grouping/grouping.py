@@ -163,6 +163,19 @@ class Grouping:
 
         Returns:
             Expression: ``filter(<predicate>)``
+
+        Example:
+            ```python
+            from vespa.querybuilder import Grouping as G
+
+            expr = G.all(
+                G.group("customer"),
+                G.filter_(G.regex("Bonn.*", 'attributes{"sales_rep"}') & ~G.range_(0, 1000, "price")),
+                G.each(G.output(G.sum("price"))),
+            )
+            print(expr)
+            all(group(customer) filter(regex("Bonn.*", attributes{"sales_rep"}) and not range(0, 1000, price)) each(output(sum(price))))
+            ```
         """
         return Expression(f"filter({predicate})")
 
@@ -176,6 +189,15 @@ class Grouping:
 
         Returns:
             Expression: ``regex("<pattern>", <expr>)``
+
+        Example:
+            ```python
+            from vespa.querybuilder import Grouping as G
+
+            expr = G.regex("foo.*", "my_field")
+            print(expr)
+            regex("foo.*", my_field)
+            ```
         """
         return Expression(f'regex("{pattern}", {expr})')
 
@@ -198,6 +220,19 @@ class Grouping:
 
         Returns:
             Expression: ``range(<min>, <max>, <expr>[, <lower>, <upper>])``
+
+        Example:
+            ```python
+            from vespa.querybuilder import Grouping as G
+
+            expr = G.range_(1990, 2012, "year")
+            print(expr)
+            range(1990, 2012, year)
+
+            expr = G.range_(1990, 2012, "year", True, True)
+            print(expr)
+            range(1990, 2012, year, true, true)
+            ```
         """
         if lower_inclusive is not None and upper_inclusive is not None:
             return Expression(
@@ -215,6 +250,15 @@ class Grouping:
 
         Returns:
             Expression: ``istrue(<expr>)``
+
+        Example:
+            ```python
+            from vespa.querybuilder import Grouping as G
+
+            expr = G.istrue("my_bool")
+            print(expr)
+            istrue(my_bool)
+            ```
         """
         return Expression(f"istrue({expr})")
 
