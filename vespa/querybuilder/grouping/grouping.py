@@ -12,6 +12,19 @@ class Expression(str):
     def __neg__(self) -> Expression:
         return Expression(f"-{self}")
 
+    def __invert__(self) -> Expression:
+        """~expr → 'not expr' for filter predicates."""
+        return Expression(f"not {self}")
+
+    def __and__(self, other) -> Expression:
+        """expr & expr → 'expr and expr' for filter predicates."""
+        return Expression(f"{self} and {other}")
+
+    def __or__(self, other) -> Expression:
+        """expr | expr → '(expr or expr)' for filter predicates.
+        Always wraps in parens so precedence is correct when combined with &."""
+        return Expression(f"({self} or {other})")
+
 
 class Grouping:
     """A Pythonic DSL for building Vespa grouping expressions programmatically.
@@ -136,6 +149,74 @@ class Grouping:
             ```
         """
         return Expression(f"group({field})")
+
+    #
+    # Filter predicates
+    #
+
+    @staticmethod
+    def filter_(predicate) -> Expression:
+        """Wraps a predicate in ``filter(...)`` for use inside a grouping expression.
+
+        Args:
+            predicate: A filter predicate expression (e.g. ``G.regex(...)``, ``G.istrue(...)``).
+
+        Returns:
+            Expression: ``filter(<predicate>)``
+        """
+        return Expression(f"filter({predicate})")
+
+    @staticmethod
+    def regex(pattern: str, expr: str) -> Expression:
+        """Creates a ``regex(...)`` filter predicate.
+
+        Args:
+            pattern: The regular expression pattern (will be quoted).
+            expr: The field or expression to match against.
+
+        Returns:
+            Expression: ``regex("<pattern>", <expr>)``
+        """
+        return Expression(f'regex("{pattern}", {expr})')
+
+    @staticmethod
+    def range_(
+        min_val,
+        max_val,
+        expr: str,
+        lower_inclusive=None,
+        upper_inclusive=None,
+    ) -> Expression:
+        """Creates a ``range(...)`` filter predicate.
+
+        Args:
+            min_val: Lower bound of the range.
+            max_val: Upper bound of the range.
+            expr: The field or expression to check.
+            lower_inclusive: Whether the lower bound is inclusive (optional).
+            upper_inclusive: Whether the upper bound is inclusive (optional).
+
+        Returns:
+            Expression: ``range(<min>, <max>, <expr>[, <lower>, <upper>])``
+        """
+        if lower_inclusive is not None and upper_inclusive is not None:
+            return Expression(
+                f"range({min_val}, {max_val}, {expr}, "
+                f"{str(lower_inclusive).lower()}, {str(upper_inclusive).lower()})"
+            )
+        return Expression(f"range({min_val}, {max_val}, {expr})")
+
+    @staticmethod
+    def istrue(expr: str) -> Expression:
+        """Creates an ``istrue(...)`` filter predicate.
+
+        Args:
+            expr: The field or expression to check for truthiness.
+
+        Returns:
+            Expression: ``istrue(<expr>)``
+        """
+        return Expression(f"istrue({expr})")
 
     #
     # Common aggregator wrappers
@@ -1725,7 +1806,7 @@ class Grouping:
         Example:
             ```python
             from vespa.querybuilder import Grouping as G
-            
+
             expr = G.alias("my_alias", G.add("fieldA", "fieldB"))
             print(expr)
             alias(my_alias,add(fieldA, fieldB))

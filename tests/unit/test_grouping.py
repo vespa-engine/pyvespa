@@ -713,13 +713,171 @@ class GroupingQueries:
         assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
         return q
 
+    #
+    # Filter examples:
+    #
+    def test_filter_regex(self):
+        grouping = G.all(
+            G.group("my_array"),
+            G.filter_(G.regex("foo.*", "my_array")),
+            G.each(G.output(G.count())),
+        )
+        expected = 'all(group(my_array) filter(regex("foo.*", my_array)) each(output(count())))'
+        assert str(grouping) == expected, f"\n{grouping}\n\ndiffers from:\n\n{expected}"
+        return grouping
+
+    def test_filter_range(self):
+        grouping = G.all(
+            G.group("some_field"),
+            G.filter_(G.range_(1990, 2012, "year")),
+            G.each(G.output(G.count())),
+        )
+        expected = "all(group(some_field) filter(range(1990, 2012, year)) each(output(count())))"
+        assert str(grouping) == expected, f"\n{grouping}\n\ndiffers from:\n\n{expected}"
+        return grouping
+
+    def test_filter_range_with_bounds(self):
+        grouping = G.all(
+            G.group("some_field"),
+            G.filter_(G.range_(1990, 2012, "year", True, True)),
+            G.each(G.output(G.count())),
+        )
+        expected = "all(group(some_field) filter(range(1990, 2012, year, true, true)) each(output(count())))"
+        assert str(grouping) == expected, f"\n{grouping}\n\ndiffers from:\n\n{expected}"
+        return grouping
+
+    def test_filter_istrue(self):
+        grouping = G.all(
+            G.group("some_field"),
+            G.filter_(G.istrue("my_bool")),
+            G.each(G.output(G.count())),
+        )
+        expected = (
+            "all(group(some_field) filter(istrue(my_bool)) each(output(count())))"
+        )
+        assert str(grouping) == expected, f"\n{grouping}\n\ndiffers from:\n\n{expected}"
+        return grouping
+
+    def test_filter_not(self):
+        grouping = G.all(
+            G.group("my_field"),
+            G.filter_(~G.regex("bar.*", "my_field")),
+            G.each(G.output(G.count())),
+        )
+        expected = 'all(group(my_field) filter(not regex("bar.*", my_field)) each(output(count())))'
+        assert str(grouping) == expected, f"\n{grouping}\n\ndiffers from:\n\n{expected}"
+        return grouping
+
+    def test_filter_and(self):
+        grouping = G.all(
+            G.group("my_field"),
+            G.filter_(G.regex("bar.*", "f1") & G.regex("baz.*", "f2")),
+            G.each(G.output(G.count())),
+        )
+        expected = 'all(group(my_field) filter(regex("bar.*", f1) and regex("baz.*", f2)) each(output(count())))'
+        assert str(grouping) == expected, f"\n{grouping}\n\ndiffers from:\n\n{expected}"
+        return grouping
+
+    def test_filter_or(self):
+        grouping = G.all(
+            G.group("my_field"),
+            G.filter_(G.regex("bar.*", "f1") | G.regex("baz.*", "f2")),
+            G.each(G.output(G.count())),
+        )
+        expected = 'all(group(my_field) filter((regex("bar.*", f1) or regex("baz.*", f2))) each(output(count())))'
+        assert str(grouping) == expected, f"\n{grouping}\n\ndiffers from:\n\n{expected}"
+        return grouping
+
+    def test_filter_complex(self):
+        predicate = (G.regex("bar.*", "f1") | G.regex("baz.*", "f2")) & ~G.regex(
+            ".*foo", "f1"
+        )
+        grouping = G.all(
+            G.group("my_field"),
+            G.filter_(predicate),
+            G.each(G.output(G.count())),
+        )
+        expected = 'all(group(my_field) filter((regex("bar.*", f1) or regex("baz.*", f2)) and not regex(".*foo", f1)) each(output(count())))'
+        assert str(grouping) == expected, f"\n{grouping}\n\ndiffers from:\n\n{expected}"
+        return grouping
+
+    def test_filter_multiple_groupings(self):
+        g1 = G.all(
+            G.group(1),
+            G.filter_(G.regex("Brown", "customer") & G.regex("Rocker arm", "item")),
+            G.each(
+                G.output(G.count()),
+                G.each(G.output(G.summary())),
+            ),
+        )
+        g2 = G.all(
+            G.group("customer"),
+            G.filter_(G.regex("Rocker arm", "item")),
+            G.each(G.output(G.count())),
+        )
+        g3 = G.all(
+            G.group("item"),
+            G.filter_(G.regex("Brown", "customer")),
+            G.each(G.output(G.count())),
+        )
+        grouping = f"{g1} | {g2} | {g3}"
+        q = qb.select("*").from_("purchase").where(True).set_limit(0).groupby(grouping)
+        expected = (
+            "select * from purchase where true limit 0 "
+            '| all(group(1) filter(regex("Brown", customer) '
+            'and regex("Rocker arm", item)) '
+            "each(output(count()) each(output(summary())))) "
+            '| all(group(customer) filter(regex("Rocker arm", item)) '
+            "each(output(count()))) "
+            '| all(group(item) filter(regex("Brown", customer)) '
+            "each(output(count())))"
+        )
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
+        return q
+
+    def test_filter_not_istrue(self):
+        grouping = G.all(
+            G.group("customer"),
+            G.filter_(~G.istrue("is_paid")),
+            G.each(G.output(G.count())),
+        )
+        q = qb.select("*").from_("purchase").where(True).set_limit(0).groupby(grouping)
+        expected = (
+            "select * from purchase where true limit 0 "
+            "| all(group(customer) filter(not istrue(is_paid)) each(output(count())))"
+        )
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
+        return q
+
+    def test_filter_with_purchase_data(self):
+        grouping = G.all(
+            G.group("customer"),
+            G.filter_(
+                G.regex("Bonn.*", 'attributes{"sales_rep"}')
+                & ~G.range_(0, 1000, "price")
+            ),
+            G.each(
+                G.output(G.sum("price")),
+                G.each(G.output(G.summary())),
+            ),
+        )
+        q = qb.select("*").from_("purchase").where(True).set_limit(0).groupby(grouping)
+        expected = (
+            "select * from purchase where true limit 0 "
+            '| all(group(customer) filter(regex("Bonn.*", attributes{"sales_rep"}) '
+            "and not range(0, 1000, price)) "
+            "each(output(sum(price)) each(output(summary()))))"
+        )
+        assert q == expected, f"\nq:\n{q}\n\ndiffers from:\n\n{expected}"
+        return q
+
 
 class TestQueryBuilderGrouping(unittest.TestCase):
     """Unit tests for grouping query builder functionality.
-    
+
     This test class uses the GroupingQueries helper class to validate
     that each query is built correctly. Test methods do not return values."""
-    
+
     maxDiff = None
 
     def setUp(self):
@@ -848,3 +1006,36 @@ class TestQueryBuilderGrouping(unittest.TestCase):
 
     def test_alias(self):
         self.queries.test_alias()
+
+    def test_filter_regex(self):
+        self.queries.test_filter_regex()
+
+    def test_filter_range(self):
+        self.queries.test_filter_range()
+
+    def test_filter_range_with_bounds(self):
+        self.queries.test_filter_range_with_bounds()
+
+    def test_filter_istrue(self):
+        self.queries.test_filter_istrue()
+
+    def test_filter_not(self):
+        self.queries.test_filter_not()
+
+    def test_filter_and(self):
+        self.queries.test_filter_and()
+
+    def test_filter_or(self):
+        self.queries.test_filter_or()
+
+    def test_filter_complex(self):
+        self.queries.test_filter_complex()
+
+    def test_filter_multiple_groupings(self):
+        self.queries.test_filter_multiple_groupings()
+
+    def test_filter_not_istrue(self):
+        self.queries.test_filter_not_istrue()
+
+    def test_filter_with_purchase_data(self):
+        self.queries.test_filter_with_purchase_data()
