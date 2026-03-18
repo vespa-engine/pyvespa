@@ -1067,6 +1067,93 @@ class TestGroupingIntegration(unittest.TestCase):
         self.assertEqual(group_children[2]["value"], "Smith")
         self.assertEqual(group_children[2]["relevance"], 6100)
 
+    def test_filter_multiple_groupings(self):
+        # Three piped grouping expressions with filters against the playground API
+        q = qb.test_filter_multiple_groupings()
+        print(f"Executing query: {q}")
+        api_resp = requests.get(
+            "https://api.search.vespa.ai/search/",
+            params={"yql": q},
+        )
+        result = api_resp.json()
+        children = result["root"]["children"]
+        self.assertEqual(len(children), 3)
+
+        # g1: group(1) filter(Brown AND Rocker arm) → 1 group, count=1, 1 hit
+        g1_groups = children[0]["children"][0]["children"]
+        self.assertEqual(len(g1_groups), 1)
+        self.assertEqual(g1_groups[0]["id"], "group:long:1")
+        self.assertEqual(g1_groups[0]["fields"]["count()"], 1)
+        # Verify the single hit is Brown's Rocker arm (price=2330)
+        g1_hits = g1_groups[0]["children"][0]["children"]
+        self.assertEqual(len(g1_hits), 1)
+        self.assertEqual(g1_hits[0]["fields"]["customer"], "Brown")
+        self.assertEqual(g1_hits[0]["fields"]["item"], "Rocker arm")
+        self.assertEqual(g1_hits[0]["fields"]["price"], 2330)
+
+        # g2: group(customer) filter(Rocker arm) → Brown=1, Smith=1
+        g2_groups = children[1]["children"][0]["children"]
+        self.assertEqual(len(g2_groups), 2)
+        self.assertEqual(g2_groups[0]["id"], "group:string:Brown")
+        self.assertEqual(g2_groups[0]["fields"]["count()"], 1)
+        self.assertEqual(g2_groups[1]["id"], "group:string:Smith")
+        self.assertEqual(g2_groups[1]["fields"]["count()"], 1)
+
+        # g3: group(item) filter(Brown) → 6 items, each count=1
+        g3_groups = children[2]["children"][0]["children"]
+        self.assertEqual(len(g3_groups), 6)
+        expected_items = [
+            "Exhaust valve",
+            "Head",
+            "Oil pan",
+            "Piston",
+            "Rocker arm",
+            "Spring",
+        ]
+        for i, item_name in enumerate(expected_items):
+            self.assertEqual(g3_groups[i]["id"], f"group:string:{item_name}")
+            self.assertEqual(g3_groups[i]["fields"]["count()"], 1)
+
+    def test_filter_not_istrue(self):
+        # Filter for unpaid purchases, grouped by customer
+        q = qb.test_filter_not_istrue()
+        print(f"Executing query: {q}")
+        api_resp = requests.get(
+            "https://api.search.vespa.ai/search/",
+            params={"yql": q},
+        )
+        result = api_resp.json()
+        group_children = result["root"]["children"][0]["children"][0]["children"]
+        self.assertEqual(len(group_children), 3)
+        self.assertEqual(group_children[0]["id"], "group:string:Brown")
+        self.assertEqual(group_children[0]["fields"]["count()"], 6)
+        self.assertEqual(group_children[1]["id"], "group:string:Jones")
+        self.assertEqual(group_children[1]["fields"]["count()"], 7)
+        self.assertEqual(group_children[2]["id"], "group:string:Smith")
+        self.assertEqual(group_children[2]["fields"]["count()"], 7)
+
+    def test_filter_with_purchase_data(self):
+        # Query the playground API which has purchase data with attributes (map) and is_paid fields
+        q = qb.test_filter_with_purchase_data()
+        print(f"Executing query: {q}")
+        api_resp = requests.get(
+            "https://api.search.vespa.ai/search/",
+            params={"yql": q},
+        )
+        result = api_resp.json()
+        group_children = result["root"]["children"][0]["children"][0]["children"]
+        # Verify 3 groups: Brown, Jones, Smith
+        self.assertEqual(len(group_children), 3)
+        # Brown: sum(price) = 9137 (4 hits with sales_rep matching Bonn.* and price >= 1000)
+        self.assertEqual(group_children[0]["id"], "group:string:Brown")
+        self.assertEqual(group_children[0]["fields"]["sum(price)"], 9137)
+        # Jones: sum(price) = 2100 (1 hit)
+        self.assertEqual(group_children[1]["id"], "group:string:Jones")
+        self.assertEqual(group_children[1]["fields"]["sum(price)"], 2100)
+        # Smith: sum(price) = 11400 (5 hits)
+        self.assertEqual(group_children[2]["id"], "group:string:Smith")
+        self.assertEqual(group_children[2]["fields"]["sum(price)"], 11400)
+
     def test_all(self):
         """This test runs all the test methods in the unit test class against a Docker Vespa instance that is fed with corresponding data.
         We do not inspect and compare all the results. This is already done in vespa system test, and as long as we are sure that the generated
