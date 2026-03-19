@@ -647,6 +647,40 @@ class TestDeployPerf(unittest.TestCase):
         self.vespa_cloud.delete(instance=self.instance, environment=self.environment)
 
 
+class TestDeployDevEuRegion(unittest.TestCase):
+    """Deploy to a non-default dev region (aws-euw1-az1) to verify multi-dev-zone support."""
+
+    def setUp(self) -> None:
+        self.app_package = sample_package
+        self.instance = "eu-region"
+        self.region = "aws-euw1-az1"
+        self.vespa_cloud = VespaCloud(
+            tenant="vespa-team",
+            application="pyvespa-integration",
+            key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
+            application_package=self.app_package,
+        )
+
+    def test_deploy_eu_region(self):
+        self.app = self.vespa_cloud.deploy(
+            instance=self.instance, region=self.region, max_wait=1200
+        )
+        self.assertEqual(200, self.app.get_application_status().status_code)
+        endpoints = self.vespa_cloud.get_all_endpoints(
+            instance=self.instance, environment="dev", region=self.region
+        )
+        self.assertGreater(len(endpoints), 0)
+        # Verify we can reconnect via get_application with the same region
+        app2 = self.vespa_cloud.get_application(
+            instance=self.instance, environment="dev", region=self.region
+        )
+        self.assertEqual(200, app2.get_application_status().status_code)
+
+    def tearDown(self) -> None:
+        time.sleep(10)
+        self.vespa_cloud.delete(instance=self.instance, region=self.region)
+
+
 @unittest.skip(
     "This test relies on a fixed deployment with private services, which may not always be available."
 )

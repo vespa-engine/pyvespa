@@ -564,5 +564,102 @@ class TestVaultAccessRules(unittest.TestCase):
         self.assertIsNone(result)
 
 
+_original_get_dev_region = VespaCloud.get_dev_region
+
+
+class TestDevRegion(unittest.TestCase):
+    def setUp(self):
+        # Restore original method in case a prior test replaced it at class level
+        VespaCloud.get_dev_region = _original_get_dev_region
+
+        self.application_package = MagicMock()
+        VespaCloud._try_get_access_token = MagicMock(return_value="fake_access_token")
+        self.vc = VespaCloud(
+            tenant="t",
+            application="a",
+            application_package=self.application_package,
+        )
+
+    def test_default_no_args(self):
+        self.assertEqual(self.vc.get_dev_region(), "aws-us-east-1c")
+
+    def test_default_none(self):
+        self.assertEqual(self.vc.get_dev_region(None), "aws-us-east-1c")
+
+    def test_valid_regions_accepted(self):
+        for region in VespaCloud.VALID_DEV_REGIONS:
+            self.assertEqual(self.vc.get_dev_region(region), region)
+
+    def test_invalid_region_raises(self):
+        with self.assertRaises(ValueError) as ctx:
+            self.vc.get_dev_region("invalid-region")
+        self.assertIn("Invalid dev region", str(ctx.exception))
+        self.assertIn("invalid-region", str(ctx.exception))
+
+    def test_constants(self):
+        self.assertIn("aws-us-east-1c", VespaCloud.VALID_DEV_REGIONS)
+        self.assertIn("aws-euw1-az1", VespaCloud.VALID_DEV_REGIONS)
+        self.assertIn("azure-eastus-az1", VespaCloud.VALID_DEV_REGIONS)
+        self.assertIn("gcp-us-central1-f", VespaCloud.VALID_DEV_REGIONS)
+        self.assertEqual(len(VespaCloud.VALID_DEV_REGIONS), 4)
+        self.assertEqual(VespaCloud.DEFAULT_DEV_REGION, "aws-us-east-1c")
+
+    @patch("vespa.deployment.VespaCloud.get_application")
+    @patch("vespa.deployment.VespaCloud._follow_deployment")
+    @patch("vespa.deployment.VespaCloud._start_deployment")
+    @patch("vespa.deployment.VespaCloud._to_application_zip")
+    @patch("vespa.deployment.VespaCloud._ensure_vault_access_for_dev")
+    def test_deploy_default_region(
+        self, mock_vault, mock_zip, mock_start, mock_follow, mock_get_app
+    ):
+        mock_zip.return_value = MagicMock()
+        mock_start.return_value = 1
+        mock_get_app.return_value = MagicMock()
+
+        self.vc.deploy()
+
+        job_arg = mock_start.call_args[1]["job"]
+        self.assertEqual(job_arg, "dev-aws-us-east-1c")
+
+    @patch("vespa.deployment.VespaCloud.get_application")
+    @patch("vespa.deployment.VespaCloud._follow_deployment")
+    @patch("vespa.deployment.VespaCloud._start_deployment")
+    @patch("vespa.deployment.VespaCloud._to_application_zip")
+    @patch("vespa.deployment.VespaCloud._ensure_vault_access_for_dev")
+    def test_deploy_custom_region(
+        self, mock_vault, mock_zip, mock_start, mock_follow, mock_get_app
+    ):
+        mock_zip.return_value = MagicMock()
+        mock_start.return_value = 1
+        mock_get_app.return_value = MagicMock()
+
+        self.vc.deploy(region="gcp-us-central1-f")
+
+        job_arg = mock_start.call_args[1]["job"]
+        self.assertEqual(job_arg, "dev-gcp-us-central1-f")
+        # Verify region is passed through to get_application
+        self.assertEqual(mock_get_app.call_args[1]["region"], "gcp-us-central1-f")
+
+    @patch("vespa.deployment.VespaCloud._to_application_zip")
+    @patch("vespa.deployment.VespaCloud._ensure_vault_access_for_dev")
+    def test_deploy_invalid_region_raises(self, mock_vault, mock_zip):
+        mock_zip.return_value = MagicMock()
+        with self.assertRaises(ValueError) as ctx:
+            self.vc.deploy(region="invalid")
+        self.assertIn("Invalid dev region", str(ctx.exception))
+
+    @patch("vespa.deployment.Vespa")
+    @patch("vespa.deployment.VespaCloud.get_mtls_endpoint")
+    def test_get_application_custom_dev_region(self, mock_mtls, mock_vespa):
+        mock_mtls.return_value = "https://app.vespa.cloud"
+        mock_vespa.return_value = MagicMock()
+
+        self.vc.get_application(environment="dev", region="azure-eastus-az1")
+
+        # Verify get_mtls_endpoint was called with the custom region
+        call_kwargs = mock_mtls.call_args[1]
+        self.assertEqual(call_kwargs["region"], "azure-eastus-az1")
+
+
 if __name__ == "__main__":
     unittest.main()
