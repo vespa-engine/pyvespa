@@ -30,11 +30,9 @@ class TestVespaCloud(unittest.TestCase):
         with self.assertRaises(ValueError):
             _vespa_cloud = VespaCloud(self.tenant, self.application)
 
+    @patch("vespa.deployment.VespaCloud.get_dev_region", return_value="dev-region")
     @patch("vespa.deployment.VespaCloud._request")
-    def test_get_all_endpoints(self, mock_request):
-        # Mock get_dev_region to avoid requests
-        VespaCloud.get_dev_region = MagicMock(return_value="dev-region")
-
+    def test_get_all_endpoints(self, mock_request, mock_dev_region):
         mock_endpoints = [
             {"url": "https://endpoint1.vespa.oath.cloud:4443", "authMethod": "mtls"},
             {"url": "https://endpoint2.vespa.oath.cloud:4443", "authMethod": "token"},
@@ -81,7 +79,7 @@ class TestVespaCloud(unittest.TestCase):
         self.assertEqual(result, mock_response)
         mock_request.assert_called_once_with(
             "GET",
-            "/application/v4/tenant/test_tenant/application/test_app/instance/default/environment/dev/region/dev-region/private-services",
+            "/application/v4/tenant/test_tenant/application/test_app/instance/default/environment/dev/region/aws-us-east-1c/private-services",
         )
 
     @patch("vespa.deployment.VespaCloud._request")
@@ -564,14 +562,8 @@ class TestVaultAccessRules(unittest.TestCase):
         self.assertIsNone(result)
 
 
-_original_get_dev_region = VespaCloud.get_dev_region
-
-
 class TestDevRegion(unittest.TestCase):
     def setUp(self):
-        # Restore original method in case a prior test replaced it at class level
-        VespaCloud.get_dev_region = _original_get_dev_region
-
         self.application_package = MagicMock()
         VespaCloud._try_get_access_token = MagicMock(return_value="fake_access_token")
         self.vc = VespaCloud(
