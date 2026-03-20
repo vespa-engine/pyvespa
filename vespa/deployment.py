@@ -524,6 +524,15 @@ class VespaDocker(VespaDeployment):
 
 
 class VespaCloud(VespaDeployment):
+    VALID_DEV_REGIONS = frozenset(
+        {
+            "aws-us-east-1c",
+            "aws-euw1-az1",
+            "azure-eastus-az1",
+            "gcp-us-central1-f",
+        }
+    )
+    DEFAULT_DEV_REGION = "aws-us-east-1c"
     secret_store_dev_alias = "SANDBOX"
 
     def __init__(
@@ -698,6 +707,7 @@ class VespaCloud(VespaDeployment):
         version: Optional[str] = None,
         max_wait: int = 1800,
         environment: Literal["dev", "perf"] = "dev",
+        region: Optional[str] = None,
     ) -> Vespa:
         """
         Deploy the given application package as the given instance in the Vespa Cloud dev or perf environment.
@@ -708,12 +718,14 @@ class VespaCloud(VespaDeployment):
             version (str, optional): Vespa version to use for deployment. Defaults to None, meaning the latest version. Should only be set based on instructions from the Vespa team. Must be a valid Vespa version, e.g., "8.435.13".
             max_wait (int, optional): Seconds to wait for the deployment to complete.
             environment (Literal["dev", "perf"]): Environment to deploy to. Default is "dev".
+            region (str, optional): Dev region to deploy to. Valid regions: "aws-us-east-1c" (default), "aws-euw1-az1", "azure-eastus-az1", "gcp-us-central1-f". Only used when environment is "dev".
 
         Returns:
             Vespa: A Vespa connection instance. This instance connects to the mTLS endpoint. To connect to the token endpoint, use `VespaCloud.get_application(endpoint_type="token")`.
 
         Raises:
             RuntimeError: If deployment fails or if there are issues with the deployment process.
+            ValueError: If an invalid dev region is provided.
         """
         if environment not in ["dev", "perf"]:
             raise ValueError(
@@ -740,7 +752,7 @@ class VespaCloud(VespaDeployment):
             region = self.get_perf_region()
             job = "perf-" + region
         else:
-            region = self.get_dev_region()
+            region = self.get_dev_region(region)
             job = "dev-" + region
         run = self._start_deployment(
             instance=instance or self.instance,
@@ -751,7 +763,10 @@ class VespaCloud(VespaDeployment):
         )
         self._follow_deployment(instance, job, run, max_wait)
         app: Vespa = self.get_application(
-            instance=instance, environment=environment, endpoint_type="mtls"
+            instance=instance,
+            environment=environment,
+            endpoint_type="mtls",
+            region=region,
         )
         return app
 
@@ -859,10 +874,8 @@ class VespaCloud(VespaDeployment):
         if endpoint_type not in ["mtls", "token"]:
             raise ValueError("Endpoint type must be 'mtls' or 'token'.")
         if environment == "dev":
-            region = self.get_dev_region()
-            print(
-                f"Only region: {region} available in dev environment.", file=self.output
-            )
+            region = self.get_dev_region(region)
+            print(f"Using dev region: {region}.", file=self.output)
         elif environment == "perf":
             region = self.get_perf_region()
             print(
@@ -1054,6 +1067,7 @@ class VespaCloud(VespaDeployment):
         max_wait: int = 300,
         version: Optional[str] = None,
         environment: str = "dev",
+        region: Optional[str] = None,
     ) -> Vespa:
         """
         Deploy to the development or performance environment from a directory tree.
@@ -1078,6 +1092,7 @@ class VespaCloud(VespaDeployment):
             max_wait (int, optional): The maximum number of seconds to wait for the deployment. Default is 3600 (1 hour).
             version (str, optional): The Vespa version to use for the deployment. Default is None, which means the latest version. It must be a valid Vespa version (e.g., "8.435.13").
             environment (str, optional): Environment to deploy to. Default is "dev". Options are "dev" or "perf".
+            region (str, optional): Dev region to deploy to. Valid regions: "aws-us-east-1c" (default), "aws-euw1-az1", "azure-eastus-az1", "gcp-us-central1-f". Only used when environment is "dev".
 
         Returns:
             Vespa: A Vespa connection instance. This connects to the mtls endpoint. To connect to the token endpoint, use `VespaCloud.get_application(endpoint_type="token")`.
@@ -1094,7 +1109,7 @@ class VespaCloud(VespaDeployment):
             region = self.get_perf_region()
             job = "perf-" + region
         elif environment == "dev":
-            region = self.get_dev_region()
+            region = self.get_dev_region(region)
             job = "dev-" + region
         else:
             raise ValueError("Environment must be 'dev' or 'perf'.")
@@ -1110,11 +1125,15 @@ class VespaCloud(VespaDeployment):
             instance=instance or self.instance,
             environment=environment,
             endpoint_type="mtls",
+            region=region,
         )
         return app
 
     def delete(
-        self, instance: Optional[str] = "default", environment: Optional[str] = "dev"
+        self,
+        instance: Optional[str] = "default",
+        environment: Optional[str] = "dev",
+        region: Optional[str] = None,
     ) -> None:
         """
         Delete the specified instance from the development environment in the Vespa Cloud.
@@ -1131,12 +1150,13 @@ class VespaCloud(VespaDeployment):
         Args:
             instance (str): The name of the instance to delete.
             environment (str): The environment from which to delete the instance. Must be "dev" or "perf".
+            region (str, optional): Dev region to delete from. Valid regions: "aws-us-east-1c" (default), "aws-euw1-az1", "azure-eastus-az1", "gcp-us-central1-f". Only used when environment is "dev".
 
         Returns:
             None
         """
         if environment == "dev":
-            region = self.get_dev_region()
+            region = self.get_dev_region(region)
         elif environment == "perf":
             region = self.get_perf_region()
         else:
@@ -1341,8 +1361,15 @@ class VespaCloud(VespaDeployment):
         self._vespa_auth_cert()
         return
 
-    def get_dev_region(self) -> str:
-        return "aws-us-east-1c"  # Default dev region
+    def get_dev_region(self, region: Optional[str] = None) -> str:
+        if region is None:
+            return self.DEFAULT_DEV_REGION
+        if region not in self.VALID_DEV_REGIONS:
+            raise ValueError(
+                f"Invalid dev region: '{region}'. "
+                f"Valid dev regions are: {sorted(self.VALID_DEV_REGIONS)}"
+            )
+        return region
 
     def get_perf_region(self) -> str:
         # Only one available for now (https://cloud.vespa.ai/en/reference/zones)
@@ -1462,7 +1489,7 @@ class VespaCloud(VespaDeployment):
             "Existing access rules for vault '%s': %s", vault_name, existing_rules
         )
 
-        # TODO(17.03.2026) BrageHK: This is a temporary fix because Vespa Cloud only returns a 
+        # TODO(17.03.2026) BrageHK: This is a temporary fix because Vespa Cloud only returns a
         # message instead of a list of the new rules. It is also not possible to GET the new rules
         # because they need to be deployed before you can GET them.
         response_msg = self._request(
@@ -1475,9 +1502,7 @@ class VespaCloud(VespaDeployment):
         response_txt = response_msg.get("message", None)
 
         if not response_txt:
-            raise RuntimeError(
-                f"Vault access rule not set or API has changed."
-            )
+            raise RuntimeError("Vault access rule not set or API has changed.")
 
         if "Set access rules for tenant" not in response_txt:
             raise RuntimeError(

@@ -30,11 +30,9 @@ class TestVespaCloud(unittest.TestCase):
         with self.assertRaises(ValueError):
             _vespa_cloud = VespaCloud(self.tenant, self.application)
 
+    @patch("vespa.deployment.VespaCloud.get_dev_region", return_value="dev-region")
     @patch("vespa.deployment.VespaCloud._request")
-    def test_get_all_endpoints(self, mock_request):
-        # Mock get_dev_region to avoid requests
-        VespaCloud.get_dev_region = MagicMock(return_value="dev-region")
-
+    def test_get_all_endpoints(self, mock_request, mock_dev_region):
         mock_endpoints = [
             {"url": "https://endpoint1.vespa.oath.cloud:4443", "authMethod": "mtls"},
             {"url": "https://endpoint2.vespa.oath.cloud:4443", "authMethod": "token"},
@@ -81,7 +79,7 @@ class TestVespaCloud(unittest.TestCase):
         self.assertEqual(result, mock_response)
         mock_request.assert_called_once_with(
             "GET",
-            "/application/v4/tenant/test_tenant/application/test_app/instance/default/environment/dev/region/dev-region/private-services",
+            "/application/v4/tenant/test_tenant/application/test_app/instance/default/environment/dev/region/aws-us-east-1c/private-services",
         )
 
     @patch("vespa.deployment.VespaCloud._request")
@@ -562,6 +560,29 @@ class TestVaultAccessRules(unittest.TestCase):
         self.vespa_cloud.application_root = None
         result = self.vespa_cloud._get_services_xml_content()
         self.assertIsNone(result)
+
+
+class TestDevRegion(unittest.TestCase):
+    def setUp(self):
+        self.application_package = MagicMock()
+        VespaCloud._try_get_access_token = MagicMock(return_value="fake_access_token")
+        self.vc = VespaCloud(
+            tenant="t",
+            application="a",
+            application_package=self.application_package,
+        )
+
+    def test_default_region(self):
+        self.assertEqual(self.vc.get_dev_region(), "aws-us-east-1c")
+
+    def test_valid_region_passthrough(self):
+        for region in VespaCloud.VALID_DEV_REGIONS:
+            self.assertEqual(self.vc.get_dev_region(region), region)
+
+    def test_invalid_region_raises(self):
+        with self.assertRaises(ValueError) as ctx:
+            self.vc.get_dev_region("invalid-region")
+        self.assertIn("Invalid dev region", str(ctx.exception))
 
 
 if __name__ == "__main__":
