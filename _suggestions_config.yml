@@ -14,28 +14,28 @@ search:
     # vespacloud-docsearch | prod.aws-us-east-1c
     - url: https://b671e1db.b68a8c0d.z.vespa-app.cloud/
       indexes:
-        - suggestions_index.json 
+        - suggestions_index.json
     # vespacloud-docsearch | prod.aws-eu-west-1a
     - url: https://ed053d52.b68a8c0d.z.vespa-app.cloud/
       indexes:
-        - suggestions_index.json 
+        - suggestions_index.json
     # vespacloud-docsearch | prod.gcp-us-central1-f
     - url: https://a341952a.b68a8c0d.z.vespa-app.cloud/
       indexes:
-        - suggestions_index.json 
+        - suggestions_index.json
     # vespacloud-docsearch | prod.gcp-us-central1-a
     - url: https://ba97230a.b68a8c0d.z.vespa-app.cloud/
       indexes:
-        - suggestions_index.json 
+        - suggestions_index.json
     # vespacloud-docsearch.cloud-enclave | prod.aws-us-east-1c
     - url: https://cd560c23.b68a8c0d.z.vespa-app.cloud/
       indexes:
-        - suggestions_index.json 
+        - suggestions_index.json
     # vespacloud-docsearch.cloud-enclave | prod.aws-eu-west-1a
     - url: https://b24dd625.b68a8c0d.z.vespa-app.cloud/
       indexes:
-        - suggestions_index.json 
+        - suggestions_index.json
     # vespacloud-docsearch.cloud-enclave | prod.gcp-us-central1-f
-    - url: https://ab1f72fd.b68a8c0d.z.vespa-app.cloud/
-      indexes:
-        - suggestions_index.json 
+    # - url: https://ab1f72fd.b68a8c0d.z.vespa-app.cloud/
+    #   indexes:
+    #     - suggestions_index.json
