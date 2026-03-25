@@ -73,6 +73,7 @@ docs = [
     "mkdocstrings[python]",
     "mkdocs-autoapi",
     "mkdocs-linkcheck",
+    "mkdocs-llmstxt",
     "mktestdocs",
     "pytest",
 ]
