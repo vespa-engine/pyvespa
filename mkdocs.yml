@@ -1,5 +1,5 @@
 site_name: Vespa python API
-site_url: ""
+site_url: "https://vespa-engine.github.io/pyvespa/"
 repo_url: https://github.com/vespa-engine/pyvespa
 docs_dir: docs/sphinx/source
 exclude_docs: 'conf.py'
@@ -105,3 +105,41 @@ plugins:
             - "utils/*"
         autoapi_file_patterns:
             - "*.py"
+
+    - llmstxt:
+        markdown_description: >
+            > pyvespa is the official Python API for [Vespa.ai](https://vespa.ai/),
+            the scalable open-source serving engine for storing, computing, and ranking
+            big data at user serving time. pyvespa lets you create, modify, deploy, and
+            interact with Vespa applications from Python, enabling rapid prototyping and
+            access to Vespa features including vector search, hybrid retrieval, ranking,
+            and real-time serving.
+        full_output: llms-full.txt
+        sections:
+            Getting Started:
+                - index.md: Landing page and overview of pyvespa features
+                - getting-started-pyvespa.ipynb: Hybrid search quickstart with Docker
+                - getting-started-pyvespa-cloud.ipynb: Hybrid search quickstart on Vespa Cloud
+            Guides:
+                - advanced-configuration.ipynb: Advanced configuration of Vespa applications
+                - authenticating-to-vespa-cloud.ipynb: Authentication and certificates for Vespa Cloud
+                - application-packages.ipynb: Defining application packages with schemas, fields, and rank profiles
+                - query.ipynb: Querying Vespa applications with YQL and the QueryBuilder DSL
+                - reads-writes.ipynb: Document read and write operations
+                - evaluating-vespa-application-cloud.ipynb: Evaluating search quality and collecting training data
+                - troubleshooting.md: Common issues and troubleshooting tips
+                - ann-parameters.md: ANN (approximate nearest neighbor) parameter tuning
+            Examples:
+                - examples/*.ipynb
+            API Reference:
+                - api/summary.md: API reference overview
+                - api/vespa/application.md: Vespa application (data-plane operations)
+                - api/vespa/deployment.md: Deployment (VespaCloud, VespaDocker)
+                - api/vespa/evaluation.md: Search evaluation utilities
+                - api/vespa/exceptions.md: Exception types
+                - api/vespa/io.md: Response objects (VespaResponse, VespaQueryResponse)
+                - api/vespa/models.md: Data models and type definitions
+                - api/vespa/package.md: Application package builder (Schema, Field, RankProfile)
+                - api/vespa/querybuilder/builder/builder.md: QueryBuilder DSL
+                - api/vespa/querybuilder/grouping/grouping.md: Grouping queries
+                - api/vespa/throttling.md: Adaptive feed throttling
