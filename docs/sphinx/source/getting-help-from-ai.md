@@ -36,6 +36,6 @@ Examples:
     The snippet above works with [Claude Code](https://claude.ai/code) (`CLAUDE.md`),
     [GitHub Copilot](https://github.com/features/copilot) (`.github/copilot-instructions.md`),
     [Cursor](https://cursor.com) (`.cursor/rules/*.mdc`),
-    [OpenAI Codex](https://openai.com/index/codex/) and most other AI coding tools that support
+    [OpenAI Codex](https://openai.com/codex/) and most other AI coding tools that support
     [AGENTS.md](https://agents.md/).
     All of these read plain Markdown instructions.
