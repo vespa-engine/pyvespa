@@ -17,6 +17,7 @@
     </a>
   {% endif %}
 {% endif %}
-<a href="{{ page.url | replace('.html', '.md.txt') }}" title="View as Markdown" class="md-content__button md-icon">
+{% set md_filename = page.url.split('/')[-1] | replace('.html', '.md.txt') %}
+<a href="{{ md_filename }}" title="View as Markdown" class="md-content__button md-icon">
   {% include ".icons/material/language-markdown-outline.svg" %}
 </a>
