@@ -59,6 +59,7 @@ nav:
   - Querying Vespa: query.ipynb
   - Read and write operations: reads-writes.ipynb
   - Evaluating a Vespa Application: evaluating-vespa-application-cloud.ipynb
+  - Getting help from AI: getting-help-from-ai.md
   - Troubleshooting: troubleshooting.md
   - ANN Parameter Tuning: ann-parameters.md
   - Examples: /examples/*
@@ -135,6 +136,7 @@ plugins:
                 - query.ipynb: Querying Vespa applications with YQL and the QueryBuilder DSL
                 - reads-writes.ipynb: Document read and write operations
                 - evaluating-vespa-application-cloud.ipynb: Evaluating search quality and collecting training data
+                - getting-help-from-ai.md: LLM-optimized docs, llms.txt, and AI assistant instructions
                 - troubleshooting.md: Common issues and troubleshooting tips
                 - ann-parameters.md: ANN (approximate nearest neighbor) parameter tuning
             Examples:
