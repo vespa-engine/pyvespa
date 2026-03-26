@@ -7,6 +7,7 @@ exclude_docs: 'conf.py'
 use_directory_urls: false
 theme:
   name: material
+  custom_dir: docs/overrides
   logo: _static/logo/Vespa-logo-white-rgb.svg
   favicon: _static/logo-symbol/Vespa-isolated-symbol-white-rgb.svg
   font:
@@ -30,6 +31,12 @@ theme:
   features:
       - content.code.copy
 
+
+hooks:
+  - docs/hooks/copy_md_to_txt.py
+
+extra_css:
+  - _static/custom.css
 
 markdown_extensions:
   - admonition
@@ -107,6 +114,7 @@ plugins:
             - "*.py"
 
     - llmstxt:
+        preprocess: docs/llmstxt_preprocess.py
         markdown_description: >
             > pyvespa is the official Python API for [Vespa.ai](https://vespa.ai/),
             the scalable open-source serving engine for storing, computing, and ranking
@@ -130,7 +138,9 @@ plugins:
                 - troubleshooting.md: Common issues and troubleshooting tips
                 - ann-parameters.md: ANN (approximate nearest neighbor) parameter tuning
             Examples:
+                - examples/index.md: Examples overview and index
                 - examples/*.ipynb
+                - examples/*.py
             API Reference:
                 - api/summary.md: API reference overview
                 - api/vespa/application.md: Vespa application (data-plane operations)
