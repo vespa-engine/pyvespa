@@ -80,14 +80,13 @@ search:
       indexes:
         - pyvespa_index.json
     # vespacloud-docsearch.cloud-enclave | prod.gcp-us-central1-f
-    # - url: https://ab1f72fd.b68a8c0d.z.vespa-app.cloud/
-    #   indexes:
-    #     - pyvespa_index.json
+    - url: https://b4f1a714.b68a8c0d.z.vespa-app.cloud/
+      indexes:
+        - pyvespa_index.json
 
 defaults:
-  -
-    scope:
-      path  : ""
+  - scope:
+      path: ""
     values:
       layout: "default"
-      index : true
+      index: true
