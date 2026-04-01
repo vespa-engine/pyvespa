@@ -1116,6 +1116,10 @@ class TestGroupingIntegration(unittest.TestCase):
 
     def test_filter_not_istrue(self):
         # Filter for unpaid purchases, grouped by customer
+        # Expected counts based on the is_paid field in the playground data:
+        # Brown (6 total): Head=false, Exhaust valve=false, Spring=false → 3 unpaid
+        # Jones (7 total): Valve cover=false, Engine block=false, Exhaust port=false, Crankshaft=false → 4 unpaid
+        # Smith (7 total): Rocker arm=false, Oil sump=false, Connection rod=false → 3 unpaid
         q = qb.test_filter_not_istrue()
         print(f"Executing query: {q}")
         api_resp = requests.get(
@@ -1126,11 +1130,11 @@ class TestGroupingIntegration(unittest.TestCase):
         group_children = result["root"]["children"][0]["children"][0]["children"]
         self.assertEqual(len(group_children), 3)
         self.assertEqual(group_children[0]["id"], "group:string:Brown")
-        self.assertEqual(group_children[0]["fields"]["count()"], 6)
+        self.assertEqual(group_children[0]["fields"]["count()"], 3)
         self.assertEqual(group_children[1]["id"], "group:string:Jones")
-        self.assertEqual(group_children[1]["fields"]["count()"], 7)
+        self.assertEqual(group_children[1]["fields"]["count()"], 4)
         self.assertEqual(group_children[2]["id"], "group:string:Smith")
-        self.assertEqual(group_children[2]["fields"]["count()"], 7)
+        self.assertEqual(group_children[2]["fields"]["count()"], 3)
 
     def test_filter_with_purchase_data(self):
         # Query the playground API which has purchase data with attributes (map) and is_paid fields
