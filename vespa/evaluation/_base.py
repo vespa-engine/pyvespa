@@ -1769,6 +1769,7 @@ class VespaNNGlobalFilterHitratioEvaluator:
     Args:
         queries (Sequence[Mapping[str, str]]): List of ANN queries.
         app (Vespa): An instance of the Vespa application.
+        verify_target_hits (int, optional): Check if the total number of target hits of the ANN operators is at least this value.
     """
 
     def __init__(
@@ -1829,6 +1830,7 @@ class VespaNNGlobalFilterHitratioEvaluator:
                 trace, "search::queryeval::NearestNeighborBlueprint"
             )
             hit_ratios = []
+            total_target_hits = 0
             for blueprint in nearest_neighbor_blueprints:
                 if (
                     "global_filter" in blueprint
@@ -1846,13 +1848,16 @@ class VespaNNGlobalFilterHitratioEvaluator:
                                     f"Searchable copies mismatch: {searchable_copies} vs. {self.searchable_copies} found earlier"
                                 )
 
-                if (
-                    self.verify_target_hits is not None
-                    and int(blueprint["target_hits"]) != self.verify_target_hits
-                ):
-                    print(
-                        f"Warning: Number of targetHits of query is not {self.verify_target_hits}"
-                    )
+                if "target_hits" in blueprint:
+                    total_target_hits += int(blueprint["target_hits"])
+
+            if (
+                self.verify_target_hits is not None
+                and total_target_hits < self.verify_target_hits
+            ):
+                print(
+                    f"Warning: Total number of target hits is lower than desired: {total_target_hits} < {self.verify_target_hits}"
+                )
 
             all_hit_ratios.append(hit_ratios)
 
@@ -2173,7 +2178,7 @@ class VespaNNParameterOptimizer:
     Args:
         app (Vespa): An instance of the Vespa application.
         queries (Sequence[Mapping[str, Any]]): Queries to optimize for.
-        hits (int): Number of hits to use in recall computations. Has to match the parameter targetHits in the used ANN queries.
+        hits (int): Number of hits to use in recall computations. Should be at most the total number of target hits of the ANN operators.
         buckets_per_percent (int, optional): How many buckets are created for every percent point, "resolution" of the suggestions. Defaults to 2.
         print_progress (bool, optional): Whether to print progress information while determining suggestions. Defaults to False.
         benchmark_time_limit (int): Time in milliseconds to spend per bucket benchmark. Defaults to 5000.
