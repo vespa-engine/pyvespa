@@ -900,6 +900,19 @@ Intercept                          : -7.798639
         self.assertTrue(compare_xml(self.query_profile_xml, str(generated_xml)))
 
 
+class TestFieldIntegerValue(unittest.TestCase):
+    def test_field_with_integer_value(self):
+        """Regression test for https://github.com/vespa-engine/pyvespa/issues/1256"""
+        result = field(10, name="hits")
+        self.assertEqual(str(result.to_xml()).strip(), '<field name="hits">10</field>')
+
+    def test_field_with_multi_digit_integer(self):
+        result = field(100, name="maxHits")
+        self.assertEqual(
+            str(result.to_xml()).strip(), '<field name="maxHits">100</field>'
+        )
+
+
 class TestQueryProfileVariant(unittest.TestCase):
     def test_query_profile_variant(self):
         # Taken from https://docs.vespa.ai/en/query-profiles.html#variants-and-inheritance

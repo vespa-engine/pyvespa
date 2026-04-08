@@ -231,9 +231,8 @@ def _to_xml(elm, lvl, indent, do_escape):
 
         # If the children are just text or int, don't introduce newlines
         if len(cs) == 1 and (isinstance(cs[0], str) or isinstance(cs[0], int)):
-            if isinstance(cs[0], int):
-                cs = str(cs[0])
-            res += f"{esc_fn(cs[0].strip())}</{stag}>{nl if indent else ''}"
+            text = str(cs[0]).strip() if isinstance(cs[0], int) else cs[0].strip()
+            res += f"{esc_fn(text)}</{stag}>{nl if indent else ''}"
         else:
             # If there are multiple children, properly indent them
             res += f"{nl if indent else ''}"
