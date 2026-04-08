@@ -1,0 +1,7 @@
+a[title="View as Markdown"].md-content__button svg {
+  width: 3em;
+  height: 3em;
+}
+a[title="View as Markdown"].md-content__button:hover {
+  color: #61d790;
+}
