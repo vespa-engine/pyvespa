@@ -15,7 +15,7 @@ dependencies = [
     "httpr>=0.4.0",
     "docker",
     "jinja2",
-    "cryptography>=46.0.5",
+    "cryptography>=46.0.7",
     "aiohttp",
     "tenacity>=8.4.1",
     "typing_extensions",
@@ -178,5 +178,5 @@ docstring-code-line-length = "dynamic"
 
 [tool.uv]
 constraint-dependencies = [
-    "pillow>=12.1.1",
+    "pillow>=12.2.0",
 ]
