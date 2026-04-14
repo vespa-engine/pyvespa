@@ -11,3 +11,5 @@ https://en.wikipedia.org/wiki/Discounted_cumulative_gain.*
 https://en.wikipedia.org/wiki/Evaluation_measures.*
 https://playground.twelvelabs.io/dashboard/api-key
 https://api.github.com/repos/*
+https://claude.ai/code
+https://openai.com/codex/
