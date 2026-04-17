@@ -3110,6 +3110,7 @@ class ApplicationPackage(object):
         deployment_config: Optional[Union[DeploymentConfiguration, VT]] = None,
         services_config: Optional[ServicesConfiguration] = None,
         query_profile_config: Optional[Union[VT, List[VT]]] = None,
+        include_files: Optional[Dict[str, Union[str, Path]]] = None,
     ) -> None:
         """Create an application package.
 
@@ -3137,6 +3138,10 @@ class ApplicationPackage(object):
                 Must be either a DeploymentConfiguration object (legacy) or a VT (Vespa Tag) based deployment configuration whose top-level tag must be `deployment`. Defaults to None.
             services_config (ServicesConfiguration, optional): (Optional) Services configuration for the application. For advanced configuration.  See https://vespa-engine.github.io/pyvespa/advanced-configuration.html
             query_profile_config (Union[VT, List[VT]], optional): Configuration for query profiles. If provided, will override the query_profile and query_profile_type arguments. Defaults to None. See See https://vespa-engine.github.io/pyvespa/advanced-configuration.html
+            include_files (Dict[str, Union[str, Path]], optional): Additional files to include in the application
+                package (e.g. ``"files/my_config.json"``). This is useful for adding configuration files or other files that are
+                not automatically picked up by pyvespa, such as custom tokenizer configs, embedding model
+                configuration, or any other resource required at serving time. Defaults to None.
            Example:
             To create a default application package:
 
@@ -3219,6 +3224,7 @@ class ApplicationPackage(object):
         else:
             self.deployment_config = deployment_config
         self.services_config = services_config
+        self.include_files: Dict[str, Union[str, Path]] = include_files or {}
 
     @property
     def schemas(self) -> List[Schema]:
@@ -3469,6 +3475,9 @@ class ApplicationPackage(object):
             if self.deployment_config:
                 zip_archive.writestr("deployment.xml", self.deployment_to_text)
 
+            for dest, src in self.include_files.items():
+                zip_archive.write(src, dest)
+
         buffer.seek(0)
         return buffer
 
@@ -3564,6 +3573,11 @@ class ApplicationPackage(object):
         if self.deployment_config:
             with open(os.path.join(root, "deployment.xml"), "w") as f:
                 f.write(self.deployment_to_text)
+
+        for dest, src in self.include_files.items():
+            dest_path = Path(os.path.join(root, dest))
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            copyfile(src, dest_path)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):

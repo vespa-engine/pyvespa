@@ -1,5 +1,6 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
+import os
 import unittest
 import platform
 import pytest
@@ -3045,6 +3046,59 @@ class TestDeploymentVT(unittest.TestCase):
             name="testfilescomplex", deployment_config=self.complex_vt
         )
         self._assert_deployment_files_and_zip(app_package, self.complex_expected)
+
+
+class TestIncludeFiles(unittest.TestCase):
+    def setUp(self):
+        self.content = b"test config content"
+
+    def _make_src_file(self, tmpdir, filename="config.json"):
+        src = os.path.join(tmpdir, filename)
+        with open(src, "wb") as f:
+            f.write(self.content)
+        return src
+
+    def test_include_files_to_zip(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = self._make_src_file(tmpdir)
+            app = ApplicationPackage(
+                name="testinclude",
+                include_files={"files/config.json": src},
+            )
+            buf = app.to_zip()
+            with zipfile.ZipFile(buf) as zf:
+                self.assertIn("files/config.json", zf.namelist())
+                self.assertEqual(zf.read("files/config.json"), self.content)
+
+    def test_include_files_to_files(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = self._make_src_file(tmpdir)
+            out = os.path.join(tmpdir, "app")
+            app = ApplicationPackage(
+                name="testinclude",
+                include_files={"files/config.json": src},
+            )
+            app.to_files(out)
+            dest = os.path.join(out, "files", "config.json")
+            self.assertTrue(os.path.exists(dest))
+            with open(dest, "rb") as f:
+                self.assertEqual(f.read(), self.content)
+
+    def test_include_files_nested_dest(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = self._make_src_file(tmpdir)
+            out = os.path.join(tmpdir, "app")
+            app = ApplicationPackage(
+                name="testinclude",
+                include_files={"components/configs/tokenizer.json": src},
+            )
+            app.to_files(out)
+            dest = os.path.join(out, "components", "configs", "tokenizer.json")
+            self.assertTrue(os.path.exists(dest))
+
+    def test_include_files_defaults_empty(self):
+        app = ApplicationPackage(name="testnofiles")
+        self.assertEqual(app.include_files, {})
 
 
 class TestSummary(unittest.TestCase):
