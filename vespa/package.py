@@ -3107,7 +3107,9 @@ class ApplicationPackage(object):
         gets a clean, forward-only relative path.
         """
         p = Path(dest)
-        if p.is_absolute():
+        # On Windows, Path("/foo").is_absolute() is False (drive-relative), so also
+        # check for a leading "/" to catch POSIX-style absolute paths on all platforms.
+        if p.is_absolute() or str(dest).startswith("/"):
             raise ValueError(
                 f"include_files: destination path '{dest}' must be relative, not absolute"
             )
