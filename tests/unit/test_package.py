@@ -3054,6 +3054,7 @@ class TestIncludeFiles(unittest.TestCase):
 
     def _make_src_file(self, tmpdir, filename="config.json"):
         src = os.path.join(tmpdir, filename)
+        os.makedirs(os.path.dirname(src), exist_ok=True)
         with open(src, "wb") as f:
             f.write(self.content)
         return src
@@ -3063,7 +3064,7 @@ class TestIncludeFiles(unittest.TestCase):
             src = self._make_src_file(tmpdir)
             app = ApplicationPackage(
                 name="testinclude",
-                include_files=[src],
+                include_files=[(src, "config.json")],
             )
             buf = app.to_zip()
             with zipfile.ZipFile(buf) as zf:
@@ -3076,7 +3077,7 @@ class TestIncludeFiles(unittest.TestCase):
             out = os.path.join(tmpdir, "app")
             app = ApplicationPackage(
                 name="testinclude",
-                include_files=[src],
+                include_files=[(src, "config.json")],
             )
             app.to_files(out)
             dest = os.path.join(out, "config.json")
@@ -3084,27 +3085,104 @@ class TestIncludeFiles(unittest.TestCase):
             with open(dest, "rb") as f:
                 self.assertEqual(f.read(), self.content)
 
-    def test_include_files_relative_path_preserves_structure(self):
-        orig_dir = os.getcwd()
+    def test_include_files_dest_subdir(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            os.chdir(tmpdir)
-            try:
-                os.makedirs("files")
-                src = self._make_src_file(tmpdir, "files/config.json")
-                out = os.path.join(tmpdir, "app")
-                app = ApplicationPackage(
-                    name="testinclude",
-                    include_files=["files/config.json"],
-                )
-                app.to_files(out)
-                dest = os.path.join(out, "files", "config.json")
-                self.assertTrue(os.path.isfile(dest))
-            finally:
-                os.chdir(orig_dir)
+            src = self._make_src_file(tmpdir)
+            out = os.path.join(tmpdir, "app")
+            app = ApplicationPackage(
+                name="testinclude",
+                include_files=[(src, "models/embedder.onnx")],
+            )
+            app.to_files(out)
+            self.assertTrue(os.path.isfile(os.path.join(out, "models", "embedder.onnx")))
+
+    def test_include_files_dest_subdir_in_zip(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = self._make_src_file(tmpdir)
+            app = ApplicationPackage(
+                name="testinclude",
+                include_files=[(src, "models/embedder.onnx")],
+            )
+            buf = app.to_zip()
+            with zipfile.ZipFile(buf) as zf:
+                self.assertIn("models/embedder.onnx", zf.namelist())
 
     def test_include_files_defaults_empty(self):
         app = ApplicationPackage(name="testnofiles")
         self.assertEqual(app.include_files, [])
+
+    def test_include_files_file_not_found(self):
+        with self.assertRaises(FileNotFoundError):
+            ApplicationPackage(
+                name="testinclude",
+                include_files=[("/nonexistent/path/file.json", "file.json")],
+            )
+
+    def test_include_files_directory_rejected(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with self.assertRaises(ValueError):
+                ApplicationPackage(
+                    name="testinclude",
+                    include_files=[(tmpdir, "somefile")],
+                )
+
+    def test_include_files_absolute_dest_rejected(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = self._make_src_file(tmpdir)
+            with self.assertRaises(ValueError):
+                ApplicationPackage(
+                    name="testinclude",
+                    include_files=[(src, "/absolute/dest.json")],
+                )
+
+    def test_include_files_dotdot_dest_rejected(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = self._make_src_file(tmpdir)
+            with self.assertRaises(ValueError):
+                ApplicationPackage(
+                    name="testinclude",
+                    include_files=[(src, "../escaped.json")],
+                )
+
+    def test_include_files_dotdot_in_middle_rejected(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = self._make_src_file(tmpdir)
+            with self.assertRaises(ValueError):
+                ApplicationPackage(
+                    name="testinclude",
+                    include_files=[(src, "models/../config.json")],
+                )
+
+    def test_include_files_collision_with_reserved_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = self._make_src_file(tmpdir, "services.xml")
+            with self.assertRaises(ValueError):
+                ApplicationPackage(
+                    name="testinclude",
+                    include_files=[(src, "services.xml")],
+                )
+
+    def test_include_files_equality(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = self._make_src_file(tmpdir)
+            app1 = ApplicationPackage(
+                name="testinclude",
+                include_files=[(src, "config.json")],
+            )
+            app2 = ApplicationPackage(name="testinclude")
+            self.assertNotEqual(app1, app2)
+
+    def test_sanitize_dest_path_rejects_dotdot_in_middle(self):
+        with self.assertRaises(ValueError):
+            ApplicationPackage._sanitize_dest_path("a/../b/c.json")
+
+    def test_sanitize_dest_path_rejects_absolute(self):
+        with self.assertRaises(ValueError):
+            ApplicationPackage._sanitize_dest_path("/etc/passwd")
+
+    def test_sanitize_dest_path_rejects_leading_dotdot(self):
+        with self.assertRaises(ValueError):
+            ApplicationPackage._sanitize_dest_path("../../etc/passwd")
 
 
 class TestSummary(unittest.TestCase):
