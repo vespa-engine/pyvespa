@@ -3063,12 +3063,12 @@ class TestIncludeFiles(unittest.TestCase):
             src = self._make_src_file(tmpdir)
             app = ApplicationPackage(
                 name="testinclude",
-                include_files={"files/config.json": src},
+                include_files=[src],
             )
             buf = app.to_zip()
             with zipfile.ZipFile(buf) as zf:
-                self.assertIn("files/config.json", zf.namelist())
-                self.assertEqual(zf.read("files/config.json"), self.content)
+                self.assertIn("config.json", zf.namelist())
+                self.assertEqual(zf.read("config.json"), self.content)
 
     def test_include_files_to_files(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -3076,29 +3076,35 @@ class TestIncludeFiles(unittest.TestCase):
             out = os.path.join(tmpdir, "app")
             app = ApplicationPackage(
                 name="testinclude",
-                include_files={"files/config.json": src},
+                include_files=[src],
             )
             app.to_files(out)
-            dest = os.path.join(out, "files", "config.json")
+            dest = os.path.join(out, "config.json")
             self.assertTrue(os.path.exists(dest))
             with open(dest, "rb") as f:
                 self.assertEqual(f.read(), self.content)
 
-    def test_include_files_nested_dest(self):
+    def test_include_files_relative_path_preserves_structure(self):
+        orig_dir = os.getcwd()
         with tempfile.TemporaryDirectory() as tmpdir:
-            src = self._make_src_file(tmpdir)
-            out = os.path.join(tmpdir, "app")
-            app = ApplicationPackage(
-                name="testinclude",
-                include_files={"components/configs/tokenizer.json": src},
-            )
-            app.to_files(out)
-            dest = os.path.join(out, "components", "configs", "tokenizer.json")
-            self.assertTrue(os.path.exists(dest))
+            os.chdir(tmpdir)
+            try:
+                os.makedirs("files")
+                src = self._make_src_file(tmpdir, "files/config.json")
+                out = os.path.join(tmpdir, "app")
+                app = ApplicationPackage(
+                    name="testinclude",
+                    include_files=["files/config.json"],
+                )
+                app.to_files(out)
+                dest = os.path.join(out, "files", "config.json")
+                self.assertTrue(os.path.isfile(dest))
+            finally:
+                os.chdir(orig_dir)
 
     def test_include_files_defaults_empty(self):
         app = ApplicationPackage(name="testnofiles")
-        self.assertEqual(app.include_files, {})
+        self.assertEqual(app.include_files, [])
 
 
 class TestSummary(unittest.TestCase):

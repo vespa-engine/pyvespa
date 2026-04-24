@@ -2384,6 +2384,11 @@ class VespaCloud(VespaDeployment):
                     self.application_package.validations_to_text,
                 )
 
+            for path in self.application_package.include_files:
+                p = Path(path)
+                arcname = str(path) if not p.is_absolute() else p.name
+                zip_archive.write(path, arcname)
+
         return buffer
 
     def _follow_deployment(
