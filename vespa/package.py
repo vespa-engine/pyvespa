@@ -3179,7 +3179,8 @@ class ApplicationPackage(object):
                 package. Each entry is a ``(source_path, dest_path)`` tuple where ``source_path`` is a
                 local file and ``dest_path`` is its location inside the package (relative, no ``..``).
                 Defaults to None.
-            Example:
+
+        Example:
             To create a default application package:
 
             ```python

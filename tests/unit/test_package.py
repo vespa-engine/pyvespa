@@ -3216,6 +3216,11 @@ class TestIncludeFiles(unittest.TestCase):
             )
             app2 = ApplicationPackage(name="testinclude")
             self.assertNotEqual(app1, app2)
+            app3 = ApplicationPackage(
+                name="testinclude",
+                include_files=[(src, "config.json")],
+            )
+            self.assertEqual(app1, app3)
 
     def test_sanitize_dest_path_rejects_dotdot_in_middle(self):
         with self.assertRaises(ValueError):
