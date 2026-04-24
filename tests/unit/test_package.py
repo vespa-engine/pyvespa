@@ -3162,6 +3162,51 @@ class TestIncludeFiles(unittest.TestCase):
                     include_files=[(src, "services.xml")],
                 )
 
+    def test_include_files_reserved_folder_schemas(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = self._make_src_file(tmpdir)
+            with self.assertRaises(ValueError):
+                ApplicationPackage(
+                    name="testinclude",
+                    include_files=[(src, "schemas/foo.sd")],
+                )
+
+    def test_include_files_reserved_folder_security(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = self._make_src_file(tmpdir)
+            with self.assertRaises(ValueError):
+                ApplicationPackage(
+                    name="testinclude",
+                    include_files=[(src, "security/clients.pem")],
+                )
+
+    def test_include_files_reserved_folder_search(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = self._make_src_file(tmpdir)
+            with self.assertRaises(ValueError):
+                ApplicationPackage(
+                    name="testinclude",
+                    include_files=[(src, "search/query-profiles/default.xml")],
+                )
+
+    def test_include_files_reserved_folder_files(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = self._make_src_file(tmpdir)
+            with self.assertRaises(ValueError):
+                ApplicationPackage(
+                    name="testinclude",
+                    include_files=[(src, "files/embedder.onnx")],
+                )
+
+    def test_include_files_models_folder_allowed(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src = self._make_src_file(tmpdir)
+            app = ApplicationPackage(
+                name="testinclude",
+                include_files=[(src, "models/embedder.onnx")],
+            )
+            self.assertEqual(len(app.include_files), 1)
+
     def test_include_files_equality(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             src = self._make_src_file(tmpdir)

@@ -3096,6 +3096,10 @@ _RESERVED_PACKAGE_FILES = frozenset(
     {"services.xml", "deployment.xml", "validation-overrides.xml"}
 )
 
+# Top-level folders that pyvespa fully controls; include_files must not write into them.
+# models/ is intentionally excluded — users legitimately place ONNX files there.
+_RESERVED_PACKAGE_FOLDERS = frozenset({"schemas", "security", "search", "files"})
+
 
 class ApplicationPackage(object):
     @staticmethod
@@ -3174,7 +3178,8 @@ class ApplicationPackage(object):
             include_files (List[Tuple[Union[str, Path], Union[str, Path]]], optional): Extra files to bundle into the application
                 package. Each entry is a ``(source_path, dest_path)`` tuple where ``source_path`` is a
                 local file and ``dest_path`` is its location inside the package (relative, no ``..``).
-                Example:
+                Defaults to None.
+            Example:
             To create a default application package:
 
             ```python
@@ -3270,8 +3275,12 @@ class ApplicationPackage(object):
                 raise ValueError(
                     f"include_files: destination '{safe_dest}' conflicts with a reserved application package file"
                 )
+            top = Path(safe_dest).parts[0]
+            if top in _RESERVED_PACKAGE_FOLDERS:
+                raise ValueError(
+                    f"include_files: destination '{safe_dest}' is inside reserved folder '{top}/'"
+                )
             self.include_files.append((src_path, safe_dest))
-
 
     @property
     def schemas(self) -> List[Schema]:
@@ -3636,12 +3645,13 @@ class ApplicationPackage(object):
         )
 
     def __repr__(self) -> str:
-        return "{0}({1}, {2}, {3}, {4})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.schemas),
             repr(self.query_profile),
             repr(self.query_profile_type),
+            repr(self.include_files),
         )
 
 
