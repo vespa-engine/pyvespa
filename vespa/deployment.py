@@ -2384,6 +2384,9 @@ class VespaCloud(VespaDeployment):
                     self.application_package.validations_to_text,
                 )
 
+            for src, arcname in self.application_package.include_files:
+                zip_archive.write(src, arcname)
+
         return buffer
 
     def _follow_deployment(

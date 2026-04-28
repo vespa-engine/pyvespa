@@ -9,7 +9,7 @@ import zipfile
 from collections import OrderedDict
 from enum import Enum
 from io import BytesIO
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from shutil import copyfile
 from typing import (
     Any,
@@ -3092,7 +3092,42 @@ class ServicesConfiguration(object):
         return validate_services(str(self.services_config.to_xml()))
 
 
+_RESERVED_PACKAGE_FILES = frozenset(
+    {"services.xml", "deployment.xml", "validation-overrides.xml"}
+)
+
+# Top-level folders that pyvespa fully controls; include_files must not write into them.
+# models/ is intentionally excluded — users legitimately place ONNX files there.
+_RESERVED_PACKAGE_FOLDERS = frozenset({"schemas", "security", "search", "files"})
+
+
 class ApplicationPackage(object):
+    @staticmethod
+    def _sanitize_dest_path(dest: Union[str, Path]) -> str:
+        """Return a safe relative POSIX path, raising on any unsafe input.
+
+        Raises ``ValueError`` if the path is absolute or contains any ``..`` component.
+        ``..`` is rejected even when embedded (e.g. ``a/../b``), so the caller always
+        gets a clean, forward-only relative path.
+        """
+        p = Path(dest)
+        # On Windows, Path("/foo").is_absolute() is False (drive-relative), so also
+        # check for a leading "/" to catch POSIX-style absolute paths on all platforms.
+        if PurePosixPath(p).is_absolute() or PureWindowsPath(p).is_absolute() or str(dest).startswith("/"):
+            raise ValueError(
+                f"include_files: destination path '{dest}' must be relative, not absolute"
+            )
+        if ".." in p.parts:
+            raise ValueError(
+                f"include_files: destination path '{dest}' must not contain '..'"
+            )
+        posix = p.as_posix()
+        if not posix or posix == ".":
+            raise ValueError(
+                f"include_files: destination path '{dest}' is empty"
+            )
+        return posix
+
     def __init__(
         self,
         name: str,
@@ -3110,6 +3145,9 @@ class ApplicationPackage(object):
         deployment_config: Optional[Union[DeploymentConfiguration, VT]] = None,
         services_config: Optional[ServicesConfiguration] = None,
         query_profile_config: Optional[Union[VT, List[VT]]] = None,
+        include_files: Optional[
+            List[Tuple[Union[str, Path], Union[str, Path]]]
+        ] = None,
     ) -> None:
         """Create an application package.
 
@@ -3137,7 +3175,12 @@ class ApplicationPackage(object):
                 Must be either a DeploymentConfiguration object (legacy) or a VT (Vespa Tag) based deployment configuration whose top-level tag must be `deployment`. Defaults to None.
             services_config (ServicesConfiguration, optional): (Optional) Services configuration for the application. For advanced configuration.  See https://vespa-engine.github.io/pyvespa/advanced-configuration.html
             query_profile_config (Union[VT, List[VT]], optional): Configuration for query profiles. If provided, will override the query_profile and query_profile_type arguments. Defaults to None. See See https://vespa-engine.github.io/pyvespa/advanced-configuration.html
-           Example:
+            include_files (List[Tuple[Union[str, Path], Union[str, Path]]], optional): Extra files to bundle into the application
+                package. Each entry is a ``(source_path, dest_path)`` tuple where ``source_path`` is a
+                local file and ``dest_path`` is its location inside the package (relative, no ``..``).
+                Defaults to None.
+
+        Example:
             To create a default application package:
 
             ```python
@@ -3219,6 +3262,26 @@ class ApplicationPackage(object):
         else:
             self.deployment_config = deployment_config
         self.services_config = services_config
+        self.include_files: List[Tuple[Path, str]] = []
+        for src, dest in include_files or []:
+            src_path = Path(src)
+            if not src_path.exists():
+                raise FileNotFoundError(f"include_files: '{src}' does not exist")
+            if not src_path.is_file():
+                raise ValueError(
+                    f"include_files: '{src}' must be a file, not a directory"
+                )
+            safe_dest = self._sanitize_dest_path(dest)
+            if safe_dest in _RESERVED_PACKAGE_FILES:
+                raise ValueError(
+                    f"include_files: destination '{safe_dest}' conflicts with a reserved application package file"
+                )
+            top = Path(safe_dest).parts[0]
+            if top in _RESERVED_PACKAGE_FOLDERS:
+                raise ValueError(
+                    f"include_files: destination '{safe_dest}' is inside reserved folder '{top}/'"
+                )
+            self.include_files.append((src_path, safe_dest))
 
     @property
     def schemas(self) -> List[Schema]:
@@ -3469,6 +3532,9 @@ class ApplicationPackage(object):
             if self.deployment_config:
                 zip_archive.writestr("deployment.xml", self.deployment_to_text)
 
+            for src, arcname in self.include_files:
+                zip_archive.write(src, arcname)
+
         buffer.seek(0)
         return buffer
 
@@ -3565,18 +3631,28 @@ class ApplicationPackage(object):
             with open(os.path.join(root, "deployment.xml"), "w") as f:
                 f.write(self.deployment_to_text)
 
+        for src, dest_rel in self.include_files:
+            dest_path = Path(root) / dest_rel
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            copyfile(src, dest_path)
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
             return NotImplemented
-        return self.name == other.name and self._schema == other._schema
+        return (
+            self.name == other.name
+            and self._schema == other._schema
+            and self.include_files == other.include_files
+        )
 
     def __repr__(self) -> str:
-        return "{0}({1}, {2}, {3}, {4})".format(
+        return "{0}({1}, {2}, {3}, {4}, {5})".format(
             self.__class__.__name__,
             repr(self.name),
             repr(self.schemas),
             repr(self.query_profile),
             repr(self.query_profile_type),
+            repr(self.include_files),
         )
 
 
