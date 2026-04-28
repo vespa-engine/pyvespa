@@ -3143,6 +3143,15 @@ class TestIncludeFiles(unittest.TestCase):
                     name="testinclude",
                     include_files=[(src, "../escaped.json")],
                 )
+    
+    def test_abs_windows_path(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            src = self._make_src_file(tempdir)
+            with self.assertRaises(ValueError):
+                ApplicationPackage(
+                    name="test",
+                    include_files=[(src, "c:\\Users\\test.json")],
+                )
 
     def test_include_files_dotdot_in_middle_rejected(self):
         with tempfile.TemporaryDirectory() as tmpdir:
