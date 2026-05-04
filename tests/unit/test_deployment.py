@@ -3,7 +3,16 @@ from tempfile import TemporaryDirectory
 import os
 from unittest.mock import patch, MagicMock
 
-from vespa.deployment import VespaCloud
+from urllib3.exceptions import HTTPError
+
+from vespa.deployment import VespaCloud, DataplaneToken
+from vespa.package import (
+    ApplicationPackage,
+    AuthClient,
+    ContainerCluster,
+    Nodes,
+    Parameter,
+)
 
 
 class TestVespaCloud(unittest.TestCase):
@@ -583,6 +592,131 @@ class TestDevRegion(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             self.vc.get_dev_region("invalid-region")
         self.assertIn("Invalid dev region", str(ctx.exception))
+
+
+class TestEnsureAuthClientsForToken(unittest.TestCase):
+    def setUp(self):
+        VespaCloud._try_get_access_token = MagicMock(return_value="fake_access_token")
+
+    def _make_pkg(self, auth_clients=None, clusters=None):
+        return ApplicationPackage(
+            name="myapp",
+            auth_clients=auth_clients,
+            clusters=clusters,
+        )
+
+    def test_no_op_when_token_id_not_set(self):
+        pkg = self._make_pkg()
+        VespaCloud(
+            tenant="t",
+            application="myapp",
+            application_package=pkg,
+        )
+        self.assertIn(pkg.auth_clients, (None, []))
+
+    def test_injects_both_when_no_auth_clients_set(self):
+        pkg = self._make_pkg()
+        VespaCloud(
+            tenant="t",
+            application="myapp",
+            application_package=pkg,
+            auth_client_token_id="myapp",
+        )
+        self.assertIsNotNone(pkg.auth_clients)
+        ids = [ac.id for ac in pkg.auth_clients]
+        self.assertIn("mtls", ids)
+        self.assertIn("token", ids)
+        mtls_ac = next(ac for ac in pkg.auth_clients if ac.id == "mtls")
+        self.assertEqual(len(mtls_ac.parameters), 1)
+        self.assertEqual(mtls_ac.parameters[0].name, "certificate")
+        self.assertEqual(mtls_ac.parameters[0].args, {"file": "security/clients.pem"})
+        token_ac = next(ac for ac in pkg.auth_clients if ac.id == "token")
+        self.assertEqual(token_ac.permissions, ["read", "write"])
+        self.assertEqual(token_ac.parameters[0].name, "token")
+        self.assertEqual(token_ac.parameters[0].args, {"id": "myapp"})
+
+    def test_preserves_existing_mtls_client(self):
+        existing = [AuthClient(id="mtls", permissions=["read"])]
+        pkg = self._make_pkg(auth_clients=list(existing))
+        VespaCloud(
+            tenant="t",
+            application="myapp",
+            application_package=pkg,
+            auth_client_token_id="myapp",
+        )
+        ids = [ac.id for ac in pkg.auth_clients]
+        self.assertEqual(ids.count("mtls"), 1)
+        mtls_ac = next(ac for ac in pkg.auth_clients if ac.id == "mtls")
+        self.assertEqual(mtls_ac.permissions, ["read"])
+        self.assertIn("token", ids)
+
+    def test_does_not_double_add_matching_token_client(self):
+        token_ac = AuthClient(
+            id="token",
+            permissions=["read", "write"],
+            parameters=[Parameter("token", {"id": "myapp"})],
+        )
+        pkg = self._make_pkg(auth_clients=[token_ac])
+        VespaCloud(
+            tenant="t",
+            application="myapp",
+            application_package=pkg,
+            auth_client_token_id="myapp",
+        )
+        token_clients = [ac for ac in pkg.auth_clients if ac.id == "token"]
+        self.assertEqual(len(token_clients), 1)
+
+
+class TestDataplaneToken(unittest.TestCase):
+    def setUp(self):
+        self.application_package = MagicMock()
+        VespaCloud._try_get_access_token = MagicMock(return_value="fake_access_token")
+        self.vc = VespaCloud(
+            tenant="t",
+            application="myapp",
+            application_package=self.application_package,
+        )
+        self.fake_response = {
+            "id": "myapp",
+            "token": "vespa_cloud_abc123",
+            "fingerprint": "ab:cd:ef",
+            "expiration": "2026-05-13T00:00:00Z",
+        }
+
+    @patch("vespa.deployment.VespaCloud._request")
+    def test_create_dataplane_token_default_token_id_is_application(self, mock_request):
+        mock_request.return_value = self.fake_response
+
+        self.vc.create_dataplane_token()
+
+        method, path = mock_request.call_args[0][:2]
+        self.assertEqual(method, "POST")
+        self.assertIn("/application/v4/tenant/t/token/myapp", path)
+
+    @patch("vespa.deployment.VespaCloud._request")
+    def test_create_dataplane_token_default_prefers_auth_client_token_id(
+        self, mock_request
+    ):
+        mock_request.return_value = self.fake_response
+
+        self.vc.auth_client_token_id = "default-token"
+        self.vc.create_dataplane_token()
+
+        path = mock_request.call_args[0][1]
+        self.assertIn("/tenant/t/token/default-token", path)
+        self.assertNotIn("/token/myapp", path)
+
+    @patch("vespa.deployment.VespaCloud._request")
+    def test_create_dataplane_token_custom_expiration_passes_through(
+        self, mock_request
+    ):
+        mock_request.return_value = self.fake_response
+
+        self.vc.create_dataplane_token(expiration="P30D")
+
+        path = mock_request.call_args[0][1]
+        self.assertIn("expiration=P30D", path)
+        self.assertNotIn("expiration=P14D", path)
 
 
 if __name__ == "__main__":
