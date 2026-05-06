@@ -316,3 +316,58 @@ class TestMsmarcoProdApplicationWithTokenAuth(TestApplicationCommon):
         # This will delete the deployment
         self.vespa_cloud._start_prod_deployment(self.application_root)
         shutil.rmtree(self.application_root, ignore_errors=True)
+
+
+class TestCreateDataplaneTokenAndAutoInjectedAuthClients(unittest.TestCase):
+    """End-to-end coverage for VespaCloud.create_dataplane_token() and
+    auto-injection of <auth-clients> when auth_client_token_id is set
+    without explicit auth_clients on the application package."""
+
+    def setUp(self) -> None:
+        # No auth_clients passed — VespaCloud should auto-inject them.
+        self.app_package = create_msmarco_application_package()
+        self.assertIsNone(self.app_package.auth_clients)
+
+        self.vespa_cloud = VespaCloud(
+            tenant="vespa-team",
+            application="pyvespa-integration",
+            key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
+            application_package=self.app_package,
+            auth_client_token_id=CLIENT_TOKEN_ID,
+        )
+        self.disk_folder = os.path.join(os.getcwd(), "sample_application_create_token")
+        self.instance_name = "create-token"
+
+    def test_auto_inject_then_create_token_and_query(self):
+        # Auto-injection should have populated auth_clients on the package.
+        injected_ids = {ac.id for ac in self.app_package.auth_clients}
+        self.assertEqual(injected_ids, {"mtls", "token"})
+        token_client = next(
+            ac for ac in self.app_package.auth_clients if ac.id == "token"
+        )
+        token_param = next(p for p in token_client.parameters if p.name == "token")
+        self.assertEqual(token_param.args["id"], CLIENT_TOKEN_ID)
+
+        # Deploy using the auto-injected services.xml.
+        self.vespa_cloud.deploy(
+            instance=self.instance_name, disk_folder=self.disk_folder
+        )
+
+        # Create a fresh data-plane token and use it to reach the app.
+        result = self.vespa_cloud.create_dataplane_token()
+        self.assertEqual(result.id, CLIENT_TOKEN_ID)
+        self.assertTrue(result.token)
+        self.assertTrue(result.fingerprint)
+        self.assertTrue(result.expiration)
+
+        app = self.vespa_cloud.get_application(
+            instance=self.instance_name,
+            environment="dev",
+            endpoint_type="token",
+            vespa_cloud_secret_token=result.token,
+        )
+        app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.disk_folder, ignore_errors=True)
+        self.vespa_cloud.delete(instance=self.instance_name)

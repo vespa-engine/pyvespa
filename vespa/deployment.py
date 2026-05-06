@@ -8,6 +8,7 @@ import zipfile
 import logging
 import xml.etree.ElementTree as ET
 from base64 import standard_b64encode
+from dataclasses import dataclass
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -21,7 +22,7 @@ import shlex
 import select
 from dateutil import parser
 import time
-from urllib.parse import urlparse
+from urllib.parse import quote, urlencode, urlparse
 
 import docker
 
@@ -32,7 +33,7 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 
 from vespa.application import Vespa
-from vespa.package import ApplicationPackage
+from vespa.package import ApplicationPackage, AuthClient, Parameter
 import vespa
 
 # Get the Vespa home directory
@@ -588,7 +589,7 @@ class VespaCloud(VespaDeployment):
             application_package (ApplicationPackage): Application package to be deployed. Either this or application_root must be set.
             key_location (str, optional): Location of the control plane key used for signing HTTP requests to the Vespa Cloud.
             key_content (str, optional): Content of the control plane key used for signing HTTP requests to the Vespa Cloud. Use only when the key file is not available.
-            auth_client_token_id (str, optional): Token-based data plane authentication. This token name must be configured in the Vespa Cloud Console. It configures Vespa's services.xml, and the token must have read and write permissions.
+            auth_client_token_id (str, optional): Token-based data-plane authentication. When set with an ``application_package``, pyvespa injects mTLS + token ``<auth-clients>`` into ``services.xml`` (existing entries preserved).
             output_file (str, optional): Output file to write output messages. Default is sys.stdout.
             application_root (str, optional): Directory for the application root (location of services.xml, models/, schemas/, etc.). If the application is packaged with Maven, use the generated `<myapp>/target/application` directory.
             cluster (str, optional): Name of the cluster to target when retrieving endpoints. This affects which endpoints are used for initializing the :class:`Vespa` instance in `VespaCloud.get_application` and `VespaCloud.deploy`.
@@ -663,11 +664,7 @@ class VespaCloud(VespaDeployment):
         self.cluster = cluster
         if auth_client_token_id is not None:
             if self.application_package is not None:
-                # TODO: Should add some check to see if the auth_client_token_id is added to AuthClients.
-                print(
-                    "Auth client token id set. Make sure that corresponding auth_client is configured and added to ApplicationPackage.",
-                    file=self.output,
-                )
+                self._ensure_auth_clients_for_token(auth_client_token_id)
             else:
                 print(
                     "Auth client token id set, but no application package provided. Make sure that services.xml is configured to use the provided token_id.",
@@ -2131,6 +2128,146 @@ class VespaCloud(VespaDeployment):
         """
         return self.get_endpoint("token", instance, region, environment, cluster)
 
+    def create_dataplane_token(
+        self,
+        token_id: Optional[str] = None,
+        expiration: str = "P14D",
+    ) -> "DataplaneToken":
+        """Create a Vespa Cloud data-plane bearer token.
+
+        Calls the Vespa Cloud control-plane to create a new token version.
+        The returned secret value is shown only once; capture
+        ``result.token`` immediately if you need it later.
+
+        The token is tenant- and ``token_id``-scoped, not zone-scoped: the
+        same token works in any deployment whose ``services.xml`` accepts a
+        token with this ``token_id``. Pass ``token_id`` as
+        ``auth_client_token_id`` when constructing :class:`VespaCloud` so the
+        deployed app accepts it.
+
+        Example usage:
+            ```python
+            vespa_cloud = VespaCloud(
+                tenant="my-tenant",
+                application="my-app",
+                application_package=app_package,
+                auth_client_token_id="my-app",
+            )
+            vespa_cloud.deploy()
+            result = vespa_cloud.create_dataplane_token()
+            app = vespa_cloud.get_application(
+                endpoint_type="token",
+                vespa_cloud_secret_token=result.token,
+            )
+            ```
+
+        Args:
+            token_id (str, optional): Token name. Defaults to
+                ``self.auth_client_token_id`` if it was set on the
+                :class:`VespaCloud` constructor, otherwise to
+                ``self.application``. Multiple calls with the same
+                ``token_id`` create additional active versions, each
+                with its own fingerprint.
+            expiration (str, optional): How long the token is valid. Accepts
+                an ISO-8601 period (e.g. ``"P14D"``, ``"P30D"``), the literal
+                ``"default"`` (Vespa Cloud's 30-day default), the literal
+                ``"none"`` (no expiry — discouraged), or an absolute ISO-8601
+                instant such as ``"2026-12-31T00:00:00Z"``. Defaults to
+                ``"P14D"``
+
+        Returns:
+            DataplaneToken: The newly created token. ``token`` is the secret
+                value — capture it immediately; Vespa Cloud cannot show it
+                again.
+
+        Raises:
+            urllib3.exceptions.HTTPError: If Vespa Cloud rejects the
+                request (e.g. insufficient permissions, malformed expiration,
+                missing tenant).
+        """
+        token_id = token_id or self.auth_client_token_id or self.application
+        query = urlencode({"expiration": expiration})
+        response = self._request(
+            "POST",
+            f"/application/v4/tenant/{self.tenant}"
+            f"/token/{quote(token_id, safe='')}?{query}",
+        )
+        return DataplaneToken(
+            id=response["id"],
+            token=response["token"],
+            fingerprint=response["fingerprint"],
+            expiration=response["expiration"],
+        )
+
+    def _ensure_auth_clients_for_token(self, token_id: str) -> None:
+        """Ensure ``self.application_package`` exposes a token data-plane endpoint.
+
+        When ``auth_client_token_id`` is set on :class:`VespaCloud` together with
+        an ``application_package``, the deployed ``services.xml`` must declare a
+        matching ``<auth-clients>`` block — otherwise the deployed application
+        has only an mTLS endpoint and bearer-token requests are rejected. This
+        private helper auto-injects the missing entries on the package.
+
+        Behavior:
+        - Adds an mTLS auth-client (id ``"mtls"``) if none is configured.
+        - Adds a token auth-client (id ``"token"``) with a ``<token id="...">``
+          parameter matching ``token_id`` if no equivalent already exists.
+        - Existing entries are preserved; nothing is replaced.
+        - If the package uses ``clusters`` (advanced topology), auth-clients
+          live on each :class:`ContainerCluster` and pyvespa does not modify
+          them — a notice is printed instead.
+        """
+        package = self.application_package
+        if package.clusters:
+            print(
+                "Auth client token id set, and application_package uses clusters. "
+                "Make sure each ContainerCluster has matching AuthClients; "
+                "pyvespa does not auto-configure auth-clients in this case.",
+                file=self.output,
+            )
+            return
+
+        existing = list(package.auth_clients or [])
+        existing_ids = {ac.id for ac in existing}
+        existing_token_ids = {
+            (p.args or {}).get("id")
+            for ac in existing
+            if ac.id == "token"
+            for p in (ac.parameters or [])
+            if p.name == "token"
+        }
+
+        added = []
+        if "mtls" not in existing_ids:
+            added.append(
+                AuthClient(
+                    id="mtls",
+                    permissions=["read", "write"],
+                    parameters=[
+                        Parameter("certificate", {"file": "security/clients.pem"})
+                    ],
+                )
+            )
+        if token_id not in existing_token_ids:
+            added.append(
+                AuthClient(
+                    id="token",
+                    permissions=["read", "write"],
+                    parameters=[Parameter("token", {"id": token_id})],
+                )
+            )
+
+        if added:
+            package.auth_clients = existing + added
+            added_ids = ", ".join(
+                f"id={ac.id!r}" + (f" (token={token_id!r})" if ac.id == "token" else "")
+                for ac in added
+            )
+            print(
+                f"Auto-configured AuthClient on the application package: {added_ids}.",
+                file=self.output,
+            )
+
     def _application_root_has_tests(self, application_root: str) -> bool:
         """Check if the application contains tests folder (recursively)"""
         for root, dirs, files in os.walk(application_root):
@@ -2458,3 +2595,34 @@ class VespaCloud(VespaDeployment):
                 "{:<7} [{}]  {}".format(entry["type"].upper(), timestamp, message),
                 file=self.output,
             )
+
+@dataclass
+class DataplaneToken:
+    """A Vespa Cloud data-plane bearer token returned by
+    :meth:`VespaCloud.create_dataplane_token`.
+
+    The ``token`` field holds the secret value — treat it like a password.
+    Vespa Cloud cannot show it again after creation. The token is bound to a
+    tenant and a token name (``id``); it works in any zone where the deployed
+    application's ``services.xml`` has an ``<auth-clients>`` entry matching
+    ``id``.
+
+    Attributes:
+        id: The token name (the ``tokenid`` in the Vespa Cloud Console). Pass
+            this same value as ``auth_client_token_id`` when constructing
+            :class:`VespaCloud` so the deployed app accepts the token.
+        token: The secret token value. Use as the
+            ``vespa_cloud_secret_token`` argument to
+            :meth:`VespaCloud.get_application` or as a bearer header against
+            the data-plane endpoint. Store securely; this value is shown only
+            once at creation time.
+        fingerprint: SHA-256 fingerprint identifying this specific token
+            version; required if you later revoke it.
+        expiration: ISO-8601 timestamp at which the token expires.
+    """
+
+    id: str
+    token: str
+    fingerprint: str
+    expiration: str
+
