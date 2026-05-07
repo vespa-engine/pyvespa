@@ -78,6 +78,9 @@ docs/_build/
 
 # PyBuilder
 target/
+# Pre-built Java bundle fixture — used by tests/integration/test_integration_docker.py::TestCustomJavaBundle
+!tests/testapps/album-recommendation-java/target/
+!tests/testapps/album-recommendation-java/target/album-recommendation-java-deploy.jar
 
 # Jupyter Notebook
 .ipynb_checkpoints

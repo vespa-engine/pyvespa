@@ -29,6 +29,7 @@ To get a sense of the most basic functionality, check out the Hybrid Search Quic
     Refer to the [Authenticating to Vespa Cloud](authenticating-to-vespa-cloud.html) for details.
 
 - Create and deploy application packages, including schemas, rank profiles, `services.xml`, query profiles etc.
+- [Ship custom Java bundles](application-packages.html#including-custom-java-bundles-and-other-extra-files) (searchers, document processors, request handlers) via `ApplicationPackage(include_files=...)`.
 - [Feed and retrieve](reads-writes.html) documents to/from Vespa, using `/document/v1/` API.
 - [Query](query.html) Vespa applications, using `/search/` API.
 - [Build complex queries](query.html#using-the-querybuilder-dsl-api) using the [`QueryBuilder`](api/vespa/querybuilder/builder/builder.html) API.

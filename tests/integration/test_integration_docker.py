@@ -33,6 +33,7 @@ from vespa.package import (
     OnnxModel,
 )
 from vespa.configuration.services import *
+from vespa.configuration.vt import vt
 from vespa.deployment import VespaDocker
 from vespa.application import Vespa, VespaSync
 from vespa.exceptions import VespaError
@@ -2530,6 +2531,145 @@ class TestRankProfileCustomSettingsDeployment(unittest.TestCase):
         self.assertTrue(response.is_successful())
         # Assert that all 10 documents are retrieved.
         self.assertEqual(response.number_documents_retrieved, 10)
+
+    def tearDown(self) -> None:
+        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
+        self.vespa_docker.container.remove()
+
+
+class TestCustomJavaBundle(unittest.TestCase):
+    """Verify a custom Java component (bundled JAR) shipped via
+    ``ApplicationPackage(include_files=...)`` is loaded and executed by Vespa.
+
+    Mirrors the ``album-recommendation-java`` sample app
+    (https://github.com/vespa-engine/sample-apps/tree/master/album-recommendation-java):
+    the bundled JAR contains a ``MetalSearcher`` whose chain ``metalchain`` rewrites
+    queries containing a "metal word" (e.g. ``metallica``) by adding
+    ``OR album contains "metal"``. We assert the rewrite actually happens by
+    feeding two documents and comparing hit counts with vs. without the chain.
+
+    Fixture provenance: ``tests/testapps/album-recommendation-java/target/album-recommendation-java-deploy.jar``
+    is built from the upstream sample app and committed as a binary fixture so
+    this test does not require Maven on the CI runner. To rebuild::
+
+        git clone --depth 1 https://github.com/vespa-engine/sample-apps.git
+        cd sample-apps/album-recommendation-java/app
+        mvn -DskipTests package
+        # then copy target/album-recommendation-java-deploy.jar over the fixture
+
+    The JAR's ``META-INF/MANIFEST.MF`` records the Vespa build version it was
+    compiled against; OSGi version ranges keep it loadable across Vespa 8.x.
+    """
+
+    def setUp(self) -> None:
+        application_name = "albums"
+        music_schema = Schema(
+            name="music",
+            document=Document(
+                fields=[
+                    Field(
+                        name="artist",
+                        type="string",
+                        indexing=["summary", "index"],
+                    ),
+                    Field(
+                        name="album",
+                        type="string",
+                        indexing=["summary", "index"],
+                    ),
+                    Field(
+                        name="year",
+                        type="int",
+                        indexing=["summary", "attribute"],
+                    ),
+                ],
+            ),
+            fieldsets=[FieldSet(name="default", fields=["artist", "album"])],
+        )
+
+        services_config = ServicesConfiguration(
+            application_name=application_name,
+            services_config=services(
+                container(id="default", version="1.0")(
+                    document_api(),
+                    search(
+                        chain(id="metalchain", inherits="vespa")(
+                            searcher(
+                                config(
+                                    vt("metalWords", replace_underscores=False)(
+                                        vt("item", "hetfield"),
+                                        vt("item", "metallica"),
+                                        vt("item", "pantera"),
+                                    ),
+                                    name="ai.vespa.example.album.metal-names",
+                                ),
+                                id="ai.vespa.example.album.MetalSearcher",
+                                bundle="album-recommendation-java",
+                            ),
+                        ),
+                    ),
+                    nodes(node(hostalias="node1")),
+                ),
+                content(id="music", version="1.0")(
+                    min_redundancy("2"),
+                    documents(document(type="music", mode="index")),
+                    nodes(node(distribution_key="0", hostalias="node1")),
+                ),
+                version="1.0",
+            ),
+        )
+
+        jar_path = (
+            Path(__file__).parent.parent
+            / "testapps"
+            / "album-recommendation-java"
+            / "target"
+            / "album-recommendation-java-deploy.jar"
+        )
+        self.app_package = ApplicationPackage(
+            name=application_name,
+            schema=[music_schema],
+            services_config=services_config,
+            include_files=[
+                (jar_path, "components/album-recommendation-java-deploy.jar"),
+            ],
+        )
+
+        self.vespa_docker = VespaDocker(port=8089)
+        self.app = self.vespa_docker.deploy(application_package=self.app_package)
+
+    def test_custom_searcher_rewrites_query(self):
+        # One doc matches purely on artist; the other only matches once the
+        # MetalSearcher rewrites the query to also OR-in album:"metal".
+        docs = [
+            {
+                "id": "1",
+                "fields": {
+                    "artist": "metallica",
+                    "album": "Black Album",
+                    "year": 1991,
+                },
+            },
+            {
+                "id": "2",
+                "fields": {
+                    "artist": "various",
+                    "album": "Best of Metal",
+                    "year": 2000,
+                },
+            },
+        ]
+        self.app.feed_iterable(docs, schema="music")
+
+        yql = 'select * from music where artist contains "metallica"'
+
+        baseline = self.app.query(body={"yql": yql})
+        self.assertTrue(baseline.is_successful())
+        self.assertEqual(baseline.number_documents_retrieved, 1)
+
+        rewritten = self.app.query(body={"yql": yql, "searchChain": "metalchain"})
+        self.assertTrue(rewritten.is_successful())
+        self.assertEqual(rewritten.number_documents_retrieved, 2)
 
     def tearDown(self) -> None:
         self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
