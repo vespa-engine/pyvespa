@@ -6,13 +6,14 @@ from vespa.application import Vespa
 
 try:
     import mteb
-    from mteb._create_dataloaders import _create_text_queries_dataloader
+    from mteb._create_dataloaders import create_dataloader
     from mteb.abstasks.task_metadata import TaskMetadata
     from mteb.models.model_meta import ModelMeta
     from mteb.models.models_protocols import SearchProtocol
     from mteb.types import (
         CorpusDatasetType,
         InstructionDatasetType,
+        PromptType,
         QueryDatasetType,
         RetrievalOutputType,
         TopRankedDocumentsType,
@@ -371,7 +372,11 @@ class VespaMTEBApp(SearchProtocol):
         query_function = query_functions[query_function_name]
 
         query_ids = list(queries["id"])
-        queries_loader = _create_text_queries_dataloader(queries)
+        queries_loader = create_dataloader(
+            queries,
+            task_metadata=task_metadata,
+            prompt_type=PromptType.query,
+        )
         queries_texts = [text for batch in queries_loader for text in batch["text"]]
 
         # Build query bodies for Vespa
