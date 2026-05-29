@@ -1053,6 +1053,9 @@ class VespaCloud(VespaDeployment):
                 skip_reason = status.get("skipReason")
                 if skip_reason:
                     print(f"Build skipped: {skip_reason}", file=self.output)
+                absorbed_build = status.get("absorbedIntoBuild")
+                if absorbed_build:
+                    print(f"Build batched, check logs for build {absorbed_build} for more info.")
                 return status["deployed"]
             time.sleep(poll_interval)
         raise TimeoutError(f"Deployment did not finish within {max_wait} seconds. ")
