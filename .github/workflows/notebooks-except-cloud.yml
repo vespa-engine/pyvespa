@@ -55,6 +55,8 @@ jobs:
           pip install --no-cache-dir -e .[dev,notebooks]
 
       - name: Run notebooks tests
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           echo "Running ${{ matrix.notebook }}"
           papermill --log-output ${{ matrix.notebook }} ${{ matrix.notebook }}-out.ipynb

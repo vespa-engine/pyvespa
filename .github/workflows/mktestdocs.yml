@@ -29,6 +29,8 @@ jobs:
         run: |
           uv sync --extra dev --extra docs
       - name: Run tests
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           uv run pytest tests/mktestdocs -s -v
       - name: Build docs
