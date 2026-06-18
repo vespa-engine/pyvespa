@@ -33,5 +33,7 @@ jobs:
           pip install -e .[unittest]
 
       - name: Run tests
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           pytest tests/unit -s -v

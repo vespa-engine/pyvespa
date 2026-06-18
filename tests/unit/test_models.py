@@ -2077,10 +2077,21 @@ class TestHFModelsURLValidation:
         # Explicitly validate URLs by creating a new config with validation enabled
         # (HF_MODELS uses validate_urls=False by default for fast import)
         print(f"Validating URLs for model: {model_name}")
-        ModelConfig(
-            model_id=config.model_id,
-            embedding_dim=config.embedding_dim,
-            model_url=config.model_url,
-            tokenizer_url=config.tokenizer_url,
-            validate_urls=True,  # Explicitly enable validation
-        )
+        try:
+            ModelConfig(
+                model_id=config.model_id,
+                embedding_dim=config.embedding_dim,
+                model_url=config.model_url,
+                tokenizer_url=config.tokenizer_url,
+                validate_urls=True,  # Explicitly enable validation
+            )
+        except ValueError as e:
+            # A 429 means Hugging Face rate-limited us (the CI matrix runs many
+            # jobs in parallel), not that the URL is broken. Treat it as
+            # inconclusive and skip rather than fail the build.
+            if "HTTP 429" in str(e):
+                pytest.skip(
+                    f"Hugging Face rate-limited URL validation for {model_name} "
+                    f"(HTTP 429): {e}"
+                )
+            raise
