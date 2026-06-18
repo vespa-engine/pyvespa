@@ -114,5 +114,6 @@ jobs:
       - name: Run MTEB cloud integration tests
         env:
           VESPA_TEAM_API_KEY: ${{ secrets.VESPA_TEAM_API_KEY }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           uv run pytest tests/integration/test_integration_vespa_cloud_mteb.py -s -v
