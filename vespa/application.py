@@ -373,9 +373,9 @@ class Vespa(object):
     ) -> httpx.AsyncClient:
         """Return a configured `httpx.AsyncClient` for reuse.
 
-        The client is created with the same configuration as `VespaAsync` and is HTTP/2
-        enabled by default. Callers are responsible for closing the client via
-        `await client.aclose()` when finished.
+        The client is created with the same configuration as `VespaAsync`, preferring
+        HTTP/2 while allowing HTTP/1.1 fallback. Callers are responsible for closing
+        the client via `await client.aclose()` when finished.
 
         Args:
             connections (int, optional): Number of logical connections to keep alive.
@@ -2055,7 +2055,8 @@ class VespaAsync(object):
         """
         Class to handle asynchronous HTTP connections to Vespa.
 
-        Uses `httpr` as the async HTTP client, and HTTP/2 by default.
+        Uses `httpr` as the async HTTP client, preferring HTTP/2 while allowing
+        HTTP/1.1 fallback for endpoint compatibility.
         This class is intended to be used as a context manager.
 
         **Basic usage**:
@@ -2195,7 +2196,7 @@ class VespaAsync(object):
             "headers": self.headers,
             "timeout": self.timeout,
             "follow_redirects": True,
-            "http2_only": True,  # HTTP/2 only for async (matches httpx default)
+            "http2_only": False,  # Prefer HTTP/2, but allow HTTP/1.1 fallback
         }
 
         # Handle mTLS if cert/key are provided

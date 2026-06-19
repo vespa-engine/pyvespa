@@ -908,6 +908,23 @@ class TestVespaAsync:
         ):
             _vespa_async = VespaAsync(app, limits=limits)
 
+    @patch("vespa.application.httpr.AsyncClient")
+    def test_open_client_allows_http1_fallback(self, MockAsyncClient):
+        """Async clients should not force HTTP/2-only connections."""
+        app = MockVespa()
+        mock_client = Mock()
+        MockAsyncClient.return_value = mock_client
+
+        vespa_async = VespaAsync(app)
+        vespa_async._open_httpr_client()
+
+        MockAsyncClient.assert_called_once_with(
+            headers={},
+            timeout=30.0,
+            follow_redirects=True,
+            http2_only=False,
+        )
+
 
 class TestVespaSyncStreaming(unittest.TestCase):
     @patch("vespa.application.httpr.Client")
