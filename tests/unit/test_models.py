@@ -1,4 +1,5 @@
 import warnings
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -2077,10 +2078,49 @@ class TestHFModelsURLValidation:
         # Explicitly validate URLs by creating a new config with validation enabled
         # (HF_MODELS uses validate_urls=False by default for fast import)
         print(f"Validating URLs for model: {model_name}")
-        ModelConfig(
-            model_id=config.model_id,
-            embedding_dim=config.embedding_dim,
-            model_url=config.model_url,
-            tokenizer_url=config.tokenizer_url,
-            validate_urls=True,  # Explicitly enable validation
-        )
+        try:
+            ModelConfig(
+                model_id=config.model_id,
+                embedding_dim=config.embedding_dim,
+                model_url=config.model_url,
+                tokenizer_url=config.tokenizer_url,
+                validate_urls=True,  # Explicitly enable validation
+            )
+        except ValueError as e:
+            # A 429 means Hugging Face rate-limited us (the CI matrix runs many
+            # jobs in parallel), not that the URL is broken. Treat it as
+            # inconclusive and skip rather than fail the build.
+            if "HTTP 429" in str(e):
+                pytest.skip(
+                    f"Hugging Face rate-limited URL validation for {model_name} "
+                    f"(HTTP 429): {e}"
+                )
+            raise
+
+    def test_validation_sends_hf_token_for_huggingface_urls(self, monkeypatch):
+        """An HF_TOKEN in the environment is sent as a Bearer auth header for
+        huggingface.co URLs (authenticated requests avoid HTTP 429 rate limits),
+        but is not leaked to other hosts."""
+        monkeypatch.setenv("HF_TOKEN", "hf_testtoken123")
+        config = ModelConfig(model_id="x", embedding_dim=8)
+
+        captured = {}
+
+        def fake_head(url, **kwargs):
+            captured["headers"] = kwargs.get("headers")
+            response = MagicMock()
+            response.status_code = 200
+            return response
+
+        with patch("vespa.models.requests.head", side_effect=fake_head):
+            config._validate_single_url(
+                "model_url",
+                "https://huggingface.co/foo/resolve/main/model.onnx",
+            )
+        assert captured["headers"].get("Authorization") == "Bearer hf_testtoken123"
+
+        with patch("vespa.models.requests.head", side_effect=fake_head):
+            config._validate_single_url(
+                "model_url", "https://data.vespa-cloud.com/model.onnx"
+            )
+        assert "Authorization" not in captured["headers"]

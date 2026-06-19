@@ -1,6 +1,7 @@
 from __future__ import annotations
 import hashlib
 import json
+import os
 import re
 import warnings
 from difflib import get_close_matches
@@ -272,12 +273,21 @@ class ModelConfig:
     )
     def _validate_single_url(self, url_name: str, url: str) -> None:
         """Validate a single URL with retry logic."""
+        # Authenticate Hugging Face requests when a token is available.
+        # Authenticated requests get a much higher rate limit, which avoids
+        # spurious HTTP 429 (Too Many Requests) responses in CI.
+        headers = {}
+        token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+        if token and "huggingface.co" in url:
+            headers["Authorization"] = f"Bearer {token}"
         try:
-            response = requests.head(url, timeout=10, allow_redirects=True)
+            response = requests.head(
+                url, timeout=10, allow_redirects=True, headers=headers
+            )
             if response.status_code != 200:
                 # Some servers don't support HEAD, try GET with stream
                 response = requests.get(
-                    url, timeout=10, stream=True, allow_redirects=True
+                    url, timeout=10, stream=True, allow_redirects=True, headers=headers
                 )
                 response.close()
             if response.status_code != 200:
