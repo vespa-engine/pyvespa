@@ -373,9 +373,9 @@ class Vespa(object):
     ) -> httpx.AsyncClient:
         """Return a configured `httpx.AsyncClient` for reuse.
 
-        The client is created with the same configuration as `VespaAsync`, preferring
-        HTTP/2 while allowing HTTP/1.1 fallback. Callers are responsible for closing
-        the client via `await client.aclose()` when finished.
+        The client is created with the same configuration as `VespaAsync` and is HTTP/2
+        enabled by default. Callers are responsible for closing the client via
+        `await client.aclose()` when finished.
 
         Args:
             connections (int, optional): Number of logical connections to keep alive.
@@ -515,12 +515,31 @@ class Vespa(object):
 
         return schema.name
 
-    def wait_for_application_up(self, max_wait: int = 300) -> None:
+    def _is_query_api_ready(self) -> bool:
+        """Check if the query API is ready to serve requests."""
+        health_query = {
+            "yql": "select * from sources * where true",
+            "hits": 0,
+            "timeout": "5s",
+        }
+        with self.syncio() as sync_sess:
+            response = sync_sess._request_with_retry(
+                "POST",
+                self.search_end_point,
+                json_data=health_query,
+            )
+        return response.status_code == 200
+
+    def wait_for_application_up(
+        self, max_wait: int = 300, wait_for_query_api: bool = False
+    ) -> None:
         """
         Wait for application endpoint ready (/ApplicationStatus).
 
         Args:
             max_wait (int): Seconds to wait for the application endpoint.
+            wait_for_query_api (bool): When True, also wait for the query API to
+                answer a lightweight query successfully.
 
         Raises:
             RuntimeError: If not able to reach endpoint within `max_wait` or the client fails to authenticate.
@@ -535,6 +554,8 @@ class Vespa(object):
                 if not response:
                     continue
                 if response.status_code == 200:
+                    if wait_for_query_api and not self._is_query_api_ready():
+                        continue
                     print("Application is up!", file=self.output_file)
                     return
             except Exception as e:
@@ -2055,8 +2076,7 @@ class VespaAsync(object):
         """
         Class to handle asynchronous HTTP connections to Vespa.
 
-        Uses `httpr` as the async HTTP client, preferring HTTP/2 while allowing
-        HTTP/1.1 fallback for endpoint compatibility.
+        Uses `httpr` as the async HTTP client, and HTTP/2 by default.
         This class is intended to be used as a context manager.
 
         **Basic usage**:
@@ -2196,7 +2216,7 @@ class VespaAsync(object):
             "headers": self.headers,
             "timeout": self.timeout,
             "follow_redirects": True,
-            "http2_only": False,  # Prefer HTTP/2, but allow HTTP/1.1 fallback
+            "http2_only": True,  # HTTP/2 only for async (matches httpx default)
         }
 
         # Handle mTLS if cert/key are provided

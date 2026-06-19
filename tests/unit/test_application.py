@@ -908,23 +908,6 @@ class TestVespaAsync:
         ):
             _vespa_async = VespaAsync(app, limits=limits)
 
-    @patch("vespa.application.httpr.AsyncClient")
-    def test_open_client_allows_http1_fallback(self, MockAsyncClient):
-        """Async clients should not force HTTP/2-only connections."""
-        app = MockVespa()
-        mock_client = Mock()
-        MockAsyncClient.return_value = mock_client
-
-        vespa_async = VespaAsync(app)
-        vespa_async._open_httpr_client()
-
-        MockAsyncClient.assert_called_once_with(
-            headers={},
-            timeout=30.0,
-            follow_redirects=True,
-            http2_only=False,
-        )
-
 
 class TestVespaSyncStreaming(unittest.TestCase):
     @patch("vespa.application.httpr.Client")
@@ -1020,6 +1003,36 @@ class TestVespaSyncStreaming(unittest.TestCase):
                 json=query_body,
                 params={"timeout": "30s"},
             )
+
+
+class TestApplicationReadiness(unittest.TestCase):
+    @patch("vespa.application.sleep", return_value=None)
+    def test_wait_for_application_up_waits_for_query_api_when_requested(
+        self, _mock_sleep
+    ):
+        app = Vespa(url="http://localhost", port=8080)
+        app.get_application_status = Mock(
+            return_value=create_mock_httpr_response(status_code=200)
+        )
+        app._is_query_api_ready = Mock(side_effect=[False, True])
+
+        app.wait_for_application_up(max_wait=2, wait_for_query_api=True)
+
+        self.assertEqual(app._is_query_api_ready.call_count, 2)
+
+    @patch("vespa.application.sleep", return_value=None)
+    def test_wait_for_application_up_does_not_check_query_api_by_default(
+        self, _mock_sleep
+    ):
+        app = Vespa(url="http://localhost", port=8080)
+        app.get_application_status = Mock(
+            return_value=create_mock_httpr_response(status_code=200)
+        )
+        app._is_query_api_ready = Mock()
+
+        app.wait_for_application_up(max_wait=1)
+
+        app._is_query_api_ready.assert_not_called()
 
 
 class TestConnectionReuse(unittest.TestCase):

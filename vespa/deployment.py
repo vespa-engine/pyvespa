@@ -922,7 +922,10 @@ class VespaCloud(VespaDeployment):
                 application_package=self.application_package,
                 vespa_cloud_secret_token=vespa_cloud_secret_token,
             )
-        app.wait_for_application_up(max_wait=max_wait)
+        app.wait_for_application_up(
+            max_wait=max_wait,
+            wait_for_query_api=environment in {"dev", "perf"},
+        )
         return app
 
     def check_production_build_status(
@@ -2625,4 +2628,3 @@ class DataplaneToken:
     token: str
     fingerprint: str
     expiration: str
-

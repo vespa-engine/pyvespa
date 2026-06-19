@@ -3,14 +3,10 @@ from tempfile import TemporaryDirectory
 import os
 from unittest.mock import patch, MagicMock
 
-from urllib3.exceptions import HTTPError
-
-from vespa.deployment import VespaCloud, DataplaneToken
+from vespa.deployment import VespaCloud
 from vespa.package import (
     ApplicationPackage,
     AuthClient,
-    ContainerCluster,
-    Nodes,
     Parameter,
 )
 
@@ -178,6 +174,23 @@ class TestVespaCloud(unittest.TestCase):
         status = self.vespa_cloud.check_production_build_status(456)
 
         self.assertEqual(status, {"deployed": False, "status": "deploying"})
+
+    @patch("vespa.deployment.Vespa")
+    @patch("vespa.deployment.VespaCloud.get_mtls_endpoint")
+    @patch("vespa.deployment.VespaCloud.get_dev_region", return_value="aws-us-east-1c")
+    def test_get_application_waits_for_query_api_in_dev(
+        self, _mock_dev_region, mock_get_mtls_endpoint, mock_vespa
+    ):
+        mock_get_mtls_endpoint.return_value = "https://endpoint1.vespa.oath.cloud:4443"
+        mock_app = MagicMock()
+        mock_vespa.return_value = mock_app
+
+        app = self.vespa_cloud.get_application()
+
+        self.assertIs(app, mock_app)
+        mock_app.wait_for_application_up.assert_called_once_with(
+            max_wait=60, wait_for_query_api=True
+        )
 
     @patch("vespa.deployment.VespaCloud._request")
     def test_wait_for_prod_deployment_raises_on_failed_job(self, mock_request):
