@@ -2066,7 +2066,7 @@ wheels = [
 
 [[package]]
 name = "jupyterlab"
-version = "4.5.7"
+version = "4.5.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "async-lru" },
@@ -2084,9 +2084,9 @@ dependencies = [
     { name = "tornado" },
     { name = "traitlets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2b/22/8440ec827762146e7cdecf04335bd348795899d29dc6ae82238707353a2c/jupyterlab-4.5.7.tar.gz", hash = "sha256:55a9822c4754da305f41e113452c68383e214dcf96de760146af89ce5d5117b0", size = 23992763, upload-time = "2026-04-29T16:43:51.328Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e8/52/a8d4895bef501ffeb6af448e8bf7079541c7772978211963aa653518c2d9/jupyterlab-4.5.9.tar.gz", hash = "sha256:dd79a073fecae7a39066ea99e4627ed6c76269ac926e95a810e1e1df6358d865", size = 23994445, upload-time = "2026-06-17T15:42:16.406Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3d/aa/537b8f7d80e799af19af35fb3ddfc970b951088a13c57dd9387dcfbb7f61/jupyterlab-4.5.7-py3-none-any.whl", hash = "sha256:fba4cb0e2c44a52859669d8c98b45de029d5e515f8407bf8534d2a8fc5f0964d", size = 12450123, upload-time = "2026-04-29T16:43:46.639Z" },
+    { url = "https://files.pythonhosted.org/packages/c6/bb/2f9b425062416fba58f580c9b89c3b07277ccdf0a292501fedbca8ea00ea/jupyterlab-4.5.9-py3-none-any.whl", hash = "sha256:5ff0f908e8ac0afbed32b106fdef360f101c0a6654d1bf4a81e98a293ae1b336", size = 12449803, upload-time = "2026-06-17T15:42:12.18Z" },
 ]
 
 [[package]]
@@ -6191,11 +6191,11 @@ wheels = [
 
 [[package]]
 name = "vespacli"
-version = "8.687.75"
+version = "8.707.16"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/78/2e/ff1d264fe453b03ce6dca31ef491afaa09ef6e8c071c3a26f96d9b527470/vespacli-8.687.75.tar.gz", hash = "sha256:3c62ed6f2f6e8a258cbdbc9509164e13b57a63fe4ad543a70069a28cb9982c0a", size = 48565790, upload-time = "2026-05-12T02:37:31.073Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f7/dc/98b157837142b4af7583c4ceb7bb1db19e2fbc4a9f2c49887e1dfa656135/vespacli-8.707.16.tar.gz", hash = "sha256:8cb01379ee320987fb9e9c7402c89a74bd608eab5f8d1c3ac4829e2148e4e268", size = 48861718, upload-time = "2026-06-17T03:36:58.649Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/30/70/601a9a35257d124a8771d1c19c0bba0519579fd4ce8ef9145c813a113034/vespacli-8.687.75-py3-none-any.whl", hash = "sha256:e86a3989914c296023a929bd2158728564eff269a8bcb0609178211f23decab8", size = 48813842, upload-time = "2026-05-12T02:37:27.05Z" },
+    { url = "https://files.pythonhosted.org/packages/04/fc/c29e10140380fc4533ee387e04f1dd1fec55c5a3d6da56796f9dc19ddc9b/vespacli-8.707.16-py3-none-any.whl", hash = "sha256:5d3673583ce4096be65dc01affad5e357c794db956f9d30deea343964a00f98f", size = 49118294, upload-time = "2026-06-17T03:36:55.077Z" },
 ]
 
 [[package]]
