@@ -517,17 +517,24 @@ class Vespa(object):
 
     def _is_query_api_ready(self) -> bool:
         """Check if the query API is ready to serve requests."""
+        # Keep the readiness probe short so startup polling remains responsive.
+        query_timeout = "5s"
         health_query = {
             "yql": "select * from sources * where true",
             "hits": 0,
-            "timeout": "5s",
+            "timeout": query_timeout,
         }
-        with self.syncio() as sync_sess:
-            response = sync_sess._request_with_retry(
-                "POST",
-                self.search_end_point,
-                json_data=health_query,
-            )
+        try:
+            with self.syncio() as sync_sess:
+                response = sync_sess._request_with_retry(
+                    "POST",
+                    self.search_end_point,
+                    json_data=health_query,
+                )
+        except Exception as e:
+            if _is_connection_error(e):
+                return False
+            raise
         return response.status_code == 200
 
     def wait_for_application_up(
