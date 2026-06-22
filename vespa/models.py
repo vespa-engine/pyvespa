@@ -1411,11 +1411,7 @@ def create_hybrid_package(
         rank_profiles=[match_only_profile] + all_rank_profiles,
     )
 
-    # Raise the maxHits limit via the default query profile. Retrieval queries
-    # request `hits=top_k` (top_k can be up to ~1000), which exceeds Vespa's
-    # default maxHits of 400. maxHits is not overridable as a runtime query
-    # parameter ("maxHits must be specified in a query profile"), so it must be
-    # configured here.
+    # Raise the maxHits limit via the default query profile.
     query_profile = QueryProfile(fields=[QueryField(name="maxHits", value=10000)])
 
     # Create the application package
