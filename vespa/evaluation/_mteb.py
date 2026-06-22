@@ -217,10 +217,6 @@ class VespaMTEBApp(SearchProtocol):
         return hashlib.md5(combined.encode()).hexdigest()
 
     def common_query_params(self, top_k: int) -> dict[str, Any]:
-        # NOTE: maxHits must not be passed as a runtime query parameter - Vespa
-        # rejects it ("maxHits must be specified in a query profile"). It is set
-        # in the application's default query profile (see create_hybrid_package),
-        # which raises the limit so that hits=top_k requests are accepted.
         return {
             "hits": top_k,
             "timeout": "20s",
