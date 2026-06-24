@@ -4694,7 +4694,7 @@ requires-dist = [
     { name = "pyvespa", extras = ["unittest"], marker = "extra == 'dev'" },
     { name = "pyyaml", marker = "extra == 'feed'" },
     { name = "requests" },
-    { name = "requests", marker = "extra == 'feed'", specifier = "<=2.31.0" },
+    { name = "requests", marker = "extra == 'feed'", specifier = "<=2.33.0" },
     { name = "requests-mock", marker = "extra == 'unittest'" },
     { name = "requests-toolbelt" },
     { name = "ruff", marker = "extra == 'build'" },
@@ -5001,7 +5001,7 @@ wheels = [
 
 [[package]]
 name = "requests"
-version = "2.31.0"
+version = "2.33.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -5009,9 +5009,9 @@ dependencies = [
     { name = "idna" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9d/be/10918a2eac4ae9f02f6cfe6414b7a155ccd8f7f9d4380d62fd5b955065c3/requests-2.31.0.tar.gz", hash = "sha256:942c5a758f98d790eaed1a29cb6eefc7ffb0d1cf7af05c3d2791656dbd6ad1e1", size = 110794, upload-time = "2023-05-22T15:12:44.175Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/34/64/8860370b167a9721e8956ae116825caff829224fbca0ca6e7bf8ddef8430/requests-2.33.0.tar.gz", hash = "sha256:c7ebc5e8b0f21837386ad0e1c8fe8b829fa5f544d8df3b2253bff14ef29d7652", size = 134232, upload-time = "2026-03-25T15:10:41.586Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/70/8e/0e2d847013cb52cd35b38c009bb167a1a26b2ce6cd6965bf26b47bc0bf44/requests-2.31.0-py3-none-any.whl", hash = "sha256:58cd2187c01e70e6e26505bca751777aa9f2ee0b7f4300988b709f44e013003f", size = 62574, upload-time = "2023-05-22T15:12:42.313Z" },
+    { url = "https://files.pythonhosted.org/packages/56/5d/c814546c2333ceea4ba42262d8c4d55763003e767fa169adc693bd524478/requests-2.33.0-py3-none-any.whl", hash = "sha256:3324635456fa185245e24865e810cecec7b4caf933d7eb133dcde67d48cee69b", size = 65017, upload-time = "2026-03-25T15:10:40.382Z" },
 ]
 
 [[package]]
@@ -6191,11 +6191,11 @@ wheels = [
 
 [[package]]
 name = "vespacli"
-version = "8.687.75"
+version = "8.709.19"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/78/2e/ff1d264fe453b03ce6dca31ef491afaa09ef6e8c071c3a26f96d9b527470/vespacli-8.687.75.tar.gz", hash = "sha256:3c62ed6f2f6e8a258cbdbc9509164e13b57a63fe4ad543a70069a28cb9982c0a", size = 48565790, upload-time = "2026-05-12T02:37:31.073Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/69/9b/f0140b41a45df3e400a879445524266cc1972250b5fcb360608605ad2f5c/vespacli-8.709.19.tar.gz", hash = "sha256:71f117e0aa51c3d472cea2c1379bbc231d2ac06fad8eecb16ad18741ba28177e", size = 48876460, upload-time = "2026-06-22T03:43:17.01Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/30/70/601a9a35257d124a8771d1c19c0bba0519579fd4ce8ef9145c813a113034/vespacli-8.687.75-py3-none-any.whl", hash = "sha256:e86a3989914c296023a929bd2158728564eff269a8bcb0609178211f23decab8", size = 48813842, upload-time = "2026-05-12T02:37:27.05Z" },
+    { url = "https://files.pythonhosted.org/packages/c1/09/37a7786cbfbe7c567a39fb8d17405ec92ff1a16d60b7ca0f35184ec33429/vespacli-8.709.19-py3-none-any.whl", hash = "sha256:e3e406cab563b688a5ffb4b443dbea481490f11baa80e8526407d2863d59c074", size = 49133198, upload-time = "2026-06-22T03:43:12.63Z" },
 ]
 
 [[package]]
