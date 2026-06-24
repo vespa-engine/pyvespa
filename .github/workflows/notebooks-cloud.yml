@@ -68,6 +68,7 @@ jobs:
           CO_API_KEY: ${{ secrets.CO_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           echo "Running ${{ matrix.notebook }}"
 

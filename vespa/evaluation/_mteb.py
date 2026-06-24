@@ -219,7 +219,6 @@ class VespaMTEBApp(SearchProtocol):
     def common_query_params(self, top_k: int) -> dict[str, Any]:
         return {
             "hits": top_k,
-            "maxHits": top_k,
             "timeout": "20s",
         }
 
@@ -403,7 +402,9 @@ class VespaMTEBApp(SearchProtocol):
         empty_results = 0
         for qi, (qid, response) in enumerate(zip(query_ids, responses)):
             if not response.is_successful():
-                logger.error(f"Query {qid} failed: {response.status_code}")
+                logger.error(
+                    f"Query {qid} failed: {response.status_code} - {response.json}"
+                )
                 # Add a dummy result with score 0.0 to prevent evaluation pipeline errors
                 results[qid] = {"__dummy__": 0.0}
                 empty_results += 1

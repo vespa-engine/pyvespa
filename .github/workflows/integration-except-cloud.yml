@@ -40,5 +40,7 @@ jobs:
           pip install -e .[dev]
 
       - name: Run integration test
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           pytest tests/integration/${{ matrix.test-suite }} -s -v
