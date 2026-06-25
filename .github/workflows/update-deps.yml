@@ -1,0 +1,84 @@
+name: Update dependencies
+
+# Weekly: re-resolve uv.lock to latest allowed versions, gate on unit tests,
+# open one PR. The uv.lock change triggers the full CI matrix (the cloud
+# workflows include uv.lock in their path filters). Replaces per-dependency
+# Dependabot PRs. See TEST_STRATEGY.md.
+
+on:
+  schedule:
+    - cron: "0 5 * * 1" # Mondays 05:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      # App token, not GITHUB_TOKEN: PRs made with GITHUB_TOKEN don't trigger
+      # other workflows, which would skip CI on the dependency PR.
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.DEPS_BOT_APP_ID }}
+          private-key: ${{ secrets.DEPS_BOT_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: master # always bump master's deps, even on dispatch from a branch
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb # v6
+
+      - name: Upgrade lockfile to latest allowed versions
+        run: uv lock --upgrade
+
+      - name: Stop if nothing changed
+        id: diff
+        run: |
+          if git diff --quiet -- uv.lock; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No dependency updates available."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run unit tests (fast gate)
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: uv run --extra dev pytest tests/unit -s -v
+
+      - name: Create or update pull request
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          BRANCH="deps/weekly-uv-upgrade"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add uv.lock
+          git commit -m "chore(deps): weekly uv lock --upgrade"
+          # Bot-only branch, so a plain force push is fine (no lease ref is
+          # fetched on the shallow checkout).
+          git push --force origin "$BRANCH"
+
+          BODY=$'Automated `uv lock --upgrade`: bumps dependencies to the latest versions allowed by `pyproject.toml`. Unit tests passed in the upgrade job; the full CI matrix (including cloud suites, via their `uv.lock` path filter) runs on this PR. Merge once green. See `TEST_STRATEGY.md`.'
+
+          # `gh pr list --state open` so a previously merged PR on this branch
+          # doesn't suppress opening the new one.
+          if [ -n "$(gh pr list --head "$BRANCH" --base master --state open --json number -q '.[0].number')" ]; then
+            echo "Open PR already exists; branch updated."
+          else
+            gh pr create \
+              --base master \
+              --head "$BRANCH" \
+              --title "chore(deps): weekly dependency upgrade" \
+              --body "$BODY"
+          fi
