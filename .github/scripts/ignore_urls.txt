@@ -14,3 +14,4 @@ https://api.github.com/repos/*
 https://claude.ai/code
 https://openai.com/codex/
 https://realpython\.com/.*
+http://corpus-texmex.irisa.fr/*
