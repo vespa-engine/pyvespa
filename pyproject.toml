@@ -15,8 +15,7 @@ dependencies = [
     "httpr>=0.4.0",
     "docker",
     "jinja2",
-    "cryptography>=46.0.7",
-    "aiohttp",
+    "cryptography>=48.0.1",
     "tenacity>=8.4.1",
     "typing_extensions",
     "python-dateutil",
@@ -81,7 +80,7 @@ feed = [
     "PyYAML",
     "spacy",
     "mmh3",
-    "requests<=2.31.0",
+    "requests>=2.33.0",
     "html5lib",
     "beautifulsoup4",
     "markdownify",
@@ -177,6 +176,16 @@ docstring-code-line-length = "dynamic"
 ] # Ignore module level import not at top of file for notebooks
 
 [tool.uv]
+# Constraints to pull in security fixes for transitive dependencies.
+# These are not directly depended on, but are pinned to patched versions
+# to resolve security advisories.
 constraint-dependencies = [
     "pillow>=12.2.0",
+    "aiohttp>=3.14.1",            
+    "jupyter-server>=2.20.0",     
+    "jupyterlab>=4.5.9",          
+    "bleach>=6.4.0",              
+    "tornado>=6.5.7",             
+    "idna>=3.15",                 
+    "pymdown-extensions>=10.21.3", 
 ]
