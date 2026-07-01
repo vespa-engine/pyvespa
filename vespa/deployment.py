@@ -943,6 +943,9 @@ class VespaCloud(VespaDeployment):
             # - "hasFailed" (bool): True if any job for this build has ever failed.
             #       Once true, it stays true even if the system retries with a new run.
             # - "skipReason" (str, optional): Why the build was skipped, e.g. "no-changes" or "cancelled".
+            # - "absorbedIntoBuild" (int, optional): Set when this build was batched into a later
+            #       build by the deployment system and never deployed on its own. Check the
+            #       referenced build for the actual rollout.
             # - "jobs" (list): Per-job deployment details, each with "jobName", "runStatus",
             #       "runId", and "instance". The list grows as jobs are triggered.
             #
@@ -950,19 +953,19 @@ class VespaCloud(VespaDeployment):
             #
             # Example: early in deployment (only tests triggered so far):
             #    {"deployed": False, "status": "deploying", "hasFailed": False,
-            #     "jobs": [{"jobName": "system-test", "runStatus": "running"},
-            #              {"jobName": "staging-test", "runStatus": "running"}]}
+            #     "jobs": [{"jobName": "system-test", "runId": 332, "runStatus": "running", "instance": "default"},
+            #              {"jobName": "staging-test", "runId": 342, "runStatus": "running", "instance": "default"}]}
             #
             # Example: fully deployed:
             #    {"deployed": True, "status": "done", "hasFailed": False,
-            #     "jobs": [{"jobName": "system-test", "runStatus": "success"},
-            #              {"jobName": "staging-test", "runStatus": "success"},
-            #              {"jobName": "production-us-east-3", "runStatus": "success"}]}
+            #     "jobs": [{"jobName": "system-test", "runId": 332, "runStatus": "success", "instance": "default"},
+            #              {"jobName": "staging-test", "runId": 342, "runStatus": "success", "instance": "default"},
+            #              {"jobName": "production-us-east-3", "runId": 309, "runStatus": "success", "instance": "default"}]}
             #
             # Example: a job failed (system retries, but hasFailed stays true):
             #    {"deployed": False, "status": "deploying", "hasFailed": True,
-            #     "jobs": [{"jobName": "system-test", "runStatus": "success"},
-            #              {"jobName": "staging-test", "runStatus": "installationFailed"}]}
+            #     "jobs": [{"jobName": "system-test", "runId": 332, "runStatus": "success", "instance": "default"},
+            #              {"jobName": "staging-test", "runId": 342, "runStatus": "installationFailed", "instance": "default"}]}
             #
             # Example: skipped before any jobs triggered (no changes):
             #    {"deployed": False, "status": "done", "hasFailed": False,
@@ -971,8 +974,12 @@ class VespaCloud(VespaDeployment):
             # Example: cancelled after some jobs ran:
             #    {"deployed": False, "status": "done", "hasFailed": True,
             #     "skipReason": "cancelled",
-            #     "jobs": [{"jobName": "system-test", "runStatus": "success"},
-            #              {"jobName": "staging-test", "runStatus": "running"}]}
+            #     "jobs": [{"jobName": "system-test", "runId": 332, "runStatus": "success", "instance": "default"},
+            #              {"jobName": "staging-test", "runId": 342, "runStatus": "running", "instance": "default"}]}
+            #
+            # Example: batched into a later build (never deployed on its own):
+            #    {"deployed": False, "status": "done", "hasFailed": False,
+            #     "absorbedIntoBuild": 690, "jobs": []}
             ```
 
         Args:
@@ -1025,7 +1032,7 @@ class VespaCloud(VespaDeployment):
 
         Returns:
             bool: True if the build was deployed to all production zones, False if it completed
-                without deploying (e.g. skipped due to no changes).
+                without deploying (e.g. skipped due to no changes, or batched into a later build).
 
         Raises:
             RuntimeError: If any job for this build has failed. The deployment system may
@@ -1053,6 +1060,12 @@ class VespaCloud(VespaDeployment):
                 skip_reason = status.get("skipReason")
                 if skip_reason:
                     print(f"Build skipped: {skip_reason}", file=self.output)
+                absorbed_build = status.get("absorbedIntoBuild")
+                if absorbed_build:
+                    print(
+                        f"Build batched, check logs for build {absorbed_build} for more info.",
+                        file=self.output,
+                    )
                 return status["deployed"]
             time.sleep(poll_interval)
         raise TimeoutError(f"Deployment did not finish within {max_wait} seconds. ")
@@ -2596,6 +2609,7 @@ class VespaCloud(VespaDeployment):
                 file=self.output,
             )
 
+
 @dataclass
 class DataplaneToken:
     """A Vespa Cloud data-plane bearer token returned by
@@ -2625,4 +2639,3 @@ class DataplaneToken:
     token: str
     fingerprint: str
     expiration: str
-
