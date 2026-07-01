@@ -549,7 +549,7 @@ class TestDeployBatchProdWithTests(unittest.TestCase):
         schema_path = self.application_root / "schemas" / "music.sd"
         original_schema = schema_path.read_text()
         self.build_nos = []
-        # 3 ApplicationPackages are deployed. 1st package will deploy normal, 
+        # 3 ApplicationPackages are deployed. 1st package will deploy normal,
         # while deployment 2 gets absorbed into deployment 3
         for i in range(3):
             # Unique comment per deploy so hash differs and build is not skipped
@@ -572,7 +572,7 @@ class TestDeployBatchProdWithTests(unittest.TestCase):
         if not success:
             self.fail("Deployment failed")
 
-        # Build 2 gets batched/absorbed. 
+        # Build 2 gets batched/absorbed.
         success = self.vespa_cloud.wait_for_prod_deployment(
             build_no=self.build_nos[1], max_wait=3600 * 4
         )
@@ -608,6 +608,7 @@ class TestDeployBatchProdWithTests(unittest.TestCase):
             f.write(app_package.deployment_config.to_xml_string())
         # This will delete the deployment
         self.vespa_cloud._start_prod_deployment(self.application_root)
+
 
 class TestGetClusterEndpoint(unittest.TestCase):
     def setUp(self) -> None:
