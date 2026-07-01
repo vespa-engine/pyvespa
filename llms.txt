@@ -1,0 +1,69 @@
+# Vespa python API
+
+> pyvespa is the official Python API for [Vespa.ai](https://vespa.ai/), the scalable open-source serving engine for storing, computing, and ranking big data at user serving time. pyvespa lets you create, modify, deploy, and interact with Vespa applications from Python, enabling rapid prototyping and access to Vespa features including vector search, hybrid retrieval, ranking, and real-time serving.
+
+
+## Getting Started
+
+- [Vespa python API](https://vespa-engine.github.io/pyvespa/index.md): Landing page and overview of pyvespa features
+- [Hybrid Search - Quickstart](https://vespa-engine.github.io/pyvespa/getting-started-pyvespa.md): Hybrid search quickstart with Docker
+- [Hybrid Search - Quickstart on Vespa Cloud](https://vespa-engine.github.io/pyvespa/getting-started-pyvespa-cloud.md): Hybrid search quickstart on Vespa Cloud
+
+## Guides
+
+- [Advanced Configuration](https://vespa-engine.github.io/pyvespa/advanced-configuration.md): Advanced configuration of Vespa applications
+- [Authenticating to Vespa Cloud](https://vespa-engine.github.io/pyvespa/authenticating-to-vespa-cloud.md): Authentication and certificates for Vespa Cloud
+- [Application packages](https://vespa-engine.github.io/pyvespa/application-packages.md): Defining application packages with schemas, fields, and rank profiles
+- [Querying Vespa](https://vespa-engine.github.io/pyvespa/query.md): Querying Vespa applications with YQL and the QueryBuilder DSL
+- [Read and write operations](https://vespa-engine.github.io/pyvespa/reads-writes.md): Document read and write operations
+- [Evaluating a Vespa Application](https://vespa-engine.github.io/pyvespa/evaluating-vespa-application-cloud.md): Evaluating search quality and collecting training data
+- [Getting help from AI](https://vespa-engine.github.io/pyvespa/getting-help-from-ai.md): LLM-optimized docs, llms.txt, and AI assistant instructions
+- [Troubleshooting](https://vespa-engine.github.io/pyvespa/troubleshooting.md): Common issues and troubleshooting tips
+- [ANN Parameter Tuning](https://vespa-engine.github.io/pyvespa/ann-parameters.md): ANN (approximate nearest neighbor) parameter tuning
+
+## Examples
+
+- [Examples](https://vespa-engine.github.io/pyvespa/examples/index.md): Examples overview and index
+- [Matryoshka embeddings in Vespa cloud](https://vespa-engine.github.io/pyvespa/examples/Matryoshka_embeddings_in_Vespa-cloud.md)
+- [Ann parameter tuning vespa cloud](https://vespa-engine.github.io/pyvespa/examples/ann-parameter-tuning-vespa-cloud.md)
+- [Billion scale vector search with cohere embeddings cloud](https://vespa-engine.github.io/pyvespa/examples/billion-scale-vector-search-with-cohere-embeddings-cloud.md)
+- [chat with your pdfs using colbert langchain and Vespa cloud](https://vespa-engine.github.io/pyvespa/examples/chat_with_your_pdfs_using_colbert_langchain_and_Vespa-cloud.md)
+- [Cohere binary vectors in vespa cloud](https://vespa-engine.github.io/pyvespa/examples/cohere-binary-vectors-in-vespa-cloud.md)
+- [colbert standalone Vespa cloud](https://vespa-engine.github.io/pyvespa/examples/colbert_standalone_Vespa-cloud.md)
+- [colbert standalone long context Vespa cloud](https://vespa-engine.github.io/pyvespa/examples/colbert_standalone_long_context_Vespa-cloud.md)
+- [colpali benchmark vqa vlm Vespa cloud](https://vespa-engine.github.io/pyvespa/examples/colpali-benchmark-vqa-vlm_Vespa-cloud.md)
+- [Colpali document retrieval vision language models cloud](https://vespa-engine.github.io/pyvespa/examples/colpali-document-retrieval-vision-language-models-cloud.md)
+- [Cross encoders for global reranking](https://vespa-engine.github.io/pyvespa/examples/cross-encoders-for-global-reranking.md)
+- [Evaluating with snowflake arctic embed](https://vespa-engine.github.io/pyvespa/examples/evaluating-with-snowflake-arctic-embed.md)
+- [Feed performance](https://vespa-engine.github.io/pyvespa/examples/feed_performance.md)
+- [Feed performance cloud](https://vespa-engine.github.io/pyvespa/examples/feed_performance_cloud.md)
+- [Lightgbm with categorical mapping](https://vespa-engine.github.io/pyvespa/examples/lightgbm-with-categorical-mapping.md)
+- [Lightgbm with categorical](https://vespa-engine.github.io/pyvespa/examples/lightgbm-with-categorical.md)
+- [Mixedbread binary embeddings with sentence transformers cloud](https://vespa-engine.github.io/pyvespa/examples/mixedbread-binary-embeddings-with-sentence-transformers-cloud.md)
+- [Mother of all embedding models cloud](https://vespa-engine.github.io/pyvespa/examples/mother-of-all-embedding-models-cloud.md)
+- [Multi vector indexing](https://vespa-engine.github.io/pyvespa/examples/multi-vector-indexing.md)
+- [Multilingual multi vector reps with cohere cloud](https://vespa-engine.github.io/pyvespa/examples/multilingual-multi-vector-reps-with-cohere-cloud.md)
+- [pdf retrieval with ColQwen2 vlm Vespa cloud](https://vespa-engine.github.io/pyvespa/examples/pdf-retrieval-with-ColQwen2-vlm_Vespa-cloud.md)
+- [Pyvespa examples](https://vespa-engine.github.io/pyvespa/examples/pyvespa-examples.md)
+- [Rag blueprint vespa cloud](https://vespa-engine.github.io/pyvespa/examples/rag-blueprint-vespa-cloud.md)
+- [Scaling personal ai assistants with streaming mode cloud](https://vespa-engine.github.io/pyvespa/examples/scaling-personal-ai-assistants-with-streaming-mode-cloud.md)
+- [simplified retrieval with colpali vlm Vespa cloud](https://vespa-engine.github.io/pyvespa/examples/simplified-retrieval-with-colpali-vlm_Vespa-cloud.md)
+- [Turbocharge rag with langchain and vespa streaming mode cloud](https://vespa-engine.github.io/pyvespa/examples/turbocharge-rag-with-langchain-and-vespa-streaming-mode-cloud.md)
+- [Video search twelvelabs cloud](https://vespa-engine.github.io/pyvespa/examples/video_search_twelvelabs_cloud.md)
+- [Visual pdf rag with vespa colpali cloud](https://vespa-engine.github.io/pyvespa/examples/visual_pdf_rag_with_vespa_colpali_cloud.md)
+- [Voyage ai embeddings cloud](https://vespa-engine.github.io/pyvespa/examples/voyage-ai-embeddings-cloud.md)
+
+## API Reference
+
+- [Summary](https://vespa-engine.github.io/pyvespa/api/summary.md): API reference overview
+- [Application](https://vespa-engine.github.io/pyvespa/api/vespa/application.md): Vespa application (data-plane operations)
+- [Deployment](https://vespa-engine.github.io/pyvespa/api/vespa/deployment.md): Deployment (VespaCloud, VespaDocker)
+- [Evaluation](https://vespa-engine.github.io/pyvespa/api/vespa/evaluation.md): Search evaluation utilities
+- [Exceptions](https://vespa-engine.github.io/pyvespa/api/vespa/exceptions.md): Exception types
+- [IO](https://vespa-engine.github.io/pyvespa/api/vespa/io.md): Response objects (VespaResponse, VespaQueryResponse)
+- [Models](https://vespa-engine.github.io/pyvespa/api/vespa/models.md): Data models and type definitions
+- [Package](https://vespa-engine.github.io/pyvespa/api/vespa/package.md): Application package builder (Schema, Field, RankProfile)
+- [Builder](https://vespa-engine.github.io/pyvespa/api/vespa/querybuilder/builder/builder.md): QueryBuilder DSL
+- [Grouping](https://vespa-engine.github.io/pyvespa/api/vespa/querybuilder/grouping/grouping.md): Grouping queries
+- [Throttling](https://vespa-engine.github.io/pyvespa/api/vespa/throttling.md): Adaptive feed throttling
+
