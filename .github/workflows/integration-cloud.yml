@@ -6,7 +6,7 @@ on:
     branches:
       - master
   pull_request:
-    paths: [".github/workflows/integration-cloud.yml"]
+    paths: [".github/workflows/integration-cloud.yml", "uv.lock"]
   schedule:
     - cron: "0 11 * * 0"
 

@@ -1,0 +1,16 @@
+# Python version bumps are handled by update-deps.yml (weekly uv re-lock), so no
+# pip ecosystem here. Security alerts stay on via repo settings, independent of
+# this file. Actions are kept current here, grouped into one PR.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "chore(ci)"
