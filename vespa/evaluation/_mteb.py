@@ -29,7 +29,13 @@ except ImportError as e:
     ) from e
 
 from vespa.models import ApplicationPackageWithQueryFunctions
-from vespa.models import create_hybrid_package, ModelConfig, get_model_config
+from vespa.models import (
+    create_hybrid_package,
+    create_single_app_hybrid_package,
+    sanitize_component_id,
+    ModelConfig,
+    get_model_config,
+)
 from vespa.deployment import VespaDocker, VespaCloud
 from vespa.application import Vespa as VespaApp
 from vespa.io import VespaResponse
@@ -41,6 +47,25 @@ logging.basicConfig(
     handlers=[logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
+
+# Vespa Cloud tenant/application/instance names allow lowercase letters, digits
+# and hyphens, up to 20 characters.
+_MAX_APPLICATION_NAME_LENGTH = 20
+
+
+def _derive_application_name(eval_name: str) -> str:
+    """Derive a valid Vespa Cloud application name from an evaluation name.
+
+    Lowercases and hyphenates the name. When combining several task names yields
+    a name longer than Vespa Cloud allows, it is truncated and a short
+    deterministic hash suffix is appended to keep it unique.
+    """
+    name = eval_name.lower().replace("_", "-")
+    if len(name) <= _MAX_APPLICATION_NAME_LENGTH:
+        return name
+    digest = hashlib.md5(eval_name.encode()).hexdigest()[:6]
+    keep = _MAX_APPLICATION_NAME_LENGTH - len(digest) - 1  # -1 for the hyphen
+    return f"{name[:keep].rstrip('-')}-{digest}"
 
 
 class VespaMTEBApp(SearchProtocol):
@@ -83,6 +108,12 @@ class VespaMTEBApp(SearchProtocol):
 
         self.port = port
         self._current_task_name: Optional[str] = None
+
+        # When True, all tasks are deployed with separate schemas to one Vespa
+        # application (may require a lot of memory for large tasks / embedding
+        # dimensions / many models).
+        self.single_app: bool = kwargs.pop("single_app", False)
+        self.task_schema_map: dict[str, str] = kwargs.pop("task_schema_map", None) or {}
 
         # Deployment target configuration
         self.deployment_target: Literal["docker", "cloud"] = kwargs.pop(
@@ -237,6 +268,9 @@ class VespaMTEBApp(SearchProtocol):
         )
 
     def get_query_functions(self) -> dict[str, Callable]:
+        if self.single_app:
+            schema_name = self.task_schema_map[self._current_task_name]
+            return self.package.get_query_functions_for_schema(schema_name)
         return self.package.get_query_functions()
 
     def get_timeout(self) -> float:
@@ -297,11 +331,22 @@ class VespaMTEBApp(SearchProtocol):
             f"Starting indexing for model(s) '{model_ids}' and task '{task_name}'"
         )
 
-        # Ensure clean state before deploying new container
-        self.ensure_clean_state()
+        if self.single_app:
+            schema_name = self.task_schema_map[task_name]
+            if self.app is None:
+                logger.info("Deploying single Vespa application for all tasks...")
+                self.app: Vespa = self._deploy()
+            else:
+                logger.info(
+                    f"Reusing deployed application; feeding schema '{schema_name}'."
+                )
+        else:
+            schema_name = "doc"
+            # Ensure clean state before deploying new container
+            self.ensure_clean_state()
 
-        logger.info("Deploying Vespa application...")
-        self.app: Vespa = self._deploy()
+            logger.info("Deploying Vespa application...")
+            self.app: Vespa = self._deploy()
 
         logger.info("Starting to index corpus...")
 
@@ -334,7 +379,9 @@ class VespaMTEBApp(SearchProtocol):
                 logger.error(f"Error feeding doc {doc_id}: {response.json}")
 
         vespa_feed = corpus_to_vespa_feed(corpus)
-        self.app.feed_iterable(vespa_feed, schema="doc", callback=feed_callback)
+        self.app.feed_async_iterable(
+            vespa_feed, schema=schema_name, callback=feed_callback
+        )
 
         logger.info(
             f"Successfully indexed {fed_count} documents to Vespa (errors: {error_count})"
@@ -460,12 +507,15 @@ class VespaMTEBEvaluator:
 
     Args:
         model_configs: One or more ModelConfig instances or model name strings.
-        task_name: Name of a single MTEB task to evaluate (mutually exclusive with benchmark_name).
+        task_name: Name of a single MTEB task, or a list of task names, to evaluate
+            (mutually exclusive with benchmark_name)
         benchmark_name: Name of an MTEB benchmark to evaluate (mutually exclusive with task_name).
         results_dir: Directory to save results. Defaults to "results".
         overwrite: If False, skip evaluations where results already exist. Defaults to False.
         deployment_target: Where to deploy Vespa. Either "docker" or "cloud". Defaults to "cloud".
         port: Vespa application port (Docker only). Defaults to 8080.
+        single_app: If True, deploy a single application with one schema per task and
+            evaluate all tasks against it. May require a lot of memory for large tasks / embedding dimensions / many models.
         tenant: Vespa Cloud tenant name. Required when deployment_target="cloud".
         application: Vespa Cloud application name. Defaults to benchmark/task name if not specified.
         instance: Vespa Cloud instance name. Defaults to "default".
@@ -490,17 +540,27 @@ class VespaMTEBEvaluator:
         ...     key_content=os.getenv("VESPA_API_KEY"),
         ... )
         >>> evaluator.evaluate()
+
+    Example (single application for several tasks):
+        >>> evaluator = VespaMTEBEvaluator(
+        ...     model_configs="e5-small-v2",
+        ...     task_name=["NanoSciFactRetrieval", "NanoNFCorpusRetrieval"],
+        ...     deployment_target="docker",
+        ...     single_app=True,
+        ... )
+        >>> evaluator.evaluate()
     """
 
     def __init__(
         self,
         model_configs: ModelConfig | str | List[ModelConfig | str],
-        task_name: str | None = None,
+        task_name: str | List[str] | None = None,
         benchmark_name: str | None = None,
         results_dir: str | Path = "results",
         overwrite: bool = False,
         deployment_target: Literal["docker", "cloud"] = "cloud",
         port: int = 8080,
+        single_app: bool = False,
         # Cloud-specific parameters
         tenant: str | None = None,
         application: str | None = None,
@@ -518,6 +578,8 @@ class VespaMTEBEvaluator:
             raise ValueError(
                 "Either 'task_name' or 'benchmark_name' must be specified."
             )
+        if isinstance(task_name, list) and not task_name:
+            raise ValueError("'task_name' must not be an empty list.")
 
         # Normalize model_configs to list of ModelConfig instances
         self.model_configs = self._normalize_model_configs(model_configs)
@@ -527,6 +589,7 @@ class VespaMTEBEvaluator:
         self.results_dir = Path(results_dir)
         self.overwrite = overwrite
         self.port = port
+        self.single_app = single_app
 
         # Deployment configuration
         self.deployment_target = deployment_target
@@ -538,9 +601,7 @@ class VespaMTEBEvaluator:
 
         # Derive application name from benchmark/task name if not specified
         if application is None:
-            eval_name = benchmark_name or task_name
-            # Sanitize the name for Vespa Cloud (lowercase, alphanumeric and hyphens)
-            self.application = eval_name.lower().replace("_", "-")
+            self.application = _derive_application_name(self._get_eval_name())
         else:
             self.application = application
 
@@ -550,14 +611,52 @@ class VespaMTEBEvaluator:
                 raise ValueError("'tenant' is required when deployment_target='cloud'")
 
         # Create the application package
-        self.package = create_hybrid_package(self.model_configs)
-        self.query_function_names = list(self.package.get_query_functions().keys())
+        if self.single_app:
+            # One schema per task, served by a single deployed application.
+            self._task_schema_map = self._build_task_schema_map()
+            self.package = create_single_app_hybrid_package(
+                self.model_configs,
+                schema_names=list(self._task_schema_map.values()),
+            )
+            # Query function names are the logical names shared by every schema.
+            self.query_function_names = list(
+                next(iter(self.package.schema_query_functions.values())).keys()
+            )
+        else:
+            self._task_schema_map = {}
+            self.package = create_hybrid_package(self.model_configs)
+            self.query_function_names = list(self.package.get_query_functions().keys())
 
         # Compute model suffix for file naming
         self.model_suffix = self._get_model_suffix()
 
         # Track the VespaMTEBApp instance for lifecycle management
         self._vespa_app: Optional[VespaMTEBApp] = None
+
+    def _resolve_task_names(self) -> List[str]:
+        """Resolve the canonical MTEB task names to evaluate.
+
+        Derived from :meth:`_get_tasks` so the task->schema map is keyed by the
+        same ``task_metadata.name`` that ``index()``/``search()`` look up at
+        runtime (a user-supplied name may differ from MTEB's canonical name).
+        """
+        return [task.metadata.name for task in self._get_tasks()]
+
+    def _build_task_schema_map(self) -> dict:
+        """Map each task name to a unique, valid Vespa schema name."""
+        task_schema_map: dict[str, str] = {}
+        used: set[str] = set()
+        for task_name in self._resolve_task_names():
+            schema_name = sanitize_component_id(task_name).lower()
+            # preemptively disambiguate if two task names sanitize to the same schema name.
+            if schema_name in used:
+                suffix = 2
+                while f"{schema_name}{suffix}" in used:
+                    suffix += 1
+                schema_name = f"{schema_name}{suffix}"
+            used.add(schema_name)
+            task_schema_map[task_name] = schema_name
+        return task_schema_map
 
     def _normalize_model_configs(
         self, model_input: ModelConfig | str | List[ModelConfig | str]
@@ -685,6 +784,8 @@ class VespaMTEBEvaluator:
                 "key_location": self.key_location,
                 "auto_cleanup": self.auto_cleanup,
                 "disk_folder": disk_folder,
+                "single_app": self.single_app,
+                "task_schema_map": self._task_schema_map,
             },
             name=f"vespa/{self.model_suffix}_hybrid_vespa",
             languages=["eng-Latn"],
@@ -716,13 +817,19 @@ class VespaMTEBEvaluator:
         if self.benchmark_name is not None:
             benchmark = mteb.get_benchmark(self.benchmark_name)
             return list(benchmark.tasks)
+        if isinstance(self.task_name, list):
+            return [mteb.get_task(name) for name in self.task_name]
         # task_name is guaranteed to be set by __init__ validation
         return [mteb.get_task(self.task_name)]  # type: ignore[arg-type]
 
     def _get_eval_name(self) -> str:
         """Get the evaluation name (benchmark or task name)."""
-        # One of these is guaranteed to be set by __init__ validation
-        return self.benchmark_name or self.task_name  # type: ignore[return-value]
+        if self.benchmark_name is not None:
+            return self.benchmark_name
+        if isinstance(self.task_name, list):
+            # Combine task names into a single evaluation name.
+            return "-".join(self.task_name)
+        return self.task_name
 
     def evaluate(self) -> dict:
         """

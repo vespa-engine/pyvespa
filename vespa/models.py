@@ -1132,7 +1132,7 @@ def _create_query_functions(
 
     def bm25_query_fn(query_text: str, top_k: int) -> dict:
         return {
-            "yql": "select * from sources * where userQuery();",  # provide the yql directly as a string
+            "yql": str(qb.select("*").from_(schema_name).where(qb.userQuery())),
             "query": query_text,
             "ranking": f"bm25{profile_suffix}",
             "hits": top_k,
@@ -1219,10 +1219,15 @@ class ApplicationPackageWithQueryFunctions(ApplicationPackage):
     def __init__(
         self,
         query_functions: Optional[Dict[str, Callable[[str, int], dict]]] = None,
+        schema_query_functions: Optional[
+            Dict[str, Dict[str, Callable[[str, int], dict]]]
+        ] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.query_functions = query_functions or {}
+        # Only used for single vespa application, multi-schema packages
+        self.schema_query_functions = schema_query_functions or {}
 
     def get_query_functions(self) -> Dict[str, Callable[[str, int], dict]]:
         """
@@ -1232,6 +1237,173 @@ class ApplicationPackageWithQueryFunctions(ApplicationPackage):
             Dict of query functions
         """
         return self.query_functions
+
+    def get_query_functions_for_schema(
+        self, schema_name: str
+    ) -> Dict[str, Callable[[str, int], dict]]:
+        """
+        Get the query functions scoped to a single schema.
+
+        Only meaningful for packages created with
+        :func:`create_single_app_hybrid_package`, where each schema has its
+        own set of query functions targeting that schema.
+
+        Args:
+            schema_name: Name of the schema to retrieve query functions for.
+
+        Returns:
+            Dict of query functions for the given schema.
+
+        Raises:
+            KeyError: If the schema is unknown.
+        """
+        if schema_name not in self.schema_query_functions:
+            raise KeyError(
+                f"No query functions for schema '{schema_name}'. "
+                f"Available schemas: {list(self.schema_query_functions.keys())}"
+            )
+        return self.schema_query_functions[schema_name]
+
+
+def _resolve_model_configs(
+    models: Union[str, ModelConfig, List[Union[str, ModelConfig]], List[ModelConfig]],
+) -> List[ModelConfig]:
+    """Normalize the ``models`` argument to a non-empty list of ModelConfig."""
+    if isinstance(models, (str, ModelConfig)):
+        model_configs = [models]
+    else:
+        model_configs = list(models)
+
+    if not model_configs:
+        raise ValueError("At least one model must be provided")
+
+    resolved_configs = []
+    for model in model_configs:
+        if isinstance(model, str):
+            resolved_configs.append(get_model_config(model))
+        else:
+            resolved_configs.append(model)
+    return resolved_configs
+
+
+def _build_schema_artifacts(
+    resolved_configs: List[ModelConfig],
+    schema_name: str,
+    global_rerank_count: int = 1000,
+) -> tuple[Schema, List[Component], Dict[str, Callable[[str, int], dict]]]:
+    """
+    Build the schema, embedder components, and query functions for one schema.
+
+    Used by both :func:`create_hybrid_package` (single schema) and
+    :func:`create_single_app_hybrid_package` (one schema per task). Components
+    are de-duplicated within this schema by component_id; callers building
+    multiple schemas should de-duplicate components across schemas.
+
+    Args:
+        resolved_configs: List of ModelConfig instances (already resolved).
+        schema_name: Name of the schema to build.
+        global_rerank_count: Number of hits to rerank in global phase.
+
+    Returns:
+        A tuple of (schema, components, query_functions) for this schema.
+    """
+    # Determine if we have multiple models (affects naming)
+    is_multi_model = len(resolved_configs) > 1
+
+    # Check for component_id collisions (same model_id but different dim/type)
+    # If collisions exist, we need to use full unique identifiers for all configs
+    component_ids = [c.component_id for c in resolved_configs]
+    has_component_id_collisions = len(component_ids) != len(set(component_ids))
+
+    components = []
+    seen_component_ids = set()  # Track which component_ids we've already added
+    all_embedding_fields = []
+    all_rank_profiles = []
+    match_only_inputs = []
+    query_functions = {}
+
+    for config in resolved_configs:
+        # Create unique identifiers for multi-model setup
+        # Use full unique identifier (with dim/type) if there are component_id collisions
+        if has_component_id_collisions:
+            unique_id = _get_model_string(config)
+        else:
+            unique_id = config.component_id
+
+        profile_suffix = f"_{unique_id}" if is_multi_model else ""
+        embedding_field_name = (
+            f"embedding_{unique_id}" if is_multi_model else "embedding"
+        )
+        query_tensor = f"q{profile_suffix}"
+
+        # Create and collect component - only if we haven't seen this component_id yet
+        # Multiple ModelConfigs with the same model_id share the same embedder
+        if config.component_id not in seen_component_ids:
+            components.append(create_embedder_component(config))
+            seen_component_ids.add(config.component_id)
+
+        # Create and collect embedding field
+        embedding_field = create_embedding_field(
+            config, field_name=embedding_field_name, embedder_id=config.component_id
+        )
+        all_embedding_fields.append(embedding_field)
+
+        # Track query inputs for match-only profile
+        match_only_inputs.append((f"query({query_tensor})", embedding_field.type))
+
+        # Create and collect all rank profiles for this model
+        all_rank_profiles.extend(
+            _create_model_profiles(
+                config,
+                embedding_field_name,
+                profile_suffix,
+                query_tensor,
+                global_rerank_count,
+            )
+        )
+        # Create and collect query functions for this model
+        query_functions.update(
+            _create_query_functions(
+                config,
+                embedding_field_name,
+                schema_name,
+                query_tensor,
+                profile_suffix,
+            )
+        )
+
+    # Create match-only profile with inputs for all models
+    match_only_profile = RankProfile(
+        name="match-only",
+        inputs=match_only_inputs,
+        first_phase="random",
+    )
+
+    # Build the schema with all fields
+    schema = Schema(
+        name=schema_name,
+        document=Document(
+            fields=[
+                Field(
+                    name="id",
+                    type="string",
+                    indexing=["summary", "attribute"],
+                ),
+                Field(
+                    name="text",
+                    type="string",
+                    indexing=["index", "summary"],
+                    index="enable-bm25",
+                    bolding=True,
+                ),
+            ]
+            + all_embedding_fields
+        ),
+        fieldsets=[FieldSet(name="default", fields=["text"])],
+        rank_profiles=[match_only_profile] + all_rank_profiles,
+    )
+
+    return schema, components, query_functions
 
 
 def create_hybrid_package(
@@ -1299,116 +1471,10 @@ def create_hybrid_package(
         2
     """
     # Normalize input to a list of ModelConfig objects
-    if isinstance(models, (str, ModelConfig)):
-        model_configs = [models]
-    else:
-        model_configs = list(models)
+    resolved_configs = _resolve_model_configs(models)
 
-    if not model_configs:
-        raise ValueError("At least one model must be provided")
-
-    # Convert string model names to ModelConfig objects
-    resolved_configs = []
-    for model in model_configs:
-        if isinstance(model, str):
-            resolved_configs.append(get_model_config(model))
-        else:
-            resolved_configs.append(model)
-
-    # Determine if we have multiple models (affects naming)
-    is_multi_model = len(resolved_configs) > 1
-
-    # Check for component_id collisions (same model_id but different dim/type)
-    # If collisions exist, we need to use full unique identifiers for all configs
-    component_ids = [c.component_id for c in resolved_configs]
-    has_component_id_collisions = len(component_ids) != len(set(component_ids))
-
-    # Build components, fields, and profiles for each model
-    all_components = []
-    seen_component_ids = set()  # Track which component_ids we've already added
-    all_embedding_fields = []
-    all_rank_profiles = []
-    match_only_inputs = []
-    query_functions = {}
-
-    for config in resolved_configs:
-        # Create unique identifiers for multi-model setup
-        # Use full unique identifier (with dim/type) if there are component_id collisions
-        if has_component_id_collisions:
-            unique_id = _get_model_string(config)
-        else:
-            unique_id = config.component_id
-
-        profile_suffix = f"_{unique_id}" if is_multi_model else ""
-        embedding_field_name = (
-            f"embedding_{unique_id}" if is_multi_model else "embedding"
-        )
-        query_tensor = f"q{profile_suffix}"
-
-        # Create and collect component - only if we haven't seen this component_id yet
-        # Multiple ModelConfigs with the same model_id share the same embedder
-        if config.component_id not in seen_component_ids:
-            all_components.append(create_embedder_component(config))
-            seen_component_ids.add(config.component_id)
-
-        # Create and collect embedding field
-        embedding_field = create_embedding_field(
-            config, field_name=embedding_field_name, embedder_id=config.component_id
-        )
-        all_embedding_fields.append(embedding_field)
-
-        # Track query inputs for match-only profile
-        match_only_inputs.append((f"query({query_tensor})", embedding_field.type))
-
-        # Create and collect all rank profiles for this model
-        all_rank_profiles.extend(
-            _create_model_profiles(
-                config,
-                embedding_field_name,
-                profile_suffix,
-                query_tensor,
-                global_rerank_count,
-            )
-        )
-        # Create and collect query functions for this model
-        model_query_functions = _create_query_functions(
-            config,
-            embedding_field_name,
-            schema_name,
-            query_tensor,
-            profile_suffix,
-        )
-        query_functions.update(model_query_functions)
-
-    # Create match-only profile with inputs for all models
-    match_only_profile = RankProfile(
-        name="match-only",
-        inputs=match_only_inputs,
-        first_phase="random",
-    )
-
-    # Build the schema with all fields
-    schema = Schema(
-        name=schema_name,
-        document=Document(
-            fields=[
-                Field(
-                    name="id",
-                    type="string",
-                    indexing=["summary", "attribute"],
-                ),
-                Field(
-                    name="text",
-                    type="string",
-                    indexing=["index", "summary"],
-                    index="enable-bm25",
-                    bolding=True,
-                ),
-            ]
-            + all_embedding_fields
-        ),
-        fieldsets=[FieldSet(name="default", fields=["text"])],
-        rank_profiles=[match_only_profile] + all_rank_profiles,
+    schema, all_components, query_functions = _build_schema_artifacts(
+        resolved_configs, schema_name, global_rerank_count
     )
 
     # Raise the maxHits limit via the default query profile.
@@ -1420,5 +1486,86 @@ def create_hybrid_package(
         schema=[schema],
         components=all_components,
         query_functions=query_functions,
+        query_profile=query_profile,
+    )
+
+
+def create_single_app_hybrid_package(
+    models: Union[str, ModelConfig, List[Union[str, ModelConfig]], List[ModelConfig]],
+    schema_names: List[str],
+    app_name: str = "hybridapp",
+    global_rerank_count: int = 1000,
+) -> ApplicationPackageWithQueryFunctions:
+    """
+    Create a single Vespa application package with one schema per task.
+
+    Unlike :func:`create_hybrid_package`, which builds a single ``doc`` schema,
+    this builds one schema per entry in ``schema_names``, all served by the same
+    application. This lets several MTEB tasks be evaluated against one deployed
+    application (avoiding deploy/feed/teardown per task): each task feeds and
+    queries only its own schema.
+
+    Every schema is configured identically (same fields, rank profiles and query
+    functions as :func:`create_hybrid_package`), and the embedder components are
+    shared across all schemas. The returned package exposes per-schema query
+    functions via :meth:`ApplicationPackageWithQueryFunctions.get_query_functions_for_schema`.
+
+    Args:
+        models: Single model or list of models to configure. Each can be a string
+            model name (e.g. "e5-small-v2") or a ModelConfig instance.
+        schema_names: Names of the schemas to create (one per task). Must be valid,
+            unique Vespa identifiers.
+        app_name: Name of the application (default: "hybridapp").
+        global_rerank_count: Number of hits to rerank in global phase (default: 1000).
+
+    Returns:
+        ApplicationPackageWithQueryFunctions with one schema per name, shared
+        embedder components, and per-schema query functions in
+        ``schema_query_functions``.
+
+    Raises:
+        ValueError: If no schemas are provided or schema names are not unique.
+
+    Example:
+        >>> package = create_single_app_hybrid_package(
+        ...     "e5-small-v2", schema_names=["taska", "taskb"]
+        ... )
+        >>> sorted(s.name for s in package.schemas)
+        ['taska', 'taskb']
+        >>> sorted(package.get_query_functions_for_schema("taska").keys())
+        ['atan_norm', 'bm25', 'fusion', 'norm_linear', 'semantic']
+    """
+    if not schema_names:
+        raise ValueError("At least one schema name must be provided")
+    if len(schema_names) != len(set(schema_names)):
+        raise ValueError(f"Schema names must be unique, got: {schema_names}")
+
+    resolved_configs = _resolve_model_configs(models)
+
+    schemas = []
+    all_components: List[Component] = []
+    seen_component_ids: set = set()  # De-duplicate embedders across all schemas
+    schema_query_functions: Dict[str, Dict[str, Callable[[str, int], dict]]] = {}
+
+    for schema_name in schema_names:
+        schema, components, query_functions = _build_schema_artifacts(
+            resolved_configs, schema_name, global_rerank_count
+        )
+        schemas.append(schema)
+        schema_query_functions[schema_name] = query_functions
+        # Embedder components are application-wide; add each only once.
+        for component in components:
+            if component.id not in seen_component_ids:
+                all_components.append(component)
+                seen_component_ids.add(component.id)
+
+    # Raise the maxHits limit via the default query profile.
+    query_profile = QueryProfile(fields=[QueryField(name="maxHits", value=10000)])
+
+    return ApplicationPackageWithQueryFunctions(
+        name=app_name,
+        schema=schemas,
+        components=all_components,
+        schema_query_functions=schema_query_functions,
         query_profile=query_profile,
     )
