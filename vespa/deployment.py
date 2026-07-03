@@ -947,13 +947,15 @@ class VespaCloud(VespaDeployment):
             #       build by the deployment system and never deployed on its own. Check the
             #       referenced build for the actual rollout.
             # - "jobs" (list): Per-job deployment details, each with "jobName", "runStatus",
-            #       "runId", and "instance". The list grows as jobs are triggered.
+            #       "runId", "instance", and "url" (the canonical console URL for that run). The list grows as jobs
+            #       are triggered.
             #
             # Each job shows the most recent run's status for this build.
             #
             # Example: early in deployment (only tests triggered so far):
             #    {"deployed": False, "status": "deploying", "hasFailed": False,
-            #     "jobs": [{"jobName": "system-test", "runId": 332, "runStatus": "running", "instance": "default"},
+            #     "jobs": [{"jobName": "system-test", "runId": 332, "runStatus": "running", "instance": "default",
+            #               "url": "https://console.vespa-cloud.com/tenant/t/application/a/prod/deployment/run/system-test/332"},
             #              {"jobName": "staging-test", "runId": 342, "runStatus": "running", "instance": "default"}]}
             #
             # Example: fully deployed:
@@ -1051,7 +1053,15 @@ class VespaCloud(VespaDeployment):
                 prev = last_status.get(job["jobName"])
                 if prev != job["runStatus"]:
                     last_status[job["jobName"]] = job["runStatus"]
-                    print(f"{job['jobName']}: {job['runStatus']}", file=self.output)
+                    # "url" is the canonical console URL for this run.
+                    job_url = job.get("url")
+                    if job_url:
+                        print(
+                            f"{job['jobName']}: {job['runStatus']} ({job_url})",
+                            file=self.output,
+                        )
+                    else:
+                        print(f"{job['jobName']}: {job['runStatus']}", file=self.output)
             if status.get("hasFailed", False):
                 raise RuntimeError(
                     "Deployment has failed. The system may retry, but this client will not wait."
