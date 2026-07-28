@@ -694,6 +694,7 @@ class TestFeedAsyncIterable(unittest.TestCase):
                     groupname=None,
                     data_id="doc1",
                     fields={"title": "Document 1"},
+                    semaphore=unittest.mock.ANY,
                 ),
                 unittest.mock.call(
                     schema="test_schema",
@@ -701,6 +702,7 @@ class TestFeedAsyncIterable(unittest.TestCase):
                     groupname=None,
                     data_id="doc2",
                     fields={"title": "Document 2"},
+                    semaphore=unittest.mock.ANY
                 ),
             ],
             any_order=True,

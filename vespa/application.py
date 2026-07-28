@@ -984,40 +984,42 @@ class Vespa(object):
                             callback(response, id)
                         continue
 
-                    async with semaphore:
-                        if operation_type == "feed":
-                            task = async_session.feed_data_point(
-                                schema=schema,
-                                namespace=namespace,
-                                groupname=groupname,
-                                data_id=id,
-                                fields=fields,
-                                **kwargs,
-                            )
-                        elif operation_type == "update":
-                            task = async_session.update_data(
-                                schema=schema,
-                                namespace=namespace,
-                                groupname=groupname,
-                                data_id=id,
-                                fields=fields,
-                                **kwargs,
-                            )
-                        elif operation_type == "delete":
-                            task = async_session.delete_data(
-                                schema=schema,
-                                namespace=namespace,
-                                data_id=id,
-                                groupname=groupname,
-                                **kwargs,
-                            )
+                    if operation_type == "feed":
+                        task = async_session.feed_data_point(
+                            schema=schema,
+                            namespace=namespace,
+                            groupname=groupname,
+                            data_id=id,
+                            fields=fields,
+                            semaphore=semaphore,
+                            **kwargs,
+                        )
+                    elif operation_type == "update":
+                        task = async_session.update_data(
+                            schema=schema,
+                            namespace=namespace,
+                            groupname=groupname,
+                            data_id=id,
+                            fields=fields,
+                            semaphore=semaphore,
+                            **kwargs,
+                        )
+                    elif operation_type == "delete":
+                        task = async_session.delete_data(
+                            schema=schema,
+                            namespace=namespace,
+                            data_id=id,
+                            groupname=groupname,
+                            semaphore=semaphore,
+                            **kwargs,
+                        )
 
-                        tasks.append(handle_result(asyncio.create_task(task), id))
+                    tasks.append(handle_result(asyncio.create_task(task), id))
 
-                        # Control the number of in-flight tasks
-                        if len(tasks) >= max_queue_size:
-                            await asyncio.gather(*tasks)
-                            tasks = []
+                    # Control the number of in-flight tasks
+                    if len(tasks) >= max_queue_size:
+                        await asyncio.gather(*tasks)
+                        tasks = []
 
                 if tasks:
                     await asyncio.gather(*tasks)
