@@ -2,6 +2,7 @@
 
 import json
 import unittest
+import asyncio
 
 import pytest
 from unittest.mock import PropertyMock, patch
@@ -702,7 +703,7 @@ class TestFeedAsyncIterable(unittest.TestCase):
                     groupname=None,
                     data_id="doc2",
                     fields={"title": "Document 2"},
-                    semaphore=unittest.mock.ANY
+                    semaphore=unittest.mock.ANY,
                 ),
             ],
             any_order=True,
@@ -760,6 +761,39 @@ class TestFeedAsyncIterable(unittest.TestCase):
         self.assertEqual(
             callback.call_args[0][0].json["message"], "Missing fields in input dict"
         )
+
+    def test_feed_async_iterable_respects_max_workers(self):
+        max_workers = 5
+        num_docs = 30
+        current = 0
+        max_seen = 0
+
+        async def fake_feed_data_point(*args, semaphore=None, **kwargs):
+            nonlocal current, max_seen
+            async with semaphore:
+                current += 1
+                max_seen = max(max_seen, current)
+                await asyncio.sleep(0.01)
+                current -= 1
+            return VespaResponse(
+                json={}, status_code=200, url="", operation_type="feed"
+            )
+
+        self.mock_session.feed_data_point.side_effect = fake_feed_data_point
+
+        docs = [
+            {"id": f"doc{i}", "fields": {"title": f"Document {i}"}}
+            for i in range(num_docs)
+        ]
+
+        self.vespa.feed_async_iterable(
+            iter=docs,
+            schema="test_schema",
+            namespace="test_namespace",
+            max_workers=max_workers,
+        )
+
+        self.assertLessEqual(max_seen, max_workers)
 
 
 class TestQueryMany(unittest.TestCase):
