@@ -204,21 +204,13 @@ def raise_for_status(
         VespaError: If the response JSON contains an error message.
     """
 
-    # Check if response has raise_for_status method (requests/httpx)
-    # or if we need to check manually (httpr)
     has_error = False
     http_error = None
 
-    if hasattr(response, "raise_for_status"):
-        # requests/httpx Response - use built-in method
-        try:
-            response.raise_for_status()
-            return  # No error, return early
-        except HTTPError as e:
-            has_error = True
-            http_error = e
-    else:
-        # httpr Response - check status code manually
+    if isinstance(response, httpr.Response):
+        # httpr Response - check status code manually. httpr >= 0.6.0 does provide a
+        # raise_for_status(), but it raises httpr.HTTPStatusError, which is not a
+        # requests HTTPError, so it must not be used to detect the error here.
         if 400 <= response.status_code < 600:
             has_error = True
             # Try to format error message with JSON if available
@@ -230,6 +222,14 @@ def raise_for_status(
             except Exception:
                 # Fall back to text if JSON parsing fails
                 http_error = HTTPError(f"HTTP {response.status_code}: {response.text}")
+    else:
+        # requests/httpx Response - use built-in method
+        try:
+            response.raise_for_status()
+            return  # No error, return early
+        except HTTPError as e:
+            has_error = True
+            http_error = e
 
     if has_error:
         # Handle 404 special case
@@ -245,8 +245,9 @@ def raise_for_status(
                 raise VespaError(errors) from http_error
             if error_message:
                 raise VespaError(error_message) from http_error
-        except JSONDecodeError:
-            # If we can't parse JSON, just raise the HTTP error
+        except (JSONDecodeError, ValueError, RuntimeError):
+            # If we can't parse JSON, just raise the HTTP error.
+            # httpr raises RuntimeError, not JSONDecodeError, on a non-JSON body.
             pass
 
         raise http_error
