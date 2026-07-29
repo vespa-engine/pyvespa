@@ -770,6 +770,7 @@ class TestFeedAsyncIterable(unittest.TestCase):
 
         async def fake_feed_data_point(*args, semaphore=None, **kwargs):
             nonlocal current, max_seen
+            assert isinstance(semaphore, asyncio.Semaphore)
             async with semaphore:
                 current += 1
                 max_seen = max(max_seen, current)
