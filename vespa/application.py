@@ -253,6 +253,14 @@ def raise_for_status(
         raise http_error
 
 
+def _response_json(response: Response) -> Dict:
+    """Return the parsed JSON body, falling back to the raw text on a non-JSON body."""
+    try:
+        return response.json()
+    except (JSONDecodeError, ValueError, RuntimeError):
+        return {"message": response.text}
+
+
 class Vespa(object):
     def __init__(
         self,
@@ -2303,7 +2311,7 @@ class VespaAsync(object):
         if profile:
             kwargs.update(get_profiling_params())
 
-        r = await self._make_request(
+        response = await self._make_request(
             "POST",
             self.app.search_end_point,
             json_data=body,
@@ -2312,7 +2320,9 @@ class VespaAsync(object):
         )
 
         return VespaQueryResponse(
-            json=r.json(), status_code=r.status_code, url=str(r.url)
+            json=_response_json(response),
+            status_code=response.status_code,
+            url=str(response.url),
         )
 
     @retry(
@@ -2353,7 +2363,7 @@ class VespaAsync(object):
         )
 
         return VespaResponse(
-            json=response.json(),
+            json=_response_json(response),
             status_code=response.status_code,
             url=str(response.url),
             operation_type="feed",
@@ -2385,13 +2395,16 @@ class VespaAsync(object):
             id=data_id, schema=schema, namespace=namespace, group=groupname
         )
         end_point = "{}{}".format(self.app.end_point, path)
-        if semaphore:
-            async with semaphore:
-                response = await self.httpr_client.delete(end_point, params=kwargs)
-        else:
-            response = await self.httpr_client.delete(end_point, params=kwargs)
+
+        response = await self._make_request(
+            "DELETE",
+            end_point,
+            semaphore=semaphore,
+            params=kwargs,
+        )
+
         return VespaResponse(
-            json=response.json(),
+            json=_response_json(response),
             status_code=response.status_code,
             url=str(response.url),
             operation_type="delete",
@@ -2423,13 +2436,16 @@ class VespaAsync(object):
             id=data_id, schema=schema, namespace=namespace, group=groupname
         )
         end_point = "{}{}".format(self.app.end_point, path)
-        if semaphore:
-            async with semaphore:
-                response = await self.httpr_client.get(end_point, params=kwargs)
-        else:
-            response = await self.httpr_client.get(end_point, params=kwargs)
+
+        response = await self._make_request(
+            "GET",
+            end_point,
+            semaphore=semaphore,
+            params=kwargs,
+        )
+
         return VespaResponse(
-            json=response.json(),
+            json=_response_json(response),
             status_code=response.status_code,
             url=str(response.url),
             operation_type="get",
@@ -2479,8 +2495,9 @@ class VespaAsync(object):
             semaphore=semaphore,
             params=kwargs,
         )
+
         return VespaResponse(
-            json=response.json(),
+            json=_response_json(response),
             status_code=response.status_code,
             url=str(response.url),
             operation_type="update",
