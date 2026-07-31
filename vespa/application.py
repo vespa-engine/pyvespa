@@ -252,6 +252,12 @@ def raise_for_status(
 
         raise http_error
 
+def _response_json(response: Response) -> Dict:
+    """Return the parsed JSON body, falling back to the raw text on a non-JSON body."""
+    try:
+        return response.json()
+    except (JSONDecodeError, ValueError, RuntimeError):
+        return {"message": response.text}
 
 class Vespa(object):
     def __init__(
@@ -2310,13 +2316,9 @@ class VespaAsync(object):
             params=kwargs,
             headers={"Accept": "application/cbor"},
         )
-        try:
-            json = response.json()
-        except RuntimeError:
-            json = {"message": response.text}
 
         return VespaQueryResponse(
-            json=json,
+            json=_response_json(response),
             status_code=response.status_code,
             url=str(response.url)
         )
@@ -2357,13 +2359,9 @@ class VespaAsync(object):
             semaphore=semaphore,
             params=kwargs,
         )
-        try:
-            json = response.json()
-        except RuntimeError:
-            json = {"message": response.text}
 
         return VespaResponse(
-            json=json,
+            json=_response_json(response),
             status_code=response.status_code,
             url=str(response.url),
             operation_type="feed",
@@ -2402,13 +2400,9 @@ class VespaAsync(object):
             semaphore=semaphore,
             params=kwargs,
         )
-        try:
-            json = response.json()
-        except RuntimeError:
-            json = {"message": response.text}
 
         return VespaResponse(
-            json=json,
+            json=_response_json(response),
             status_code=response.status_code,
             url=str(response.url),
             operation_type="delete",
@@ -2447,13 +2441,9 @@ class VespaAsync(object):
             semaphore=semaphore,
             params=kwargs,
         )
-        try:
-            json = response.json()
-        except RuntimeError:
-            json = {"message": response.text}
 
         return VespaResponse(
-            json=json,
+            json=_response_json(response),
             status_code=response.status_code,
             url=str(response.url),
             operation_type="get",
@@ -2503,13 +2493,9 @@ class VespaAsync(object):
             semaphore=semaphore,
             params=kwargs,
         )
-        try:
-            json = response.json()
-        except RuntimeError:
-            json = {"message": response.text}
 
         return VespaResponse(
-            json=json,
+            json=_response_json(response),
             status_code=response.status_code,
             url=str(response.url),
             operation_type="update",
