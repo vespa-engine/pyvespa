@@ -252,12 +252,14 @@ def raise_for_status(
 
         raise http_error
 
+
 def _response_json(response: Response) -> Dict:
     """Return the parsed JSON body, falling back to the raw text on a non-JSON body."""
     try:
         return response.json()
     except (JSONDecodeError, ValueError, RuntimeError):
         return {"message": response.text}
+
 
 class Vespa(object):
     def __init__(
@@ -2320,7 +2322,7 @@ class VespaAsync(object):
         return VespaQueryResponse(
             json=_response_json(response),
             status_code=response.status_code,
-            url=str(response.url)
+            url=str(response.url),
         )
 
     @retry(
