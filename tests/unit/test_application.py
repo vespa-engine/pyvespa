@@ -946,13 +946,13 @@ class TestVespaAsync:
             _vespa_async = VespaAsync(app, limits=limits)
 
 
-# feed_data_point, delete_data, get_data and update_data all route through
-# VespaAsync._make_request, so that is what's mocked below.
 @pytest.mark.asyncio
 class TestVespaAsyncDataMethods:
-    async def test_feed_data_point_async_calls_make_request(self):
+    @pytest.mark.parametrize("use_semaphore", [False, True])
+    async def test_feed_data_point_async_calls_make_request(self, use_semaphore):
         app = Vespa(url="http://localhost", port=8080)
         vespa_async = VespaAsync(app)
+        semaphore = asyncio.Semaphore(2) if use_semaphore else None
 
         mock_response = create_mock_httpr_response(
             status_code=200,
@@ -962,7 +962,10 @@ class TestVespaAsyncDataMethods:
         vespa_async._make_request = AsyncMock(return_value=mock_response)
 
         r = await vespa_async.feed_data_point(
-            schema="foo", data_id="0", fields={"body": "this is a test"}
+            schema="foo",
+            data_id="0",
+            fields={"body": "this is a test"},
+            semaphore=semaphore,
         )
 
         assert isinstance(r, VespaResponse)
@@ -975,21 +978,6 @@ class TestVespaAsyncDataMethods:
         assert args[0] == "POST"
         assert args[1] == "http://localhost:8080/document/v1/foo/foo/docid/0"
         assert kwargs["json_data"] == {"fields": {"body": "this is a test"}}
-        assert kwargs["semaphore"] is None
-
-    async def test_feed_data_point_async_passes_semaphore(self):
-        app = Vespa(url="http://localhost", port=8080)
-        vespa_async = VespaAsync(app)
-        semaphore = asyncio.Semaphore(2)
-
-        mock_response = create_mock_httpr_response(status_code=200, json_data={})
-        vespa_async._make_request = AsyncMock(return_value=mock_response)
-
-        await vespa_async.feed_data_point(
-            schema="foo", data_id="0", fields={"body": "x"}, semaphore=semaphore
-        )
-
-        _, kwargs = vespa_async._make_request.call_args
         assert kwargs["semaphore"] is semaphore
 
     async def test_feed_data_point_async_falls_back_when_json_parsing_fails(self):
@@ -1015,9 +1003,11 @@ class TestVespaAsyncDataMethods:
         assert r.json == {"message": "Internal Server Error"}
         assert r.status_code == 500
 
-    async def test_delete_data_async_calls_make_request(self):
+    @pytest.mark.parametrize("use_semaphore", [False, True])
+    async def test_delete_data_async_calls_make_request(self, use_semaphore):
         app = Vespa(url="http://localhost", port=8080)
         vespa_async = VespaAsync(app)
+        semaphore = asyncio.Semaphore(2) if use_semaphore else None
 
         mock_response = create_mock_httpr_response(
             status_code=200,
@@ -1026,7 +1016,9 @@ class TestVespaAsyncDataMethods:
         )
         vespa_async._make_request = AsyncMock(return_value=mock_response)
 
-        r = await vespa_async.delete_data(schema="foo", data_id="0")
+        r = await vespa_async.delete_data(
+            schema="foo", data_id="0", semaphore=semaphore
+        )
 
         assert isinstance(r, VespaResponse)
         assert r.status_code == 200
@@ -1038,19 +1030,6 @@ class TestVespaAsyncDataMethods:
         assert args[0] == "DELETE"
         assert args[1] == "http://localhost:8080/document/v1/foo/foo/docid/0"
         assert "json_data" not in kwargs
-        assert kwargs["semaphore"] is None
-
-    async def test_delete_data_async_passes_semaphore(self):
-        app = Vespa(url="http://localhost", port=8080)
-        vespa_async = VespaAsync(app)
-        semaphore = asyncio.Semaphore(2)
-
-        mock_response = create_mock_httpr_response(status_code=200, json_data={})
-        vespa_async._make_request = AsyncMock(return_value=mock_response)
-
-        await vespa_async.delete_data(schema="foo", data_id="0", semaphore=semaphore)
-
-        _, kwargs = vespa_async._make_request.call_args
         assert kwargs["semaphore"] is semaphore
 
     async def test_delete_data_async_falls_back_when_json_parsing_fails(self):
@@ -1073,9 +1052,11 @@ class TestVespaAsyncDataMethods:
         assert r.json == {"message": "Internal Server Error"}
         assert r.status_code == 500
 
-    async def test_get_data_async_calls_make_request(self):
+    @pytest.mark.parametrize("use_semaphore", [False, True])
+    async def test_get_data_async_calls_make_request(self, use_semaphore):
         app = Vespa(url="http://localhost", port=8080)
         vespa_async = VespaAsync(app)
+        semaphore = asyncio.Semaphore(2) if use_semaphore else None
 
         mock_response = create_mock_httpr_response(
             status_code=200,
@@ -1084,7 +1065,7 @@ class TestVespaAsyncDataMethods:
         )
         vespa_async._make_request = AsyncMock(return_value=mock_response)
 
-        r = await vespa_async.get_data(schema="foo", data_id="0")
+        r = await vespa_async.get_data(schema="foo", data_id="0", semaphore=semaphore)
 
         assert isinstance(r, VespaResponse)
         assert r.status_code == 200
@@ -1096,19 +1077,6 @@ class TestVespaAsyncDataMethods:
         assert args[0] == "GET"
         assert args[1] == "http://localhost:8080/document/v1/foo/foo/docid/0"
         assert "json_data" not in kwargs
-        assert kwargs["semaphore"] is None
-
-    async def test_get_data_async_passes_semaphore(self):
-        app = Vespa(url="http://localhost", port=8080)
-        vespa_async = VespaAsync(app)
-        semaphore = asyncio.Semaphore(2)
-
-        mock_response = create_mock_httpr_response(status_code=200, json_data={})
-        vespa_async._make_request = AsyncMock(return_value=mock_response)
-
-        await vespa_async.get_data(schema="foo", data_id="0", semaphore=semaphore)
-
-        _, kwargs = vespa_async._make_request.call_args
         assert kwargs["semaphore"] is semaphore
 
     async def test_get_data_async_falls_back_when_json_parsing_fails(self):
@@ -1131,9 +1099,11 @@ class TestVespaAsyncDataMethods:
         assert r.json == {"message": "Not Found"}
         assert r.status_code == 404
 
-    async def test_update_data_async_default_auto_assign(self):
+    @pytest.mark.parametrize("use_semaphore", [False, True])
+    async def test_update_data_async_default_auto_assign(self, use_semaphore):
         app = Vespa(url="http://localhost", port=8080)
         vespa_async = VespaAsync(app)
+        semaphore = asyncio.Semaphore(2) if use_semaphore else None
 
         mock_response = create_mock_httpr_response(
             status_code=200,
@@ -1143,7 +1113,10 @@ class TestVespaAsyncDataMethods:
         vespa_async._make_request = AsyncMock(return_value=mock_response)
 
         r = await vespa_async.update_data(
-            schema="foo", data_id="0", fields={"body": "updated"}
+            schema="foo",
+            data_id="0",
+            fields={"body": "updated"},
+            semaphore=semaphore,
         )
 
         assert isinstance(r, VespaResponse)
@@ -1154,7 +1127,7 @@ class TestVespaAsyncDataMethods:
         args, kwargs = vespa_async._make_request.call_args
         assert args[0] == "PUT"
         assert kwargs["json_data"] == {"fields": {"body": {"assign": "updated"}}}
-        assert kwargs["semaphore"] is None
+        assert kwargs["semaphore"] is semaphore
 
     async def test_update_data_async_no_auto_assign_excludes_id(self):
         app = Vespa(url="http://localhost", port=8080)
@@ -1186,21 +1159,6 @@ class TestVespaAsyncDataMethods:
 
         _, kwargs = vespa_async._make_request.call_args
         assert kwargs["params"]["create"] == "true"
-
-    async def test_update_data_async_passes_semaphore(self):
-        app = Vespa(url="http://localhost", port=8080)
-        vespa_async = VespaAsync(app)
-        semaphore = asyncio.Semaphore(2)
-
-        mock_response = create_mock_httpr_response(status_code=200, json_data={})
-        vespa_async._make_request = AsyncMock(return_value=mock_response)
-
-        await vespa_async.update_data(
-            schema="foo", data_id="0", fields={"body": "x"}, semaphore=semaphore
-        )
-
-        _, kwargs = vespa_async._make_request.call_args
-        assert kwargs["semaphore"] is semaphore
 
     async def test_update_data_async_falls_back_when_json_parsing_fails(self):
         """If response.json() raises, update_data should fall back to a message dict."""
