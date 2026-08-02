@@ -772,7 +772,7 @@ class VespaCloud(VespaDeployment):
         instance: Optional[str] = "default",
         application_root: Optional[str] = None,
         source_url: str = "",
-    ) -> None:
+    ) -> Optional[int]:
         """
         Deploy the given application package as the given instance in the Vespa Cloud prod environment.
         NB! This feature is experimental and may fail in unexpected ways. Expect better support in future releases.
