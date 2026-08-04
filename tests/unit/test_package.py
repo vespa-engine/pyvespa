@@ -481,14 +481,14 @@ class TestRankProfile(unittest.TestCase):
         schema = Schema(name="test", document=doc, rank_profiles=[rank_profile])
 
         schema_text = schema.schema_to_text
-        
+
         # Check that numeric values are NOT quoted
         self.assertIn("approximate-threshold: 0.05", schema_text)
         self.assertIn("filter-first-threshold: 0.0", schema_text)
         self.assertIn("filter-first-exploration: 0.3", schema_text)
         self.assertIn("exploration-slack: 0.0", schema_text)
         self.assertIn("num-threads-per-search: 1", schema_text)
-        
+
         # Check that numeric values are not wrapped with quotes
         self.assertNotIn('"0.05"', schema_text)
         self.assertNotIn('"0.0"', schema_text)
@@ -509,9 +509,11 @@ class TestRankProfile(unittest.TestCase):
         schema = Schema(name="test", document=doc, rank_profiles=[rank_profile])
 
         schema_text = schema.schema_to_text
-        
+
         # Check that string values ARE quoted
-        self.assertIn('fieldMatch(title).maxAlternativeSegmentations: "10"', schema_text)
+        self.assertIn(
+            'fieldMatch(title).maxAlternativeSegmentations: "10"', schema_text
+        )
         self.assertIn('some-string-property: "value"', schema_text)
 
     def test_rank_profile_properties_mixed_types(self):
@@ -530,14 +532,16 @@ class TestRankProfile(unittest.TestCase):
         schema = Schema(name="test", document=doc, rank_profiles=[rank_profile])
 
         schema_text = schema.schema_to_text
-        
+
         # Check numeric values are NOT quoted
         self.assertIn("bm25(text).k1: 0.9", schema_text)
         self.assertIn("bm25(text).b: 0.4", schema_text)
         self.assertIn("num-threads-per-search: 1", schema_text)
-        
+
         # Check string values ARE quoted
-        self.assertIn('fieldMatch(title).maxAlternativeSegmentations: "10"', schema_text)
+        self.assertIn(
+            'fieldMatch(title).maxAlternativeSegmentations: "10"', schema_text
+        )
 
 
 class TestSchema(unittest.TestCase):
@@ -1810,16 +1814,44 @@ class TestClientsWithCluster(unittest.TestCase):
 
 class TestValidAppName(unittest.TestCase):
     def test_invalid_name(self):
-        with pytest.raises(ValueError):
-            ApplicationPackage(name="test_app")
-        with pytest.raises(ValueError):
-            ApplicationPackage(name="test-app")
-        with pytest.raises(ValueError):
-            ApplicationPackage(name="42testapp")
-        with pytest.raises(ValueError):
-            ApplicationPackage(name="testApp")
-        with pytest.raises(ValueError):
-            ApplicationPackage(name="testapp" + "x" * 20)
+        for name in [
+            "",
+            "42testapp",  # does not start with a letter
+            "testApp",  # uppercase
+            "test.app",  # dot
+            "-testapp",  # leading dash
+            "_testapp",  # leading underscore
+            "test app",  # space
+            "a" * 41,  # too long
+        ]:
+            with self.subTest(name=name):
+                with pytest.raises(ValueError):
+                    ApplicationPackage(name=name)
+
+    def test_valid_name(self):
+        for name in [
+            "testapp",
+            "test-app",
+            "test_app",  # underscores are fine for a self-hosted application
+            "search2",
+            "my-search-app",
+            "a" * 40,
+        ]:
+            with self.subTest(name=name):
+                self.assertEqual(ApplicationPackage(name=name).name, name)
+
+    def test_cloud_reserved_names_are_allowed(self):
+        # 'api' and 'default' are reserved as Vespa Cloud names, which an application
+        # package name is not.
+        for name in ["api", "default"]:
+            with self.subTest(name=name):
+                self.assertEqual(ApplicationPackage(name=name).name, name)
+
+    def test_default_schema_name_has_no_dashes(self):
+        # Schema names are Vespa identifiers, which cannot contain dashes.
+        app_package = ApplicationPackage(name="my-test-app")
+        self.assertEqual(app_package.name, "my-test-app")
+        self.assertEqual(app_package.schema.name, "my_test_app")
 
 
 class TestFieldAlias(unittest.TestCase):
@@ -3094,7 +3126,9 @@ class TestIncludeFiles(unittest.TestCase):
                 include_files=[(src, "models/embedder.onnx")],
             )
             app.to_files(out)
-            self.assertTrue(os.path.isfile(os.path.join(out, "models", "embedder.onnx")))
+            self.assertTrue(
+                os.path.isfile(os.path.join(out, "models", "embedder.onnx"))
+            )
 
     def test_include_files_dest_subdir_in_zip(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -3143,7 +3177,7 @@ class TestIncludeFiles(unittest.TestCase):
                     name="testinclude",
                     include_files=[(src, "../escaped.json")],
                 )
-    
+
     def test_abs_windows_path(self):
         with tempfile.TemporaryDirectory() as tempdir:
             src = self._make_src_file(tempdir)

@@ -3,22 +3,14 @@ from tempfile import TemporaryDirectory
 import os
 from unittest.mock import patch, MagicMock
 
-from urllib3.exceptions import HTTPError
-
-from vespa.deployment import VespaCloud, DataplaneToken
-from vespa.package import (
-    ApplicationPackage,
-    AuthClient,
-    ContainerCluster,
-    Nodes,
-    Parameter,
-)
+from vespa.deployment import VespaCloud
+from vespa.package import ApplicationPackage, AuthClient, Parameter
 
 
 class TestVespaCloud(unittest.TestCase):
     def setUp(self):
-        self.tenant = "test_tenant"
-        self.application = "test_app"
+        self.tenant = "test-tenant"
+        self.application = "test-app"
         self.application_package = MagicMock()
         # Mock ._try_get_access_token to avoid requests
         VespaCloud._try_get_access_token = MagicMock(return_value="fake_access_token")
@@ -88,7 +80,7 @@ class TestVespaCloud(unittest.TestCase):
         self.assertEqual(result, mock_response)
         mock_request.assert_called_once_with(
             "GET",
-            "/application/v4/tenant/test_tenant/application/test_app/instance/default/environment/dev/region/aws-us-east-1c/private-services",
+            "/application/v4/tenant/test-tenant/application/test-app/instance/default/environment/dev/region/aws-us-east-1c/private-services",
         )
 
     @patch("vespa.deployment.VespaCloud._request")
@@ -168,7 +160,7 @@ class TestVespaCloud(unittest.TestCase):
         self.assertEqual(status, {"deployed": True, "status": "done"})
         mock_request.assert_called_once_with(
             "GET",
-            "/application/v4/tenant/test_tenant/application/test_app/build-status/456",
+            "/application/v4/tenant/test-tenant/application/test-app/build-status/456",
         )
 
     @patch("vespa.deployment.VespaCloud._request")
@@ -309,8 +301,8 @@ class TestVespaCloud(unittest.TestCase):
 
 class TestVaultAccessRules(unittest.TestCase):
     def setUp(self):
-        self.tenant = "test_tenant"
-        self.application = "test_app"
+        self.tenant = "test-tenant"
+        self.application = "test-app"
         self.application_package = MagicMock()
         VespaCloud._try_get_access_token = MagicMock(return_value="fake_access_token")
         self.vespa_cloud = VespaCloud(
@@ -378,7 +370,7 @@ class TestVaultAccessRules(unittest.TestCase):
             "rules": [
                 {
                     "id": 0,
-                    "application": "test_app",
+                    "application": "test-app",
                     "contexts": [VespaCloud.secret_store_dev_alias],
                 },
             ]
@@ -387,7 +379,7 @@ class TestVaultAccessRules(unittest.TestCase):
         # Should only GET, no PUT (no CSRF fetch either)
         mock_request.assert_called_once_with(
             "GET",
-            "/tenant-secret/v1/tenant/test_tenant/vault/my-vault",
+            "/tenant-secret/v1/tenant/test-tenant/vault/my-vault",
         )
 
     @patch("vespa.deployment.VespaCloud._request")
@@ -406,7 +398,7 @@ class TestVaultAccessRules(unittest.TestCase):
             # GET CSRF token
             {"token": "fake-csrf-token"},
             # PUT response: MessageResponse JSON
-            {"message": "Set access rules for tenant test_tenant, vault my-vault"},
+            {"message": "Set access rules for tenant test-tenant, vault my-vault"},
         ]
         self.vespa_cloud._ensure_vault_access_rule("my-vault")
         self.assertEqual(mock_request.call_count, 3)
@@ -425,7 +417,7 @@ class TestVaultAccessRules(unittest.TestCase):
                 },
                 {
                     "id": 1,
-                    "application": "test_app",
+                    "application": "test-app",
                     "contexts": [VespaCloud.secret_store_dev_alias],
                 },
             ],
@@ -439,7 +431,7 @@ class TestVaultAccessRules(unittest.TestCase):
             # GET CSRF token
             {"token": "fake-csrf-token"},
             # PUT response: MessageResponse JSON
-            {"message": "Set access rules for tenant test_tenant, vault my-vault"},
+            {"message": "Set access rules for tenant test-tenant, vault my-vault"},
         ]
         self.vespa_cloud._ensure_vault_access_rule("my-vault")
         self.assertEqual(mock_request.call_count, 3)
@@ -448,7 +440,7 @@ class TestVaultAccessRules(unittest.TestCase):
             [
                 {
                     "id": 0,
-                    "application": "test_app",
+                    "application": "test-app",
                     "contexts": [VespaCloud.secret_store_dev_alias],
                 }
             ],

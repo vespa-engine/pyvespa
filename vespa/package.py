@@ -28,6 +28,7 @@ from vespa.configuration.services import services
 from vespa.configuration.services import *
 from vespa.configuration.deployment import DeploymentItem
 from vespa.configuration.query_profiles import QueryProfileItem
+from vespa.validation import to_vespa_identifier, validate_application_package_name
 
 if sys.version_info >= (3, 11):
     from typing import Unpack
@@ -3113,7 +3114,11 @@ class ApplicationPackage(object):
         p = Path(dest)
         # On Windows, Path("/foo").is_absolute() is False (drive-relative), so also
         # check for a leading "/" to catch POSIX-style absolute paths on all platforms.
-        if PurePosixPath(p).is_absolute() or PureWindowsPath(p).is_absolute() or str(dest).startswith("/"):
+        if (
+            PurePosixPath(p).is_absolute()
+            or PureWindowsPath(p).is_absolute()
+            or str(dest).startswith("/")
+        ):
             raise ValueError(
                 f"include_files: destination path '{dest}' must be relative, not absolute"
             )
@@ -3123,9 +3128,7 @@ class ApplicationPackage(object):
             )
         posix = p.as_posix()
         if not posix or posix == ".":
-            raise ValueError(
-                f"include_files: destination path '{dest}' is empty"
-            )
+            raise ValueError(f"include_files: destination path '{dest}' is empty")
         return posix
 
     def __init__(
@@ -3145,16 +3148,18 @@ class ApplicationPackage(object):
         deployment_config: Optional[Union[DeploymentConfiguration, VT]] = None,
         services_config: Optional[ServicesConfiguration] = None,
         query_profile_config: Optional[Union[VT, List[VT]]] = None,
-        include_files: Optional[
-            List[Tuple[Union[str, Path], Union[str, Path]]]
-        ] = None,
+        include_files: Optional[List[Tuple[Union[str, Path], Union[str, Path]]]] = None,
     ) -> None:
         """Create an application package.
 
         Args:
-            name (str): Application name. Cannot contain '-' or '_'.
+            name (str): Application name. Must start with a lowercase letter, may only contain lowercase
+                letters, digits, underscores and dashes, and may contain no more than 40 characters. Note
+                that this is not the Vespa Cloud application name, which is given to `VespaCloud` and is
+                subject to stricter rules (no underscores).
             schema (list, optional): List of Schema objects for the application. If None, a default Schema
-                with the same name as the application will be created. Defaults to None.
+                with the same name as the application will be created, with any dashes replaced by
+                underscores, as schema names cannot contain dashes. Defaults to None.
             query_profile (QueryProfile, optional): QueryProfile of the application. If None, a default
                 QueryProfile with QueryProfileType 'root' will be created. Defaults to None.
             query_profile_type (QueryProfileType, optional): QueryProfileType of the application. If None,
@@ -3190,18 +3195,12 @@ class ApplicationPackage(object):
             ```
         This creates a default Schema, QueryProfile, and QueryProfileType, which can be populated with your application's specifics.
         """
-        if not (
-            name[0].isalpha() and name.islower() and len(name) <= 20 and name.isalnum()
-        ):
-            raise ValueError(
-                "Application package name must start with a letter, must be lowercase, can only contain [a-z0-9], and may contain no more than 20 characters, was '{}'".format(
-                    name
-                )
-            )
+        validate_application_package_name(name)
         self.name = name
         if not schema:
             schema = (
-                [Schema(name=self.name, document=Document())]
+                # Schema names are Vespa identifiers, which cannot contain dashes.
+                [Schema(name=to_vespa_identifier(self.name), document=Document())]
                 if create_schema_by_default
                 else []
             )

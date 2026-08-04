@@ -76,6 +76,7 @@ nav:
           - Builder: api/vespa/querybuilder/builder/builder.md
           - Grouping: api/vespa/querybuilder/grouping/grouping.md
       - Throttling: api/vespa/throttling.md
+      - Validation: api/vespa/validation.md
 plugins:
     - search
     - autorefs
@@ -155,3 +156,4 @@ plugins:
                 - api/vespa/querybuilder/builder/builder.md: QueryBuilder DSL
                 - api/vespa/querybuilder/grouping/grouping.md: Grouping queries
                 - api/vespa/throttling.md: Adaptive feed throttling
+                - api/vespa/validation.md: Validation of Vespa Cloud tenant, application and instance names
