@@ -15,7 +15,7 @@ dependencies = [
     "httpr>=0.4.0",
     "docker",
     "jinja2",
-    "cryptography>=48.0.1",
+    "cryptography>=50.0.0",
     "tenacity>=8.4.1",
     "typing_extensions",
     "python-dateutil",
@@ -51,7 +51,7 @@ file = "LICENSE"
 vespacli = ["vespacli"]
 build = [
     "setuptools==83.0.0",
-    "build==1.0.3",
+    "build==1.5.0",
     "twine==5.1.1",
     "toml==0.10.2",
     "ruff",
@@ -64,7 +64,7 @@ unittest = [
     "mypy>=1.14.1",
 ]
 docs = [
-    "ipykernel==6.30.1",
+    "ipykernel==6.31.0",
     "nbconvert>=7.17.0",
     "jupyter",
     "mkdocs-material",
@@ -90,7 +90,7 @@ feed = [
 notebooks = [
     "notebook",
     "nbconvert>=7.17.0",
-    "ipykernel==6.30.1",
+    "ipykernel==6.31.0",
     "jupytext",
     "numpy",
     "pandas",
