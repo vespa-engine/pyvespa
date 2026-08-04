@@ -34,6 +34,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 
 from vespa.application import Vespa
 from vespa.package import ApplicationPackage, AuthClient, Parameter
+from vespa.validation import validate_cloud_names, validate_instance_name
 import vespa
 
 # Get the Vespa home directory
@@ -584,8 +585,10 @@ class VespaCloud(VespaDeployment):
             ```
 
         Args:
-            tenant (str): Tenant name registered in the Vespa Cloud.
-            application (str): Application name in the Vespa Cloud.
+            tenant (str): Tenant name registered in the Vespa Cloud. Must start with a lowercase letter,
+                may only contain lowercase letters, digits and dashes, may not contain double-dashes, may
+                not end with a dash, and may contain no more than 40 characters.
+            application (str): Application name in the Vespa Cloud. Same naming rules as for the tenant.
             application_package (ApplicationPackage): Application package to be deployed. Either this or application_root must be set.
             key_location (str, optional): Location of the control plane key used for signing HTTP requests to the Vespa Cloud.
             key_content (str, optional): Content of the control plane key used for signing HTTP requests to the Vespa Cloud. Use only when the key file is not available.
@@ -593,14 +596,18 @@ class VespaCloud(VespaDeployment):
             output_file (str, optional): Output file to write output messages. Default is sys.stdout.
             application_root (str, optional): Directory for the application root (location of services.xml, models/, schemas/, etc.). If the application is packaged with Maven, use the generated `<myapp>/target/application` directory.
             cluster (str, optional): Name of the cluster to target when retrieving endpoints. This affects which endpoints are used for initializing the :class:`Vespa` instance in `VespaCloud.get_application` and `VespaCloud.deploy`.
-            instance (str, optional): Name of the application instance. Default is "default".
+            instance (str, optional): Name of the application instance. Same naming rules as for the tenant,
+                except that "default" is allowed, while names ending in "-t" are reserved for tester
+                instances. Default is "default".
 
         Raises:
             RuntimeError: If deployment fails.
+            ValueError: If the tenant, application or instance name is invalid.
 
         Returns:
             Vespa: A Vespa connection instance for interacting with the deployed application.
         """
+        validate_cloud_names(tenant=tenant, application=application, instance=instance)
         self.tenant = tenant
         self.application = application
         self.application_package = application_package
@@ -728,6 +735,7 @@ class VespaCloud(VespaDeployment):
             raise ValueError(
                 f"Invalid environment: {environment}. Must be 'dev' or 'perf'."
             )
+        validate_instance_name(instance or self.instance)
         if environment == "dev":
             self._ensure_vault_access_for_dev()
         if self.application_package is not None:
@@ -789,6 +797,7 @@ class VespaCloud(VespaDeployment):
             RuntimeError: If deployment fails or if there are issues with the deployment process.
 
         """
+        validate_instance_name(instance or self.instance)
         if application_root is None:
             if self.application_root is None:
                 application_root = os.path.join(os.getcwd(), self.application)
@@ -1118,6 +1127,7 @@ class VespaCloud(VespaDeployment):
             Vespa: A Vespa connection instance. This connects to the mtls endpoint. To connect to the token endpoint, use `VespaCloud.get_application(endpoint_type="token")`.
         """
 
+        validate_instance_name(instance or self.instance)
         if environment == "dev":
             self._ensure_vault_access_for_dev(application_root=str(application_root))
 
