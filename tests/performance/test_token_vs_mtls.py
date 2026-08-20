@@ -17,7 +17,9 @@ if shutil.which("k6") is None:
 def test_token_vs_mtls_performance(vespa_cloud_token_endpoints, tmp_path):
     """Run k6 against token and mTLS endpoints and assert thresholds and relative latency."""
 
-    summary_file = tmp_path / "k6_summary.json"
+    report_dir = Path(os.environ.get("PERFORMANCE_REPORT_DIR") or tmp_path)
+    report_dir.mkdir(parents=True, exist_ok=True)
+    summary_file = report_dir / "k6_token_vs_mtls_summary.json"
     script = Path(__file__).parent / "k6_token_vs_mtls.js"
 
     env = {
