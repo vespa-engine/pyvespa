@@ -21,34 +21,35 @@ from tests.integration.test_integration_docker import (
 )
 
 # Reuse the existing tenant data-plane token (tenant+id scoped, so it works for
-# this dedicated app too). The op env sets VESPA_CLIENT_TOKEN_ID; the deployed
-# app declares <token id=...> with this value so VESPA_CLOUD_SECRET_TOKEN
+# this dedicated app too). VESPA_CLIENT_TOKEN_ID selects the token id; the
+# deployed app declares <token id=...> with this value so VESPA_CLOUD_SECRET_TOKEN
 # authenticates. Fallback matches the token used by the integration tests.
 CLIENT_TOKEN_ID = os.environ.get("VESPA_CLIENT_TOKEN_ID", "pyvespa_integration")
 
-# Closest prod zone to Norway that Vespa Cloud supports (Frankfurt, eu-central-1).
-PERF_PROD_REGION = "aws-euc1-az1"
+PERFORMANCE_PROD_REGION = "aws-us-east-1c"
 
 
-class TestDeployPerfInstanceToProd(unittest.TestCase):
-    """Manual trigger for the persistent, perf-only prod instance.
+class TestDeployPerformanceInstanceToProd(unittest.TestCase):
+    """Manual trigger for the persistent, performance-only prod instance.
 
     Mirrors TestMsmarcoProdApplicationWithTokenAuth: the deploy happens in
     setUp() and the test is @unittest.skip'd, so this NEVER runs in CI (skip is
-    evaluated before setUp). Run it by hand when the perf app package changes:
+    evaluated before setUp). Run it by hand when the performance app package
+    changes:
 
-        uv run pytest tests/perf/test_deploy_perf_instance.py -s -v
+        uv run pytest tests/performance/test_deploy_performance_instance.py -s -v
 
     Deploys vespa-team.pyvespa-performance.default to prod via the CD pipeline:
-    a small, stable, exclusive instance used only for perf regression tracking.
-    A dedicated application (not an instance of pyvespa-integration) so its
-    deployment.xml is independent and perf work can never touch the integration
-    apps. A separate app -- rather than a pyvespa-integration.perf-test instance
-    -- is chosen for isolation: deployment.xml is application-wide, so adding a
-    perf instance would mean re-declaring the existing default instance too
-    (risking clobbering it). Note DeploymentConfiguration cannot emit <instance>
-    blocks; the VT DSL (vespa.configuration.deployment.instance) can, but a
-    dedicated app keeps "don't touch default" a structural guarantee.
+    a small, stable, exclusive instance used only for performance regression
+    tracking. A dedicated application (not an instance of pyvespa-integration)
+    so its deployment.xml is independent and performance work can never touch
+    the integration apps. A separate app -- rather than a
+    pyvespa-integration.performance-test instance -- is chosen for isolation:
+    deployment.xml is application-wide, so adding a performance instance would
+    mean re-declaring the existing default instance too (risking clobbering it).
+    Note DeploymentConfiguration cannot emit <instance> blocks; the VT DSL
+    (vespa.configuration.deployment.instance) can, but a dedicated app keeps
+    "don't touch default" a structural guarantee.
     """
 
     def setUp(self) -> None:
@@ -72,29 +73,29 @@ class TestDeployPerfInstanceToProd(unittest.TestCase):
         # regression tracking over time (not absolute capacity benchmarking).
         # m6g.large-equivalent (2 vcpu / 8Gb / arm64): the smallest non-burstable
         # AWS flavor, so CPU is fixed and week-over-week numbers are comparable.
-        perf_resources = Parameter(
+        performance_resources = Parameter(
             "resources",
             {"vcpu": "2.0", "memory": "8Gb", "disk": "50Gb", "architecture": "arm64"},
         )
         self.app_package.clusters = [
             ContentCluster(
                 id=f"{schema_name}_content",
-                nodes=Nodes(count="1", parameters=[perf_resources]),
+                nodes=Nodes(count="1", parameters=[performance_resources]),
                 document_name=schema_name,
                 min_redundancy="1",
             ),
             ContainerCluster(
                 id=f"{schema_name}_container",
-                nodes=Nodes(count="1", parameters=[perf_resources]),
+                nodes=Nodes(count="1", parameters=[performance_resources]),
                 auth_clients=self.auth_clients,
             ),
         ]
         self.app_package.deployment_config = DeploymentConfiguration(
-            environment="prod", regions=[PERF_PROD_REGION]
+            environment="prod", regions=[PERFORMANCE_PROD_REGION]
         )
         # Single 1-node clusters in prod need two first-deployment overrides:
         # redundancy=1 (no HA replica) and minimum-node-count (<2 nodes). Both are
-        # intentional for a small, stable perf box. minimum-node-count is not in
+        # intentional for a small, stable performance box. minimum-node-count is not in
         # pyvespa's ValidationID enum, so pass it as a raw string.
         tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
         self.app_package.validations = [
@@ -116,10 +117,10 @@ class TestDeployPerfInstanceToProd(unittest.TestCase):
         )
 
     @unittest.skip(
-        "Manual only. Deploys the persistent perf-test prod instance via the CD "
-        "pipeline; too slow for CI. Remove the skip to run by hand."
+        "Manual only. Deploys the persistent performance-test prod instance via "
+        "the CD pipeline; too slow for CI. Remove the skip to run by hand."
     )
-    def test_deploy_perf_instance(self):
+    def test_deploy_performance_instance(self):
         success = self.vespa_cloud.wait_for_prod_deployment(
             build_no=self.build_no, max_wait=3600
         )

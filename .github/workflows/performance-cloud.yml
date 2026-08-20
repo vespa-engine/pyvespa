@@ -1,0 +1,61 @@
+name: Performance - cloud
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+  pull_request:
+    paths: [".github/workflows/performance-cloud.yml"]
+  schedule:
+    - cron: "0 11 * * 0"
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  performance-cloud:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb # v6
+        with:
+          version: "0.6.16"
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          uv sync --extra dev
+
+      - name: Install k6
+        uses: grafana/setup-k6-action@db07bd9765aac508ef18982e52ab937fe633a065 # v1.2.1
+        with:
+          k6-version: "2.2.0"
+
+      - name: Write data-plane certificate
+        env:
+          VESPA_PERFORMANCE_MTLS_CERT: ${{ secrets.VESPA_PERFORMANCE_MTLS_CERT }}
+          VESPA_PERFORMANCE_MTLS_KEY: ${{ secrets.VESPA_PERFORMANCE_MTLS_KEY }}
+        run: |
+          CERT_DIR="$HOME/.vespa/vespa-team.pyvespa-performance.default"
+          mkdir -p "$CERT_DIR"
+          printf '%s\n' "$VESPA_PERFORMANCE_MTLS_CERT" > "$CERT_DIR/data-plane-public-cert.pem"
+          printf '%s\n' "$VESPA_PERFORMANCE_MTLS_KEY" > "$CERT_DIR/data-plane-private-key.pem"
+          chmod 600 "$CERT_DIR/data-plane-private-key.pem"
+
+      - name: Run performance tests
+        env:
+          VESPA_TEAM_API_KEY: ${{ secrets.VESPA_TEAM_API_KEY }}
+          VESPA_CLOUD_SECRET_TOKEN: ${{ secrets.VESPA_CLOUD_SECRET_TOKEN }}
+        run: |
+          uv run pytest tests/performance/ -m performance -s -v

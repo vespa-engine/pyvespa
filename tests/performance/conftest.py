@@ -8,12 +8,13 @@ import pytest
 from vespa.deployment import VespaCloud
 
 
-# Persistent prod perf app, deployed once via test_deploy_perf_instance.py.
+# Persistent prod performance app, deployed once via
+# test_deploy_performance_instance.py.
 TENANT = "vespa-team"
 APPLICATION = "pyvespa-performance"
 INSTANCE = "default"
 ENVIRONMENT = "prod"
-REGION = "aws-euc1-az1"  # Frankfurt; closest prod zone to Norway.
+REGION = "aws-us-east-1c"
 SCHEMA = "msmarco"
 CONTENT_CLUSTER = "msmarco_content"
 
@@ -21,21 +22,21 @@ CONTENT_CLUSTER = "msmarco_content"
 def _require_env_var(name: str) -> str:
     value = os.getenv(name)
     if not value:
-        pytest.fail(f"{name} must be set for perf tests.", pytrace=False)
+        pytest.fail(f"{name} must be set for performance tests.", pytrace=False)
     return value
 
 
 @pytest.fixture(scope="session")
 def vespa_cloud_token_endpoints() -> Generator[Dict[str, str], None, None]:
     """
-    Connect to the already-deployed, persistent prod perf instance and yield its
-    mTLS + token endpoint details for the k6 tooling.
+    Connect to the already-deployed, persistent prod performance instance and
+    yield its mTLS + token endpoint details for the k6 tooling.
 
     This does NOT deploy: the instance is created once by
-    test_deploy_perf_instance.py and reused across runs for stable, comparable
+    test_deploy_performance_instance.py and reused across runs for stable, comparable
     regression numbers. Endpoint lookups are read-only control-plane calls.
 
-    Requires the standard op env: VESPA_TEAM_API_KEY (control plane) and
+    Requires the environment variables VESPA_TEAM_API_KEY (control plane) and
     VESPA_CLOUD_SECRET_TOKEN (token data plane). mTLS additionally needs the
     data-plane cert/key pair locally (written by the deploy step into
     ~/.vespa/{tenant}.{app}.{instance}/); if absent, the test is skipped.
@@ -70,9 +71,20 @@ def vespa_cloud_token_endpoints() -> Generator[Dict[str, str], None, None]:
         pytest.skip(
             "mTLS certificate/key were not found locally "
             f"(~/.vespa/{TENANT}.{APPLICATION}.{INSTANCE}/). "
-            "Deploy the perf instance from this machine first, or run "
+            "Deploy the performance instance from this machine first, or run "
             "'vespa auth cert'."
         )
+
+    app = vespa_cloud.get_application(
+        instance=INSTANCE,
+        environment=ENVIRONMENT,
+        endpoint_type="mtls",
+        region=REGION,
+    )
+
+    # Pre-clean leftovers from any earlier run that was killed before teardown.
+    print("\n=== Setup: deleting any leftover test documents ===")
+    app.delete_all_docs(content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA)
 
     try:
         yield {
@@ -84,10 +96,5 @@ def vespa_cloud_token_endpoints() -> Generator[Dict[str, str], None, None]:
         }
     finally:
         # The k6 workload feeds docs, so leave a clean slate for the next run.
-        app = vespa_cloud.get_application(
-            instance=INSTANCE,
-            environment=ENVIRONMENT,
-            endpoint_type="mtls",
-            region=REGION,
-        )
+        print("\n=== Teardown: deleting fed test documents ===")
         app.delete_all_docs(content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA)

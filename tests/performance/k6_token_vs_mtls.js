@@ -68,7 +68,7 @@ function feedDoc(url, authHeader, kindTag) {
   const payload = JSON.stringify({
     fields: {
       id: docId,
-      title: "perf-doc",
+      title: "performance-doc",
       body: "benchmark run",
     },
   });

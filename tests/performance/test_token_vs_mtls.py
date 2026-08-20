@@ -13,8 +13,8 @@ if shutil.which("k6") is None:
     pytest.skip("k6 binary not found in PATH", allow_module_level=True)
 
 
-@pytest.mark.perf
-def test_token_vs_mtls_perf(vespa_cloud_token_endpoints, tmp_path):
+@pytest.mark.performance
+def test_token_vs_mtls_performance(vespa_cloud_token_endpoints, tmp_path):
     """Run k6 against token and mTLS endpoints and assert thresholds and relative latency."""
 
     summary_file = tmp_path / "k6_summary.json"
