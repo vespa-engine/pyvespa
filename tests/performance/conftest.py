@@ -1,7 +1,8 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import os
-from typing import Dict, Generator
+from dataclasses import dataclass, field
+from typing import Generator
 
 import pytest
 
@@ -19,6 +20,21 @@ SCHEMA = "msmarco"
 CONTENT_CLUSTER = "msmarco_content"
 
 
+@dataclass(frozen=True)
+class PerformanceEndpoints:
+    """Connection details for the k6 tooling.
+
+    The token is excluded from repr so pytest failure output (which prints
+    fixture values) never contains the secret.
+    """
+
+    mtls_url: str
+    token_url: str
+    cert_path: str
+    key_path: str
+    token: str = field(repr=False)
+
+
 def _require_env_var(name: str) -> str:
     value = os.getenv(name)
     if not value:
@@ -27,7 +43,7 @@ def _require_env_var(name: str) -> str:
 
 
 @pytest.fixture(scope="session")
-def vespa_cloud_token_endpoints() -> Generator[Dict[str, str], None, None]:
+def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]:
     """
     Connect to the already-deployed, persistent prod performance instance and
     yield its mTLS + token endpoint details for the k6 tooling.
@@ -87,13 +103,13 @@ def vespa_cloud_token_endpoints() -> Generator[Dict[str, str], None, None]:
     app.delete_all_docs(content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA)
 
     try:
-        yield {
-            "mtls_url": mtls_url,
-            "token_url": token_url,
-            "token": secret_token,
-            "cert_path": cert_path,
-            "key_path": key_path,
-        }
+        yield PerformanceEndpoints(
+            mtls_url=mtls_url,
+            token_url=token_url,
+            cert_path=cert_path,
+            key_path=key_path,
+            token=secret_token,
+        )
     finally:
         # The k6 workload feeds docs, so leave a clean slate for the next run.
         print("\n=== Teardown: deleting fed test documents ===")
