@@ -104,9 +104,3 @@ export function tokenScenario() {
   tokenReqs.add(1);
   check(tokenRes, { "token status 2xx": () => tokenOk });
 }
-
-export function handleSummary(data) {
-  console.log("=== k6 metrics dump ===");
-  console.log(JSON.stringify(data.metrics, null, 2));
-  return {};
-}
