@@ -64,6 +64,7 @@ jobs:
           VESPA_TEAM_API_KEY: ${{ secrets.VESPA_TEAM_API_KEY }}
           VESPA_CLOUD_SECRET_TOKEN: ${{ secrets.VESPA_CLOUD_SECRET_TOKEN }}
           PERFORMANCE_REPORT_DIR: ${{ runner.temp }}/performance-report
+          PYTHONUNBUFFERED: "1"
         run: |
           mkdir -p "$PERFORMANCE_REPORT_DIR"
           uv run pytest tests/performance/ -m performance -s -v \
