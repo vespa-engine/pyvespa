@@ -38,19 +38,11 @@ class TestDeployPerformanceInstanceToProd(unittest.TestCase):
     evaluated before setUp). Run it by hand when the performance app package
     changes:
 
-        uv run pytest tests/performance/test_deploy_performance_instance.py -s -v
+    uv run pytest tests/performance/test_deploy_performance_instance.py -s -v
 
-    Deploys vespa-team.pyvespa-performance.default to prod via the CD pipeline:
-    a small, stable, exclusive instance used only for performance regression
-    tracking. A dedicated application (not an instance of pyvespa-integration)
-    so its deployment.xml is independent and performance work can never touch
-    the integration apps. A separate app -- rather than a
-    pyvespa-integration.performance-test instance -- is chosen for isolation:
-    deployment.xml is application-wide, so adding a performance instance would
-    mean re-declaring the existing default instance too (risking clobbering it).
-    Note DeploymentConfiguration cannot emit <instance> blocks; the VT DSL
-    (vespa.configuration.deployment.instance) can, but a dedicated app keeps
-    "don't touch default" a structural guarantee.
+    A dedicated application (not an extra instance of pyvespa-integration):
+    deployment.xml is application-wide, so adding an instance there would mean
+    re-declaring its default instance too, risking clobbering it.
     """
 
     def setUp(self) -> None:

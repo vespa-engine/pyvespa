@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   performance-cloud:
-    # Skip fork PRs: they get no repository secrets, so the run can only fail.
+    # Skip fork PRs
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     steps:
@@ -39,7 +39,7 @@ jobs:
         run: |
           uv sync --extra dev
 
-      # TODO: use grafana/setup-k6-action once allowed by the org actions policy.
+      # TODO: use grafana/setup-k6-action
       - name: Install k6
         run: |
           K6_VERSION="v2.2.0"
@@ -73,7 +73,7 @@ jobs:
           uv run pytest tests/performance/ -m performance -s -v \
             --junitxml="$PERFORMANCE_REPORT_DIR/junit.xml"
 
-      # TODO: use test-summary/action once allowed by the org actions policy.
+      # TODO: use test-summary/action
       - name: Publish test summary
         if: always()
         continue-on-error: true
@@ -81,7 +81,7 @@ jobs:
           python3 .github/scripts/junit_to_summary.py \
             "$RUNNER_TEMP/performance-report/junit.xml" >> "$GITHUB_STEP_SUMMARY"
 
-      # TODO: replace with k6's native Prometheus output (-o experimental-prometheus-rw).
+      # TODO: replace with k6's native Prometheus output
       - name: Convert k6 summaries to Prometheus format
         if: always()
         run: |

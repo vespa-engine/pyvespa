@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-"""Render a JUnit XML file as a Markdown test summary.
-
-Usage: junit_to_summary.py <junit.xml>
-
-Prints Markdown to stdout; in CI, redirect to $GITHUB_STEP_SUMMARY.
-"""
-
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path

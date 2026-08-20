@@ -32,14 +32,9 @@ def test_token_vs_mtls_performance(vespa_cloud_token_endpoints, tmp_path):
     }
     min_token_rps = 500
     min_mtls_rps = 750
-    # Token pays a fixed auth-proxy overhead per request, so with the low RTT
-    # of a co-located CI runner its relative throughput drops well below the
-    # ~0.97 seen from high-RTT clients (~0.69 measured from GitHub runners).
     min_token_rps_ratio = 0.5
     max_error_rate = 0.02
 
-    # Trend stats (p95/p99 etc.) are configured via summaryTrendStats in the
-    # k6 script itself.
     k6_command = [
         "k6",
         "run",
@@ -47,8 +42,6 @@ def test_token_vs_mtls_performance(vespa_cloud_token_endpoints, tmp_path):
         str(summary_file),
     ]
     if os.environ.get("CI"):
-        # Without a TTY the progress bar floods the log with one line per
-        # update; --quiet drops it but keeps the end-of-test summary.
         k6_command.append("--quiet")
     k6_command.append(str(script))
 
