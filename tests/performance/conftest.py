@@ -101,6 +101,7 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
     # Pre-clean leftovers from any earlier run that was killed before teardown.
     print("\n=== Setup: deleting any leftover test documents ===")
     app.delete_all_docs(content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA)
+    print("Leftover documents deleted.")
 
     try:
         yield PerformanceEndpoints(
@@ -114,3 +115,4 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
         # The k6 workload feeds docs, so leave a clean slate for the next run.
         print("\n=== Teardown: deleting fed test documents ===")
         app.delete_all_docs(content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA)
+        print("Fed documents deleted.")
