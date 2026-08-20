@@ -35,16 +35,22 @@ def test_token_vs_mtls_performance(vespa_cloud_token_endpoints, tmp_path):
     min_token_rps_ratio = 0.75
     max_error_rate = 0.02
 
+    k6_command = [
+        "k6",
+        "run",
+        "--summary-export",
+        str(summary_file),
+        "--summary-trend-stats=min,avg,med,p(95),p(99),max",
+    ]
+    if os.environ.get("CI"):
+        # Without a TTY the progress bar floods the log with one line per
+        # update; --quiet drops it but keeps the end-of-test summary.
+        k6_command.append("--quiet")
+    k6_command.append(str(script))
+
     try:
         result = subprocess.run(
-            [
-                "k6",
-                "run",
-                "--summary-export",
-                str(summary_file),
-                "--summary-trend-stats=min,avg,med,p(95),p(99),max",
-                str(script),
-            ],
+            k6_command,
             env=env,
             capture_output=False,
             text=True,
