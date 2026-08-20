@@ -2,6 +2,7 @@
 
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Generator
 
 import pytest
@@ -61,11 +62,26 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
     api_key = _require_env_var("VESPA_TEAM_API_KEY")
     secret_token = _require_env_var("VESPA_CLOUD_SECRET_TOKEN")
 
+    # Check the mTLS cert pair up front: without one, VespaCloud would
+    # auto-generate a fresh pair the deployed app does not authorize, and the
+    # mTLS scenario would run doomed to 100% errors.
+    cert_dir = Path.home() / ".vespa" / f"{TENANT}.{APPLICATION}.{INSTANCE}"
+    cert_path = cert_dir / "data-plane-public-cert.pem"
+    key_path = cert_dir / "data-plane-private-key.pem"
+    if not cert_path.exists() or not key_path.exists():
+        pytest.skip(
+            f"mTLS certificate/key not found in {cert_dir}. Deploy the "
+            "performance instance from this machine first, or run "
+            "'vespa auth cert'."
+        )
+
     # Control-plane connection only (no deploy). VespaCloud requires
     # application_package or application_root even for read-only endpoint
     # lookups, so pass a placeholder root -- get_*_endpoint hit the control-plane
     # API and never read it. The constructor loads the data-plane cert pair from
-    # ~/.vespa/{tenant}.{app}.{instance}/, populating data_cert_path/data_key_path.
+    # ~/.vespa/{tenant}.{app}.{instance}/ (a ./.vespa directory in the cwd would
+    # take precedence) and, as a side effect, updates the global vespa CLI
+    # config to point at this application.
     vespa_cloud = VespaCloud(
         tenant=TENANT,
         application=APPLICATION,
@@ -80,16 +96,6 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
     token_url = vespa_cloud.get_token_endpoint(
         instance=INSTANCE, environment=ENVIRONMENT, region=REGION
     )
-
-    cert_path = vespa_cloud.data_cert_path
-    key_path = vespa_cloud.data_key_path
-    if not cert_path or not key_path:
-        pytest.skip(
-            "mTLS certificate/key were not found locally "
-            f"(~/.vespa/{TENANT}.{APPLICATION}.{INSTANCE}/). "
-            "Deploy the performance instance from this machine first, or run "
-            "'vespa auth cert'."
-        )
 
     app = vespa_cloud.get_application(
         instance=INSTANCE,
@@ -107,8 +113,8 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
         yield PerformanceEndpoints(
             mtls_url=mtls_url,
             token_url=token_url,
-            cert_path=cert_path,
-            key_path=key_path,
+            cert_path=str(cert_path),
+            key_path=str(key_path),
             token=secret_token,
         )
     finally:

@@ -38,12 +38,13 @@ def test_token_vs_mtls_performance(vespa_cloud_token_endpoints, tmp_path):
     min_token_rps_ratio = 0.5
     max_error_rate = 0.02
 
+    # Trend stats (p95/p99 etc.) are configured via summaryTrendStats in the
+    # k6 script itself.
     k6_command = [
         "k6",
         "run",
         "--summary-export",
         str(summary_file),
-        "--summary-trend-stats=min,avg,med,p(95),p(99),max",
     ]
     if os.environ.get("CI"):
         # Without a TTY the progress bar floods the log with one line per

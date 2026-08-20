@@ -24,8 +24,8 @@ round-trip time.
 2. **Environment variables**:
    - `VESPA_TEAM_API_KEY`
    - `VESPA_CLOUD_SECRET_TOKEN`
-   - `VESPA_CLIENT_TOKEN_ID` (optional, deploy only)
-   defaults to the id used by the integration tests.
+   - `VESPA_CLIENT_TOKEN_ID` (optional, deploy only) — defaults to the token
+     id the deployed application declares.
 3. **mTLS data-plane certificate** for the application in
    `~/.vespa/vespa-team.pyvespa-performance.default/`. 
 

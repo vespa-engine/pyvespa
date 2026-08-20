@@ -12,6 +12,9 @@ from pathlib import Path
 
 
 def main() -> int:
+    if len(sys.argv) != 2:
+        print("Usage: junit_to_summary.py <junit.xml>", file=sys.stderr)
+        return 2
     junit_file = Path(sys.argv[1])
     if not junit_file.exists():
         print(f"No test results found ({junit_file} missing).")
@@ -44,9 +47,9 @@ def main() -> int:
         for name, message in failures:
             lines.append(f"### ❌ `{name}`")
             lines.append("")
-            lines.append("```")
-            lines.append(message or "(no message)")
-            lines.append("```")
+            # Indented code block: immune to backticks inside the message.
+            for message_line in (message or "(no message)").splitlines():
+                lines.append(f"    {message_line}")
             lines.append("")
 
     print("\n".join(lines))

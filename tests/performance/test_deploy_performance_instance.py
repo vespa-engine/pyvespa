@@ -23,7 +23,8 @@ from tests.integration.test_integration_docker import (
 # Reuse the existing tenant data-plane token (tenant+id scoped, so it works for
 # this dedicated app too). VESPA_CLIENT_TOKEN_ID selects the token id; the
 # deployed app declares <token id=...> with this value so VESPA_CLOUD_SECRET_TOKEN
-# authenticates. Fallback matches the token used by the integration tests.
+# authenticates. Fallback matches the token id the deployed performance app
+# declares.
 CLIENT_TOKEN_ID = os.environ.get("VESPA_CLIENT_TOKEN_ID", "pyvespa_integration")
 
 PERFORMANCE_PROD_REGION = "aws-us-east-1c"
@@ -103,10 +104,13 @@ class TestDeployPerformanceInstanceToProd(unittest.TestCase):
             Validation("minimum-node-count", tomorrow),
         ]
 
+        api_key = os.getenv("VESPA_TEAM_API_KEY")
+        if not api_key:
+            raise RuntimeError("VESPA_TEAM_API_KEY must be set to deploy.")
         self.vespa_cloud = VespaCloud(
             tenant="vespa-team",
             application="pyvespa-performance",
-            key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
+            key_content=api_key.replace(r"\n", "\n"),
             application_package=self.app_package,
             auth_client_token_id=CLIENT_TOKEN_ID,
         )
