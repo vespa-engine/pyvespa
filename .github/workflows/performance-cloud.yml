@@ -38,9 +38,15 @@ jobs:
           uv sync --extra dev
 
       - name: Install k6
-        uses: grafana/setup-k6-action@db07bd9765aac508ef18982e52ab937fe633a065 # v1.2.1
-        with:
-          k6-version: "2.2.0"
+        run: |
+          K6_VERSION="v2.2.0"
+          K6_SHA256="b5a8003c86f35f5cd5ceef1490312c48e587696c94d998cefc6d7b3b4cb1597d"
+          curl -fsSL -o k6.tar.gz \
+            "https://github.com/grafana/k6/releases/download/${K6_VERSION}/k6-${K6_VERSION}-linux-amd64.tar.gz"
+          echo "${K6_SHA256}  k6.tar.gz" | sha256sum -c -
+          tar -xzf k6.tar.gz
+          sudo install "k6-${K6_VERSION}-linux-amd64/k6" /usr/local/bin/k6
+          k6 version
 
       - name: Write data-plane certificate
         env:
@@ -66,9 +72,9 @@ jobs:
       - name: Publish test summary
         if: always()
         continue-on-error: true
-        uses: test-summary/action@37b508cfee6d4d080eedd00b5bb240a6a784a6a5 # v2.6
-        with:
-          paths: ${{ runner.temp }}/performance-report/junit.xml
+        run: |
+          python3 .github/scripts/junit_to_summary.py \
+            "$RUNNER_TEMP/performance-report/junit.xml" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Convert k6 summaries to Prometheus format
         if: always()
