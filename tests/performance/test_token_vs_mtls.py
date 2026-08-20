@@ -51,6 +51,8 @@ def test_token_vs_mtls_performance(vespa_cloud_token_endpoints, tmp_path):
         k6_command.append("--quiet")
     k6_command.append(str(script))
 
+    print(f"\n=== Running k6: {script.name} (~3m30s) ===")
+
     try:
         result = subprocess.run(
             k6_command,
