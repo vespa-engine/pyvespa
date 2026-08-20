@@ -20,8 +20,6 @@ permissions:
 jobs:
   performance-cloud:
     runs-on: ubuntu-24.04
-    env:
-      PERFORMANCE_REPORT_DIR: ${{ runner.temp }}/performance-report
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
@@ -59,6 +57,7 @@ jobs:
         env:
           VESPA_TEAM_API_KEY: ${{ secrets.VESPA_TEAM_API_KEY }}
           VESPA_CLOUD_SECRET_TOKEN: ${{ secrets.VESPA_CLOUD_SECRET_TOKEN }}
+          PERFORMANCE_REPORT_DIR: ${{ runner.temp }}/performance-report
         run: |
           mkdir -p "$PERFORMANCE_REPORT_DIR"
           uv run pytest tests/performance/ -m performance -s -v \
@@ -74,7 +73,7 @@ jobs:
       - name: Convert k6 summaries to Prometheus format
         if: always()
         run: |
-          python3 .github/scripts/k6_summary_to_prom.py "$PERFORMANCE_REPORT_DIR"
+          python3 .github/scripts/k6_summary_to_prom.py "$RUNNER_TEMP/performance-report"
 
       - name: Upload performance report
         if: always()
