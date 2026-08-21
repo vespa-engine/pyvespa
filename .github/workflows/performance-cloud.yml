@@ -1,0 +1,96 @@
+name: Performance - cloud
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+  pull_request:
+    paths: [".github/workflows/performance-cloud.yml"]
+  schedule:
+    - cron: "0 11 * * 0"
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  performance-cloud:
+    # Skip fork PRs
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: "0.6.16"
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          uv sync --extra dev
+
+      # TODO: use grafana/setup-k6-action
+      - name: Install k6
+        run: |
+          K6_VERSION="v2.2.0"
+          K6_SHA256="b5a8003c86f35f5cd5ceef1490312c48e587696c94d998cefc6d7b3b4cb1597d"
+          curl -fsSL -o k6.tar.gz \
+            "https://github.com/grafana/k6/releases/download/${K6_VERSION}/k6-${K6_VERSION}-linux-amd64.tar.gz"
+          echo "${K6_SHA256}  k6.tar.gz" | sha256sum -c -
+          tar -xzf k6.tar.gz
+          sudo install "k6-${K6_VERSION}-linux-amd64/k6" /usr/local/bin/k6
+          k6 version
+
+      - name: Write data-plane certificate
+        env:
+          VESPA_PERFORMANCE_MTLS_CERT: ${{ secrets.VESPA_PERFORMANCE_MTLS_CERT }}
+          VESPA_PERFORMANCE_MTLS_KEY: ${{ secrets.VESPA_PERFORMANCE_MTLS_KEY }}
+        run: |
+          CERT_DIR="$HOME/.vespa/vespa-team.pyvespa-performance.default"
+          mkdir -p "$CERT_DIR"
+          printf '%s\n' "$VESPA_PERFORMANCE_MTLS_CERT" > "$CERT_DIR/data-plane-public-cert.pem"
+          printf '%s\n' "$VESPA_PERFORMANCE_MTLS_KEY" > "$CERT_DIR/data-plane-private-key.pem"
+          chmod 600 "$CERT_DIR/data-plane-private-key.pem"
+
+      - name: Run performance tests
+        env:
+          VESPA_TEAM_API_KEY: ${{ secrets.VESPA_TEAM_API_KEY }}
+          VESPA_CLOUD_SECRET_TOKEN: ${{ secrets.VESPA_CLOUD_SECRET_TOKEN }}
+          PERFORMANCE_REPORT_DIR: ${{ runner.temp }}/performance-report
+          PYTHONUNBUFFERED: "1"
+        run: |
+          mkdir -p "$PERFORMANCE_REPORT_DIR"
+          uv run pytest tests/performance/ -m performance -s -v \
+            --junitxml="$PERFORMANCE_REPORT_DIR/junit.xml"
+
+      # TODO: use test-summary/action
+      - name: Publish test summary
+        if: always()
+        continue-on-error: true
+        run: |
+          python3 .github/scripts/junit_to_summary.py \
+            "$RUNNER_TEMP/performance-report/junit.xml" >> "$GITHUB_STEP_SUMMARY"
+
+      # TODO: replace with k6's native Prometheus output
+      - name: Convert k6 summaries to Prometheus format
+        if: always()
+        run: |
+          python3 .github/scripts/k6_summary_to_prom.py "$RUNNER_TEMP/performance-report"
+
+      - name: Upload performance report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: performance-report
+          path: ${{ runner.temp }}/performance-report/
+          if-no-files-found: warn

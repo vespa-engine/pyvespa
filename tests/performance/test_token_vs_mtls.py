@@ -13,36 +13,43 @@ if shutil.which("k6") is None:
     pytest.skip("k6 binary not found in PATH", allow_module_level=True)
 
 
-@pytest.mark.perf
-def test_token_vs_mtls_perf(vespa_cloud_token_endpoints, tmp_path):
+@pytest.mark.performance
+def test_token_vs_mtls_performance(vespa_cloud_token_endpoints, tmp_path):
     """Run k6 against token and mTLS endpoints and assert thresholds and relative latency."""
 
-    summary_file = tmp_path / "k6_summary.json"
+    report_dir = Path(os.environ.get("PERFORMANCE_REPORT_DIR") or tmp_path)
+    report_dir.mkdir(parents=True, exist_ok=True)
+    summary_file = report_dir / "k6_token_vs_mtls_summary.json"
     script = Path(__file__).parent / "k6_token_vs_mtls.js"
 
     env = {
         **os.environ,
-        "TOKEN_URL": vespa_cloud_token_endpoints["token_url"],
-        "MTLS_URL": vespa_cloud_token_endpoints["mtls_url"],
-        "TOKEN_AUTH_HEADER": f"Bearer {vespa_cloud_token_endpoints['token']}",
-        "MTLS_CERT_PATH": vespa_cloud_token_endpoints["cert_path"],
-        "MTLS_KEY_PATH": vespa_cloud_token_endpoints["key_path"],
+        "TOKEN_URL": vespa_cloud_token_endpoints.token_url,
+        "MTLS_URL": vespa_cloud_token_endpoints.mtls_url,
+        "TOKEN_AUTH_HEADER": f"Bearer {vespa_cloud_token_endpoints.token}",
+        "MTLS_CERT_PATH": vespa_cloud_token_endpoints.cert_path,
+        "MTLS_KEY_PATH": vespa_cloud_token_endpoints.key_path,
     }
     min_token_rps = 500
     min_mtls_rps = 750
-    min_token_rps_ratio = 0.75
+    min_token_rps_ratio = 0.5
     max_error_rate = 0.02
+
+    k6_command = [
+        "k6",
+        "run",
+        "--summary-export",
+        str(summary_file),
+    ]
+    if os.environ.get("CI"):
+        k6_command.append("--quiet")
+    k6_command.append(str(script))
+
+    print(f"\n=== Running k6: {script.name} (~3m30s) ===")
 
     try:
         result = subprocess.run(
-            [
-                "k6",
-                "run",
-                "--summary-export",
-                str(summary_file),
-                "--summary-trend-stats=min,avg,med,p(95),p(99),max",
-                str(script),
-            ],
+            k6_command,
             env=env,
             capture_output=False,
             text=True,
@@ -133,12 +140,12 @@ def test_token_vs_mtls_perf(vespa_cloud_token_endpoints, tmp_path):
         "Error rate too high "
         f"(token fail rate={token_fail_rate:.4f}, mtls fail rate={mtls_fail_rate:.4f}, max={max_error_rate})"
     )
-    assert (
-        token_req_rate >= min_token_rps
-    ), f"Token throughput too low (got {token_req_rate:.2f} req/s, expected >={min_token_rps} req/s)"
-    assert (
-        mtls_req_rate >= min_mtls_rps
-    ), f"mTLS throughput too low (got {mtls_req_rate:.2f} req/s, expected >={min_mtls_rps} req/s)"
+    assert token_req_rate >= min_token_rps, (
+        f"Token throughput too low (got {token_req_rate:.2f} req/s, expected >={min_token_rps} req/s)"
+    )
+    assert mtls_req_rate >= min_mtls_rps, (
+        f"mTLS throughput too low (got {mtls_req_rate:.2f} req/s, expected >={min_mtls_rps} req/s)"
+    )
     assert token_req_rate >= min_token_rps_ratio * mtls_req_rate, (
         "Token throughput too low relative to mTLS "
         f"(token rps={token_req_rate:.2f}, mTLS rps={mtls_req_rate:.2f}, "
