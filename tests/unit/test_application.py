@@ -20,6 +20,12 @@ from vespa.application import (
 )
 import httpx
 from typing import List
+from tenacity import (
+    AsyncRetrying,
+    RetryError,
+    wait_none,
+    stop_after_attempt,
+)
 
 
 def create_mock_httpr_response(status_code=200, json_data=None, text="{}", url=""):
@@ -1182,6 +1188,44 @@ class TestVespaAsyncDataMethods:
 
         assert r.json == {"message": "Internal Server Error"}
         assert r.status_code == 500
+
+
+@pytest.mark.asyncio
+class TestVespaAsyncQuery:
+    async def test_query_retries(self):
+        app = Vespa(url="http://localhost", port=8080)
+        vespa_async = VespaAsync(app)
+
+        success = create_mock_httpr_response(
+            status_code=200, json_data={"root": {}}, url="http://localhost:8080/search/"
+        )
+        vespa_async._make_request = AsyncMock(
+            side_effect=[RuntimeError("fail"), success]
+        )
+
+        r = await vespa_async.query(
+            body={"yql": "select * from sources * where true"},
+            retry=AsyncRetrying(wait=wait_none(), stop=stop_after_attempt(3)),
+        )
+
+        assert isinstance(r, VespaQueryResponse)
+        assert r.status_code == 200
+        vespa_async._make_request.await_count == 2
+
+    @pytest.mark.parametrize(
+        "policy,attempts",
+        [(AsyncRetrying(wait=wait_none(), stop=stop_after_attempt(2)), 2), (None, 5)],
+    )
+    async def test_query_exhausts_retries(self, policy, attempts):
+        app = Vespa(url="http://localhost", port=8080)
+        vespa_async = VespaAsync(app)
+        vespa_async._make_request = AsyncMock(side_effect=RuntimeError("fail"))
+
+        with patch("tenacity.asyncio._portable_async_sleep", new=AsyncMock()):
+            with pytest.raises(RetryError):
+                await vespa_async.query(body={"yql": "x"}, retry=policy)
+
+        assert vespa_async._make_request.await_count == attempts
 
 
 class TestVespaSyncStreaming(unittest.TestCase):

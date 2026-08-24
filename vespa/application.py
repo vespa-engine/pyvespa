@@ -15,6 +15,7 @@ from requests import Session
 from requests.models import Response
 from requests.exceptions import ConnectionError, HTTPError, JSONDecodeError
 from tenacity import (
+    AsyncRetrying,
     retry,
     wait_exponential,
     wait_random_exponential,
@@ -2284,14 +2285,12 @@ class VespaAsync(object):
             raise state.outcome.exception()
         return state.outcome.result()
 
-    @retry(
-        wait=wait_random_exponential(multiplier=1.5, max=60), stop=stop_after_attempt(5)
-    )
     async def query(
         self,
         body: Optional[Dict] = None,
         groupname: Optional[str] = None,
         profile: bool = False,
+        retry: Optional[AsyncRetrying] = None,
         **kwargs,
     ) -> VespaQueryResponse:
         """
@@ -2301,29 +2300,49 @@ class VespaAsync(object):
             body (dict): Dict containing all the request parameters.
             groupname (str, optional): The groupname used in streaming search.
             profile (bool, optional): Add profiling parameters to the query (response may be large). Defaults to False.
+            retry (AsyncRetrying, optional): Custom tenacity retry policy. Defaults to five attempts with random exponential wait time.
             **kwargs (dict, optional): Additional valid Vespa HTTP Query API parameters.
 
         Returns:
             VespaQueryResponse: The response from the query.
+
+        Raises:
+            RetryError: When all retries have failed, unless a custom policy with reraise is passed.
         """
         if groupname:
             kwargs["streaming.groupname"] = groupname
         if profile:
             kwargs.update(get_profiling_params())
 
-        response = await self._make_request(
-            "POST",
-            self.app.search_end_point,
-            json_data=body,
-            params=kwargs,
-            headers={"Accept": "application/cbor"},
+        retry = (
+            retry.copy()
+            if retry
+            else AsyncRetrying(
+                wait=wait_random_exponential(multiplier=1.5, max=60),
+                stop=stop_after_attempt(5),
+            )
         )
 
-        return VespaQueryResponse(
-            json=_response_json(response),
-            status_code=response.status_code,
-            url=str(response.url),
-        )
+        async for attempt in retry:
+            with attempt:
+                response = await self._make_request(
+                    "POST",
+                    self.app.search_end_point,
+                    json_data=body,
+                    params=kwargs,
+                    headers={"Accept": "application/cbor"},
+                )
+
+                query_response = VespaQueryResponse(
+                    json=_response_json(response),
+                    status_code=response.status_code,
+                    url=str(response.url),
+                )
+
+            if not attempt.retry_state.outcome.failed:
+                attempt.retry_state.set_result(query_response)
+
+        return query_response
 
     @retry(
         wait=wait_exponential(multiplier=1),
