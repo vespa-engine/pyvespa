@@ -8,25 +8,25 @@ from typing import Generator
 import pytest
 
 from vespa.deployment import VespaCloud
+from vespa.application import Vespa
 
-
-# Persistent prod performance app, deployed once via
-# test_deploy_performance_instance.py.
-TENANT = "vespa-team"
-APPLICATION = "pyvespa-performance"
-INSTANCE = "default"
-ENVIRONMENT = "prod"
-REGION = "aws-us-east-1c"
-SCHEMA = "msmarco"
-CONTENT_CLUSTER = "msmarco_content"
+from utils.workloads import (
+    APPLICATION,
+    CONTENT_CLUSTER,
+    ENVIRONMENT,
+    INSTANCE,
+    REGION,
+    SCHEMA,
+    TENANT,
+)
 
 
 @dataclass(frozen=True)
 class PerformanceEndpoints:
-    """Connection details for the k6 tooling.
+    """Connection details for both performance lanes (k6 and pyvespa).
 
-    The token is excluded from repr so pytest failure output (which prints
-    fixture values) never contains the secret.
+    The token and app objects are excluded from repr so pytest failure
+    output (which prints fixture values) never contains the secret.
     """
 
     mtls_url: str
@@ -34,6 +34,9 @@ class PerformanceEndpoints:
     cert_path: str
     key_path: str
     token: str = field(repr=False)
+    vespa_cloud: VespaCloud = field(repr=False)
+    mtls_app: Vespa = field(repr=False)
+    token_app: Vespa = field(repr=False)
 
 
 def _require_env_var(name: str) -> str:
@@ -47,7 +50,7 @@ def _require_env_var(name: str) -> str:
 def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]:
     """
     Connect to the already-deployed, persistent prod performance instance and
-    yield its mTLS + token endpoint details for the k6 tooling.
+    yield its mTLS + token endpoint details for both performance lanes.
 
     This does NOT deploy: the instance is created once by
     test_deploy_performance_instance.py and reused across runs for stable, comparable
@@ -97,16 +100,24 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
         instance=INSTANCE, environment=ENVIRONMENT, region=REGION
     )
 
-    app = vespa_cloud.get_application(
+    mtls_app = vespa_cloud.get_application(
         instance=INSTANCE,
         environment=ENVIRONMENT,
         endpoint_type="mtls",
         region=REGION,
     )
 
+    token_app = vespa_cloud.get_application(
+        instance=INSTANCE,
+        environment=ENVIRONMENT,
+        endpoint_type="token",
+        vespa_cloud_secret_token=secret_token,
+        region=REGION,
+    )
+
     # Pre-clean leftovers from any earlier run that was killed before teardown.
     print("\n=== Setup: deleting any leftover test documents ===")
-    app.delete_all_docs(content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA)
+    mtls_app.delete_all_docs(content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA)
     print("Leftover documents deleted.")
 
     try:
@@ -116,9 +127,12 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
             cert_path=str(cert_path),
             key_path=str(key_path),
             token=secret_token,
+            vespa_cloud=vespa_cloud,
+            mtls_app=mtls_app,
+            token_app=token_app,
         )
     finally:
-        # The k6 workload feeds docs, so leave a clean slate for the next run.
+        # The workloads feed docs, so leave a clean slate for the next run.
         print("\n=== Teardown: deleting fed test documents ===")
-        app.delete_all_docs(content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA)
+        mtls_app.delete_all_docs(content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA)
         print("Fed documents deleted.")
