@@ -204,10 +204,18 @@ def _run_iterable(
 
 def _run_pair(runner, endpoints, report_dir, method: str) -> None:
     profile = method_profile(method)
-    results = [
-        runner(app=endpoints.token_app, transport="token", profile=profile),
-        runner(app=endpoints.mtls_app, transport="mtls", profile=profile),
-    ]
+    expected_s = int(profile.warmup_s + profile.duration_s)
+    print(
+        f"\n=== Running pyvespa {method} "
+        f"(concurrency={profile.concurrency}, ~{expected_s}s per transport) ==="
+    )
+    results = []
+    for transport, app in [
+        ("token", endpoints.token_app),
+        ("mtls", endpoints.mtls_app),
+    ]:
+        print(f"--- {transport} ---")
+        results.append(runner(app=app, transport=transport, profile=profile))
     write_records(results, report_dir, f"pyvespa_{method}")
     assert_token_vs_mtls(results[0], results[1], PYVESPA_THRESHOLDS)
 
