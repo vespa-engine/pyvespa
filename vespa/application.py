@@ -588,7 +588,7 @@ class Vespa(object):
     def query(
         self,
         body: Optional[Dict] = None,
-        groupname: str = None,
+        groupname: Optional[str] = None,
         streaming: bool = False,
         profile: bool = False,
         **kwargs,
@@ -624,8 +624,8 @@ class Vespa(object):
         schema: str,
         data_id: str,
         fields: Dict,
-        namespace: str = None,
-        groupname: str = None,
+        namespace: Optional[str] = None,
+        groupname: Optional[str] = None,
         compress: Union[str, bool] = "auto",
         **kwargs,
     ) -> VespaResponse:
@@ -1652,8 +1652,8 @@ class VespaSync(object):
         schema: str,
         data_id: str,
         fields: Dict,
-        namespace: str = None,
-        groupname: str = None,
+        namespace: Optional[str] = None,
+        groupname: Optional[str] = None,
         **kwargs,
     ) -> VespaResponse:
         """
@@ -1694,7 +1694,7 @@ class VespaSync(object):
     def query(
         self,
         body: Optional[Dict] = None,
-        groupname: str = None,
+        groupname: Optional[str] = None,
         streaming: bool = False,
         profile: bool = False,
         **kwargs,
@@ -1768,8 +1768,8 @@ class VespaSync(object):
         self,
         schema: str,
         data_id: str,
-        namespace: str = None,
-        groupname: str = None,
+        namespace: Optional[str] = None,
+        groupname: Optional[str] = None,
         **kwargs,
     ) -> VespaResponse:
         """
@@ -1805,7 +1805,7 @@ class VespaSync(object):
         self,
         content_cluster_name: str,
         schema: str,
-        namespace: str = None,
+        namespace: Optional[str] = None,
         slices: int = 1,
         **kwargs,
     ) -> None:
@@ -1960,8 +1960,8 @@ class VespaSync(object):
         self,
         schema: str,
         data_id: str,
-        namespace: str = None,
-        groupname: str = None,
+        namespace: Optional[str] = None,
+        groupname: Optional[str] = None,
         raise_on_not_found: Optional[bool] = False,
         **kwargs,
     ) -> VespaResponse:
@@ -2004,8 +2004,8 @@ class VespaSync(object):
         fields: Dict,
         create: bool = False,
         auto_assign: bool = True,
-        namespace: str = None,
-        groupname: str = None,
+        namespace: Optional[str] = None,
+        groupname: Optional[str] = None,
         **kwargs,
     ) -> VespaResponse:
         """
@@ -2290,7 +2290,7 @@ class VespaAsync(object):
     async def query(
         self,
         body: Optional[Dict] = None,
-        groupname: str = None,
+        groupname: Optional[str] = None,
         profile: bool = False,
         **kwargs,
     ) -> VespaQueryResponse:
@@ -2386,9 +2386,9 @@ class VespaAsync(object):
         self,
         schema: str,
         data_id: str,
-        namespace: str = None,
-        groupname: str = None,
-        semaphore: asyncio.Semaphore = None,
+        namespace: Optional[str] = None,
+        groupname: Optional[str] = None,
+        semaphore: Optional[asyncio.Semaphore] = None,
         **kwargs,
     ) -> VespaResponse:
         path = self.app.get_document_v1_path(
@@ -2427,9 +2427,9 @@ class VespaAsync(object):
         self,
         schema: str,
         data_id: str,
-        namespace: str = None,
-        groupname: str = None,
-        semaphore: asyncio.Semaphore = None,
+        namespace: Optional[str] = None,
+        groupname: Optional[str] = None,
+        semaphore: Optional[asyncio.Semaphore] = None,
         **kwargs,
     ) -> VespaResponse:
         path = self.app.get_document_v1_path(
@@ -2471,9 +2471,9 @@ class VespaAsync(object):
         fields: Dict,
         create: bool = False,
         auto_assign: bool = True,
-        namespace: str = None,
-        groupname: str = None,
-        semaphore: asyncio.Semaphore = None,
+        namespace: Optional[str] = None,
+        groupname: Optional[str] = None,
+        semaphore: Optional[asyncio.Semaphore] = None,
         **kwargs,
     ) -> VespaResponse:
         path = self.app.get_document_v1_path(
