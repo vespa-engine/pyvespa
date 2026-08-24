@@ -20,10 +20,12 @@ round-trip time.
 
 Both lanes reduce to the same `LaneResult` schema and assertion set
 (`utils/metrics.py`), share warmup/measurement windows (30 s + 150 s, injected
-into k6 via env vars), and use the identical document payload. k6 runs at
-200 VUs as the ceiling; each pyvespa method runs at an educated-guess
-near-optimal concurrency (`METHOD_CONCURRENCY` in `utils/workloads.py`), so
-the delta vs k6 reads as client overhead at near-best configuration. The
+into k6 via env vars), use the identical document payload, and load token and
+mTLS **concurrently** so both lanes measure under the same total load. k6 runs
+at 200 VUs per transport as the ceiling; each pyvespa method runs at an
+educated-guess near-optimal concurrency (`METHOD_CONCURRENCY` in
+`utils/workloads.py`), so the delta vs k6 reads as client overhead at
+near-best configuration. The
 iterable methods are batch APIs: they report wall-clock throughput only
 (per-request latency is not observable from the callback).
 

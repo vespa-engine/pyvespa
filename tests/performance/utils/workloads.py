@@ -33,10 +33,14 @@ class LoadProfile:
     concurrency: int = 200
     warmup_s: float = 30.0
     duration_s: float = 150.0
-    iterable_docs: int = 20000
-    iterable_warmup_docs: int = 500
+    # Sized for a stable measurement window (~2 min at observed feed rates).
+    iterable_docs: int = 200000
+    iterable_warmup_docs: int = 2000
     iterable_max_workers: int = 200
     iterable_max_connections: int = 200
+    # HTTP/2 connections for the async paths. pyvespa defaults to 1; a single
+    # connection was observed to cap throughput, so let async use several.
+    async_connections: int = 8
 
     def k6_env(self) -> dict:
         """Env vars for k6/token_vs_mtls.js so both lanes share one load shape."""

@@ -110,7 +110,7 @@ def _run_async_closed_loop(
 
     async def run() -> List[Dict]:
         samples: List[Dict] = []
-        async with app.asyncio(connections=1) as session:
+        async with app.asyncio(connections=profile.async_connections) as session:
             warmup_end, deadline = _closed_loop_windows(profile)
 
             async def loop() -> None:
@@ -178,7 +178,7 @@ def _run_iterable(
                 schema=SCHEMA,
                 callback=cb,
                 max_workers=profile.iterable_max_workers,
-                max_connections=1,
+                max_connections=profile.async_connections,
             )
 
     # Untimed warmup batch: connection/TLS setup stays out of the measurement.
@@ -207,15 +207,20 @@ def _run_pair(runner, endpoints, report_dir, method: str) -> None:
     expected_s = int(profile.warmup_s + profile.duration_s)
     print(
         f"\n=== Running pyvespa {method} "
-        f"(concurrency={profile.concurrency}, ~{expected_s}s per transport) ==="
+        f"(concurrency={profile.concurrency} per transport, "
+        f"token+mtls concurrently, ~{expected_s}s) ==="
     )
-    results = []
-    for transport, app in [
-        ("token", endpoints.token_app),
-        ("mtls", endpoints.mtls_app),
-    ]:
-        print(f"--- {transport} ---")
-        results.append(runner(app=app, transport=transport, profile=profile))
+    # Token and mTLS run at the same time, mirroring k6's two concurrent
+    # scenarios, so both lanes measure under the same total load.
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [
+            executor.submit(runner, app=app, transport=transport, profile=profile)
+            for transport, app in [
+                ("token", endpoints.token_app),
+                ("mtls", endpoints.mtls_app),
+            ]
+        ]
+        results = [f.result() for f in futures]
     write_records(results, report_dir, f"pyvespa_{method}")
     assert_token_vs_mtls(results[0], results[1], PYVESPA_THRESHOLDS)
 
