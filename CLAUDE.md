@@ -39,8 +39,8 @@ uv run pytest tests/unit/test_package.py::TestField::test_field_name -v
 uv sync --extra dev --extra docs
 uv run pytest tests/mktestdocs -s -v
 
-# Run performance tests (marked with @pytest.mark.perf)
-uv run pytest tests/perf/ -m perf -v
+# Run performance tests (marked with @pytest.mark.performance)
+uv run pytest tests/performance/ -m performance -v
 ```
 
 ### Linting and Formatting
@@ -174,7 +174,7 @@ When modifying XML configuration generation, validate against RelaxNG schemas in
 
 - **Unit tests** (`tests/unit/`): Mock external dependencies, test individual components in isolation
 - **Integration tests** (`tests/integration/`): Spin up Docker containers with real Vespa instances
-- **Performance tests** (`tests/perf/`): Load testing marked with `@pytest.mark.perf`
+- **Performance tests** (`tests/performance/`): Load testing marked with `@pytest.mark.performance`
 - **Doctest tests** (`tests/mktestdocs/`): Validate code examples in documentation
 
 ## Coding Standards

@@ -2,11 +2,11 @@ import http from "k6/http";
 import { check, sleep } from "k6";
 import { Trend, Rate, Counter } from "k6/metrics";
 
-const maxVus = 200;
-const duration = "3m";
-const startRate = 100;
-const rampStep = 400;
-const holdTime = "20s";
+// Load profile is injected by test_k6_token_vs_mtls.py from the shared
+// LoadProfile (utils/workloads.py) so both lanes generate identical load.
+const maxVus = Number(__ENV.MAX_VUS || 200);
+const rampUp = __ENV.RAMP_UP || "30s"; // warm up to maxVus
+const hold = __ENV.HOLD || "2m30s"; // steady-state measurement window
 
 const schema = "msmarco";
 
@@ -22,66 +22,30 @@ if (__ENV.MTLS_CERT_PATH && __ENV.MTLS_KEY_PATH) {
   });
 }
 
-// Build stages: ramp up by RAMP_STEP, then hold, repeat until duration
-function buildStages(totalDuration, holdDuration, step, start) {
-  const stages = [];
-  const holdMs = parseDuration(holdDuration);
-  const totalMs = parseDuration(totalDuration);
-  const rampTime = "20s"; // Quick ramp between steps
-
-  let elapsed = 0;
-  let currentRate = start;
-
-  while (elapsed < totalMs) {
-    // Ramp to next level
-    currentRate += step;
-    stages.push({ target: currentRate, duration: rampTime });
-    elapsed += parseDuration(rampTime);
-
-    if (elapsed >= totalMs) break;
-
-    // Hold at this level
-    const remainingTime = totalMs - elapsed;
-    const actualHold = Math.min(holdMs, remainingTime);
-    stages.push({ target: currentRate, duration: `${actualHold}ms` });
-    elapsed += actualHold;
-  }
-
-  return stages;
-}
-
-function parseDuration(d) {
-  if (typeof d === "number") return d;
-  const match = d.match(/^(\d+)(ms|s|m|h)$/);
-  if (!match) return 60000;
-  const value = Number(match[1]);
-  const unit = match[2];
-  const multipliers = { ms: 1, s: 1000, m: 60000, h: 3600000 };
-  return value * multipliers[unit];
-}
-
-const stages = buildStages(duration, holdTime, rampStep, startRate);
+// Closed model: a fixed pool of VUs feeds as fast as the instance responds, so
+// throughput is the measured *output* (not a target we try to hit). This avoids
+// the "insufficient VUs" warnings and dropped iterations the arrival-rate model
+// produced, and gives stable, comparable numbers for regression tracking. Both
+// scenarios use the same VU schedule for a fair token-vs-mTLS comparison.
+const vuStages = [
+  { target: maxVus, duration: rampUp },
+  { target: maxVus, duration: hold },
+];
 
 export const options = {
   scenarios: {
     mtls: {
-      executor: "ramping-arrival-rate",
-      startRate,
-      timeUnit: "1s",
-      preAllocatedVUs: maxVus,
-      maxVUs: maxVus,
-      stages,
-      startTime: "0s",
+      executor: "ramping-vus",
+      startVUs: 0,
+      stages: vuStages,
+      gracefulStop: "30s",
       exec: "mtlsScenario",
     },
     token: {
-      executor: "ramping-arrival-rate",
-      startRate,
-      timeUnit: "1s",
-      preAllocatedVUs: maxVus,
-      maxVUs: maxVus,
-      stages,
-      startTime: "0s",
+      executor: "ramping-vus",
+      startVUs: 0,
+      stages: vuStages,
+      gracefulStop: "30s",
       exec: "tokenScenario",
     },
   },
@@ -106,7 +70,7 @@ function feedDoc(url, authHeader, kindTag) {
   const payload = JSON.stringify({
     fields: {
       id: docId,
-      title: "perf-doc",
+      title: "performance-doc",
       body: "benchmark run",
     },
   });
@@ -141,10 +105,4 @@ export function tokenScenario() {
   tokenFailRate.add(!tokenOk);
   tokenReqs.add(1);
   check(tokenRes, { "token status 2xx": () => tokenOk });
-}
-
-export function handleSummary(data) {
-  console.log("=== k6 metrics dump ===");
-  console.log(JSON.stringify(data.metrics, null, 2));
-  return {};
 }
