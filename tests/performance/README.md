@@ -6,28 +6,48 @@ against a persistent Vespa Cloud application dedicated to this purpose:
 
 The zone is chosen to sit close to GitHub-hosted runners (US regions), which
 generate the load in CI. This keeps network RTT small and stable, which matters
-because the workload uses a closed model where throughput is gated by
+because the workloads use a closed model where throughput is gated by
 round-trip time.
+
+## Two lanes
+
+1. **k6 lane** (`test_k6_token_vs_mtls.py` + `k6/token_vs_mtls.js`): raw HTTP
+   through k6's Go stack — the endpoint ceiling with no pyvespa involvement.
+2. **pyvespa lane** (`test_pyvespa_token_vs_mtls.py`): the real pyvespa code
+   paths — `VespaSync.feed_data_point` (thread closed loop),
+   `VespaAsync.feed_data_point` (asyncio closed loop), `feed_iterable`, and
+   `feed_async_iterable`.
+
+Both lanes reduce to the same `LaneResult` schema and assertion set
+(`utils/metrics.py`), share warmup/measurement windows (30 s + 150 s, injected
+into k6 via env vars), use the identical document payload, and load token and
+mTLS **concurrently** so both lanes measure under the same total load. k6 runs
+at 200 VUs per transport as the ceiling; each pyvespa method runs at an
+educated-guess near-optimal concurrency (`METHOD_CONCURRENCY` in
+`utils/workloads.py`), so the delta vs k6 reads as client overhead at
+near-best configuration. The
+iterable methods are batch APIs: they report wall-clock throughput only
+(per-request latency is not observable from the callback).
 
 ## Layout
 
 | File | Purpose |
 | --- | --- |
-| `conftest.py` | Session fixture: resolves the mTLS and token endpoints of the deployed instance via the Vespa Cloud control plane, hands them to the tests, and deletes all fed documents in teardown so every run starts from a clean slate. |
-| `k6_token_vs_mtls.js` | k6 workload: feeds documents through the mTLS and token endpoints with identical VU schedules and records per-endpoint latency, throughput, and error-rate metrics. |
-| `test_token_vs_mtls.py` | Runs the k6 script as a subprocess, parses the summary, and asserts absolute and relative thresholds (throughput floors, error-rate ceiling, token-vs-mTLS latency and throughput ratios). |
-| `test_deploy_performance_instance.py` | Manual, one-time deploy of the application package backing the tests. `@unittest.skip`'d so it never runs in CI. |
+| `conftest.py` | Session fixture: resolves the mTLS and token endpoints and `Vespa` app objects; deletes fed documents in setup and teardown. |
+| `utils/workloads.py` | Load profile, per-method concurrency, document factory, thresholds. |
+| `utils/metrics.py` | `LaneResult` schema, records writer, shared `assert_token_vs_mtls`. |
+| `k6/token_vs_mtls.js` | k6 feed workload with per-endpoint latency/throughput/error metrics. |
+| `test_k6_token_vs_mtls.py` | Lane 1: k6 subprocess, summary → `LaneResult`s, shared asserts. |
+| `test_pyvespa_token_vs_mtls.py` | Lane 2: the four pyvespa methods per transport. |
+| `test_deploy_performance_instance.py` | Manual, one-time deploy; `@unittest.skip`'d. |
 
 ## Prerequisites
 
-1. **k6** installed and on `PATH`
-2. **Environment variables**:
-   - `VESPA_TEAM_API_KEY`
-   - `VESPA_CLOUD_SECRET_TOKEN`
-   - `VESPA_CLIENT_TOKEN_ID` (optional, deploy only) — defaults to the token
-     id the deployed application declares.
-3. **mTLS data-plane certificate** for the application in
-   `~/.vespa/vespa-team.pyvespa-performance.default/`. 
+1. **k6** on `PATH` (k6 lane only)
+2. **Environment variables**: `VESPA_TEAM_API_KEY`, `VESPA_CLOUD_SECRET_TOKEN`
+   (`VESPA_CLIENT_TOKEN_ID` optional, deploy only)
+3. **mTLS data-plane certificate** in
+   `~/.vespa/vespa-team.pyvespa-performance.default/`
 
 ## Running locally
 
@@ -35,35 +55,29 @@ round-trip time.
 uv run pytest tests/performance/ -m performance -v
 ```
 
-The k6 output is streamed to the console and the assertions print a short
-`=== Results ===` summary at the end.
-
-Note that every run feeds documents into (and afterwards deletes them from)
-the shared prod instance, so avoid running concurrently with another run.
-Local runs from Europe also see a higher RTT to `aws-us-east-1c` than CI
-does, so absolute local numbers are not comparable with CI numbers.
+Full suite is roughly 20 minutes and feeds (then deletes) documents on the
+shared prod instance — avoid concurrent runs. Local runs from Europe see a
+higher RTT than CI, so absolute local numbers are not comparable with CI.
 
 ## Running in CI
 
 `.github/workflows/performance-cloud.yml` runs the suite weekly, on pushes to
 master, on manual dispatch, and on PRs that touch the workflow file itself.
-The runner image is pinned (`ubuntu-24.04`, the fixed 4 vcpu / 16 GB public-repo
-flavor) and the k6 version is pinned, so the load-generator side stays constant
-across runs. Required repository secrets: `VESPA_TEAM_API_KEY`,
-`VESPA_CLOUD_SECRET_TOKEN`, and the data-plane pair
-`VESPA_PERFORMANCE_MTLS_CERT` / `VESPA_PERFORMANCE_MTLS_KEY` (contents of the
-`data-plane-public-cert.pem` / `data-plane-private-key.pem` files).
+Runner image and k6 version are pinned. Required secrets: `VESPA_TEAM_API_KEY`,
+`VESPA_CLOUD_SECRET_TOKEN`, `VESPA_PERFORMANCE_MTLS_CERT` /
+`VESPA_PERFORMANCE_MTLS_KEY`.
 
-Each CI run publishes a pass/fail test summary on the run page and uploads a
-`performance-report` artifact containing the JUnit XML, the raw k6 summary
-JSON, and `metrics.prom` (Prometheus exposition format, generated by
-`.github/scripts/k6_summary_to_prom.py`).
+Each run uploads a `performance-report` artifact: JUnit XML, raw k6 summary,
+per-method `*records.json`, and `metrics.prom` (generated by
+`.github/scripts/reports_to_prom.py`). Every (lane, method, transport)
+combination is one labeled Prometheus series, e.g.
+`perf_rps{lane="pyvespa",method="feed_iterable",transport="token"}`, so a
+future Grafana dashboard gets one plot per combination.
 
 ## One-time instance lifecycle
 
-The application is deployed **once** and reused across all runs. Redeploy only
-when the application package in `test_deploy_performance_instance.py` changes,
-and by hand:
+The application is deployed **once** and reused. Redeploy only when the
+application package in `test_deploy_performance_instance.py` changes:
 
 ```bash
 # Remove the @unittest.skip first, then:
@@ -72,11 +86,13 @@ uv run pytest tests/performance/test_deploy_performance_instance.py -s -v
 
 ## Follow-ups / known comparability gaps
 
-- **Storage type is not pinned**: `<resources>` supports `storage-type`
-  (`local`/`remote`) and `disk-speed`, which we leave unset, so the
-  provisioner chooses. Pinning it (one more redeploy) would remove a disk
-  performance variable from the feed-heavy workload.
-- **Instance generation is not pinnable**: Vespa Cloud can move the node to a
-  newer hardware generation with identical declared resources (e.g. on host
-  retirement). If the trend graphs show an unexplained step change, this might
-  be the cause.
+- **No HTTP-version axis**: httpr cannot force HTTP/1.1 nor report the
+  negotiated protocol; the `http` label records each path's library default.
+- **Concurrency is an educated guess**, not swept; pyvespa numbers are
+  near-best, not proven optima.
+- **pyvespa thresholds are provisional** — tighten in `utils/workloads.py`
+  once CI baselines exist.
+- **Batch APIs lack per-request latency**; a pyvespa enhancement stamping
+  request duration into `VespaResponse` would close this.
+- **Storage type / instance generation are not pinned** by the deployed
+  package; hardware moves can cause step changes in trends.

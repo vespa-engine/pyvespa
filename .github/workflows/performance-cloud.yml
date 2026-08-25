@@ -81,11 +81,10 @@ jobs:
           python3 .github/scripts/junit_to_summary.py \
             "$RUNNER_TEMP/performance-report/junit.xml" >> "$GITHUB_STEP_SUMMARY"
 
-      # TODO: replace with k6's native Prometheus output
-      - name: Convert k6 summaries to Prometheus format
+      - name: Convert performance reports to Prometheus format
         if: always()
         run: |
-          python3 .github/scripts/k6_summary_to_prom.py "$RUNNER_TEMP/performance-report"
+          python3 .github/scripts/reports_to_prom.py "$RUNNER_TEMP/performance-report"
 
       - name: Upload performance report
         if: always()

@@ -2,9 +2,11 @@ import http from "k6/http";
 import { check, sleep } from "k6";
 import { Trend, Rate, Counter } from "k6/metrics";
 
-const maxVus = 200;
-const rampUp = "30s"; // warm up to maxVus
-const hold = "2m30s"; // steady-state measurement window
+// Load profile is injected by test_k6_token_vs_mtls.py from the shared
+// LoadProfile (utils/workloads.py) so both lanes generate identical load.
+const maxVus = Number(__ENV.MAX_VUS || 200);
+const rampUp = __ENV.RAMP_UP || "30s"; // warm up to maxVus
+const hold = __ENV.HOLD || "2m30s"; // steady-state measurement window
 
 const schema = "msmarco";
 
