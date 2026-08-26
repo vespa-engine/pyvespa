@@ -2290,7 +2290,7 @@ class VespaAsync(object):
         body: Optional[Dict] = None,
         groupname: Optional[str] = None,
         profile: bool = False,
-        retry: Optional[AsyncRetrying] = None,
+        retry_policy: Optional[AsyncRetrying] = None,
         **kwargs,
     ) -> VespaQueryResponse:
         """
@@ -2300,7 +2300,7 @@ class VespaAsync(object):
             body (dict): Dict containing all the request parameters.
             groupname (str, optional): The groupname used in streaming search.
             profile (bool, optional): Add profiling parameters to the query (response may be large). Defaults to False.
-            retry (AsyncRetrying, optional): Custom tenacity retry policy. Defaults to five attempts with random exponential wait time.
+            retry_policy (AsyncRetrying, optional): Custom tenacity retry policy. Defaults to five attempts with random exponential wait time.
             **kwargs (dict, optional): Additional valid Vespa HTTP Query API parameters.
 
         Returns:
@@ -2314,16 +2314,16 @@ class VespaAsync(object):
         if profile:
             kwargs.update(get_profiling_params())
 
-        retry = (
-            retry.copy()
-            if retry
+        retry_policy = (
+            retry_policy.copy()
+            if retry_policy
             else AsyncRetrying(
                 wait=wait_random_exponential(multiplier=1.5, max=60),
                 stop=stop_after_attempt(5),
             )
         )
 
-        async for attempt in retry:
+        async for attempt in retry_policy:
             with attempt:
                 response = await self._make_request(
                     "POST",

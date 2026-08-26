@@ -1205,7 +1205,7 @@ class TestVespaAsyncQuery:
 
         r = await vespa_async.query(
             body={"yql": "select * from sources * where true"},
-            retry=AsyncRetrying(wait=wait_none(), stop=stop_after_attempt(3)),
+            retry_policy=AsyncRetrying(wait=wait_none(), stop=stop_after_attempt(3)),
         )
 
         assert isinstance(r, VespaQueryResponse)
@@ -1223,7 +1223,7 @@ class TestVespaAsyncQuery:
 
         with patch("tenacity.asyncio._portable_async_sleep", new=AsyncMock()):
             with pytest.raises(RetryError):
-                await vespa_async.query(body={"yql": "x"}, retry=policy)
+                await vespa_async.query(body={"yql": "x"}, retry_policy=policy)
 
         assert vespa_async._make_request.await_count == attempts
 
