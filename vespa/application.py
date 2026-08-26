@@ -2323,26 +2323,21 @@ class VespaAsync(object):
             )
         )
 
-        async for attempt in retry_policy:
-            with attempt:
-                response = await self._make_request(
-                    "POST",
-                    self.app.search_end_point,
-                    json_data=body,
-                    params=kwargs,
-                    headers={"Accept": "application/cbor"},
-                )
+        async def _do_query() -> VespaQueryResponse:
+            response = await self._make_request(
+                "POST",
+                self.app.search_end_point,
+                json_data=body,
+                params=kwargs,
+                headers={"Accept": "application/cbor"},
+            )
+            return VespaQueryResponse(
+                json=_response_json(response),
+                status_code=response.status_code,
+                url=str(response.url),
+            )
 
-                query_response = VespaQueryResponse(
-                    json=_response_json(response),
-                    status_code=response.status_code,
-                    url=str(response.url),
-                )
-
-            if not attempt.retry_state.outcome.failed:
-                attempt.retry_state.set_result(query_response)
-
-        return query_response
+        return await retry_policy(_do_query)
 
     @retry(
         wait=wait_exponential(multiplier=1),
