@@ -3,7 +3,7 @@
 
 import unittest
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from datasets import load_dataset
 from vespa.package import (
@@ -231,7 +231,7 @@ def small_targethits_query_fn(query_text: str, top_k: int = 10) -> Dict[str, Any
 
 
 def feature_collection_query_fn(
-    query_text: str, top_k: int = 10, query_id: str = None
+    query_text: str, top_k: int = 10, query_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Convert plain text into a JSON body for Vespa query with 'feature-collection' rank profile.

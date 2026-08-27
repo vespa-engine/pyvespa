@@ -156,7 +156,9 @@ indent-width = 4
 vespa = ["py.typed", "templates/*"]
 
 [tool.ruff.lint]
-select = ["E4", "E7", "E9", "F"]
+# RUF013 bans implicit Optional (`x: str = None`), which ships wrong types to
+# users via py.typed. See #1341 and the follow-up fixing the rest.
+select = ["E4", "E7", "E9", "F", "RUF013"]
 ignore = ["F822", "F405", "F403"]
 fixable = ["ALL"]
 unfixable = []
