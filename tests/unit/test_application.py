@@ -1211,7 +1211,7 @@ class TestVespaAsyncQuery:
 
         assert isinstance(r, VespaQueryResponse)
         assert r.status_code == 200
-        vespa_async._make_request.await_count == 2
+        assert vespa_async._make_request.await_count == 2
 
     @pytest.mark.parametrize(
         "policy,attempts",
