@@ -91,7 +91,7 @@ def assert_dicts_almost_equal(actual, expected, rel_tol=1e-9, abs_tol=1e-15, pat
             raise AssertionError(f"Values differ at {path}: {actual} vs {expected}")
 
 
-def create_msmarco_application_package(auth_clients: List[AuthClient] = None):
+def create_msmarco_application_package(auth_clients: Optional[List[AuthClient]] = None):
     #
     # Application package
     #

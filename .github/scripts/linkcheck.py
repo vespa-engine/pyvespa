@@ -877,7 +877,12 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--status-codes",
         type=lambda s: {int(x) for x in s.split(",")},
-        default="200,201,202,203,204,205,206,207,208,226,301,302,303,307,308",
+        # 429 and 503 mean the server answered but declined to serve us right
+        # now (rate limiting / temporary unavailability). Neither indicates a
+        # broken link, and both are common from CI runner IPs -- huggingface.co
+        # in particular rate-limits the whole docs sweep. Accepting them keeps
+        # genuine 404 detection intact, which blanket-ignoring a host does not.
+        default="200,201,202,203,204,205,206,207,208,226,301,302,303,307,308,429,503",
         help="Comma-separated list of acceptable HTTP status codes",
     )
 

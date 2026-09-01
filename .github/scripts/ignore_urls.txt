@@ -15,3 +15,5 @@ https://claude.ai/code
 https://openai.com/codex/
 https://realpython\.com/.*
 http://corpus-texmex.irisa.fr/*
+https://vespatalk.slack.com/
+http://beir\.ai

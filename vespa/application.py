@@ -1136,8 +1136,8 @@ class Vespa(object):
         self,
         schema: str,
         data_id: str,
-        namespace: str = None,
-        groupname: str = None,
+        namespace: Optional[str] = None,
+        groupname: Optional[str] = None,
         **kwargs,
     ) -> VespaResponse:
         """
@@ -1175,7 +1175,7 @@ class Vespa(object):
         self,
         content_cluster_name: str,
         schema: str,
-        namespace: str = None,
+        namespace: Optional[str] = None,
         slices: int = 1,
         **kwargs,
     ) -> Response:
@@ -1261,8 +1261,8 @@ class Vespa(object):
         self,
         schema: str,
         data_id: str,
-        namespace: str = None,
-        groupname: str = None,
+        namespace: Optional[str] = None,
+        groupname: Optional[str] = None,
         raise_on_not_found: Optional[bool] = False,
         **kwargs,
     ) -> VespaResponse:
@@ -1298,8 +1298,8 @@ class Vespa(object):
         data_id: str,
         fields: Dict,
         create: bool = False,
-        namespace: str = None,
-        groupname: str = None,
+        namespace: Optional[str] = None,
+        groupname: Optional[str] = None,
         compress: Union[str, bool] = "auto",
         **kwargs,
     ) -> VespaResponse:

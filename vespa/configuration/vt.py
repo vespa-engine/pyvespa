@@ -1,5 +1,6 @@
 from fastcore.utils import tuplify
 import types
+from typing import Optional
 from xml.sax.saxutils import escape
 from fastcore.utils import patch
 import xml.etree.ElementTree as ET
@@ -32,7 +33,7 @@ class VT:
         self,
         tag: str,
         cs: tuple,
-        attrs: dict = None,
+        attrs: Optional[dict] = None,
         void_=False,
         replace_underscores: bool = True,
         **kwargs,
