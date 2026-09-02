@@ -10,4 +10,5 @@
             * [builder](vespa/querybuilder/builder/builder.md)
         * [grouping](vespa/querybuilder/grouping/index.md)
             * [grouping](vespa/querybuilder/grouping/grouping.md)
+    * [retries](vespa/retries.md)
     * [validation](vespa/validation.md)

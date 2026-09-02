@@ -27,6 +27,7 @@ from tenacity import (
     stop_after_attempt,
     retry_if_result,
 )
+from vespa.retries import QUERY_RETRY
 
 
 def create_mock_httpr_response(status_code=200, json_data=None, text="{}", url=""):
@@ -1222,7 +1223,10 @@ class TestVespaAsyncQuery:
         vespa_async = VespaAsync(app)
         vespa_async._make_request = AsyncMock(side_effect=RuntimeError("fail"))
 
-        with patch("tenacity.asyncio._portable_async_sleep", new=AsyncMock()):
+        # Neutralise the default policy's waits by patching the module-level
+        # constant at its point of use; the policy is copied per call.
+        no_wait_default = QUERY_RETRY.copy(wait=wait_none())
+        with patch("vespa.application.QUERY_RETRY", no_wait_default):
             with pytest.raises(RetryError):
                 await vespa_async.query(body={"yql": "x"}, retry_policy=policy)
 

@@ -8,7 +8,6 @@ from difflib import get_close_matches
 from typing import Any, Callable, Dict, List, Optional, Union, Literal
 import requests
 from dataclasses import dataclass, fields, field
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 from vespa.package import (
     ApplicationPackage,
@@ -26,6 +25,7 @@ from vespa.package import (
     QueryField,
 )
 import vespa.querybuilder as qb
+from vespa.retries import URL_VALIDATION_RETRY
 
 PoolingStrategy = Literal["mean", "cls", "none"]
 
@@ -268,11 +268,7 @@ class ModelConfig:
         for url_name, url in urls_to_check:
             self._validate_single_url(url_name, url)
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=10),
-        reraise=True,
-    )
+    @URL_VALIDATION_RETRY.wraps
     def _validate_single_url(self, url_name: str, url: str) -> None:
         """Validate a single URL with retry logic."""
         # Authenticate Hugging Face requests when a token is available.
