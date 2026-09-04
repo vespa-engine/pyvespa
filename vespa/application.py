@@ -5,7 +5,18 @@ import asyncio
 import traceback
 import concurrent.futures
 import warnings
-from typing import Optional, Dict, Generator, List, IO, Iterable, Callable, Tuple, Union
+from typing import (
+    Any,
+    Optional,
+    Dict,
+    Generator,
+    List,
+    IO,
+    Iterable,
+    Callable,
+    Tuple,
+    Union,
+)
 from concurrent.futures import ThreadPoolExecutor, Future, as_completed
 from queue import Queue, Empty
 import threading
@@ -13,27 +24,22 @@ import httpr
 
 from requests import Session
 from requests.models import Response
-from requests.exceptions import ConnectionError, HTTPError, JSONDecodeError
-from tenacity import (
-    AsyncRetrying,
-    retry,
-    wait_exponential,
-    wait_random_exponential,
-    stop_after_attempt,
-    retry_if_result,
-    retry_if_exception,
-    retry_if_exception_type,
-    retry_any,
-    RetryCallState,
-)
+from requests.exceptions import HTTPError, JSONDecodeError
+from tenacity import AsyncRetrying, stop_after_attempt
 from time import sleep
 from urllib.parse import quote
-import random
-import time
 
 from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse, VespaVisitResponse
 from vespa.package import ApplicationPackage
+from vespa.retries import (
+    DOCV1_RETRY,
+    QUERY_RETRY,
+    SYNC_REQUEST_RETRY,
+    THROTTLE_RETRY,
+    VISIT_RETRY,
+    is_connection_error as _is_connection_error,
+)
 from vespa.throttling import AdaptiveThrottler
 
 import httpx
@@ -67,31 +73,6 @@ def get_profiling_params() -> Dict[str, str]:
         "trace.timestamps": "true",
         "presentation.timing": "true",
     }
-
-
-def _is_connection_error(e: Exception) -> bool:
-    """
-    Check if an exception is a connection-related error.
-
-    This handles both requests.ConnectionError and httpr exceptions
-    (RequestError, ConnectError) as well as generic network errors.
-
-    Args:
-        e: The exception to check
-
-    Returns:
-        True if this is a connection/network error, False otherwise
-    """
-    error_str = str(e).lower()
-    return (
-        isinstance(e, ConnectionError)
-        or isinstance(e, ConnectionResetError)
-        or (hasattr(httpr, "RequestError") and isinstance(e, httpr.RequestError))
-        or (hasattr(httpr, "ConnectError") and isinstance(e, httpr.ConnectError))
-        or "error sending request" in error_str
-        or "connection" in error_str
-        or type(e).__name__ == "RequestError"
-    )
 
 
 def _prepare_mtls_cert_data(cert: Optional[str], key: Optional[str]) -> Optional[bytes]:
@@ -1506,7 +1487,11 @@ class VespaSync(object):
 
     def _request_with_retry(self, method: str, url: str, json_data=None, **kwargs):
         """
-        Execute HTTP request with 429 retry logic using exponential backoff.
+        Execute HTTP request, retrying on 429 responses and connection errors.
+
+        Uses ``vespa.retries.SYNC_REQUEST_RETRY`` with the stop bound taken from
+        ``self.num_retries_429``. On exhaustion the last response is returned (or
+        the last connection error re-raised); other exceptions propagate at once.
 
         Args:
             method: HTTP method (GET, POST, PUT, DELETE, etc.)
@@ -1528,31 +1513,11 @@ class VespaSync(object):
             else:
                 kwargs["json"] = prepared_body
 
-        for attempt in range(self.num_retries_429 + 1):
-            try:
-                # Make the request using httpr.Client
-                response = getattr(self.http_client, method.lower())(url, **kwargs)
-
-                if response.status_code == 429 and attempt < self.num_retries_429:
-                    # Exponential backoff for 429 (same formula as CustomHTTPAdapter)
-                    wait_time = 0.1 * 1.618**attempt + random.uniform(0, 1)
-                    time.sleep(wait_time)
-                    continue
-
-                return response
-            except (ConnectionResetError, Exception) as e:
-                # Check if it's a connection/network error that should be retried
-                # This includes httpr.RequestError, httpr.ConnectError, ConnectionResetError, and other network errors
-                if _is_connection_error(e) and attempt < self.num_retries_429:
-                    wait_time = 0.1 * 1.618**attempt + random.uniform(0, 1)
-                    time.sleep(wait_time)
-                elif _is_connection_error(e):
-                    raise
-                else:
-                    # Not a connection error, re-raise immediately
-                    raise
-
-        return response
+        send = getattr(self.http_client, method.lower())
+        policy = SYNC_REQUEST_RETRY.copy(
+            stop=stop_after_attempt(self.num_retries_429 + 1)
+        )
+        return policy(send, url, **kwargs)
 
     def __enter__(self):
         self._open_http_client()
@@ -1921,7 +1886,7 @@ class VespaSync(object):
                 f"slice_id must be in range [0, {slices - 1}]. Got {slice_id} instead."
             )
 
-        @retry(retry=retry_if_exception_type(HTTPError), stop=stop_after_attempt(3))
+        @VISIT_RETRY.wraps
         def visit_request(end_point: str, params: Dict[str, str]):
             r = self._request_with_retry("GET", end_point, params=params)
             raise_for_status(r)
@@ -2280,11 +2245,6 @@ class VespaAsync(object):
         await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
         return [result for result in map(lambda task: task.result(), tasks)]
 
-    def callback_docv1(state: RetryCallState) -> VespaResponse:
-        if state.outcome.failed:
-            raise state.outcome.exception()
-        return state.outcome.result()
-
     async def query(
         self,
         body: Optional[Dict] = None,
@@ -2300,7 +2260,7 @@ class VespaAsync(object):
             body (dict): Dict containing all the request parameters.
             groupname (str, optional): The groupname used in streaming search.
             profile (bool, optional): Add profiling parameters to the query (response may be large). Defaults to False.
-            retry_policy (AsyncRetrying, optional): Custom tenacity retry policy. Defaults to five attempts with random exponential wait time.
+            retry_policy (AsyncRetrying, optional): Custom tenacity retry policy. Defaults to ``vespa.retries.QUERY_RETRY`` (five attempts with random exponential wait time).
             **kwargs (dict, optional): Additional valid Vespa HTTP Query API parameters.
 
         Returns:
@@ -2314,14 +2274,7 @@ class VespaAsync(object):
         if profile:
             kwargs.update(get_profiling_params())
 
-        retry_policy = (
-            retry_policy.copy()
-            if retry_policy
-            else AsyncRetrying(
-                wait=wait_random_exponential(multiplier=1.5, max=60),
-                stop=stop_after_attempt(5),
-            )
-        )
+        retry_policy = (retry_policy or QUERY_RETRY).copy()
 
         async def _do_query() -> VespaQueryResponse:
             response = await self._make_request(
@@ -2339,19 +2292,52 @@ class VespaAsync(object):
 
         return await retry_policy(_do_query)
 
-    @retry(
-        wait=wait_exponential(multiplier=1),
-        retry=retry_any(
-            retry_if_exception(lambda x: True),
-            retry_if_result(lambda x: x.get_status_code() == 503),
-        ),
-        stop=stop_after_attempt(3),
-        retry_error_callback=callback_docv1,
-    )
-    @retry(
-        wait=wait_random_exponential(multiplier=1, max=3),
-        retry=retry_if_result(lambda x: x.get_status_code() == 429),
-    )
+    async def _docv1_request(
+        self,
+        method: str,
+        operation_type: str,
+        schema: str,
+        data_id: str,
+        namespace: Optional[str],
+        groupname: Optional[str],
+        json_data: Optional[Dict] = None,
+        semaphore: Optional[asyncio.Semaphore] = None,
+        params: Optional[Dict] = None,
+    ) -> VespaResponse:
+        """
+        Send a document/v1 request with the shared two-layer retry policy.
+
+        Inner layer ``THROTTLE_RETRY`` retries 429 responses (unbounded, see
+        ``vespa.retries``). Outer layer ``DOCV1_RETRY`` retries any exception or
+        a 503 response up to 3 attempts, then re-raises the last exception or
+        returns the last response.
+        """
+        path = self.app.get_document_v1_path(
+            id=data_id, schema=schema, namespace=namespace, group=groupname
+        )
+        end_point = "{}{}".format(self.app.end_point, path)
+
+        request_kwargs: Dict[str, Any] = {
+            "semaphore": semaphore,
+            "params": params or {},
+        }
+        if json_data is not None:
+            request_kwargs["json_data"] = json_data
+
+        async def _send() -> VespaResponse:
+            response = await self._make_request(method, end_point, **request_kwargs)
+            return VespaResponse(
+                json=_response_json(response),
+                status_code=response.status_code,
+                url=str(response.url),
+                operation_type=operation_type,
+            )
+
+        async def _send_with_throttle_retry() -> VespaResponse:
+            return await THROTTLE_RETRY.copy()(_send)
+
+        return await DOCV1_RETRY.copy()(_send_with_throttle_retry)
+
     async def feed_data_point(
         self,
         schema: str,
@@ -2362,40 +2348,18 @@ class VespaAsync(object):
         semaphore: Optional[asyncio.Semaphore] = None,
         **kwargs,
     ) -> VespaResponse:
-        path = self.app.get_document_v1_path(
-            id=data_id, schema=schema, namespace=namespace, group=groupname
-        )
-        end_point = "{}{}".format(self.app.end_point, path)
-        vespa_format = {"fields": fields}
-
-        response = await self._make_request(
+        return await self._docv1_request(
             "POST",
-            end_point,
-            json_data=vespa_format,
+            "feed",
+            schema,
+            data_id,
+            namespace,
+            groupname,
+            json_data={"fields": fields},
             semaphore=semaphore,
             params=kwargs,
         )
 
-        return VespaResponse(
-            json=_response_json(response),
-            status_code=response.status_code,
-            url=str(response.url),
-            operation_type="feed",
-        )
-
-    @retry(
-        wait=wait_exponential(multiplier=1),
-        retry=retry_any(
-            retry_if_exception(lambda x: True),
-            retry_if_result(lambda x: x.get_status_code() == 503),
-        ),
-        stop=stop_after_attempt(3),
-        retry_error_callback=callback_docv1,
-    )
-    @retry(
-        wait=wait_exponential(multiplier=1, max=10),
-        retry=retry_if_result(lambda x: x.get_status_code() == 429),
-    )
     async def delete_data(
         self,
         schema: str,
@@ -2405,38 +2369,17 @@ class VespaAsync(object):
         semaphore: Optional[asyncio.Semaphore] = None,
         **kwargs,
     ) -> VespaResponse:
-        path = self.app.get_document_v1_path(
-            id=data_id, schema=schema, namespace=namespace, group=groupname
-        )
-        end_point = "{}{}".format(self.app.end_point, path)
-
-        response = await self._make_request(
+        return await self._docv1_request(
             "DELETE",
-            end_point,
+            "delete",
+            schema,
+            data_id,
+            namespace,
+            groupname,
             semaphore=semaphore,
             params=kwargs,
         )
 
-        return VespaResponse(
-            json=_response_json(response),
-            status_code=response.status_code,
-            url=str(response.url),
-            operation_type="delete",
-        )
-
-    @retry(
-        wait=wait_exponential(multiplier=1),
-        retry=retry_any(
-            retry_if_exception(lambda x: True),
-            retry_if_result(lambda x: x.get_status_code() == 503),
-        ),
-        stop=stop_after_attempt(3),
-        retry_error_callback=callback_docv1,
-    )
-    @retry(
-        wait=wait_exponential(multiplier=1, max=10),
-        retry=retry_if_result(lambda x: x.get_status_code() == 429),
-    )
     async def get_data(
         self,
         schema: str,
@@ -2446,38 +2389,17 @@ class VespaAsync(object):
         semaphore: Optional[asyncio.Semaphore] = None,
         **kwargs,
     ) -> VespaResponse:
-        path = self.app.get_document_v1_path(
-            id=data_id, schema=schema, namespace=namespace, group=groupname
-        )
-        end_point = "{}{}".format(self.app.end_point, path)
-
-        response = await self._make_request(
+        return await self._docv1_request(
             "GET",
-            end_point,
+            "get",
+            schema,
+            data_id,
+            namespace,
+            groupname,
             semaphore=semaphore,
             params=kwargs,
         )
 
-        return VespaResponse(
-            json=_response_json(response),
-            status_code=response.status_code,
-            url=str(response.url),
-            operation_type="get",
-        )
-
-    @retry(
-        wait=wait_exponential(multiplier=1),
-        retry=retry_any(
-            retry_if_exception(lambda x: True),
-            retry_if_result(lambda x: x.get_status_code() == 503),
-        ),
-        stop=stop_after_attempt(3),
-        retry_error_callback=callback_docv1,
-    )
-    @retry(
-        wait=wait_exponential(multiplier=1, max=10),
-        retry=retry_if_result(lambda x: x.get_status_code() == 429),
-    )
     async def update_data(
         self,
         schema: str,
@@ -2490,10 +2412,6 @@ class VespaAsync(object):
         semaphore: Optional[asyncio.Semaphore] = None,
         **kwargs,
     ) -> VespaResponse:
-        path = self.app.get_document_v1_path(
-            id=data_id, schema=schema, namespace=namespace, group=groupname
-        )
-        end_point = "{}{}".format(self.app.end_point, path)
         if create:
             kwargs["create"] = str(create).lower()
         if auto_assign:
@@ -2502,17 +2420,14 @@ class VespaAsync(object):
             # Can not send 'id' in fields for partial update
             vespa_format = {"fields": {k: v for k, v in fields.items() if k != "id"}}
 
-        response = await self._make_request(
+        return await self._docv1_request(
             "PUT",
-            end_point,
+            "update",
+            schema,
+            data_id,
+            namespace,
+            groupname,
             json_data=vespa_format,
             semaphore=semaphore,
             params=kwargs,
-        )
-
-        return VespaResponse(
-            json=_response_json(response),
-            status_code=response.status_code,
-            url=str(response.url),
-            operation_type="update",
         )

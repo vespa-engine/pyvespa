@@ -14,7 +14,6 @@ from io import BytesIO
 from pathlib import Path
 from time import sleep, strftime, gmtime
 from typing import Tuple, Union, IO, Optional, List, Dict, Literal, Set
-from tenacity import retry, stop_after_attempt, wait_exponential
 from datetime import timezone
 import platform
 import subprocess
@@ -34,6 +33,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 
 from vespa.application import Vespa
 from vespa.package import ApplicationPackage, AuthClient, Parameter
+from vespa.retries import CONTROL_PLANE_RETRY
 from vespa.validation import validate_cloud_names, validate_instance_name
 import vespa
 
@@ -1590,11 +1590,7 @@ class VespaCloud(VespaDeployment):
             )
         return regions
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, max=3),
-        reraise=True,
-    )
+    @CONTROL_PLANE_RETRY.wraps
     def get_connection_response_with_retry(
         self,
         method,

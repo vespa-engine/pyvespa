@@ -79,6 +79,15 @@ vespa.querybuilder
    :special-members: __init__
    :show-inheritance:
 
+#############
+vespa.retries
+#############
+
+.. automodule:: vespa.retries
+   :members:
+   :undoc-members:
+
+
 ################
 vespa.exceptions
 ################
