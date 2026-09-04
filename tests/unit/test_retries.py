@@ -19,6 +19,7 @@ from tenacity import (
     stop_after_attempt,
     stop_never,
     wait_none,
+    wait_random_exponential,
 )
 from tenacity.stop import stop_after_attempt as _stop_after_attempt_cls
 
@@ -82,10 +83,12 @@ class TestPolicyDefinitions:
         # Explicit decision, see the THROTTLE_RETRY docstring in vespa.retries.
         assert THROTTLE_RETRY.stop is stop_never
 
-    def test_all_docv1_methods_share_one_throttle_wait(self):
-        # feed_data_point used to have a different 429 wait than its siblings.
-        # There is now a single THROTTLE_RETRY, so this is a structural guarantee;
-        # assert its parameters so a silent change is noticed.
+    def test_throttle_retry_uses_jittered_backoff(self):
+        # All four docv1 methods share THROTTLE_RETRY. The wait must stay
+        # randomised so concurrent tasks that hit 429 together do not retry in
+        # lockstep (see review on #1346); assert type and cap so a silent
+        # change is noticed.
+        assert isinstance(THROTTLE_RETRY.wait, wait_random_exponential)
         assert THROTTLE_RETRY.wait.multiplier == 1
         assert THROTTLE_RETRY.wait.max == 10
 

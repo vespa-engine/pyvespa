@@ -125,63 +125,70 @@ RETRY_ON_503_OR_EXCEPTION = retry_any(
 
 # --------------------------------------------------------------------------- #
 # Policies
+#
+# Each constant is followed by a string literal so that both Sphinx autodoc and
+# mkdocstrings (griffe) pick it up as the attribute's docstring.
 # --------------------------------------------------------------------------- #
 
-#: Default for ``VespaAsync.query``: retry any exception up to 5 attempts with
-#: random exponential backoff. Does not inspect the status code.
 QUERY_RETRY = AsyncRetrying(
     wait=wait_random_exponential(multiplier=1.5, max=60),
     stop=stop_after_attempt(5),
 )
+"""Default for ``VespaAsync.query``: retry any exception up to 5 attempts with
+random exponential backoff. Does not inspect the status code."""
 
-#: Outer layer for async document/v1 operations (feed/get/update/delete): retry
-#: any exception or a 503 response up to 3 attempts. On exhaustion the last
-#: exception is re-raised or the last response is returned, never ``RetryError``.
 DOCV1_RETRY = AsyncRetrying(
     wait=wait_exponential(multiplier=1),
     retry=RETRY_ON_503_OR_EXCEPTION,
     stop=stop_after_attempt(3),
     retry_error_callback=_return_last_outcome,
 )
+"""Outer layer for async document/v1 operations (feed/get/update/delete): retry
+any exception or a 503 response up to 3 attempts. On exhaustion the last
+exception is re-raised or the last response is returned, never ``RetryError``."""
 
-#: Inner layer for async document/v1 operations: retry a 429 response.
-#: Deliberately unbounded (``stop_never``) so that sustained backpressure from
-#: Vespa slows the feed down instead of failing it. ``feed_async_iterable`` has
-#: no adaptive throttler, so this is the only backpressure mechanism on that path.
 THROTTLE_RETRY = AsyncRetrying(
-    wait=wait_exponential(multiplier=1, max=10),
+    wait=wait_random_exponential(multiplier=1, max=10),
     retry=RETRY_ON_429,
     stop=stop_never,
 )
+"""Inner layer for async document/v1 operations: retry a 429 response.
 
-#: Used by every sync data-plane request (``VespaSync._request_with_retry``):
-#: retry a 429 response or a connection error. The stop is overridden per client
-#: from ``VespaSync.num_retries_429`` (default 10 retries, i.e. 11 attempts).
-#: On exhaustion the last response is returned or the last exception re-raised.
+Deliberately unbounded (``stop_never``) so that sustained backpressure from
+Vespa slows the feed down instead of failing it. ``feed_async_iterable`` has
+no adaptive throttler, so this is the only backpressure mechanism on that path.
+
+The wait is randomised (uniform between 0 and ``min(2**n, 10)`` seconds) so
+that many concurrent tasks hitting 429 together do not retry in lockstep."""
+
 SYNC_REQUEST_RETRY = Retrying(
     retry=retry_any(retry_if_exception(is_connection_error), RETRY_ON_429),
     wait=wait_golden_jitter(),
     stop=stop_after_attempt(11),
     retry_error_callback=_return_last_outcome,
 )
+"""Used by every sync data-plane request (``VespaSync._request_with_retry``):
+retry a 429 response or a connection error. The stop is overridden per client
+from ``VespaSync.num_retries_429`` (default 10 retries, i.e. 11 attempts).
+On exhaustion the last response is returned or the last exception re-raised."""
 
-#: Per-slice retry in ``Vespa.visit`` on top of ``SYNC_REQUEST_RETRY``: retry an
-#: ``HTTPError`` raised by ``raise_for_status`` up to 3 attempts, no wait.
 VISIT_RETRY = Retrying(
     retry=retry_if_exception_type(HTTPError),
     stop=stop_after_attempt(3),
 )
+"""Per-slice retry in ``Vespa.visit`` on top of ``SYNC_REQUEST_RETRY``: retry an
+``HTTPError`` raised by ``raise_for_status`` up to 3 attempts, no wait."""
 
-#: ``VespaCloud`` control-plane requests: 3 attempts, exponential wait capped at 3s.
 CONTROL_PLANE_RETRY = Retrying(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, max=3),
     reraise=True,
 )
+"""``VespaCloud`` control-plane requests: 3 attempts, exponential wait capped at 3s."""
 
-#: Validation of external model URLs in ``vespa.models``: 3 attempts, 1-10s wait.
 URL_VALIDATION_RETRY = Retrying(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=10),
     reraise=True,
 )
+"""Validation of external model URLs in ``vespa.models``: 3 attempts, 1-10s wait."""
