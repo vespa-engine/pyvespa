@@ -1599,3 +1599,98 @@ class TestCborAcceptHeader(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSessionOutlivesLazyGenerators(unittest.TestCase):
+    """Regression tests for httpr>=0.7, where requests on a closed client raise.
+
+    ``Vespa.visit`` and ``Vespa.query(streaming=True)`` return lazy generators.
+    The session that backs them must stay open until they are drained.
+    """
+
+    class _ClientClosed(RuntimeError):
+        pass
+
+    def _closing_client(self, MockClient):
+        client = Mock()
+        client.closed = False
+
+        def close():
+            client.closed = True
+
+        client.close = Mock(side_effect=close)
+        MockClient.return_value = client
+        return client
+
+    def _visit_response(self, continuation=None):
+        json_data = {"continuation": continuation} if continuation else {}
+        return create_mock_httpr_response(
+            status_code=200,
+            json_data=json_data,
+            url="http://localhost:8080/document/v1/foo/foo/docid/",
+        )
+
+    @patch("vespa.application.httpr.Client")
+    def test_visit_slices_consumed_after_outer_generator(self, MockClient):
+        client = self._closing_client(MockClient)
+        responses = iter(
+            [
+                self._visit_response("AAA"),
+                self._visit_response(),
+                self._visit_response(),
+            ]
+        )
+
+        def get(*args, **kwargs):
+            if client.closed:
+                raise self._ClientClosed("client has been closed")
+            return next(responses)
+
+        client.get.side_effect = get
+
+        app = Vespa(url="http://localhost", port=8080)
+        # Exhaust the outer generator first, as list() or executor.map() would.
+        slices = list(app.visit(schema="foo", content_cluster_name="content", slices=2))
+        assert len(slices) == 2
+        assert not client.closed
+
+        results = [response for slice in slices for response in slice]
+        assert len(results) == 3
+        assert client.closed
+        client.close.assert_called_once()
+
+    @patch("vespa.application.httpr.Client")
+    def test_visit_closes_client_when_slice_dropped_unconsumed(self, MockClient):
+        client = self._closing_client(MockClient)
+        client.get.return_value = self._visit_response()
+
+        app = Vespa(url="http://localhost", port=8080)
+        slices = list(app.visit(schema="foo", content_cluster_name="content", slices=2))
+        list(slices[0])
+        assert not client.closed
+
+        del slices
+        assert client.closed
+        client.close.assert_called_once()
+
+    @patch("vespa.application.httpr.Client")
+    def test_query_streaming_consumed_after_return(self, MockClient):
+        client = self._closing_client(MockClient)
+        mock_stream = Mock()
+        mock_stream.__enter__ = Mock(return_value=mock_stream)
+        mock_stream.__exit__ = Mock(return_value=False)
+        mock_stream.iter_lines.return_value = ["event: token", 'data: {"token":"V"}']
+
+        def stream(*args, **kwargs):
+            if client.closed:
+                raise self._ClientClosed("client has been closed")
+            return mock_stream
+
+        client.stream.side_effect = stream
+
+        app = Vespa(url="http://localhost", port=8080)
+        lines = app.query(body={"query": "test"}, streaming=True)
+        assert not client.closed
+        assert list(lines) == ["event: token", 'data: {"token":"V"}']
+        assert client.closed
+        client.close.assert_called_once()

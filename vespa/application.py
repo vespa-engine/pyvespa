@@ -591,12 +591,41 @@ class Vespa(object):
             VespaQueryResponse when streaming=False, or a generator of decoded lines when streaming=True.
         """
 
+        if streaming:
+            # The generator is consumed after this method returns, so the
+            # session must stay open for as long as the caller reads from it.
+            return self._query_streaming_with_session(
+                body=body, groupname=groupname, profile=profile, **kwargs
+            )
+
         # Use one connection as this is a single query
         with VespaSync(self, pool_maxsize=1, pool_connections=1) as sync_app:
             return sync_app.query(
                 body=body,
                 groupname=groupname,
-                streaming=streaming,
+                streaming=False,
+                profile=profile,
+                **kwargs,
+            )
+
+    def _query_streaming_with_session(
+        self,
+        body: Optional[Dict] = None,
+        groupname: Optional[str] = None,
+        profile: bool = False,
+        **kwargs,
+    ) -> Generator[str, None, None]:
+        """Run a streaming query in a session that lives until the stream is drained.
+
+        Returning ``sync_app.query(streaming=True)`` from inside a
+        ``with VespaSync(...)`` block would close the HTTP client before the
+        first line is read, since the generator runs lazily.
+        """
+        with VespaSync(self, pool_maxsize=1, pool_connections=1) as sync_app:
+            yield from sync_app.query(
+                body=body,
+                groupname=groupname,
+                streaming=True,
                 profile=profile,
                 **kwargs,
             )
@@ -1226,17 +1255,62 @@ class Vespa(object):
         Raises:
             HTTPError: If an HTTP error occurred.
         """
-        with VespaSync(self, pool_connections=slices, pool_maxsize=slices) as sync_app:
-            return sync_app.visit(
-                content_cluster_name=content_cluster_name,
-                namespace=namespace,
-                schema=schema,
-                slices=slices,
-                selection=selection,
-                wanted_document_count=wanted_document_count,
-                slice_id=slice_id,
-                **kwargs,
-            )
+        return self._visit_with_session(
+            content_cluster_name=content_cluster_name,
+            namespace=namespace,
+            schema=schema,
+            slices=slices,
+            selection=selection,
+            wanted_document_count=wanted_document_count,
+            slice_id=slice_id,
+            **kwargs,
+        )
+
+    def _visit_with_session(
+        self, slices: int = 1, **visit_kwargs
+    ) -> Generator[Generator[VespaVisitResponse, None, None], None, None]:
+        """Run ``VespaSync.visit`` in a session that outlives every slice generator.
+
+        ``visit`` yields generators that are consumed lazily, possibly after the
+        outer generator is exhausted (for example ``list(app.visit(...))`` or
+        handing each slice to a worker thread). Returning them from inside a
+        ``with VespaSync(...)`` block closes the HTTP client before any request
+        is sent. Instead the session is reference counted: the outer generator
+        and each slice generator hold one reference, and the client is closed
+        when the last of them finishes or is garbage collected.
+        """
+        sync_app = VespaSync(self, pool_connections=slices, pool_maxsize=slices)
+        sync_app.__enter__()
+        lock = threading.Lock()
+        holders = 1  # the outer generator itself
+
+        def release():
+            nonlocal holders
+            with lock:
+                holders -= 1
+                last = holders == 0
+            if last:
+                sync_app.__exit__(None, None, None)
+
+        def guarded(slice_gen):
+            try:
+                # Primed by next() below so the try block is entered immediately.
+                # A slice generator that is dropped unconsumed then still runs the
+                # finally clause when it is closed or garbage collected.
+                yield
+                yield from slice_gen
+            finally:
+                release()
+
+        try:
+            for slice_gen in sync_app.visit(slices=slices, **visit_kwargs):
+                with lock:
+                    holders += 1
+                wrapped = guarded(slice_gen)
+                next(wrapped)
+                yield wrapped
+        finally:
+            release()
 
     def get_data(
         self,
