@@ -17,14 +17,23 @@ from vespa.package import (
 from vespa.deployment import VespaCloud
 from vespa.io import VespaResponse, VespaQueryResponse
 from vespa.package import (
+    PRODUCTION_TEST_FILE,
     ContentCluster,
     ContainerCluster,
+    Delay,
     Nodes,
     DeploymentConfiguration,
+    EmptyDeploymentConfiguration,
+    ProductionTest,
+    Region,
+    Test,
     Validation,
     ValidationID,
 )
 from datetime import datetime, timedelta
+import io
+import json
+import zipfile
 
 APP_INIT_TIMEOUT = 900
 CLIENT_TOKEN_ID = os.environ.get("VESPA_CLIENT_TOKEN_ID", "pyvespa_integration_msmarco")
@@ -235,7 +244,7 @@ class TestVectorSearch(unittest.TestCase):
         self.vespa_cloud.delete()
 
 
-class TestProdDeploymentFromDisk(unittest.TestCase):
+class TestProdDeploymentWithProdTests(unittest.TestCase):
     def test_setup(self) -> None:
         self.app_package = create_vector_ada_application_package()
         prod_region = "aws-us-east-1c"
@@ -251,9 +260,21 @@ class TestProdDeploymentFromDisk(unittest.TestCase):
                 nodes=Nodes(count="2"),
             ),
         ]
+        # Deploy to the region, wait, then run a production test against it. The test is
+        # evaluated by Vespa Cloud against live metrics; here we only verify that the
+        # submission is accepted and that the generated files reach the controller.
         self.app_package.deployment_config = DeploymentConfiguration(
-            environment="prod", regions=[prod_region]
+            environment="prod",
+            steps=[Region(prod_region), Delay(minutes=5), Test(prod_region)],
         )
+        self.app_package.production_tests = [
+            ProductionTest(
+                name="container cpu check",
+                metric="cpu-utilization-container",
+                duration="5m",
+                max=100,
+            )
+        ]
         self.app_package.auth_clients = [
             AuthClient(
                 id="mtls",
@@ -282,6 +303,26 @@ class TestProdDeploymentFromDisk(unittest.TestCase):
             instance=self.instance_name,
             application_root=self.application_root,
         )
+        self.assertIsInstance(self.build_no, int)
+
+        # The controller accepted deployment.xml with the <test> step, and the production
+        # test file is in both the application package and the test package it stored.
+        expected_tests = json.loads(self.app_package.production_tests_to_text)
+        for tests_param in ("", "&tests=true"):
+            zip_bytes = self.vespa_cloud._request(
+                "GET",
+                f"/application/v4/tenant/{self.vespa_cloud.tenant}/application/"
+                f"{self.vespa_cloud.application}/package?build={self.build_no}{tests_param}",
+                return_raw_response=True,
+            ).content
+            with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+                self.assertIn(PRODUCTION_TEST_FILE, zf.namelist())
+                self.assertEqual(
+                    expected_tests, json.loads(zf.read(PRODUCTION_TEST_FILE).decode())
+                )
+                deployment_xml = zf.read("deployment.xml").decode()
+                self.assertIn(f"<test>{prod_region}</test>", deployment_xml)
+                self.assertIn('<delay minutes="5"/>', deployment_xml)
 
     @unittest.skip(
         "This test is too slow for normal testing. Can be used for manual testing if related code is changed."
@@ -294,38 +335,37 @@ class TestProdDeploymentFromDisk(unittest.TestCase):
             self.fail("Deployment failed")
         self.app: Vespa = self.vespa_cloud.get_application(environment="prod")
         self.app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
+        self._delete_prod_deployment()
 
-    @unittest.skip("Do not run when not waiting for deployment.")
-    def test_vector_indexing_and_query(self):
-        super().test_vector_indexing_and_query()
+    def tearDown(self) -> None:
+        # test_setup only submits the build and does not wait for it, so the prod
+        # deployment is left in place and overwritten by the next run. Only the files
+        # written to disk are removed here; see _delete_prod_deployment for the rest.
+        shutil.rmtree(self.application_root, ignore_errors=True)
 
-    # DO NOT skip tearDown-method, as test will not exit.
-    # @unittest.skip("Do not run when not waiting for deployment.")
-    # def tearDown(self) -> None:
-    #     self.app.delete_all_docs(
-    #         content_cluster_name="vector_content",
-    #         schema="vector",
-    #         namespace="benchmark",
-    #     )
-    #     time.sleep(5)
-    #     with self.app.syncio() as sync_session:
-    #         response: VespaResponse = sync_session.query(
-    #             {"yql": "select id from sources * where true", "hits": 10}
-    #         )
-    #         self.assertEqual(response.get_status_code(), 200)
-    #         self.assertEqual(len(response.hits), 0)
-    #         print(response.get_json())
+    def _delete_prod_deployment(self) -> None:
+        """Remove the prod deployment. Only for manual runs that waited for it to complete."""
+        self.app.delete_all_docs(
+            content_cluster_name="vector_content",
+            schema="vector",
+            namespace="benchmark",
+        )
+        time.sleep(5)
+        with self.app.syncio() as sync_session:
+            response: VespaResponse = sync_session.query(
+                {"yql": "select id from sources * where true", "hits": 10}
+            )
+            self.assertEqual(response.get_status_code(), 200)
+            self.assertEqual(len(response.hits), 0)
 
-    #     # Deployment is deleted by deploying with an empty deployment.xml file.
-    #     self.app_package.deployment_config = EmptyDeploymentConfiguration()
-
-    #     # Vespa won't push the deleted deployment.xml file unless we add a validation override
-    #     tomorrow = datetime.now() + timedelta(days=1)
-    #     formatted_date = tomorrow.strftime("%Y-%m-%d")
-    #     self.app_package.validations = [
-    #         Validation(ValidationID("deployment-removal"), formatted_date)
-    #     ]
-    #     self.app_package.to_files(self.application_root)
-    #     # This will delete the deployment
-    #     self.vespa_cloud._start_prod_deployment(self.application_root)
-    #     shutil.rmtree(self.application_root, ignore_errors=True)
+        # Deployment is deleted by deploying with an empty deployment.xml file,
+        # which Vespa only accepts with a deployment-removal validation override.
+        self.app_package.deployment_config = EmptyDeploymentConfiguration()
+        self.app_package.production_tests = []
+        tomorrow = datetime.now() + timedelta(days=1)
+        formatted_date = tomorrow.strftime("%Y-%m-%d")
+        self.app_package.validations = [
+            Validation(ValidationID("deployment-removal"), formatted_date)
+        ]
+        self.app_package.to_files(self.application_root)
+        self.vespa_cloud._start_prod_deployment(self.application_root)
