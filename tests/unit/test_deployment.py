@@ -1,10 +1,21 @@
 import unittest
+import zipfile
 from tempfile import TemporaryDirectory
 import os
 from unittest.mock import patch, MagicMock
 
 from vespa.deployment import VespaCloud
-from vespa.package import ApplicationPackage, AuthClient, Parameter
+from vespa.package import (
+    PRODUCTION_TEST_FILE,
+    ApplicationPackage,
+    AuthClient,
+    Delay,
+    DeploymentConfiguration,
+    Parameter,
+    ProductionTest,
+    Region,
+    Test,
+)
 
 
 class TestVespaCloud(unittest.TestCase):
@@ -20,6 +31,35 @@ class TestVespaCloud(unittest.TestCase):
             application=self.application,
             application_package=self.application_package,
         )
+
+    def test_to_application_zip_includes_production_tests(self):
+        app_package = ApplicationPackage(
+            name="test",
+            deployment_config=DeploymentConfiguration(
+                environment="prod",
+                steps=[
+                    Region("aws-us-east-1c"),
+                    Delay(minutes=5),
+                    Test("aws-us-east-1c"),
+                ],
+            ),
+            production_tests=[
+                ProductionTest(
+                    metric="cpu-utilization-container", duration="5m", max=85
+                )
+            ],
+        )
+        self.vespa_cloud.application_package = app_package
+        self.vespa_cloud.data_certificate = MagicMock()
+        self.vespa_cloud.data_certificate.public_bytes.return_value = b"cert"
+        with TemporaryDirectory() as tmp:
+            buffer = self.vespa_cloud._to_application_zip(disk_folder=tmp)
+        with zipfile.ZipFile(buffer) as zf:
+            self.assertIn("deployment.xml", zf.namelist())
+            self.assertEqual(
+                app_package.production_tests_to_text,
+                zf.read(PRODUCTION_TEST_FILE).decode(),
+            )
 
     @patch("vespa.deployment.VespaCloud._read_private_key")
     @patch("vespa.deployment.VespaCloud._load_certificate_pair")

@@ -32,7 +32,12 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 
 from vespa.application import Vespa
-from vespa.package import ApplicationPackage, AuthClient, Parameter
+from vespa.package import (
+    PRODUCTION_TEST_FILE,
+    ApplicationPackage,
+    AuthClient,
+    Parameter,
+)
 from vespa.retries import CONTROL_PLANE_RETRY
 from vespa.validation import validate_cloud_names, validate_instance_name
 import vespa
@@ -2548,6 +2553,12 @@ class VespaCloud(VespaDeployment):
                 zip_archive.writestr(
                     "validation-overrides.xml",
                     self.application_package.validations_to_text,
+                )
+
+            if self.application_package.production_tests:
+                zip_archive.writestr(
+                    PRODUCTION_TEST_FILE,
+                    self.application_package.production_tests_to_text,
                 )
 
             for src, arcname in self.application_package.include_files:
