@@ -7,6 +7,7 @@ import platform
 import pytest
 import tempfile
 import importlib.resources
+import importlib.util
 import json
 import re
 from pathlib import Path
@@ -2545,6 +2546,9 @@ class TestValidateProductionTestFiles(unittest.TestCase):
             [t.name for t in tests],
         )
 
+    @unittest.skipUnless(
+        importlib.util.find_spec("yaml"), "PyYAML is not installed in this environment"
+    )
     def test_yaml_single_and_suite(self):
         self._write(
             "metric-test.yaml",
