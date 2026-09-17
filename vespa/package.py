@@ -1,5 +1,7 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
+import functools
+import importlib.resources
 import json
 import os
 import re
@@ -16,6 +18,7 @@ from shutil import copyfile
 from typing import (
     Any,
     Dict,
+    FrozenSet,
     List,
     Literal,
     Optional,
@@ -3152,6 +3155,33 @@ PRODUCTION_TEST_FILE = "tests/production-test/production-tests.json"
 
 _PRODUCTION_TEST_DURATION = re.compile(r"^([0-9]+)(s|m|h|d)$")
 
+_METRIC_PRESETS_DOCS = "https://docs.vespa.ai/en/reference/applications/testing-production.html#metric-presets"
+
+
+@functools.lru_cache(maxsize=1)
+def metric_presets_source() -> Dict[str, str]:
+    """Where the vendored metric preset list was copied from: repository, path and git ref."""
+    resource = importlib.resources.files("vespa.resources").joinpath(
+        "metric-presets.source.json"
+    )
+    return json.loads(resource.read_text(encoding="utf-8"))
+
+
+@functools.lru_cache(maxsize=1)
+def metric_presets() -> FrozenSet[str]:
+    """
+    The metric preset names accepted in `ProductionTest.metric`.
+
+    This is a verbatim copy of `metric-presets.json` from the Vespa CLI, taken at the git ref in
+    `metric_presets_source()`. Vespa Cloud is the authority; if a preset is missing here, pass
+    `validate_metric_preset=False` to `ProductionTest`. See
+    https://docs.vespa.ai/en/reference/applications/testing-production.html#metric-presets.
+    """
+    resource = importlib.resources.files("vespa.resources").joinpath(
+        "metric-presets.json"
+    )
+    return frozenset(json.loads(resource.read_text(encoding="utf-8")))
+
 
 class ProductionTest(object):
     def __init__(
@@ -3161,6 +3191,7 @@ class ProductionTest(object):
         name: Optional[str] = None,
         min: Optional[float] = None,
         max: Optional[float] = None,
+        validate_metric_preset: bool = True,
     ):
         """
         A production test: a metric preset checked against a min and/or max bound over a time
@@ -3177,6 +3208,9 @@ class ProductionTest(object):
             min (float, optional): Inclusive lower bound. At least one of `min` and `max` is required.
             max (float, optional): Inclusive upper bound. At least one of `min` and `max` is required.
                 The unit depends on the metric preset.
+            validate_metric_preset (bool): Check `metric` against the list of presets known to pyvespa
+                (see `metric_presets()`), as the Vespa CLI does. Set to False if Vespa Cloud has added a
+                preset that this pyvespa version does not know about yet. Defaults to True.
 
         Example:
             ```python
@@ -3186,6 +3220,13 @@ class ProductionTest(object):
         """
         if not isinstance(metric, str) or not metric.strip():
             raise ValueError("ProductionTest: missing required field 'metric'.")
+        if validate_metric_preset and metric.strip() not in metric_presets():
+            source = metric_presets_source()
+            raise ValueError(
+                f"ProductionTest: '{metric.strip()}' is not a known metric preset. "
+                f"pyvespa knows the presets from Vespa CLI {source['ref']}; see {_METRIC_PRESETS_DOCS}. "
+                "If the preset was added after that, pass validate_metric_preset=False."
+            )
         if not isinstance(duration, str):
             raise ValueError(
                 "ProductionTest: 'duration' must be a string such as '30s', '5m', '1h' or '2d'."
@@ -3218,7 +3259,9 @@ class ProductionTest(object):
         self.max = max
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ProductionTest":
+    def from_dict(
+        cls, data: Dict[str, Any], validate_metric_preset: bool = True
+    ) -> "ProductionTest":
         """Create a ProductionTest from a dict in the production test file format."""
         if not isinstance(data, dict):
             raise ValueError("ProductionTest: expected a test object.")
@@ -3238,6 +3281,7 @@ class ProductionTest(object):
             name=data.get("name"),
             min=data.get("min"),
             max=data.get("max"),
+            validate_metric_preset=validate_metric_preset,
         )
 
     def to_dict(self) -> Dict[str, Any]:

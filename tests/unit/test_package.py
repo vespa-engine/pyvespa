@@ -5,6 +5,7 @@ import unittest
 import platform
 import pytest
 import tempfile
+import importlib.resources
 import json
 import textwrap
 import warnings
@@ -41,6 +42,8 @@ from vespa.package import (
     Test,
     ProductionTest,
     PRODUCTION_TEST_FILE,
+    metric_presets,
+    metric_presets_source,
     Struct,
     StructField,
     ServicesConfiguration,
@@ -2227,6 +2230,64 @@ class TestProductionTest(unittest.TestCase):
                     "duration": "5m",
                 }
             )
+
+    def test_cli_fixture_metric_invalid_preset_yaml(self):
+        # testdata/tests/production-test/metric-invalid-preset.yaml
+        with self.assertRaisesRegex(
+            ValueError, "'not-a-real-metric' is not a known metric preset"
+        ):
+            ProductionTest.from_dict(
+                {
+                    "name": "bogus metric check",
+                    "metric": "not-a-real-metric",
+                    "duration": "5m",
+                    "max": 10,
+                }
+            )
+
+    def test_metric_preset_validation_can_be_disabled(self):
+        test = ProductionTest(
+            metric="brand-new-preset",
+            duration="5m",
+            max=1,
+            validate_metric_preset=False,
+        )
+        self.assertEqual("brand-new-preset", test.metric)
+        test = ProductionTest.from_dict(
+            {"metric": "brand-new-preset", "duration": "5m", "max": 1},
+            validate_metric_preset=False,
+        )
+        self.assertEqual("brand-new-preset", test.metric)
+        with self.assertRaises(ValueError):
+            ProductionTest.from_dict(
+                {"metric": "brand-new-preset", "duration": "5m", "max": 1}
+            )
+
+    def test_vendored_metric_presets(self):
+        presets = metric_presets()
+        self.assertIsInstance(presets, frozenset)
+        self.assertGreaterEqual(len(presets), 247)
+        for name in ("cpu-utilization-container", "query-latency-p95", "restarts"):
+            self.assertIn(name, presets)
+        for name in presets:
+            ProductionTest(metric=name, duration="5m", max=1)
+        source = metric_presets_source()
+        self.assertEqual("vespa-engine/vespa", source["repository"])
+        self.assertEqual(
+            "client/go/internal/cli/cmd/metric-presets.json", source["path"]
+        )
+        self.assertRegex(source["ref"], r"^v\d+\.\d+\.\d+$")
+
+    def test_vendored_file_is_verbatim_cli_format(self):
+        # Keep the file byte-comparable with upstream: a sorted JSON list of unique strings.
+        path = importlib.resources.files("vespa.resources").joinpath(
+            "metric-presets.json"
+        )
+        names = json.loads(path.read_text(encoding="utf-8"))
+        self.assertIsInstance(names, list)
+        self.assertEqual(sorted(set(names)), names)
+        self.assertTrue(all(isinstance(n, str) and n for n in names))
+        self.assertEqual(frozenset(names), metric_presets())
 
     def test_duration_validation(self):
         for valid in ("30s", "5m", "1h", "2d", "600s"):
