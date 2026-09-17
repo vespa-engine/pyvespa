@@ -5,6 +5,7 @@ import unittest
 import platform
 import pytest
 import tempfile
+import textwrap
 import warnings
 import zipfile
 
@@ -34,6 +35,9 @@ from vespa.package import (
     ApplicationPackage,
     AuthClient,
     DeploymentConfiguration,
+    Region,
+    Delay,
+    Test,
     Struct,
     StructField,
     ServicesConfiguration,
@@ -2041,16 +2045,121 @@ class TestDeploymentConfiguration(unittest.TestCase):
 
         app_package = ApplicationPackage(name="test", deployment_config=deploy_config)
 
-        expected_result = (
-            '<deployment version="1.0">\n'
-            "    <prod>\n"
-            "        <region>aws-us-east-1c</region>\n"
-            "        <region>aws-us-west-2a</region>\n"
-            "    </prod>\n"
-            "</deployment>"
-        )
+        expected_result = textwrap.dedent("""\
+            <deployment version="1.0">
+                <prod>
+                    <region>aws-us-east-1c</region>
+                    <region>aws-us-west-2a</region>
+                </prod>
+            </deployment>""")
 
         self.assertEqual(expected_result, app_package.deployment_to_text)
+
+    def test_steps_with_delay_and_test(self):
+        deploy_config = DeploymentConfiguration(
+            environment="prod",
+            steps=[
+                Region("aws-us-east-1c"),
+                Delay(minutes=10),
+                Test("aws-us-east-1c"),
+                Region("aws-eu-west-1a"),
+            ],
+        )
+        app_package = ApplicationPackage(name="test", deployment_config=deploy_config)
+        expected_result = textwrap.dedent("""\
+            <deployment version="1.0">
+                <prod>
+                    <region>aws-us-east-1c</region>
+                    <delay minutes="10"/>
+                    <test>aws-us-east-1c</test>
+                    <region>aws-eu-west-1a</region>
+                </prod>
+            </deployment>""")
+        self.assertEqual(expected_result, app_package.deployment_to_text)
+        self.assertEqual(["aws-us-east-1c", "aws-eu-west-1a"], deploy_config.regions)
+        self.assertEqual([Test("aws-us-east-1c")], deploy_config.tests)
+
+    def test_steps_string_shorthand_and_full_delay(self):
+        deploy_config = DeploymentConfiguration(
+            environment="prod",
+            steps=[
+                "aws-us-east-1c",
+                Delay(hours=1, minutes=2, seconds=3),
+                "aws-eu-west-1a",
+            ],
+        )
+        self.assertEqual(
+            [
+                Region("aws-us-east-1c"),
+                Delay(hours=1, minutes=2, seconds=3),
+                Region("aws-eu-west-1a"),
+            ],
+            deploy_config.steps,
+        )
+        self.assertIn(
+            '<delay hours="1" minutes="2" seconds="3"/>', deploy_config.to_xml_string()
+        )
+        self.assertEqual([], deploy_config.tests)
+
+    def test_regions_and_steps_are_equivalent(self):
+        from_regions = DeploymentConfiguration(environment="prod", regions=["a", "b"])
+        from_steps = DeploymentConfiguration(environment="prod", steps=["a", "b"])
+        self.assertEqual(from_regions, from_steps)
+        self.assertEqual(from_regions.to_xml_string(), from_steps.to_xml_string())
+        self.assertEqual(
+            "DeploymentConfiguration(environment='prod', regions=['a', 'b'])",
+            repr(from_regions),
+        )
+        self.assertEqual(
+            "DeploymentConfiguration(environment='prod', steps=[Region('a'), Region('b')])",
+            repr(from_steps),
+        )
+
+    def test_test_must_follow_its_region(self):
+        with self.assertRaises(ValueError):
+            DeploymentConfiguration(environment="prod", steps=[Test("aws-us-east-1c")])
+        with self.assertRaises(ValueError):
+            DeploymentConfiguration(
+                environment="prod",
+                steps=[Region("aws-us-east-1c"), Test("aws-eu-west-1a")],
+            )
+
+    def test_invalid_arguments(self):
+        with self.assertRaises(ValueError):
+            DeploymentConfiguration(environment="prod", regions=["a"], steps=["a"])
+        with self.assertRaises(TypeError):
+            DeploymentConfiguration(environment="prod", steps=[3])
+        with self.assertRaises(ValueError):
+            Delay()
+        with self.assertRaises(ValueError):
+            Delay(minutes=-1)
+        with self.assertRaises(ValueError):
+            Delay(minutes=True)
+        with self.assertRaises(ValueError):
+            Region("")
+        with self.assertRaises(ValueError):
+            Test(" ")
+
+    def test_step_repr(self):
+        self.assertEqual("Region('a')", repr(Region("a")))
+        self.assertEqual("Delay(minutes=10)", repr(Delay(minutes=10)))
+        self.assertEqual("Delay(hours=1, seconds=3)", repr(Delay(hours=1, seconds=3)))
+        self.assertEqual("Test('a')", repr(Test("a")))
+
+    def test_steps_written_to_files_and_zip(self):
+        deploy_config = DeploymentConfiguration(
+            environment="prod",
+            steps=[Region("aws-us-east-1c"), Delay(minutes=5), Test("aws-us-east-1c")],
+        )
+        app_package = ApplicationPackage(name="test", deployment_config=deploy_config)
+        with tempfile.TemporaryDirectory() as tmp:
+            app_package.to_files(tmp)
+            with open(os.path.join(tmp, "deployment.xml")) as f:
+                self.assertEqual(app_package.deployment_to_text, f.read())
+        with zipfile.ZipFile(app_package.to_zip()) as zf:
+            self.assertEqual(
+                app_package.deployment_to_text, zf.read("deployment.xml").decode()
+            )
 
 
 class TestSchemaStructField(unittest.TestCase):

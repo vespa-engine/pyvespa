@@ -2889,33 +2889,241 @@ class Validation(object):
         self.comment = comment
 
 
+class Region(object):
+    def __init__(self, name: str):
+        """
+        A production region deployment step in deployment.xml (`<region>`).
+
+        Args:
+            name (str): Region id, e.g. "aws-us-east-1c".
+                See [Vespa Cloud zones](https://cloud.vespa.ai/en/reference/zones.html).
+
+        Example:
+            ```python
+            Region("aws-us-east-1c")
+            # Output: Region('aws-us-east-1c')
+            ```
+        """
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("Region name must be a non-empty string.")
+        self.name = name.strip()
+
+    def to_xml_element(self) -> ET.Element:
+        element = ET.Element("region")
+        element.text = self.name
+        return element
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return self.name == other.name
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.name!r})"
+
+
+class Delay(object):
+    def __init__(self, hours: int = 0, minutes: int = 0, seconds: int = 0):
+        """
+        A delay step in deployment.xml (`<delay>`), which must pass after all previous steps
+        before subsequent steps may proceed. Typically placed between a `Region` and a `Test`
+        to gather metrics before a production test evaluates them.
+
+        Args:
+            hours (int): Hours to delay. Defaults to 0.
+            minutes (int): Minutes to delay. Defaults to 0.
+            seconds (int): Seconds to delay. Defaults to 0.
+
+        Example:
+            ```python
+            Delay(minutes=10)
+            # Output: Delay(minutes=10)
+            ```
+        """
+        for label, value in (
+            ("hours", hours),
+            ("minutes", minutes),
+            ("seconds", seconds),
+        ):
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"Delay {label} must be a non-negative integer.")
+        if hours == 0 and minutes == 0 and seconds == 0:
+            raise ValueError(
+                "Delay must be longer than zero: set at least one of hours, minutes or seconds."
+            )
+        self.hours = hours
+        self.minutes = minutes
+        self.seconds = seconds
+
+    def to_xml_element(self) -> ET.Element:
+        element = ET.Element("delay")
+        for label, value in (
+            ("hours", self.hours),
+            ("minutes", self.minutes),
+            ("seconds", self.seconds),
+        ):
+            if value:
+                element.set(label, str(value))
+        return element
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (self.hours, self.minutes, self.seconds) == (
+            other.hours,
+            other.minutes,
+            other.seconds,
+        )
+
+    def __repr__(self) -> str:
+        args = ", ".join(
+            f"{label}={value}"
+            for label, value in (
+                ("hours", self.hours),
+                ("minutes", self.minutes),
+                ("seconds", self.seconds),
+            )
+            if value
+        )
+        return f"{self.__class__.__name__}({args})"
+
+
+class Test(object):
+    def __init__(self, region: str):
+        """
+        A production test step in deployment.xml (`<test>`). Runs the production tests in
+        `tests/production-test/` against the given region, which must have been deployed to
+        in an earlier `Region` step. If a test fails, the rollout stops and later steps do not run.
+
+        Args:
+            region (str): Id of the production region to test, e.g. "aws-us-east-1c".
+
+        Example:
+            ```python
+            Test("aws-us-east-1c")
+            # Output: Test('aws-us-east-1c')
+            ```
+
+        See [production tests](https://docs.vespa.ai/en/reference/applications/testing-production.html).
+        """
+        if not isinstance(region, str) or not region.strip():
+            raise ValueError("Test region must be a non-empty string.")
+        self.region = region.strip()
+
+    def to_xml_element(self) -> ET.Element:
+        element = ET.Element("test")
+        element.text = self.region
+        return element
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return self.region == other.region
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.region!r})"
+
+
+DeploymentStep = Union[Region, Delay, Test]
+
+
 class DeploymentConfiguration(object):
-    def __init__(self, environment: str, regions: List[str]):
+    def __init__(
+        self,
+        environment: str,
+        regions: Optional[List[str]] = None,
+        steps: Optional[List[Union[DeploymentStep, str]]] = None,
+    ):
         """
         Create a DeploymentConfiguration, which defines how to generate a deployment.xml file (for use in production deployments).
 
+        Pass either `regions`, for a plain sequential rollout, or `steps`, to also add `Delay`
+        and `Test` (production test) steps between regions. A plain string in `steps` is shorthand
+        for `Region(name)`.
+
         Args:
             environment (str): The environment to deploy to. Currently, only 'prod' is supported.
-            regions (list[str]): List of regions to deploy to, e.g. ["us-east-1", "us-west-1"].
+            regions (list[str], optional): List of regions to deploy to, e.g. ["us-east-1", "us-west-1"].
                                 See [Vespa documentation](https://cloud.vespa.ai/en/reference/zones.html) for more information.
+            steps (list[Region | Delay | Test | str], optional): Ordered deployment steps. Mutually exclusive with `regions`.
+                                A `Test` must come after the `Region` it refers to.
 
         Example:
             ```python
             DeploymentConfiguration(environment="prod", regions=["us-east-1", "us-west-1"])
             # Output: DeploymentConfiguration(environment='prod', regions=['us-east-1', 'us-west-1'])
             ```
+
+        Example with a production test gating the rollout to the second region:
+            ```python
+            DeploymentConfiguration(
+                environment="prod",
+                steps=[
+                    Region("aws-us-east-1c"),
+                    Delay(minutes=10),
+                    Test("aws-us-east-1c"),
+                    Region("aws-eu-west-1a"),
+                ],
+            )
+            # Output: DeploymentConfiguration(environment='prod', steps=[Region('aws-us-east-1c'), Delay(minutes=10), Test('aws-us-east-1c'), Region('aws-eu-west-1a')])
+            ```
+            See [production tests](https://docs.vespa.ai/en/reference/applications/testing-production.html).
         """
+        if regions is not None and steps is not None:
+            raise ValueError(
+                "DeploymentConfiguration takes either regions or steps, not both."
+            )
         self.environment = environment
-        self.regions = regions
+        self._explicit_steps = steps is not None
+        if steps is not None:
+            self.steps: List[DeploymentStep] = self._normalize_steps(steps)
+        else:
+            self.steps = [Region(region) for region in (regions or [])]
+        self.regions: List[str] = [
+            step.name for step in self.steps if isinstance(step, Region)
+        ]
+
+    @staticmethod
+    def _normalize_steps(
+        steps: List[Union[DeploymentStep, str]],
+    ) -> List[DeploymentStep]:
+        normalized: List[DeploymentStep] = []
+        deployed_regions = set()
+        for step in steps:
+            if isinstance(step, str):
+                step = Region(step)
+            if not isinstance(step, (Region, Delay, Test)):
+                raise TypeError(
+                    f"Deployment steps must be Region, Delay, Test or str, got {type(step).__name__}."
+                )
+            if isinstance(step, Region):
+                deployed_regions.add(step.name)
+            elif isinstance(step, Test) and step.region not in deployed_regions:
+                raise ValueError(
+                    f"Test('{step.region}') must come after Region('{step.region}') in steps."
+                )
+            normalized.append(step)
+        return normalized
+
+    @property
+    def tests(self) -> List[Test]:
+        """The production test steps in this configuration, in order."""
+        return [step for step in self.steps if isinstance(step, Test)]
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return self.environment == other.environment and self.steps == other.steps
 
     def __repr__(self) -> str:
+        if self._explicit_steps:
+            return f"{self.__class__.__name__}(environment='{self.environment}', steps={self.steps})"
         return f"{self.__class__.__name__}(environment='{self.environment}', regions={self.regions})"
 
     def to_xml_string(self, indent=1) -> str:
         root = ET.Element(self.environment)
-        for region in self.regions:
-            region_xml = ET.SubElement(root, "region")
-            region_xml.text = region
+        for step in self.steps:
+            root.append(step.to_xml_element())
 
         xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4)
         xml_lines = xml_str.strip().split("\n")
