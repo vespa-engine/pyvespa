@@ -3307,6 +3307,95 @@ class ProductionTest(object):
         return f"{self.__class__.__name__}({args})"
 
 
+def _load_production_test_dicts(path: Path) -> Optional[List[Dict[str, Any]]]:
+    """Read one production test file into a list of test dicts.
+
+    Returns None when the file is not a metric-based production test (a legacy step-based test, or
+    a YAML file when PyYAML is not installed), mirroring the Vespa CLI's `isMetricTestFile`.
+    """
+    suffix = path.suffix.lower()
+    if suffix in (".yaml", ".yml"):
+        try:
+            import yaml  # optional dependency, only used to read hand-written test files
+        except ImportError:
+            warnings.warn(
+                f"Skipping validation of {path}: PyYAML is not installed. Install it or write the test as JSON.",
+                UserWarning,
+            )
+            return None
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except yaml.YAMLError as e:
+            raise ValueError(f"Failed parsing production test at {path}: {e}") from e
+    elif suffix == ".json":
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed parsing production test at {path}: {e}") from e
+    else:
+        return None
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"Failed parsing production test at {path}: expected a single test object, or an object with a 'tests' field."
+        )
+    if "steps" in data:
+        return None  # legacy step-based production test; not validated by pyvespa
+    if "tests" in data:
+        if not isinstance(data["tests"], list) or not data["tests"]:
+            raise ValueError(
+                f"Found no tests in {path}: 'tests' must be a non-empty list of test objects."
+            )
+        return data["tests"]
+    if "metric" in data:
+        return [data]
+    raise ValueError(
+        f"Could not determine test type of {path}: a production test must have either a 'steps' field, "
+        f"or a 'metric' or 'tests' field. See {_METRIC_PRESETS_DOCS}."
+    )
+
+
+def validate_production_test_files(
+    directory: Union[str, Path], validate_metric_preset: bool = True
+) -> List[ProductionTest]:
+    """
+    Validate the production test files in a `tests/production-test/` directory, the way
+    `vespa prod deploy` does before submitting, and return the tests found.
+
+    Each `.json`, `.yaml` or `.yml` file may hold one test object or an object with a `tests`
+    list. Legacy step-based tests (with a `steps` field) and files with other extensions are
+    ignored. Nothing is evaluated here; Vespa Cloud runs the tests after deployment.
+
+    Args:
+        directory (Union[str, Path]): The `tests/production-test` directory.
+        validate_metric_preset (bool): Reject metric names not in `metric_presets()`. Defaults to True.
+
+    Returns:
+        List[ProductionTest]: The validated tests, in file order.
+
+    Raises:
+        ValueError: If a file cannot be parsed or a test is invalid. The message names the file and test.
+    """
+    directory = Path(directory)
+    tests: List[ProductionTest] = []
+    for path in sorted(directory.iterdir()):
+        if not path.is_file():
+            continue
+        test_dicts = _load_production_test_dicts(path)
+        if test_dicts is None:
+            continue
+        for data in test_dicts:
+            name = (
+                data.get("name", "<unnamed test>")
+                if isinstance(data, dict)
+                else "<unnamed test>"
+            )
+            try:
+                tests.append(ProductionTest.from_dict(data, validate_metric_preset))
+            except ValueError as e:
+                raise ValueError(f"Invalid test '{name}' in {path}: {e}") from e
+    return tests
+
+
 class ServicesConfiguration(object):
     def __init__(
         self,

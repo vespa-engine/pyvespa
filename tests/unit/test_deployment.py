@@ -61,6 +61,55 @@ class TestVespaCloud(unittest.TestCase):
                 zf.read(PRODUCTION_TEST_FILE).decode(),
             )
 
+    @patch("vespa.deployment.VespaCloud._start_prod_deployment", return_value=7)
+    def test_deploy_to_prod_validates_production_tests_before_submitting(
+        self, mock_start
+    ):
+        with TemporaryDirectory() as tmp:
+            test_dir = os.path.join(tmp, "tests", "production-test")
+            os.makedirs(test_dir)
+            with open(os.path.join(test_dir, "bad.json"), "w") as f:
+                f.write(
+                    '{"name": "typo", "metric": "cpu-utilisation-container", "duration": "5m", "max": 85}'
+                )
+            with self.assertRaisesRegex(
+                ValueError, "Invalid test 'typo' in .*bad.json"
+            ):
+                self.vespa_cloud.deploy_to_prod(application_root=tmp)
+            mock_start.assert_not_called()
+
+            with open(os.path.join(test_dir, "bad.json"), "w") as f:
+                f.write(
+                    '{"name": "ok", "metric": "cpu-utilization-container", "duration": "5m", "max": 85}'
+                )
+            self.assertEqual(7, self.vespa_cloud.deploy_to_prod(application_root=tmp))
+            mock_start.assert_called_once()
+
+    @patch("vespa.deployment.VespaCloud._request")
+    def test_wait_for_prod_deployment_names_failed_production_test(self, mock_request):
+        mock_request.return_value = {
+            "deployed": False,
+            "status": "deploying",
+            "hasFailed": True,
+            "jobs": [
+                {"jobName": "production-aws-us-east-1c", "runStatus": "success"},
+                {
+                    "jobName": "test-aws-us-east-1c",
+                    "runStatus": "testFailure",
+                    "url": "https://console.vespa-cloud.com/tenant/t/application/a/prod/deployment/run/test-aws-us-east-1c/3",
+                },
+                {"jobName": "production-aws-eu-west-1a", "runStatus": "running"},
+            ],
+        }
+        with self.assertRaises(RuntimeError) as ctx:
+            self.vespa_cloud.wait_for_prod_deployment(456)
+        message = str(ctx.exception)
+        self.assertIn(
+            "test-aws-us-east-1c: testFailure (https://console.vespa-cloud.com", message
+        )
+        self.assertIn("A production test failed its metric check", message)
+        self.assertNotIn("production-aws-us-east-1c", message)
+
     @patch("vespa.deployment.VespaCloud._read_private_key")
     @patch("vespa.deployment.VespaCloud._load_certificate_pair")
     def test_initialization_no_disk_package(self, mock_load_cert, mock_read_key):

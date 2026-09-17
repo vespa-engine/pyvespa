@@ -2,11 +2,15 @@
 
 import os
 import unittest
+from unittest.mock import patch
 import platform
 import pytest
 import tempfile
 import importlib.resources
 import json
+import re
+from pathlib import Path
+import sys
 import textwrap
 import warnings
 import zipfile
@@ -44,6 +48,7 @@ from vespa.package import (
     PRODUCTION_TEST_FILE,
     metric_presets,
     metric_presets_source,
+    validate_production_test_files,
     Struct,
     StructField,
     ServicesConfiguration,
@@ -2487,6 +2492,180 @@ class TestProductionTest(unittest.TestCase):
                 include_files=[(f.name, "tests/production-test/extra.json")],
             )
             self.assertEqual(1, len(app_package.include_files))
+
+
+class TestValidateProductionTestFiles(unittest.TestCase):
+    """Mirrors `vespa test tests/production-test` in dry-run mode, as run by `vespa prod deploy`."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self._tmp.name) / "tests" / "production-test"
+        self.dir.mkdir(parents=True)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _write(self, name, content):
+        path = self.dir / name
+        path.write_text(content if isinstance(content, str) else json.dumps(content))
+        return path
+
+    def test_json_single_and_suite(self):
+        self._write(
+            "single.json",
+            {
+                "name": "query latency check",
+                "metric": "query-latency-p95",
+                "duration": "5m",
+                "max": 200,
+            },
+        )
+        self._write(
+            "suite.json",
+            {
+                "tests": [
+                    {
+                        "name": "container cpu check",
+                        "metric": "cpu-utilization-container",
+                        "duration": "5m",
+                        "max": 10,
+                    },
+                    {
+                        "name": "content cpu check",
+                        "metric": "cpu-utilization-content",
+                        "duration": "5m",
+                        "max": 10,
+                    },
+                ]
+            },
+        )
+        tests = validate_production_test_files(self.dir)
+        self.assertEqual(
+            ["query latency check", "container cpu check", "content cpu check"],
+            [t.name for t in tests],
+        )
+
+    def test_yaml_single_and_suite(self):
+        self._write(
+            "metric-test.yaml",
+            "name: cpu check\nmetric: cpu-utilization-container\nduration: 5m\nmax: 85\n",
+        )
+        self._write(
+            "suite.yml",
+            "tests:\n  - name: node count check\n    metric: node-count-max\n    duration: 5m\n    max: 10\n"
+            "  - name: documents count check\n    metric: documents-count-active\n    duration: 5m\n    min: 1\n",
+        )
+        tests = validate_production_test_files(self.dir)
+        self.assertEqual(
+            ["cpu check", "node count check", "documents count check"],
+            [t.name for t in tests],
+        )
+        self.assertEqual(1, tests[2].min)
+
+    def test_yaml_skipped_with_warning_without_pyyaml(self):
+        self._write(
+            "metric-test.yaml",
+            "name: cpu check\nmetric: not-a-real-metric\nduration: 5m\nmax: 85\n",
+        )
+        with patch.dict(sys.modules, {"yaml": None}):
+            with self.assertWarnsRegex(UserWarning, "PyYAML is not installed"):
+                self.assertEqual([], validate_production_test_files(self.dir))
+
+    def test_legacy_and_other_files_are_ignored(self):
+        self._write("legacy.json", {"steps": [{"request": {"uri": "/search/"}}]})
+        self._write("README.md", "# not a test")
+        (self.dir / "subdir").mkdir()
+        self.assertEqual([], validate_production_test_files(self.dir))
+
+    def test_errors_name_the_file_and_test(self):
+        path = self._write(
+            "metric-invalid-preset.json",
+            {
+                "name": "bogus metric check",
+                "metric": "not-a-real-metric",
+                "duration": "5m",
+                "max": 10,
+            },
+        )
+        with self.assertRaisesRegex(
+            ValueError,
+            f"Invalid test 'bogus metric check' in {re.escape(str(path))}: .*not a known metric preset",
+        ):
+            validate_production_test_files(self.dir)
+        path.unlink()
+
+        path = self._write(
+            "metric-missing-bounds.json",
+            {
+                "name": "no bounds check",
+                "metric": "cpu-utilization-container",
+                "duration": "5m",
+            },
+        )
+        with self.assertRaisesRegex(
+            ValueError,
+            "Invalid test 'no bounds check' in .*at least one of 'min' and 'max'",
+        ):
+            validate_production_test_files(self.dir)
+        path.unlink()
+
+        path = self._write(
+            "unnamed.json",
+            {"metric": "cpu-utilization-container", "duration": "5x", "max": 1},
+        )
+        with self.assertRaisesRegex(
+            ValueError, "Invalid test '<unnamed test>' in .*invalid duration"
+        ):
+            validate_production_test_files(self.dir)
+        path.unlink()
+
+        path = self._write("unknown-type.json", {"name": "what am i"})
+        with self.assertRaisesRegex(ValueError, "Could not determine test type"):
+            validate_production_test_files(self.dir)
+        path.unlink()
+
+        path = self._write("empty-suite.json", {"tests": []})
+        with self.assertRaisesRegex(ValueError, "Found no tests"):
+            validate_production_test_files(self.dir)
+        path.unlink()
+
+        path = self._write("broken.json", "{not json")
+        with self.assertRaisesRegex(ValueError, "Failed parsing production test"):
+            validate_production_test_files(self.dir)
+        path.unlink()
+
+        path = self._write("list.json", [1, 2])
+        with self.assertRaisesRegex(ValueError, "expected a single test object"):
+            validate_production_test_files(self.dir)
+
+    def test_preset_validation_can_be_disabled(self):
+        self._write(
+            "new.json", {"metric": "brand-new-preset", "duration": "5m", "max": 1}
+        )
+        with self.assertRaises(ValueError):
+            validate_production_test_files(self.dir)
+        tests = validate_production_test_files(self.dir, validate_metric_preset=False)
+        self.assertEqual("brand-new-preset", tests[0].metric)
+
+    def test_files_written_by_application_package_validate(self):
+        app_package = ApplicationPackage(
+            name="test",
+            deployment_config=DeploymentConfiguration(
+                environment="prod", steps=[Region("r"), Delay(minutes=1), Test("r")]
+            ),
+            production_tests=[
+                ProductionTest(name="a", metric="restarts", duration="1h", max=0),
+                ProductionTest(
+                    metric="query-latency-p95", duration="5m", min=0, max=200
+                ),
+            ],
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            app_package.to_files(tmp)
+            tests = validate_production_test_files(
+                Path(tmp) / "tests" / "production-test"
+            )
+        self.assertEqual(app_package.production_tests, tests)
 
 
 class TestSchemaStructField(unittest.TestCase):

@@ -37,6 +37,7 @@ from vespa.package import (
     ApplicationPackage,
     AuthClient,
     Parameter,
+    validate_production_test_files,
 )
 from vespa.retries import CONTROL_PLANE_RETRY
 from vespa.validation import validate_cloud_names, validate_instance_name
@@ -793,12 +794,19 @@ class VespaCloud(VespaDeployment):
         If submitting an application that is not yet packaged, tests should be located in <application_root>/tests.
         If submitting an application packaged with maven, application_root should refer to the generated <myapp>/target/application directory.
 
+        Production tests in <application_root>/tests/production-test/ (declared with `ProductionTest`
+        on the application package, or hand-written JSON/YAML files) are validated before submission,
+        as `vespa prod deploy` does, so a typo fails here rather than in the deployment pipeline.
+        They only run at `Test` steps in the deployment configuration. See
+        https://docs.vespa.ai/en/reference/applications/testing-production.html.
+
         Args:
             instance (str): Name of this instance of the application in the Vespa Cloud.
             application_root (str): Path to either save the required Vespa config files (if initialized with application_package) or read them from (if initialized with application_root).
             source_url (str, optional): Optional source URL (including commit hash) for the deployment. This is a URL to the source code repository, e.g., GitHub, that is used to build the application package. Example: <https://github.com/vespa-cloud/vector-search/commit/474d7771bd938d35dc5dcfd407c21c019d15df3c>. The source URL will show up in the Vespa Cloud Console next to the build number.
 
         Raises:
+            ValueError: If a production test file under application_root is invalid.
             RuntimeError: If deployment fails or if there are issues with the deployment process.
 
         """
@@ -813,6 +821,7 @@ class VespaCloud(VespaDeployment):
                 raise ValueError("Prod deployment requires a deployment_config.")
             self.application_package.to_files(application_root)
 
+        self._validate_production_tests(application_root)
         self.build_no = self._start_prod_deployment(
             application_root, source_url, instance
         )
@@ -1077,9 +1086,25 @@ class VespaCloud(VespaDeployment):
                     else:
                         print(f"{job['jobName']}: {job['runStatus']}", file=self.output)
             if status.get("hasFailed", False):
-                raise RuntimeError(
-                    "Deployment has failed. The system may retry, but this client will not wait."
+                failed = [
+                    job
+                    for job in status.get("jobs", [])
+                    if job.get("runStatus") not in ("success", "running", "noTests")
+                ]
+                details = "; ".join(
+                    f"{job['jobName']}: {job.get('runStatus')}"
+                    + (f" ({job['url']})" if job.get("url") else "")
+                    for job in failed
                 )
+                message = "Deployment has failed. The system may retry, but this client will not wait."
+                if details:
+                    message += f" Failed job(s): {details}."
+                if any(job["jobName"].startswith("test-") for job in failed):
+                    message += (
+                        " A production test failed its metric check, so the rollout stopped before later regions."
+                        " See the job log for the measured value."
+                    )
+                raise RuntimeError(message)
             if status["status"] == "done":
                 skip_reason = status.get("skipReason")
                 if skip_reason:
@@ -2301,6 +2326,19 @@ class VespaCloud(VespaDeployment):
                 f"Auto-configured AuthClient on the application package: {added_ids}.",
                 file=self.output,
             )
+
+    def _validate_production_tests(self, application_root: str) -> None:
+        """Validate every tests/production-test directory under application_root before submitting."""
+        for root, dirs, _files in os.walk(application_root):
+            if os.path.basename(root) == "tests" and "production-test" in dirs:
+                directory = os.path.join(root, "production-test")
+                tests = validate_production_test_files(directory)
+                if tests:
+                    print(
+                        f"Validated {len(tests)} production test(s) in {directory} "
+                        "(evaluated by Vespa Cloud against live metrics after deployment).",
+                        file=self.output,
+                    )
 
     def _application_root_has_tests(self, application_root: str) -> bool:
         """Check if the application contains tests folder (recursively)"""
