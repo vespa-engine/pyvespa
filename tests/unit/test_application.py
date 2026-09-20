@@ -1694,3 +1694,131 @@ class TestSessionOutlivesLazyGenerators(unittest.TestCase):
         assert list(lines) == ["event: token", 'data: {"token":"V"}']
         assert client.closed
         client.close.assert_called_once()
+
+
+class TestQueryKeepRequestBody(unittest.TestCase):
+    """Tests for the `keep_request_body` flag on sync query methods."""
+
+    def _mock_client(self, MockClient):
+        mock_client_instance = Mock()
+        MockClient.return_value = mock_client_instance
+        mock_client_instance.close = Mock()
+
+        status_response = create_mock_httpr_response(status_code=200)
+        search_response = create_mock_httpr_response(
+            status_code=200, text="{}", url="http://localhost:8080/search/"
+        )
+        mock_client_instance.get.return_value = status_response
+        mock_client_instance.post.return_value = search_response
+        return mock_client_instance
+
+    @patch("vespa.application.httpr.Client")
+    def test_request_body_none_by_default(self, MockClient):
+        self._mock_client(MockClient)
+
+        app = Vespa(url="http://localhost", port=8080)
+        r = app.query(body={"yql": "select * from sources * where true"})
+
+        self.assertIsNone(r.request_body)
+
+    @patch("vespa.application.httpr.Client")
+    def test_request_body_stored_when_flag_true(self, MockClient):
+        self._mock_client(MockClient)
+        body = {"yql": "select * from sources * where true", "nested": {"a": 1}}
+
+        app = Vespa(url="http://localhost", port=8080)
+        r = app.query(body=body, keep_request_body=True)
+
+        self.assertEqual(r.request_body, body)
+
+    @patch("vespa.application.httpr.Client")
+    def test_request_body_is_deep_copy(self, MockClient):
+        self._mock_client(MockClient)
+        body = {"yql": "select * from sources * where true", "nested": {"a": 1}}
+
+        app = Vespa(url="http://localhost", port=8080)
+        r = app.query(body=body, keep_request_body=True)
+
+        self.assertIsNot(r.request_body, body)
+        self.assertIsNot(r.request_body["nested"], body["nested"])
+
+        # Mutating the original body after the call must not affect the stored copy.
+        body["nested"]["a"] = 999
+        self.assertEqual(r.request_body["nested"]["a"], 1)
+
+    @patch("vespa.application.httpr.Client")
+    def test_keep_request_body_not_sent_as_query_param(self, MockClient):
+        mock_client_instance = self._mock_client(MockClient)
+
+        app = Vespa(url="http://localhost", port=8080)
+        app.query(
+            body={"yql": "select * from sources * where true"},
+            keep_request_body=True,
+        )
+
+        _, call_kwargs = mock_client_instance.post.call_args
+        self.assertNotIn("keep_request_body", call_kwargs.get("params", {}))
+
+    @patch("vespa.application.httpr.Client")
+    def test_request_body_none_via_session(self, MockClient):
+        self._mock_client(MockClient)
+
+        app = Vespa(url="http://localhost", port=8080)
+        with app.syncio() as session:
+            r = session.query(body={"yql": "select * from sources * where true"})
+
+        self.assertIsNone(r.request_body)
+
+    @patch("vespa.application.httpr.Client")
+    def test_request_body_stored_via_session(self, MockClient):
+        self._mock_client(MockClient)
+        body = {"yql": "select * from sources * where true"}
+
+        app = Vespa(url="http://localhost", port=8080)
+        with app.syncio() as session:
+            r = session.query(body=body, keep_request_body=True)
+
+        self.assertEqual(r.request_body, body)
+        self.assertIsNot(r.request_body, body)
+
+
+@pytest.mark.asyncio
+class TestAsyncQueryKeepRequestBody:
+    """Tests for the `keep_request_body` flag on `VespaAsync.query`."""
+
+    async def test_request_body_none_by_default(self):
+        app = Vespa(url="http://localhost", port=8080)
+        vespa_async = VespaAsync(app)
+        vespa_async._make_request = AsyncMock(
+            return_value=create_mock_httpr_response(
+                status_code=200,
+                json_data={"root": {}},
+                url="http://localhost:8080/search/",
+            )
+        )
+
+        r = await vespa_async.query(body={"yql": "select * from sources * where true"})
+
+        assert r.request_body is None
+
+    async def test_request_body_stored_when_flag_true(self):
+        app = Vespa(url="http://localhost", port=8080)
+        vespa_async = VespaAsync(app)
+        vespa_async._make_request = AsyncMock(
+            return_value=create_mock_httpr_response(
+                status_code=200,
+                json_data={"root": {}},
+                url="http://localhost:8080/search/",
+            )
+        )
+        body = {"yql": "select * from sources * where true", "nested": {"a": 1}}
+
+        r = await vespa_async.query(body=body, keep_request_body=True)
+
+        assert r.request_body == body
+        assert r.request_body is not body
+        assert r.request_body["nested"] is not body["nested"]
+
+        # Mutating the original body after the call must not affect the stored copy.
+        body["nested"]["a"] = 999
+        assert r.request_body["nested"]["a"] == 1

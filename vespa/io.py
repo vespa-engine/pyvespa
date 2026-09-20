@@ -55,6 +55,8 @@ class VespaQueryResponse(VespaResponse):
 
     @property
     def request_body(self) -> Optional[Dict]:
+        """A deep copy of the request body, set only when the query was made with
+        `keep_request_body=True`. `None` otherwise."""
         return self._request_body
 
     @property
