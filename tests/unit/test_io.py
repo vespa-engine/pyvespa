@@ -1,7 +1,7 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import unittest
-from vespa.io import VespaVisitResponse, VespaQueryResponse
+from vespa.io import VespaVisitResponse, VespaQueryResponse, VespaResponse
 
 
 class TestVespaVisitResult(unittest.TestCase):
@@ -158,3 +158,66 @@ class TestVespaQueryResult(unittest.TestCase):
                 }
             ],
         )
+
+
+class TestVespaQueryResponseEquality(unittest.TestCase):
+    def setUp(self) -> None:
+        self.json = {"root": {"fields": {"totalCount": 1}}}
+        self.status_code = 200
+        self.url = "http://localhost:8080/search/"
+        self.body = {"yql": "select * from sources * where true"}
+
+    def _make(self, request_body=None):
+        return VespaQueryResponse(
+            json=self.json,
+            status_code=self.status_code,
+            url=self.url,
+            request_body=request_body,
+        )
+
+    def test_equal_when_request_body_matches(self):
+        self.assertEqual(self._make(), self._make())
+        self.assertEqual(
+            self._make(request_body=self.body), self._make(request_body=self.body)
+        )
+
+    def test_equal_uses_value_equality_not_identity(self):
+        # Equal but distinct dict objects (e.g. one is a deep copy of the other).
+        a = self._make(request_body={"yql": "x", "nested": {"n": 1}})
+        b = self._make(request_body={"yql": "x", "nested": {"n": 1}})
+        self.assertIsNot(a.request_body, b.request_body)
+        self.assertEqual(a, b)
+
+    def test_not_equal_when_request_body_differs(self):
+        a = self._make(request_body={"yql": "select * from sources * where a"})
+        b = self._make(request_body={"yql": "select * from sources * where b"})
+        self.assertNotEqual(a, b)
+
+    def test_not_equal_when_one_request_body_is_none(self):
+        a = self._make(request_body=None)
+        b = self._make(request_body=self.body)
+        self.assertNotEqual(a, b)
+        self.assertNotEqual(b, a)
+
+    def test_not_equal_to_unrelated_type(self):
+        a = self._make(request_body=self.body)
+        self.assertNotEqual(a, "not a response")
+        self.assertNotEqual(
+            a,
+            VespaResponse(
+                json=self.json,
+                status_code=self.status_code,
+                url=self.url,
+                operation_type="query",
+            ),
+        )
+
+    def test_base_fields_still_compared(self):
+        a = self._make(request_body=self.body)
+        b = VespaQueryResponse(
+            json={"root": {"fields": {"totalCount": 2}}},
+            status_code=self.status_code,
+            url=self.url,
+            request_body=self.body,
+        )
+        self.assertNotEqual(a, b)
