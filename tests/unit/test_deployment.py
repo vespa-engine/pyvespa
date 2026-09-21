@@ -1,10 +1,21 @@
 import unittest
+import zipfile
 from tempfile import TemporaryDirectory
 import os
 from unittest.mock import patch, MagicMock
 
 from vespa.deployment import VespaCloud
-from vespa.package import ApplicationPackage, AuthClient, Parameter
+from vespa.package import (
+    PRODUCTION_TEST_FILE,
+    ApplicationPackage,
+    AuthClient,
+    Delay,
+    DeploymentConfiguration,
+    Parameter,
+    ProductionTest,
+    Region,
+    Test,
+)
 
 
 class TestVespaCloud(unittest.TestCase):
@@ -20,6 +31,84 @@ class TestVespaCloud(unittest.TestCase):
             application=self.application,
             application_package=self.application_package,
         )
+
+    def test_to_application_zip_includes_production_tests(self):
+        app_package = ApplicationPackage(
+            name="test",
+            deployment_config=DeploymentConfiguration(
+                environment="prod",
+                steps=[
+                    Region("aws-us-east-1c"),
+                    Delay(minutes=5),
+                    Test("aws-us-east-1c"),
+                ],
+            ),
+            production_tests=[
+                ProductionTest(
+                    metric="cpu-utilization-container", duration="5m", max=85
+                )
+            ],
+        )
+        self.vespa_cloud.application_package = app_package
+        self.vespa_cloud.data_certificate = MagicMock()
+        self.vespa_cloud.data_certificate.public_bytes.return_value = b"cert"
+        with TemporaryDirectory() as tmp:
+            buffer = self.vespa_cloud._to_application_zip(disk_folder=tmp)
+        with zipfile.ZipFile(buffer) as zf:
+            self.assertIn("deployment.xml", zf.namelist())
+            self.assertEqual(
+                app_package.production_tests_to_text,
+                zf.read(PRODUCTION_TEST_FILE).decode(),
+            )
+
+    @patch("vespa.deployment.VespaCloud._start_prod_deployment", return_value=7)
+    def test_deploy_to_prod_validates_production_tests_before_submitting(
+        self, mock_start
+    ):
+        with TemporaryDirectory() as tmp:
+            test_dir = os.path.join(tmp, "tests", "production-test")
+            os.makedirs(test_dir)
+            with open(os.path.join(test_dir, "bad.json"), "w") as f:
+                f.write(
+                    '{"name": "typo", "metric": "cpu-utilisation-container", "duration": "5m", "max": 85}'
+                )
+            with self.assertRaisesRegex(
+                ValueError, "Invalid test 'typo' in .*bad.json"
+            ):
+                self.vespa_cloud.deploy_to_prod(application_root=tmp)
+            mock_start.assert_not_called()
+
+            with open(os.path.join(test_dir, "bad.json"), "w") as f:
+                f.write(
+                    '{"name": "ok", "metric": "cpu-utilization-container", "duration": "5m", "max": 85}'
+                )
+            self.assertEqual(7, self.vespa_cloud.deploy_to_prod(application_root=tmp))
+            mock_start.assert_called_once()
+
+    @patch("vespa.deployment.VespaCloud._request")
+    def test_wait_for_prod_deployment_names_failed_production_test(self, mock_request):
+        mock_request.return_value = {
+            "deployed": False,
+            "status": "deploying",
+            "hasFailed": True,
+            "jobs": [
+                {"jobName": "production-aws-us-east-1c", "runStatus": "success"},
+                {
+                    "jobName": "test-aws-us-east-1c",
+                    "runStatus": "testFailure",
+                    "url": "https://console.vespa-cloud.com/tenant/t/application/a/prod/deployment/run/test-aws-us-east-1c/3",
+                },
+                {"jobName": "production-aws-eu-west-1a", "runStatus": "running"},
+            ],
+        }
+        with self.assertRaises(RuntimeError) as ctx:
+            self.vespa_cloud.wait_for_prod_deployment(456)
+        message = str(ctx.exception)
+        self.assertIn(
+            "test-aws-us-east-1c: testFailure (https://console.vespa-cloud.com", message
+        )
+        self.assertIn("A production test failed its metric check", message)
+        self.assertNotIn("production-aws-us-east-1c", message)
 
     @patch("vespa.deployment.VespaCloud._read_private_key")
     @patch("vespa.deployment.VespaCloud._load_certificate_pair")
