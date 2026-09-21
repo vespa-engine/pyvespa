@@ -1,0 +1,5 @@
+{
+  "repository": "vespa-engine/vespa",
+  "path": "client/go/internal/cli/cmd/metric-presets.json",
+  "ref": "v8.753.16"
+}

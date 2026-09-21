@@ -153,7 +153,12 @@ line-length = 88
 indent-width = 4
 
 [tool.setuptools.package-data]
-vespa = ["py.typed", "templates/*"]
+vespa = [
+    "py.typed",
+    "templates/*",
+    "resources/metric-presets.json",
+    "resources/metric-presets.source.json",
+]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "RUF013"]

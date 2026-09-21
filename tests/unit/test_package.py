@@ -2,9 +2,17 @@
 
 import os
 import unittest
+from unittest.mock import patch
 import platform
 import pytest
 import tempfile
+import importlib.resources
+import importlib.util
+import json
+import re
+from pathlib import Path
+import sys
+import textwrap
 import warnings
 import zipfile
 
@@ -34,6 +42,14 @@ from vespa.package import (
     ApplicationPackage,
     AuthClient,
     DeploymentConfiguration,
+    Region,
+    Delay,
+    Test,
+    ProductionTest,
+    PRODUCTION_TEST_FILE,
+    metric_presets,
+    metric_presets_source,
+    validate_production_test_files,
     Struct,
     StructField,
     ServicesConfiguration,
@@ -2041,16 +2057,619 @@ class TestDeploymentConfiguration(unittest.TestCase):
 
         app_package = ApplicationPackage(name="test", deployment_config=deploy_config)
 
-        expected_result = (
-            '<deployment version="1.0">\n'
-            "    <prod>\n"
-            "        <region>aws-us-east-1c</region>\n"
-            "        <region>aws-us-west-2a</region>\n"
-            "    </prod>\n"
-            "</deployment>"
-        )
+        expected_result = textwrap.dedent("""\
+            <deployment version="1.0">
+                <prod>
+                    <region>aws-us-east-1c</region>
+                    <region>aws-us-west-2a</region>
+                </prod>
+            </deployment>""")
 
         self.assertEqual(expected_result, app_package.deployment_to_text)
+
+    def test_steps_with_delay_and_test(self):
+        deploy_config = DeploymentConfiguration(
+            environment="prod",
+            steps=[
+                Region("aws-us-east-1c"),
+                Delay(minutes=10),
+                Test("aws-us-east-1c"),
+                Region("aws-eu-west-1a"),
+            ],
+        )
+        app_package = ApplicationPackage(name="test", deployment_config=deploy_config)
+        expected_result = textwrap.dedent("""\
+            <deployment version="1.0">
+                <prod>
+                    <region>aws-us-east-1c</region>
+                    <delay minutes="10"/>
+                    <test>aws-us-east-1c</test>
+                    <region>aws-eu-west-1a</region>
+                </prod>
+            </deployment>""")
+        self.assertEqual(expected_result, app_package.deployment_to_text)
+        self.assertEqual(["aws-us-east-1c", "aws-eu-west-1a"], deploy_config.regions)
+        self.assertEqual([Test("aws-us-east-1c")], deploy_config.tests)
+
+    def test_steps_string_shorthand_and_full_delay(self):
+        deploy_config = DeploymentConfiguration(
+            environment="prod",
+            steps=[
+                "aws-us-east-1c",
+                Delay(hours=1, minutes=2, seconds=3),
+                "aws-eu-west-1a",
+            ],
+        )
+        self.assertEqual(
+            [
+                Region("aws-us-east-1c"),
+                Delay(hours=1, minutes=2, seconds=3),
+                Region("aws-eu-west-1a"),
+            ],
+            deploy_config.steps,
+        )
+        self.assertIn(
+            '<delay hours="1" minutes="2" seconds="3"/>', deploy_config.to_xml_string()
+        )
+        self.assertEqual([], deploy_config.tests)
+
+    def test_regions_and_steps_are_equivalent(self):
+        from_regions = DeploymentConfiguration(environment="prod", regions=["a", "b"])
+        from_steps = DeploymentConfiguration(environment="prod", steps=["a", "b"])
+        self.assertEqual(from_regions, from_steps)
+        self.assertEqual(from_regions.to_xml_string(), from_steps.to_xml_string())
+        self.assertEqual(
+            "DeploymentConfiguration(environment='prod', regions=['a', 'b'])",
+            repr(from_regions),
+        )
+        self.assertEqual(
+            "DeploymentConfiguration(environment='prod', steps=[Region('a'), Region('b')])",
+            repr(from_steps),
+        )
+
+    def test_test_must_follow_its_region(self):
+        with self.assertRaises(ValueError):
+            DeploymentConfiguration(environment="prod", steps=[Test("aws-us-east-1c")])
+        with self.assertRaises(ValueError):
+            DeploymentConfiguration(
+                environment="prod",
+                steps=[Region("aws-us-east-1c"), Test("aws-eu-west-1a")],
+            )
+
+    def test_invalid_arguments(self):
+        with self.assertRaises(ValueError):
+            DeploymentConfiguration(environment="prod", regions=["a"], steps=["a"])
+        with self.assertRaises(TypeError):
+            DeploymentConfiguration(environment="prod", steps=[3])
+        with self.assertRaises(ValueError):
+            Delay()
+        with self.assertRaises(ValueError):
+            Delay(minutes=-1)
+        with self.assertRaises(ValueError):
+            Delay(minutes=True)
+        with self.assertRaises(ValueError):
+            Region("")
+        with self.assertRaises(ValueError):
+            Test(" ")
+
+    def test_step_repr(self):
+        self.assertEqual("Region('a')", repr(Region("a")))
+        self.assertEqual("Delay(minutes=10)", repr(Delay(minutes=10)))
+        self.assertEqual("Delay(hours=1, seconds=3)", repr(Delay(hours=1, seconds=3)))
+        self.assertEqual("Test('a')", repr(Test("a")))
+
+    def test_steps_written_to_files_and_zip(self):
+        deploy_config = DeploymentConfiguration(
+            environment="prod",
+            steps=[Region("aws-us-east-1c"), Delay(minutes=5), Test("aws-us-east-1c")],
+        )
+        app_package = ApplicationPackage(name="test", deployment_config=deploy_config)
+        with tempfile.TemporaryDirectory() as tmp:
+            app_package.to_files(tmp)
+            with open(os.path.join(tmp, "deployment.xml")) as f:
+                self.assertEqual(app_package.deployment_to_text, f.read())
+        with zipfile.ZipFile(app_package.to_zip()) as zf:
+            self.assertEqual(
+                app_package.deployment_to_text, zf.read("deployment.xml").decode()
+            )
+
+
+class TestProductionTest(unittest.TestCase):
+    """Mirrors the Vespa CLI production test validator (client/go/internal/cli/cmd/test_production.go)
+    and its fixtures in testdata/tests/production-test/."""
+
+    def _gated_deployment(self):
+        return DeploymentConfiguration(
+            environment="prod",
+            steps=[Region("aws-us-east-1c"), Delay(minutes=5), Test("aws-us-east-1c")],
+        )
+
+    def test_cli_fixture_metric_test_yaml(self):
+        # testdata/tests/production-test/metric-test.yaml
+        test = ProductionTest.from_dict(
+            {
+                "name": "cpu check",
+                "metric": "cpu-utilization-container",
+                "duration": "5m",
+                "max": 85,
+            }
+        )
+        self.assertEqual("cpu check", test.name)
+        self.assertEqual("cpu-utilization-container", test.metric)
+        self.assertEqual("5m", test.duration)
+        self.assertIsNone(test.min)
+        self.assertEqual(85, test.max)
+
+    def test_cli_fixture_metric_suite_json(self):
+        # testdata/tests/production-test/metric-suite.json
+        suite = {
+            "tests": [
+                {
+                    "name": "container cpu check",
+                    "metric": "cpu-utilization-container",
+                    "duration": "5m",
+                    "max": 10,
+                },
+                {
+                    "name": "content cpu check",
+                    "metric": "cpu-utilization-content",
+                    "duration": "5m",
+                    "max": 10,
+                },
+            ]
+        }
+        tests = [ProductionTest.from_dict(t) for t in suite["tests"]]
+        app_package = ApplicationPackage(
+            name="test",
+            deployment_config=self._gated_deployment(),
+            production_tests=tests,
+        )
+        self.assertEqual(suite, json.loads(app_package.production_tests_to_text))
+
+    def test_cli_fixture_metric_missing_bounds_json(self):
+        # testdata/tests/production-test/metric-missing-bounds.json
+        with self.assertRaisesRegex(ValueError, "at least one of 'min' and 'max'"):
+            ProductionTest.from_dict(
+                {
+                    "name": "no bounds check",
+                    "metric": "cpu-utilization-container",
+                    "duration": "5m",
+                }
+            )
+
+    def test_cli_fixture_metric_invalid_preset_yaml(self):
+        # testdata/tests/production-test/metric-invalid-preset.yaml
+        with self.assertRaisesRegex(
+            ValueError, "'not-a-real-metric' is not a known metric preset"
+        ):
+            ProductionTest.from_dict(
+                {
+                    "name": "bogus metric check",
+                    "metric": "not-a-real-metric",
+                    "duration": "5m",
+                    "max": 10,
+                }
+            )
+
+    def test_metric_preset_validation_can_be_disabled(self):
+        test = ProductionTest(
+            metric="brand-new-preset",
+            duration="5m",
+            max=1,
+            validate_metric_preset=False,
+        )
+        self.assertEqual("brand-new-preset", test.metric)
+        test = ProductionTest.from_dict(
+            {"metric": "brand-new-preset", "duration": "5m", "max": 1},
+            validate_metric_preset=False,
+        )
+        self.assertEqual("brand-new-preset", test.metric)
+        with self.assertRaises(ValueError):
+            ProductionTest.from_dict(
+                {"metric": "brand-new-preset", "duration": "5m", "max": 1}
+            )
+
+    def test_vendored_metric_presets(self):
+        presets = metric_presets()
+        self.assertIsInstance(presets, frozenset)
+        self.assertGreaterEqual(len(presets), 247)
+        for name in ("cpu-utilization-container", "query-latency-p95", "restarts"):
+            self.assertIn(name, presets)
+        for name in presets:
+            ProductionTest(metric=name, duration="5m", max=1)
+        source = metric_presets_source()
+        self.assertEqual("vespa-engine/vespa", source["repository"])
+        self.assertEqual(
+            "client/go/internal/cli/cmd/metric-presets.json", source["path"]
+        )
+        self.assertRegex(source["ref"], r"^v\d+\.\d+\.\d+$")
+
+    def test_vendored_file_is_verbatim_cli_format(self):
+        # Keep the file byte-comparable with upstream: a sorted JSON list of unique strings.
+        path = importlib.resources.files("vespa.resources").joinpath(
+            "metric-presets.json"
+        )
+        names = json.loads(path.read_text(encoding="utf-8"))
+        self.assertIsInstance(names, list)
+        self.assertEqual(sorted(set(names)), names)
+        self.assertTrue(all(isinstance(n, str) and n for n in names))
+        self.assertEqual(frozenset(names), metric_presets())
+
+    def test_duration_validation(self):
+        for valid in ("30s", "5m", "1h", "2d", "600s"):
+            ProductionTest(metric="cpu-utilization-container", duration=valid, max=1)
+        for invalid in ("0m", "-5m", "5", "m", "5 m", "5min", "1.5h", "", "5M"):
+            with self.subTest(duration=invalid):
+                with self.assertRaisesRegex(ValueError, "duration"):
+                    ProductionTest(
+                        metric="cpu-utilization-container", duration=invalid, max=1
+                    )
+        with self.assertRaisesRegex(ValueError, "duration"):
+            ProductionTest(metric="cpu-utilization-container", duration=5, max=1)
+
+    def test_required_fields_and_bounds(self):
+        with self.assertRaisesRegex(ValueError, "'metric'"):
+            ProductionTest(metric="", duration="5m", max=1)
+        with self.assertRaisesRegex(ValueError, "'metric'"):
+            ProductionTest.from_dict({"duration": "5m", "max": 1})
+        with self.assertRaisesRegex(ValueError, "'duration'"):
+            ProductionTest.from_dict({"metric": "cpu-utilization-container", "max": 1})
+        with self.assertRaisesRegex(ValueError, "'min'.*'max'"):
+            ProductionTest(
+                metric="cpu-utilization-container", duration="5m", min=5, max=1
+            )
+        ProductionTest(
+            metric="cpu-utilization-container", duration="5m", min=1, max=1
+        )  # equal is fine
+        with self.assertRaisesRegex(ValueError, "must be a number"):
+            ProductionTest(metric="cpu-utilization-container", duration="5m", max="85")
+        with self.assertRaisesRegex(ValueError, "must be a number"):
+            ProductionTest(metric="cpu-utilization-container", duration="5m", max=True)
+        with self.assertRaisesRegex(ValueError, "unknown field"):
+            ProductionTest.from_dict(
+                {
+                    "metric": "cpu-utilization-container",
+                    "duration": "5m",
+                    "max": 1,
+                    "steps": [],
+                }
+            )
+
+    def test_to_dict_roundtrip_and_repr(self):
+        test = ProductionTest(
+            metric="query-latency-p95", duration="5m", min=0, max=200.5
+        )
+        self.assertEqual(
+            {"metric": "query-latency-p95", "duration": "5m", "min": 0, "max": 200.5},
+            test.to_dict(),
+        )
+        self.assertEqual(test, ProductionTest.from_dict(test.to_dict()))
+        self.assertEqual(
+            "ProductionTest(metric='query-latency-p95', duration='5m', min=0, max=200.5)",
+            repr(test),
+        )
+        self.assertEqual(
+            "ProductionTest(name='cpu check', metric='cpu-utilization-container', duration='1h', max=85)",
+            repr(
+                ProductionTest(
+                    name="cpu check",
+                    metric="cpu-utilization-container",
+                    duration="1h",
+                    max=85,
+                )
+            ),
+        )
+
+    def test_production_tests_to_text_format(self):
+        app_package = ApplicationPackage(
+            name="test",
+            deployment_config=self._gated_deployment(),
+            production_tests=[
+                ProductionTest(
+                    name="cpu check",
+                    metric="cpu-utilization-container",
+                    duration="10m",
+                    max=85,
+                )
+            ],
+        )
+        expected = textwrap.dedent("""\
+            {
+              "tests": [
+                {
+                  "name": "cpu check",
+                  "metric": "cpu-utilization-container",
+                  "duration": "10m",
+                  "max": 85
+                }
+              ]
+            }
+            """)
+        self.assertEqual(expected, app_package.production_tests_to_text)
+
+    def test_written_to_files_and_zip(self):
+        app_package = ApplicationPackage(
+            name="test",
+            deployment_config=self._gated_deployment(),
+            production_tests=[
+                ProductionTest(metric="cpu-utilization-container", duration="5m", max=1)
+            ],
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            app_package.to_files(tmp)
+            with open(os.path.join(tmp, PRODUCTION_TEST_FILE)) as f:
+                self.assertEqual(app_package.production_tests_to_text, f.read())
+        with zipfile.ZipFile(app_package.to_zip()) as zf:
+            self.assertEqual(
+                app_package.production_tests_to_text,
+                zf.read(PRODUCTION_TEST_FILE).decode(),
+            )
+
+    def test_not_written_when_absent(self):
+        app_package = ApplicationPackage(
+            name="test", deployment_config=self._gated_deployment()
+        )
+        self.assertEqual([], app_package.production_tests)
+        with zipfile.ZipFile(app_package.to_zip()) as zf:
+            self.assertNotIn(PRODUCTION_TEST_FILE, zf.namelist())
+        with tempfile.TemporaryDirectory() as tmp:
+            app_package.to_files(tmp)
+            self.assertFalse(os.path.exists(os.path.join(tmp, "tests")))
+
+    def test_warns_without_test_step(self):
+        tests = [
+            ProductionTest(metric="cpu-utilization-container", duration="5m", max=1)
+        ]
+        for label, config in (
+            ("no deployment_config", None),
+            (
+                "regions only",
+                DeploymentConfiguration(environment="prod", regions=["aws-us-east-1c"]),
+            ),
+            (
+                "vt without test",
+                deployment(prod(region("aws-us-east-1c")), version="1.0"),
+            ),
+        ):
+            with self.subTest(label):
+                with self.assertWarnsRegex(UserWarning, "no production test step"):
+                    ApplicationPackage(
+                        name="test", deployment_config=config, production_tests=tests
+                    )
+
+    def test_no_warning_with_test_step(self):
+        tests = [
+            ProductionTest(metric="cpu-utilization-container", duration="5m", max=1)
+        ]
+        vt_config = deployment(
+            prod(
+                region("aws-us-east-1c"), delay(minutes="10"), test_("aws-us-east-1c")
+            ),
+            version="1.0",
+        )
+        for label, config in (
+            ("DeploymentConfiguration", self._gated_deployment()),
+            ("VT", vt_config),
+        ):
+            with self.subTest(label):
+                with warnings.catch_warnings():
+                    warnings.simplefilter("error")
+                    ApplicationPackage(
+                        name="test", deployment_config=config, production_tests=tests
+                    )
+
+    def test_type_and_include_files_conflict(self):
+        with self.assertRaises(TypeError):
+            ApplicationPackage(
+                name="test",
+                deployment_config=self._gated_deployment(),
+                production_tests=[
+                    {"metric": "cpu-utilization-container", "duration": "5m", "max": 1}
+                ],
+            )
+        with tempfile.NamedTemporaryFile(suffix=".json") as f:
+            with self.assertRaisesRegex(
+                ValueError, "conflicts with the file written for production_tests"
+            ):
+                ApplicationPackage(
+                    name="test",
+                    deployment_config=self._gated_deployment(),
+                    production_tests=[
+                        ProductionTest(
+                            metric="cpu-utilization-container", duration="5m", max=1
+                        )
+                    ],
+                    include_files=[(f.name, PRODUCTION_TEST_FILE)],
+                )
+            # Other files in tests/production-test/ are still allowed alongside.
+            app_package = ApplicationPackage(
+                name="test",
+                deployment_config=self._gated_deployment(),
+                production_tests=[
+                    ProductionTest(
+                        metric="cpu-utilization-container", duration="5m", max=1
+                    )
+                ],
+                include_files=[(f.name, "tests/production-test/extra.json")],
+            )
+            self.assertEqual(1, len(app_package.include_files))
+
+
+class TestValidateProductionTestFiles(unittest.TestCase):
+    """Mirrors `vespa test tests/production-test` in dry-run mode, as run by `vespa prod deploy`."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self._tmp.name) / "tests" / "production-test"
+        self.dir.mkdir(parents=True)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _write(self, name, content):
+        path = self.dir / name
+        path.write_text(content if isinstance(content, str) else json.dumps(content))
+        return path
+
+    def test_json_single_and_suite(self):
+        self._write(
+            "single.json",
+            {
+                "name": "query latency check",
+                "metric": "query-latency-p95",
+                "duration": "5m",
+                "max": 200,
+            },
+        )
+        self._write(
+            "suite.json",
+            {
+                "tests": [
+                    {
+                        "name": "container cpu check",
+                        "metric": "cpu-utilization-container",
+                        "duration": "5m",
+                        "max": 10,
+                    },
+                    {
+                        "name": "content cpu check",
+                        "metric": "cpu-utilization-content",
+                        "duration": "5m",
+                        "max": 10,
+                    },
+                ]
+            },
+        )
+        tests = validate_production_test_files(self.dir)
+        self.assertEqual(
+            ["query latency check", "container cpu check", "content cpu check"],
+            [t.name for t in tests],
+        )
+
+    @unittest.skipUnless(
+        importlib.util.find_spec("yaml"), "PyYAML is not installed in this environment"
+    )
+    def test_yaml_single_and_suite(self):
+        self._write(
+            "metric-test.yaml",
+            "name: cpu check\nmetric: cpu-utilization-container\nduration: 5m\nmax: 85\n",
+        )
+        self._write(
+            "suite.yml",
+            "tests:\n  - name: node count check\n    metric: node-count-max\n    duration: 5m\n    max: 10\n"
+            "  - name: documents count check\n    metric: documents-count-active\n    duration: 5m\n    min: 1\n",
+        )
+        tests = validate_production_test_files(self.dir)
+        self.assertEqual(
+            ["cpu check", "node count check", "documents count check"],
+            [t.name for t in tests],
+        )
+        self.assertEqual(1, tests[2].min)
+
+    def test_yaml_skipped_with_warning_without_pyyaml(self):
+        self._write(
+            "metric-test.yaml",
+            "name: cpu check\nmetric: not-a-real-metric\nduration: 5m\nmax: 85\n",
+        )
+        with patch.dict(sys.modules, {"yaml": None}):
+            with self.assertWarnsRegex(UserWarning, "PyYAML is not installed"):
+                self.assertEqual([], validate_production_test_files(self.dir))
+
+    def test_legacy_and_other_files_are_ignored(self):
+        self._write("legacy.json", {"steps": [{"request": {"uri": "/search/"}}]})
+        self._write("README.md", "# not a test")
+        (self.dir / "subdir").mkdir()
+        self.assertEqual([], validate_production_test_files(self.dir))
+
+    def test_errors_name_the_file_and_test(self):
+        path = self._write(
+            "metric-invalid-preset.json",
+            {
+                "name": "bogus metric check",
+                "metric": "not-a-real-metric",
+                "duration": "5m",
+                "max": 10,
+            },
+        )
+        with self.assertRaisesRegex(
+            ValueError,
+            f"Invalid test 'bogus metric check' in {re.escape(str(path))}: .*not a known metric preset",
+        ):
+            validate_production_test_files(self.dir)
+        path.unlink()
+
+        path = self._write(
+            "metric-missing-bounds.json",
+            {
+                "name": "no bounds check",
+                "metric": "cpu-utilization-container",
+                "duration": "5m",
+            },
+        )
+        with self.assertRaisesRegex(
+            ValueError,
+            "Invalid test 'no bounds check' in .*at least one of 'min' and 'max'",
+        ):
+            validate_production_test_files(self.dir)
+        path.unlink()
+
+        path = self._write(
+            "unnamed.json",
+            {"metric": "cpu-utilization-container", "duration": "5x", "max": 1},
+        )
+        with self.assertRaisesRegex(
+            ValueError, "Invalid test '<unnamed test>' in .*invalid duration"
+        ):
+            validate_production_test_files(self.dir)
+        path.unlink()
+
+        path = self._write("unknown-type.json", {"name": "what am i"})
+        with self.assertRaisesRegex(ValueError, "Could not determine test type"):
+            validate_production_test_files(self.dir)
+        path.unlink()
+
+        path = self._write("empty-suite.json", {"tests": []})
+        with self.assertRaisesRegex(ValueError, "Found no tests"):
+            validate_production_test_files(self.dir)
+        path.unlink()
+
+        path = self._write("broken.json", "{not json")
+        with self.assertRaisesRegex(ValueError, "Failed parsing production test"):
+            validate_production_test_files(self.dir)
+        path.unlink()
+
+        path = self._write("list.json", [1, 2])
+        with self.assertRaisesRegex(ValueError, "expected a single test object"):
+            validate_production_test_files(self.dir)
+
+    def test_preset_validation_can_be_disabled(self):
+        self._write(
+            "new.json", {"metric": "brand-new-preset", "duration": "5m", "max": 1}
+        )
+        with self.assertRaises(ValueError):
+            validate_production_test_files(self.dir)
+        tests = validate_production_test_files(self.dir, validate_metric_preset=False)
+        self.assertEqual("brand-new-preset", tests[0].metric)
+
+    def test_files_written_by_application_package_validate(self):
+        app_package = ApplicationPackage(
+            name="test",
+            deployment_config=DeploymentConfiguration(
+                environment="prod", steps=[Region("r"), Delay(minutes=1), Test("r")]
+            ),
+            production_tests=[
+                ProductionTest(name="a", metric="restarts", duration="1h", max=0),
+                ProductionTest(
+                    metric="query-latency-p95", duration="5m", min=0, max=200
+                ),
+            ],
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            app_package.to_files(tmp)
+            tests = validate_production_test_files(
+                Path(tmp) / "tests" / "production-test"
+            )
+        self.assertEqual(app_package.production_tests, tests)
 
 
 class TestSchemaStructField(unittest.TestCase):

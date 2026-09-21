@@ -1,6 +1,10 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
+import functools
+import importlib.resources
+import json
 import os
+import re
 import sys
 import warnings
 import xml.dom.minidom as minidom
@@ -14,6 +18,7 @@ from shutil import copyfile
 from typing import (
     Any,
     Dict,
+    FrozenSet,
     List,
     Literal,
     Optional,
@@ -2889,33 +2894,241 @@ class Validation(object):
         self.comment = comment
 
 
+class Region(object):
+    def __init__(self, name: str):
+        """
+        A production region deployment step in deployment.xml (`<region>`).
+
+        Args:
+            name (str): Region id, e.g. "aws-us-east-1c".
+                See [Vespa Cloud zones](https://cloud.vespa.ai/en/reference/zones.html).
+
+        Example:
+            ```python
+            Region("aws-us-east-1c")
+            # Output: Region('aws-us-east-1c')
+            ```
+        """
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("Region name must be a non-empty string.")
+        self.name = name.strip()
+
+    def to_xml_element(self) -> ET.Element:
+        element = ET.Element("region")
+        element.text = self.name
+        return element
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return self.name == other.name
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.name!r})"
+
+
+class Delay(object):
+    def __init__(self, hours: int = 0, minutes: int = 0, seconds: int = 0):
+        """
+        A delay step in deployment.xml (`<delay>`), which must pass after all previous steps
+        before subsequent steps may proceed. Typically placed between a `Region` and a `Test`
+        to gather metrics before a production test evaluates them.
+
+        Args:
+            hours (int): Hours to delay. Defaults to 0.
+            minutes (int): Minutes to delay. Defaults to 0.
+            seconds (int): Seconds to delay. Defaults to 0.
+
+        Example:
+            ```python
+            Delay(minutes=10)
+            # Output: Delay(minutes=10)
+            ```
+        """
+        for label, value in (
+            ("hours", hours),
+            ("minutes", minutes),
+            ("seconds", seconds),
+        ):
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"Delay {label} must be a non-negative integer.")
+        if hours == 0 and minutes == 0 and seconds == 0:
+            raise ValueError(
+                "Delay must be longer than zero: set at least one of hours, minutes or seconds."
+            )
+        self.hours = hours
+        self.minutes = minutes
+        self.seconds = seconds
+
+    def to_xml_element(self) -> ET.Element:
+        element = ET.Element("delay")
+        for label, value in (
+            ("hours", self.hours),
+            ("minutes", self.minutes),
+            ("seconds", self.seconds),
+        ):
+            if value:
+                element.set(label, str(value))
+        return element
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (self.hours, self.minutes, self.seconds) == (
+            other.hours,
+            other.minutes,
+            other.seconds,
+        )
+
+    def __repr__(self) -> str:
+        args = ", ".join(
+            f"{label}={value}"
+            for label, value in (
+                ("hours", self.hours),
+                ("minutes", self.minutes),
+                ("seconds", self.seconds),
+            )
+            if value
+        )
+        return f"{self.__class__.__name__}({args})"
+
+
+class Test(object):
+    def __init__(self, region: str):
+        """
+        A production test step in deployment.xml (`<test>`). Runs the production tests in
+        `tests/production-test/` against the given region, which must have been deployed to
+        in an earlier `Region` step. If a test fails, the rollout stops and later steps do not run.
+
+        Args:
+            region (str): Id of the production region to test, e.g. "aws-us-east-1c".
+
+        Example:
+            ```python
+            Test("aws-us-east-1c")
+            # Output: Test('aws-us-east-1c')
+            ```
+
+        See [production tests](https://docs.vespa.ai/en/reference/applications/testing-production.html).
+        """
+        if not isinstance(region, str) or not region.strip():
+            raise ValueError("Test region must be a non-empty string.")
+        self.region = region.strip()
+
+    def to_xml_element(self) -> ET.Element:
+        element = ET.Element("test")
+        element.text = self.region
+        return element
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return self.region == other.region
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.region!r})"
+
+
+DeploymentStep = Union[Region, Delay, Test]
+
+
 class DeploymentConfiguration(object):
-    def __init__(self, environment: str, regions: List[str]):
+    def __init__(
+        self,
+        environment: str,
+        regions: Optional[List[str]] = None,
+        steps: Optional[List[Union[DeploymentStep, str]]] = None,
+    ):
         """
         Create a DeploymentConfiguration, which defines how to generate a deployment.xml file (for use in production deployments).
 
+        Pass either `regions`, for a plain sequential rollout, or `steps`, to also add `Delay`
+        and `Test` (production test) steps between regions. A plain string in `steps` is shorthand
+        for `Region(name)`.
+
         Args:
             environment (str): The environment to deploy to. Currently, only 'prod' is supported.
-            regions (list[str]): List of regions to deploy to, e.g. ["us-east-1", "us-west-1"].
+            regions (list[str], optional): List of regions to deploy to, e.g. ["us-east-1", "us-west-1"].
                                 See [Vespa documentation](https://cloud.vespa.ai/en/reference/zones.html) for more information.
+            steps (list[Region | Delay | Test | str], optional): Ordered deployment steps. Mutually exclusive with `regions`.
+                                A `Test` must come after the `Region` it refers to.
 
         Example:
             ```python
             DeploymentConfiguration(environment="prod", regions=["us-east-1", "us-west-1"])
             # Output: DeploymentConfiguration(environment='prod', regions=['us-east-1', 'us-west-1'])
             ```
+
+        Example with a production test gating the rollout to the second region:
+            ```python
+            DeploymentConfiguration(
+                environment="prod",
+                steps=[
+                    Region("aws-us-east-1c"),
+                    Delay(minutes=10),
+                    Test("aws-us-east-1c"),
+                    Region("aws-eu-west-1a"),
+                ],
+            )
+            # Output: DeploymentConfiguration(environment='prod', steps=[Region('aws-us-east-1c'), Delay(minutes=10), Test('aws-us-east-1c'), Region('aws-eu-west-1a')])
+            ```
+            See [production tests](https://docs.vespa.ai/en/reference/applications/testing-production.html).
         """
+        if regions is not None and steps is not None:
+            raise ValueError(
+                "DeploymentConfiguration takes either regions or steps, not both."
+            )
         self.environment = environment
-        self.regions = regions
+        self._explicit_steps = steps is not None
+        if steps is not None:
+            self.steps: List[DeploymentStep] = self._normalize_steps(steps)
+        else:
+            self.steps = [Region(region) for region in (regions or [])]
+        self.regions: List[str] = [
+            step.name for step in self.steps if isinstance(step, Region)
+        ]
+
+    @staticmethod
+    def _normalize_steps(
+        steps: List[Union[DeploymentStep, str]],
+    ) -> List[DeploymentStep]:
+        normalized: List[DeploymentStep] = []
+        deployed_regions = set()
+        for step in steps:
+            if isinstance(step, str):
+                step = Region(step)
+            if not isinstance(step, (Region, Delay, Test)):
+                raise TypeError(
+                    f"Deployment steps must be Region, Delay, Test or str, got {type(step).__name__}."
+                )
+            if isinstance(step, Region):
+                deployed_regions.add(step.name)
+            elif isinstance(step, Test) and step.region not in deployed_regions:
+                raise ValueError(
+                    f"Test('{step.region}') must come after Region('{step.region}') in steps."
+                )
+            normalized.append(step)
+        return normalized
+
+    @property
+    def tests(self) -> List[Test]:
+        """The production test steps in this configuration, in order."""
+        return [step for step in self.steps if isinstance(step, Test)]
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return self.environment == other.environment and self.steps == other.steps
 
     def __repr__(self) -> str:
+        if self._explicit_steps:
+            return f"{self.__class__.__name__}(environment='{self.environment}', steps={self.steps})"
         return f"{self.__class__.__name__}(environment='{self.environment}', regions={self.regions})"
 
     def to_xml_string(self, indent=1) -> str:
         root = ET.Element(self.environment)
-        for region in self.regions:
-            region_xml = ET.SubElement(root, "region")
-            region_xml.text = region
+        for step in self.steps:
+            root.append(step.to_xml_element())
 
         xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent=" " * 4)
         xml_lines = xml_str.strip().split("\n")
@@ -2935,6 +3148,252 @@ class EmptyDeploymentConfiguration(DeploymentConfiguration):
         self, indent=1
     ) -> str:  # Indent is unused, but included for compatibility
         return ""
+
+
+PRODUCTION_TEST_FILE = "tests/production-test/production-tests.json"
+"""Path inside the application package where pyvespa writes declared production tests."""
+
+_PRODUCTION_TEST_DURATION = re.compile(r"^([0-9]+)(s|m|h|d)$")
+
+_METRIC_PRESETS_DOCS = "https://docs.vespa.ai/en/reference/applications/testing-production.html#metric-presets"
+
+
+@functools.lru_cache(maxsize=1)
+def metric_presets_source() -> Dict[str, str]:
+    """Where the vendored metric preset list was copied from: repository, path and git ref."""
+    resource = importlib.resources.files("vespa.resources").joinpath(
+        "metric-presets.source.json"
+    )
+    return json.loads(resource.read_text(encoding="utf-8"))
+
+
+@functools.lru_cache(maxsize=1)
+def metric_presets() -> FrozenSet[str]:
+    """
+    The metric preset names accepted in `ProductionTest.metric`.
+
+    This is a verbatim copy of `metric-presets.json` from the Vespa CLI, taken at the git ref in
+    `metric_presets_source()`. Vespa Cloud is the authority; if a preset is missing here, pass
+    `validate_metric_preset=False` to `ProductionTest`. See
+    https://docs.vespa.ai/en/reference/applications/testing-production.html#metric-presets.
+    """
+    resource = importlib.resources.files("vespa.resources").joinpath(
+        "metric-presets.json"
+    )
+    return frozenset(json.loads(resource.read_text(encoding="utf-8")))
+
+
+class ProductionTest(object):
+    def __init__(
+        self,
+        metric: str,
+        duration: str,
+        name: Optional[str] = None,
+        min: Optional[float] = None,
+        max: Optional[float] = None,
+        validate_metric_preset: bool = True,
+    ):
+        """
+        A production test: a metric preset checked against a min and/or max bound over a time
+        window, evaluated by Vespa Cloud after a production region has been deployed. Tests are
+        written to `tests/production-test/` in the application package and run at each `Test`
+        step in the `DeploymentConfiguration`. A failing test stops the rollout.
+
+        Args:
+            metric (str): Name of a [metric preset](https://docs.vespa.ai/en/reference/applications/testing-production.html#metric-presets),
+                e.g. "cpu-utilization-container" or "query-latency-p95".
+            duration (str): Aggregation window, a positive whole number followed by s, m, h or d, e.g. "10m".
+                Vespa Cloud first waits this long, then aggregates the metric over the same window.
+            name (str, optional): Display name used in logs and failure messages.
+            min (float, optional): Inclusive lower bound. At least one of `min` and `max` is required.
+            max (float, optional): Inclusive upper bound. At least one of `min` and `max` is required.
+                The unit depends on the metric preset.
+            validate_metric_preset (bool): Check `metric` against the list of presets known to pyvespa
+                (see `metric_presets()`), as the Vespa CLI does. Set to False if Vespa Cloud has added a
+                preset that this pyvespa version does not know about yet. Defaults to True.
+
+        Example:
+            ```python
+            ProductionTest(name="cpu check", metric="cpu-utilization-container", duration="10m", max=85)
+            # Output: ProductionTest(name='cpu check', metric='cpu-utilization-container', duration='10m', max=85)
+            ```
+        """
+        if not isinstance(metric, str) or not metric.strip():
+            raise ValueError("ProductionTest: missing required field 'metric'.")
+        if validate_metric_preset and metric.strip() not in metric_presets():
+            source = metric_presets_source()
+            raise ValueError(
+                f"ProductionTest: '{metric.strip()}' is not a known metric preset. "
+                f"pyvespa knows the presets from Vespa CLI {source['ref']}; see {_METRIC_PRESETS_DOCS}. "
+                "If the preset was added after that, pass validate_metric_preset=False."
+            )
+        if not isinstance(duration, str):
+            raise ValueError(
+                "ProductionTest: 'duration' must be a string such as '30s', '5m', '1h' or '2d'."
+            )
+        match = _PRODUCTION_TEST_DURATION.match(duration.strip())
+        if match is None or int(match.group(1)) <= 0:
+            raise ValueError(
+                f"ProductionTest: invalid duration '{duration}': must be a positive whole number "
+                "followed by s, m, h or d, e.g. 30s, 5m, 1h, 2d."
+            )
+        for label, value in (("min", min), ("max", max)):
+            if value is not None and (
+                isinstance(value, bool) or not isinstance(value, (int, float))
+            ):
+                raise ValueError(f"ProductionTest: '{label}' must be a number.")
+        if min is None and max is None:
+            raise ValueError(
+                "ProductionTest: at least one of 'min' and 'max' is required."
+            )
+        if min is not None and max is not None and min > max:
+            raise ValueError(
+                f"ProductionTest: 'min' ({min}) must not be greater than 'max' ({max})."
+            )
+        if name is not None and not isinstance(name, str):
+            raise ValueError("ProductionTest: 'name' must be a string.")
+        self.metric = metric.strip()
+        self.duration = duration.strip()
+        self.name = name
+        self.min = min
+        self.max = max
+
+    @classmethod
+    def from_dict(
+        cls, data: Dict[str, Any], validate_metric_preset: bool = True
+    ) -> "ProductionTest":
+        """Create a ProductionTest from a dict in the production test file format."""
+        if not isinstance(data, dict):
+            raise ValueError("ProductionTest: expected a test object.")
+        unknown = set(data) - {"name", "metric", "duration", "min", "max"}
+        if unknown:
+            raise ValueError(
+                f"ProductionTest: unknown field(s) {sorted(unknown)}. "
+                "Allowed fields are name, metric, duration, min and max."
+            )
+        if "metric" not in data:
+            raise ValueError("ProductionTest: missing required field 'metric'.")
+        if "duration" not in data:
+            raise ValueError("ProductionTest: missing required field 'duration'.")
+        return cls(
+            metric=data["metric"],
+            duration=data["duration"],
+            name=data.get("name"),
+            min=data.get("min"),
+            max=data.get("max"),
+            validate_metric_preset=validate_metric_preset,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """The test as a dict in the production test file format."""
+        result: Dict[str, Any] = {}
+        if self.name is not None:
+            result["name"] = self.name
+        result["metric"] = self.metric
+        result["duration"] = self.duration
+        if self.min is not None:
+            result["min"] = self.min
+        if self.max is not None:
+            result["max"] = self.max
+        return result
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return self.to_dict() == other.to_dict()
+
+    def __repr__(self) -> str:
+        args = ", ".join(f"{k}={v!r}" for k, v in self.to_dict().items())
+        return f"{self.__class__.__name__}({args})"
+
+
+def _load_production_test_dicts(path: Path) -> Optional[List[Dict[str, Any]]]:
+    """Read one production test file into a list of test dicts.
+
+    Returns None when the file is not a metric-based production test (a legacy step-based test, or
+    a YAML file when PyYAML is not installed), mirroring the Vespa CLI's `isMetricTestFile`.
+    """
+    suffix = path.suffix.lower()
+    if suffix in (".yaml", ".yml"):
+        try:
+            import yaml  # optional dependency, only used to read hand-written test files
+        except ImportError:
+            warnings.warn(
+                f"Skipping validation of {path}: PyYAML is not installed. Install it or write the test as JSON.",
+                UserWarning,
+            )
+            return None
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except yaml.YAMLError as e:
+            raise ValueError(f"Failed parsing production test at {path}: {e}") from e
+    elif suffix == ".json":
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed parsing production test at {path}: {e}") from e
+    else:
+        return None
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"Failed parsing production test at {path}: expected a single test object, or an object with a 'tests' field."
+        )
+    if "steps" in data:
+        return None  # legacy step-based production test; not validated by pyvespa
+    if "tests" in data:
+        if not isinstance(data["tests"], list) or not data["tests"]:
+            raise ValueError(
+                f"Found no tests in {path}: 'tests' must be a non-empty list of test objects."
+            )
+        return data["tests"]
+    if "metric" in data:
+        return [data]
+    raise ValueError(
+        f"Could not determine test type of {path}: a production test must have either a 'steps' field, "
+        f"or a 'metric' or 'tests' field. See {_METRIC_PRESETS_DOCS}."
+    )
+
+
+def validate_production_test_files(
+    directory: Union[str, Path], validate_metric_preset: bool = True
+) -> List[ProductionTest]:
+    """
+    Validate the production test files in a `tests/production-test/` directory, the way
+    `vespa prod deploy` does before submitting, and return the tests found.
+
+    Each `.json`, `.yaml` or `.yml` file may hold one test object or an object with a `tests`
+    list. Legacy step-based tests (with a `steps` field) and files with other extensions are
+    ignored. Nothing is evaluated here; Vespa Cloud runs the tests after deployment.
+
+    Args:
+        directory (Union[str, Path]): The `tests/production-test` directory.
+        validate_metric_preset (bool): Reject metric names not in `metric_presets()`. Defaults to True.
+
+    Returns:
+        List[ProductionTest]: The validated tests, in file order.
+
+    Raises:
+        ValueError: If a file cannot be parsed or a test is invalid. The message names the file and test.
+    """
+    directory = Path(directory)
+    tests: List[ProductionTest] = []
+    for path in sorted(directory.iterdir()):
+        if not path.is_file():
+            continue
+        test_dicts = _load_production_test_dicts(path)
+        if test_dicts is None:
+            continue
+        for data in test_dicts:
+            name = (
+                data.get("name", "<unnamed test>")
+                if isinstance(data, dict)
+                else "<unnamed test>"
+            )
+            try:
+                tests.append(ProductionTest.from_dict(data, validate_metric_preset))
+            except ValueError as e:
+                raise ValueError(f"Invalid test '{name}' in {path}: {e}") from e
+    return tests
 
 
 class ServicesConfiguration(object):
@@ -3149,6 +3608,7 @@ class ApplicationPackage(object):
         services_config: Optional[ServicesConfiguration] = None,
         query_profile_config: Optional[Union[VT, List[VT]]] = None,
         include_files: Optional[List[Tuple[Union[str, Path], Union[str, Path]]]] = None,
+        production_tests: Optional[List[ProductionTest]] = None,
     ) -> None:
         """Create an application package.
 
@@ -3184,6 +3644,12 @@ class ApplicationPackage(object):
                 package. Each entry is a ``(source_path, dest_path)`` tuple where ``source_path`` is a
                 local file and ``dest_path`` is its location inside the package (relative, no ``..``).
                 Defaults to None.
+            production_tests (List[ProductionTest], optional): Production tests to write to
+                ``tests/production-test/`` in the package. They run at each ``Test`` step of the
+                ``deployment_config`` when deploying to Vespa Cloud prod. If this list is non-empty
+                and ``deployment_config`` has no such step (no ``Test`` in its ``steps``, or for a
+                VT config no ``<test>`` under ``<prod>``), a ``UserWarning`` is emitted here at
+                construction time, since the tests would be uploaded but never run. Defaults to None.
 
         Example:
             To create a default application package:
@@ -3280,7 +3746,59 @@ class ApplicationPackage(object):
                 raise ValueError(
                     f"include_files: destination '{safe_dest}' is inside reserved folder '{top}/'"
                 )
+            if production_tests and safe_dest == PRODUCTION_TEST_FILE:
+                raise ValueError(
+                    f"include_files: destination '{safe_dest}' conflicts with the file written for production_tests"
+                )
             self.include_files.append((src_path, safe_dest))
+
+        self.production_tests: List[ProductionTest] = list(production_tests or [])
+        for test in self.production_tests:
+            if not isinstance(test, ProductionTest):
+                raise TypeError(
+                    f"production_tests must contain ProductionTest objects, got {type(test).__name__}."
+                )
+        if self.production_tests and not self._deployment_has_test_step():
+            warnings.warn(
+                f"ApplicationPackage '{name}' declares {len(self.production_tests)} production_tests, "
+                "but its deployment_config has no production test step (a Test in steps, or a <test> "
+                "element under <prod>). Vespa Cloud only runs production tests at such a step, so they "
+                "would be uploaded but never run. Add e.g. DeploymentConfiguration(environment='prod', "
+                "steps=[Region('<region>'), Delay(minutes=10), Test('<region>')]).",
+                UserWarning,
+            )
+
+    def _deployment_has_test_step(self) -> bool:
+        """Whether deployment_config contains a production test step (<test> under <prod>)."""
+        if self.deployment_config is None:
+            return False
+        if isinstance(self.deployment_config, DeploymentConfiguration):
+            return len(self.deployment_config.tests) > 0
+        if isinstance(self.deployment_config, DeploymentItem):
+
+            def has_test(node: VT, inside_prod: bool) -> bool:
+                inside_prod = inside_prod or node.tag == "prod"
+                for child in node.children:
+                    if not isinstance(child, VT):
+                        continue
+                    if inside_prod and child.tag == VT.sanitize_tag_name("test"):
+                        return True
+                    if has_test(child, inside_prod):
+                        return True
+                return False
+
+            return has_test(self.deployment_config.root, False)
+        return False
+
+    @property
+    def production_tests_to_text(self) -> str:
+        """The declared production tests as JSON, in the production test file format."""
+        return (
+            json.dumps(
+                {"tests": [test.to_dict() for test in self.production_tests]}, indent=2
+            )
+            + "\n"
+        )
 
     @property
     def schemas(self) -> List[Schema]:
@@ -3530,6 +4048,10 @@ class ApplicationPackage(object):
                         )
             if self.deployment_config:
                 zip_archive.writestr("deployment.xml", self.deployment_to_text)
+            if self.production_tests:
+                zip_archive.writestr(
+                    PRODUCTION_TEST_FILE, self.production_tests_to_text
+                )
 
             for src, arcname in self.include_files:
                 zip_archive.write(src, arcname)
@@ -3629,6 +4151,11 @@ class ApplicationPackage(object):
         if self.deployment_config:
             with open(os.path.join(root, "deployment.xml"), "w") as f:
                 f.write(self.deployment_to_text)
+        if self.production_tests:
+            test_path = Path(root) / PRODUCTION_TEST_FILE
+            test_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(test_path, "w") as f:
+                f.write(self.production_tests_to_text)
 
         for src, dest_rel in self.include_files:
             dest_path = Path(root) / dest_rel
