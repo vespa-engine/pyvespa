@@ -2,6 +2,7 @@
 
 import sys
 import asyncio
+import copy
 import traceback
 import concurrent.futures
 import warnings
@@ -573,6 +574,7 @@ class Vespa(object):
         groupname: Optional[str] = None,
         streaming: bool = False,
         profile: bool = False,
+        keep_request_body: bool = False,
         **kwargs,
     ) -> Union[VespaQueryResponse, Generator[str, None, None]]:
         """
@@ -585,6 +587,8 @@ class Vespa(object):
             groupname (str, optional): The groupname used with streaming search.
             streaming (bool, optional): Whether to use streaming mode (SSE). Defaults to False.
             profile (bool, optional): Add profiling parameters to the query (response may be large). Defaults to False.
+            keep_request_body (bool, optional): If True, store a deep copy of `body` on the returned
+                response as `response.request_body`. Defaults to False. Has no effect when streaming=True.
             **kwargs (dict, optional): Extra Vespa Query API parameters.
 
         Returns:
@@ -605,6 +609,7 @@ class Vespa(object):
                 groupname=groupname,
                 streaming=False,
                 profile=profile,
+                keep_request_body=keep_request_body,
                 **kwargs,
             )
 
@@ -1737,6 +1742,7 @@ class VespaSync(object):
         groupname: Optional[str] = None,
         streaming: bool = False,
         profile: bool = False,
+        keep_request_body: bool = False,
         **kwargs,
     ) -> Union[VespaQueryResponse, Generator[str, None, None]]:
         """
@@ -1747,6 +1753,8 @@ class VespaSync(object):
             groupname (str, optional): The groupname used in streaming search.
             streaming (bool, optional): Whether to use streaming mode (SSE). Defaults to False.
             profile (bool, optional): Add profiling parameters to the query (response may be large). Defaults to False.
+            keep_request_body (bool, optional): If True, store a deep copy of `body` on the returned
+                response as `response.request_body`. Defaults to False. Has no effect when streaming=True.
             **kwargs (dict, optional): Additional valid Vespa HTTP Query API parameters. See: <https://docs.vespa.ai/en/reference/query-api-reference.html>.
 
         Returns:
@@ -1776,6 +1784,7 @@ class VespaSync(object):
                 json=response.json(),
                 status_code=response.status_code,
                 url=str(response.url),
+                request_body=copy.deepcopy(body) if keep_request_body else None,
             )
 
     def _query_streaming(
@@ -2325,6 +2334,7 @@ class VespaAsync(object):
         groupname: Optional[str] = None,
         profile: bool = False,
         retry_policy: Optional[AsyncRetrying] = None,
+        keep_request_body: bool = False,
         **kwargs,
     ) -> VespaQueryResponse:
         """
@@ -2335,6 +2345,8 @@ class VespaAsync(object):
             groupname (str, optional): The groupname used in streaming search.
             profile (bool, optional): Add profiling parameters to the query (response may be large). Defaults to False.
             retry_policy (AsyncRetrying, optional): Custom tenacity retry policy. Defaults to ``vespa.retries.QUERY_RETRY`` (five attempts with random exponential wait time).
+            keep_request_body (bool, optional): If True, store a deep copy of `body` on the returned
+                response as `response.request_body`. Defaults to False.
             **kwargs (dict, optional): Additional valid Vespa HTTP Query API parameters.
 
         Returns:
@@ -2362,6 +2374,7 @@ class VespaAsync(object):
                 json=_response_json(response),
                 status_code=response.status_code,
                 url=str(response.url),
+                request_body=copy.deepcopy(body) if keep_request_body else None,
             )
 
         return await retry_policy(_do_query)

@@ -16,7 +16,10 @@ class VespaResponse(object):
         self.operation_type = operation_type
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, self.__class__):
+        # Compare exact types (not isinstance) so equality stays symmetric
+        # across subclasses, e.g. a VespaQueryResponse is never equal to a
+        # plain VespaResponse even if their base fields happen to match.
+        if type(other) is not type(self):
             return NotImplemented
         return (
             self.json == other.json
@@ -53,8 +56,16 @@ class VespaQueryResponse(VespaResponse):
         )
         self._request_body = request_body
 
+    def __eq__(self, other: object) -> bool:
+        base_eq = super().__eq__(other)
+        if base_eq is NotImplemented:
+            return NotImplemented
+        return base_eq and self.request_body == other.request_body
+
     @property
     def request_body(self) -> Optional[Dict]:
+        """A deep copy of the request body, set only when the query was made with
+        `keep_request_body=True`. `None` otherwise."""
         return self._request_body
 
     @property
