@@ -188,6 +188,17 @@ token path's extra latency directly instead (`perf_token_extra_p50_ms`,
 `perf_token_extra_p95_ms`, printed as "Token extra latency"); the ratio is a
 sanity bound at 0.4.
 
+**Two kinds of regression, two different readings.** Vespa Cloud upgrades
+the instance continuously, so the absolute rps lines carry Vespa's own
+release-to-release changes: that is what the k6 line is for, and a step in it
+is an instance change. A pyvespa regression is read from the pyvespa-versus-k6
+ratio within the same run (`pyvespa/k6 total rps` in the output, and the
+per-method `perf_rps` divided by k6's), which the instance's drift and
+upgrades cannot move. Runs also degrade each other when they follow closely:
+the teardown delete leaves the content node compacting for minutes, so
+back-to-back sessions read a few percent low. Prefer scheduled and dispatched
+runs over one per push.
+
 **What to graph for regression spotting, one quantity each:** total rps per
 method (the instance), token and mTLS rps separately (the instance plus, for
 token, the auth hop), token extra latency (the auth hop alone),
