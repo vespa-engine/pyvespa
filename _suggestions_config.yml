@@ -6,7 +6,6 @@ search:
   do_feed  : true
   do_index_removal_before_feed: false
   feed_endpoints:
-  feed_endpoints:
     # This config needs to be the same in all files starting with "_" in:
     # vespa-engine/documentation, vespa-engine/pyvespa, vespa-engine/sample-apps,
     # vespaai/blog and vespaai/cloud-site
@@ -27,6 +26,14 @@ search:
     - url: https://ba97230a.b68a8c0d.z.vespa-app.cloud/
       indexes:
         - suggestions_index.json
+    # vespacloud-docsearch | prod.aws-us-east-1
+    - url: https://b42c9416.b68a8c0d.z.vespa-app.cloud/
+      indexes:
+        - suggestions_index.json
+    # vespacloud-docsearch | prod.gcp-us-central1
+    - url: https://fe07fef0.b68a8c0d.z.vespa-app.cloud/
+      indexes:
+        - suggestions_index.json
     # vespacloud-docsearch.cloud-enclave | prod.aws-us-east-1c
     - url: https://cd560c23.b68a8c0d.z.vespa-app.cloud/
       indexes:
@@ -41,5 +48,9 @@ search:
         - suggestions_index.json
     # vespacloud-docsearch.cloud-enclave | prod.aws-us-east-1
     - url: https://ab1642f7.b68a8c0d.z.vespa-app.cloud/
+      indexes:
+        - suggestions_index.json
+    # vespacloud-docsearch.cloud-enclave | prod.gcp-us-central1
+    - url: https://af7a4515.b68a8c0d.z.vespa-app.cloud/
       indexes:
         - suggestions_index.json
