@@ -3,21 +3,23 @@
 import os
 import shutil
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Dict, Generator
 
 import pytest
 
 from vespa.deployment import VespaCloud
-from vespa.application import Vespa
+from vespa.application import Vespa, VespaSync
 
 from utils.workloads import (
     APPLICATION,
     CLEANUP_SLICES,
     CONTENT_CLUSTER,
     IDLE_CPU_UTIL,
+    PROFILE,
     WARMUP,
+    LoadProfile,
     ENVIRONMENT,
     INSTANCE,
     REGION,
@@ -42,6 +44,9 @@ class PerformanceEndpoints:
     vespa_cloud: VespaCloud = field(repr=False)
     mtls_app: Vespa = field(repr=False)
     token_app: Vespa = field(repr=False)
+    # Effective load profile for this session (concurrency from the measured
+    # ceiling and RTT, see LoadProfile.for_session); PROFILE if not measured.
+    profile: LoadProfile = PROFILE
 
 
 def _require_env_var(name: str) -> str:
@@ -138,14 +143,17 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
         token_app=token_app,
     )
 
-    # Warm the instance (JIT, caches, connections) at the target concurrency
-    # before the first measured test, so whichever lane runs first is not
-    # penalized for finding a cold container. Results are discarded.
+    # Warm the instance (JIT, caches, connections) before the first measured
+    # test, so whichever lane runs first is not penalized for finding a cold
+    # container, and use the warmup's throughput as this session's ceiling
+    # estimate. Together with the network RTT it sets the concurrency that
+    # puts LoadProfile.server_queue_target requests inside the instance
+    # regardless of where the load generator runs.
     if shutil.which("k6") is not None:
         from utils.k6_lane import run_k6
 
         print(f"\n=== Warmup: k6 for {int(WARMUP.warmup_s + WARMUP.duration_s)}s ===")
-        run_k6(
+        warm = run_k6(
             endpoints,
             WARMUP,
             Path(os.environ.get("PERFORMANCE_REPORT_DIR") or ".") / "k6_warmup.json",
@@ -155,6 +163,17 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
             content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
         )
         print("Warmup documents deleted.")
+        ceiling = sum(r.rps for r in warm)
+        rtt = _network_rtt_s(mtls_app)
+        profile = PROFILE.for_session(ceiling_rps=ceiling, rtt_s=rtt)
+        print(
+            f"Session profile: ceiling ~{ceiling:.0f} rps, RTT {rtt * 1000:.0f} ms -> "
+            f"concurrency {profile.concurrency} per transport "
+            f"({profile.connections()} connections x "
+            f"{profile.streams_per_connection()} streams), "
+            f"~{PROFILE.server_queue_target} queued in the instance"
+        )
+        endpoints = replace(endpoints, profile=profile)
 
     try:
         yield endpoints
@@ -165,6 +184,20 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
             content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
         )
         print("Fed documents deleted.")
+
+
+def _network_rtt_s(app, samples: int = 20) -> float:
+    """Round trip to the endpoint: the minimum of `samples` sequential tiny
+    GETs on one warm connection (network plus a negligible handler)."""
+    best = float("inf")
+    with VespaSync(app=app, pool_connections=1, pool_maxsize=1) as session:
+        url = f"{app.end_point}/ApplicationStatus"
+        session.http_client.get(url, timeout=30)  # connection + TLS setup
+        for _ in range(samples):
+            started = time.perf_counter()
+            session.http_client.get(url, timeout=30)
+            best = min(best, time.perf_counter() - started)
+    return best
 
 
 def _wait_until_instance_idle(app, max_wait_s: float = 240.0) -> None:

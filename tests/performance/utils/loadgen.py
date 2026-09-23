@@ -256,12 +256,16 @@ def _iterable(target: Target, profile: LoadProfile, worker: int, method: str):
 
     def feed(docs: List[Dict], cb) -> None:
         if method == "feed_iterable":
+            # max_queue_size bounds the futures the consumer keeps rescanning
+            # (2 x max_queue_size); the default 1000 made this path 4x the
+            # client CPU of the others and CPU-bound on a 4-vCPU runner.
             app.feed_iterable(
                 docs,
                 schema=SCHEMA,
                 callback=cb,
                 max_workers=profile.concurrency,
                 max_connections=profile.concurrency,
+                max_queue_size=profile.concurrency,
                 compress=False,
                 num_retries_429=0,
             )
@@ -272,6 +276,7 @@ def _iterable(target: Target, profile: LoadProfile, worker: int, method: str):
                 callback=cb,
                 max_workers=profile.concurrency,
                 max_connections=profile.async_connections,
+                max_queue_size=profile.concurrency,
                 docv1_retry_policy=NO_RETRY,
             )
 

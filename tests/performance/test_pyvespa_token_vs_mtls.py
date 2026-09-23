@@ -15,12 +15,7 @@ from utils.metrics import (
     resolve_report_dir,
     write_records,
 )
-from utils.workloads import (
-    MIN_PYVESPA_VS_K6_RATIO,
-    PROFILE,
-    PYVESPA_THRESHOLDS,
-    VALIDITY,
-)
+from utils.workloads import MIN_PYVESPA_VS_K6_RATIO, PYVESPA_THRESHOLDS, VALIDITY
 
 
 def _targets(endpoints) -> list:
@@ -36,16 +31,17 @@ def _targets(endpoints) -> list:
 
 
 def _run_pair(endpoints, report_dir, method: str, run_state: dict) -> None:
-    share = PROFILE.per_process()
-    expected_s = int(PROFILE.warmup_s + PROFILE.duration_s)
+    profile = endpoints.profile
+    share = profile.per_process()
+    expected_s = int(profile.warmup_s + profile.duration_s)
     print(
         f"\n=== Running pyvespa {method} "
-        f"(concurrency={PROFILE.concurrency} per transport as "
-        f"{PROFILE.processes} processes x {share.concurrency}, "
+        f"(concurrency={profile.concurrency} per transport as "
+        f"{profile.processes} processes x {share.concurrency}, "
         f"token+mtls concurrently, ~{expected_s}s) ==="
     )
     token, mtls = run_method(
-        method, _targets(endpoints), PROFILE, metrics_app=endpoints.mtls_app
+        method, _targets(endpoints), profile, metrics_app=endpoints.mtls_app
     )
     write_records([token, mtls], report_dir, f"pyvespa_{method}")
     assert_token_vs_mtls(token, mtls, PYVESPA_THRESHOLDS[method])

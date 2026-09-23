@@ -34,15 +34,21 @@ class LoadProfile:
     (in-flight requests per transport, spread over `processes` worker
     processes), so both lanes put identical load on the instance."""
 
-    # In-flight requests per transport, same for k6 and pyvespa. Set from the
-    # k6 sweep of 2026-09-22 (100/200/400/800 VUs per transport, from Europe,
-    # RTT ~130 ms): total rps 1121 / 2284 / 3517 / 3383, container CPU 42 / 70 /
-    # 94 / 95 %, no 429s at any level. Throughput flattens at 400 per transport
-    # (800 in flight total) and the token path starts starving at 800, so 400
-    # sits just past the knee. Once the instance is saturated its throughput is
-    # fixed, so latency is in-flight / rps regardless of the client's RTT:
-    # the same value saturates from a US runner as from Europe.
+    # In-flight requests per transport, same for k6 and pyvespa. This is the
+    # default (used for the warmup and when the session cannot measure); the
+    # session fixture derives the effective value with for_session() below.
+    # k6 sweep of 2026-09-22 from Europe (RTT ~130 ms): 100/200/400/800 per
+    # transport gave 1121 / 2284 / 3517 / 3383 total rps at 42 / 70 / 94 / 95 %
+    # container CPU, so 400 sat just past the knee there.
     concurrency: int = 400
+    # What the instance actually feels is the number of requests queued inside
+    # it, not the client's in-flight count: at ceiling X and network RTT r,
+    # N in flight means about N - X * r queued (the rest are on the wire). The
+    # same N therefore overloads from a 50 ms runner (CI run #32: 429s at 400
+    # per transport from us-east) and under-loads from 130 ms away. The session
+    # picks N so that the queued count is this target: N = target + X * r.
+    server_queue_target: int = 250
+    max_concurrency: int = 800
     warmup_s: float = 30.0
     duration_s: float = 150.0
     # Worker processes per transport for the pyvespa lane, and therefore the
@@ -87,6 +93,18 @@ class LoadProfile:
         """Connections per transport both lanes open (verified: one shared
         httpr client multiplexes all its requests over one HTTP/2 connection)."""
         return max(1, self.concurrency // self.streams_per_connection())
+
+    def for_session(self, ceiling_rps: float, rtt_s: float) -> "LoadProfile":
+        """Concurrency that puts `server_queue_target` requests inside the
+        instance given its measured ceiling and this client's network RTT,
+        split over the two transports and rounded to whole processes."""
+        if ceiling_rps <= 0 or rtt_s <= 0:
+            return self
+        total = self.server_queue_target + ceiling_rps * rtt_s
+        per_transport = total / 2
+        step = max(1, self.processes)
+        per_transport = max(step, round(per_transport / step) * step)
+        return replace(self, concurrency=min(per_transport, self.max_concurrency))
 
     def per_process(self) -> "LoadProfile":
         """The share of this profile one worker process runs."""
@@ -152,19 +170,24 @@ CLEANUP_SLICES = 8
 # rps ratio 0.88-0.96, token/mTLS p95 ratio 1.1-1.2. With the instance as the
 # bottleneck these do not depend on the runner; a miss means the instance got
 # slower or a client path regressed (then the validity checks say which).
+# The token endpoint adds latency (an extra hop before the container; CI run
+# #32 from us-east: token p50 209 ms vs mTLS 143 ms), so in a closed loop the
+# token transport gets fewer requests through: rps ratio 0.5-0.6 and p95 ratio
+# 2-3 from the US, 0.9 and 1.2 from Europe where the network dominates. The
+# ratios are sanity bounds only; the per-transport floors carry the gate.
 K6_THRESHOLDS = Thresholds(
     max_error_rate=0.02,
-    min_token_rps=1450,
-    min_mtls_rps=1550,
-    min_token_rps_ratio=0.6,
-    max_token_p95_ratio=2.0,
+    min_token_rps=1000,
+    min_mtls_rps=1700,
+    min_token_rps_ratio=0.4,
+    max_token_p95_ratio=4.0,
 )
 _PYVESPA_FLOOR = Thresholds(
     max_error_rate=0.02,
-    min_token_rps=1100,
-    min_mtls_rps=1200,
-    min_token_rps_ratio=0.7,
-    max_token_p95_ratio=2.0,
+    min_token_rps=900,
+    min_mtls_rps=1600,
+    min_token_rps_ratio=0.4,
+    max_token_p95_ratio=4.0,
 )
 PYVESPA_THRESHOLDS = {method: _PYVESPA_FLOOR for method in PYVESPA_METHODS}
 

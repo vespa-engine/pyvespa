@@ -43,12 +43,19 @@ merges the samples. Each result also carries `cpu_ms_per_request`: the client
 CPU cost per request summed over processes, the largely runner-independent
 number that tracks pyvespa's own efficiency.
 
-**Setting the concurrency.** Dispatch the workflow with the `k6_sweep` input
-(e.g. `100,200,400,800`) to run `test_k6_sweep.py` alone. Its table (job
-summary and `k6_sweep.md` in the artifact) shows where total rps flattens and
-latency keeps rising; set `LoadProfile.concurrency` just past that knee, while
-the 429 share is still ~0, and `VALIDITY.min_server_container_cpu_util` a
-little under the container CPU seen there.
+**Setting the concurrency.** The instance does not feel the client's
+in-flight count, it feels how many requests are queued inside it: with the
+ceiling at X rps and a network RTT of r, N in flight means about N - X * r
+queued and the rest on the wire. The same N therefore overloads from a 50 ms
+GitHub runner (CI run #32: 429s at 400 per transport) and under-loads from
+130 ms away. The session fixture measures both, X from the 60 s k6 warmup and
+r as the minimum of 20 sequential tiny GETs, and derives N so that
+`LoadProfile.server_queue_target` (250) requests sit inside the instance:
+about 200 per transport from us-east, about 400 from Europe. Every result
+records the concurrency it ran at. `LoadProfile.concurrency` (400) is only
+the warmup and fallback value. The `k6_sweep` dispatch input still runs
+`test_k6_sweep.py` alone at fixed levels to re-find the knee and the
+container CPU at saturation after an instance change.
 
 ## Fairness and validity
 
@@ -141,6 +148,29 @@ connections give the instance ~20% more throughput.
 cannot persist as fast as the container accepts for that long. The suite
 measures the 3-minute ceiling on purpose (closed loops 30 s + 150 s, batches
 ~150 s); a sustained-feed lane would be a separate test with its own floor.
+
+## First CI run (#32, 2026-09-23, us-east runner, fixed 400 per transport)
+
+| Lane / method | token rps | mTLS rps | total | container CPU | runner CPU | 429 share |
+| --- | --- | --- | --- | --- | --- | --- |
+| k6 opening | 1524 | 2549 | 4073 | 95% | 27% | 0.8-1.3% |
+| pyvespa sync_feed_data_point | 1358 | 2764 | 4122 | 95% | 32% | 1.0-1.3% |
+| pyvespa async_feed_data_point | 1823 | 2362 | 4185 | 95% | 46% | 0.7-1.0% |
+| pyvespa feed_iterable | 1943 | 2394 | 4337 | 94% | 99% | 0.5-0.6% |
+| pyvespa feed_async_iterable | 1893 | 2554 | 4447 | 94% | 48% | 0.2-0.3% |
+| k6 closing | 1487 | 2661 | 4149 | 95% | 28% | 0.7-1.2% |
+
+Runner: Xeon Platinum 8370C, 4 vCPU, Python single-thread score 216k ops/s
+(a laptop scored 732k). Totals within 9% with the instance saturated on every
+test, closing k6 within 2% of the opening one. Three things differed from the
+European runs and were fixed after this run: the 429s (concurrency is now
+derived per session from ceiling and RTT, see above), the token/mTLS ratio
+(0.5-0.6 here against 0.9 from Europe, because the token path's extra hop
+adds ~70 ms per request that the short US network no longer hides; the ratio
+thresholds are sanity bounds now), and `feed_iterable` at 99% runner CPU
+(its consumer rescans up to 2 x `max_queue_size` futures every 10 ms; the
+lane now passes `max_queue_size` equal to the worker count, and this is a
+pyvespa improvement to make).
 
 ## Layout
 
