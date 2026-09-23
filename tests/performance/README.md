@@ -149,6 +149,30 @@ cannot persist as fast as the container accepts for that long. The suite
 measures the 3-minute ceiling on purpose (closed loops 30 s + 150 s, batches
 ~150 s); a sustained-feed lane would be a separate test with its own floor.
 
+## CI run #34 (2026-09-23, us-east runner): the reference result
+
+Session profile derived by the fixture: ceiling ~4058 rps from the warmup,
+RTT 56 ms, so 240 in flight per transport (8 connections x 30 streams) for
+~250 requests queued inside the instance.
+
+| Lane / method | token rps | mTLS rps | total | vs k6 opening | container CPU | runner CPU | 429 share |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| k6 opening | 2041 | 2346 | 4387 | 1.00 | 91% | 29% | 0.5% |
+| pyvespa sync_feed_data_point | 2042 | 2369 | 4411 | 1.01 | 95% | 35% | 0.03% |
+| pyvespa async_feed_data_point | 2020 | 2355 | 4375 | 1.00 | 93% | 56% | 0.3% |
+| pyvespa feed_iterable | 2143 | 2304 | 4447 | 1.01 | 90% | 45% | 0.0% |
+| pyvespa feed_async_iterable | 2050 | 2388 | 4438 | 1.01 | 87% | 51% | 0.01% |
+| k6 closing | 2047 | 2271 | 4318 | 0.98 | 94% | 30% | 0.5% |
+
+All six green. Every lane and method lands within 1.5% of the opening k6
+run, the whole session spans 3% (4318 to 4447), and the measured drift is
+-1.6%: two different clients and five code paths give one number for one
+saturated instance, and the number they give is the instance. The token
+transport is a consistent 0.86 to 0.93 of mTLS (its extra hop), k6 carries
+the only 429s worth mentioning (0.5%, under the 1% cap; its per-VU
+scheduling burst-queues slightly more than the pyvespa loops), and
+`feed_iterable` is no longer an outlier once its queue is bounded.
+
 ## First CI run (#32, 2026-09-23, us-east runner, fixed 400 per transport)
 
 | Lane / method | token rps | mTLS rps | total | container CPU | runner CPU | 429 share |

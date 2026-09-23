@@ -175,16 +175,19 @@ CLEANUP_SLICES = 8
 # token transport gets fewer requests through: rps ratio 0.5-0.6 and p95 ratio
 # 2-3 from the US, 0.9 and 1.2 from Europe where the network dominates. The
 # ratios are sanity bounds only; the per-transport floors carry the gate.
+# Floors ~30% under CI run #34 (2026-09-23, derived concurrency 240 per
+# transport from us-east): token 2019-2143, mTLS 2271-2388 rps on all six
+# tests, k6 and pyvespa within 1.5% of each other, drift -1.6%.
 K6_THRESHOLDS = Thresholds(
     max_error_rate=0.02,
-    min_token_rps=1000,
-    min_mtls_rps=1700,
+    min_token_rps=1400,
+    min_mtls_rps=1600,
     min_token_rps_ratio=0.4,
     max_token_p95_ratio=4.0,
 )
 _PYVESPA_FLOOR = Thresholds(
     max_error_rate=0.02,
-    min_token_rps=900,
+    min_token_rps=1400,
     min_mtls_rps=1600,
     min_token_rps_ratio=0.4,
     max_token_p95_ratio=4.0,
