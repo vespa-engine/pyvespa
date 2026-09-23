@@ -3,7 +3,15 @@ import re
 import sys
 from pathlib import Path
 
-RECORD_LABELS = ("lane", "method", "transport", "http", "concurrency")
+RECORD_LABELS = (
+    "lane",
+    "method",
+    "transport",
+    "http",
+    "concurrency",
+    "connections",
+    "processes",
+)
 RECORD_FIELDS = (
     "rps",
     "error_rate",
@@ -12,6 +20,11 @@ RECORD_FIELDS = (
     "p50_ms",
     "p95_ms",
     "p99_ms",
+    "cpu_ms_per_request",
+    "rate_limited_rate",
+    "client_cpu_fraction",
+    "server_container_cpu_util",
+    "server_content_cpu_util",
 )
 
 
@@ -67,15 +80,43 @@ def convert_records(records_file: Path, typed_names: set) -> list:
     return lines
 
 
+def convert_runner_info(runner_file: Path, typed_names: set) -> list:
+    """runner.json (from runner_info.py) -> one labeled info gauge plus the
+    Python CPU score, so per-run throughput can be read against the hardware
+    the runner landed on."""
+    info = json.loads(runner_file.read_text())
+    labels = ",".join(
+        f'{key}="{_sanitize(str(info.get(key, "unknown")))}"'
+        for key in ("cpu_model", "cpu_count", "python", "runner_image_version")
+    )
+    lines = _typed("perf_runner_info", typed_names)
+    lines.append(f"perf_runner_info{{{labels}}} 1")
+    score = info.get("python_cpu_score_ops_per_s")
+    if isinstance(score, (int, float)):
+        lines += _typed("perf_runner_python_cpu_score_ops_per_s", typed_names)
+        lines.append(f"perf_runner_python_cpu_score_ops_per_s{{{labels}}} {score}")
+    return lines
+
+
 def main() -> int:
     report_dir = Path(sys.argv[1])
     summaries = sorted(report_dir.glob("*summary.json"))
     record_files = sorted(report_dir.glob("*records.json"))
+    runner_file = report_dir / "runner.json"
+    drift_file = report_dir / "k6_drift.json"
     if not summaries and not record_files:
         print(f"No report files in {report_dir}; nothing to convert.")
         return 0
     lines = []
     typed_names = set()
+    if runner_file.exists():
+        lines += convert_runner_info(runner_file, typed_names)
+    if drift_file.exists():
+        # Instance drift between the opening and closing k6 runs of the session.
+        drift = json.loads(drift_file.read_text()).get("drift_pct")
+        if isinstance(drift, (int, float)):
+            lines += _typed("perf_instance_drift_pct", typed_names)
+            lines.append(f"perf_instance_drift_pct {drift}")
     for summary_file in summaries:
         lines += convert_k6_summary(summary_file, typed_names)
     for records_file in record_files:

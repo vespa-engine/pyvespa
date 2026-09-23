@@ -24,6 +24,26 @@ class LaneResult:
     p50_ms: Optional[float] = None
     p95_ms: Optional[float] = None
     p99_ms: Optional[float] = None
+    # Worker processes the concurrency was spread over (pyvespa lane).
+    processes: int = 1
+    # Connections per transport the lane opened (concurrency / connections
+    # requests multiplexed per connection). Same in both lanes by construction.
+    connections: Optional[int] = None
+    # Client CPU per request, summed over worker processes. Largely runner-
+    # independent, so it is the client-efficiency number to track; None for k6.
+    cpu_ms_per_request: Optional[float] = None
+    # Share of measured requests answered 429 (backpressure). Both lanes run
+    # without retries, so this is the same quantity on both sides.
+    rate_limited_rate: Optional[float] = None
+    # Validity evidence (see utils/saturation.py): load-generator CPU busy
+    # fraction over the window, and Vespa node CPU utilization per cluster
+    # right after the window. All 0..1, None when not measurable.
+    client_cpu_fraction: Optional[float] = None
+    server_container_cpu_util: Optional[float] = None
+    server_content_cpu_util: Optional[float] = None
+    # HTTP status (or "error" for no response) -> count over measured requests
+    # in the pyvespa lane, for diagnosing a non-zero error rate.
+    status_counts: Optional[Dict[str, int]] = None
 
 
 @dataclass(frozen=True)
@@ -33,6 +53,60 @@ class Thresholds:
     min_mtls_rps: float
     min_token_rps_ratio: float
     max_token_p95_ratio: float
+
+
+@dataclass(frozen=True)
+class ValidityLimits:
+    """When a measurement does not count as a measurement of the instance."""
+
+    # Above this share of 429s the run measured backpressure handling, not
+    # capacity: lower the concurrency.
+    max_rate_limited_rate: float
+    # Above this the load generator was CPU-bound and its numbers are about
+    # the runner, not Vespa.
+    max_client_cpu_fraction: float
+    # Below this the instance was not the bottleneck. 0 disables the check
+    # (until the sweep has shown what "saturated" looks like here).
+    min_server_container_cpu_util: float
+
+
+def _pct(value: Optional[float]) -> str:
+    return f"{value * 100:.0f}%" if value is not None else "n/a"
+
+
+def assert_measurement_valid(results: List[LaneResult], limits: ValidityLimits):
+    """Fail the test when the numbers cannot be about the instance."""
+    for r in results:
+        print(
+            f"Validity {r.transport}: 429 rate={r.rate_limited_rate if r.rate_limited_rate is not None else 'n/a'}, "
+            f"client cpu={_pct(r.client_cpu_fraction)}, "
+            f"server container cpu={_pct(r.server_container_cpu_util)}, "
+            f"content cpu={_pct(r.server_content_cpu_util)}"
+        )
+    for r in results:
+        if r.rate_limited_rate is not None:
+            assert r.rate_limited_rate <= limits.max_rate_limited_rate, (
+                f"{r.transport}: {r.rate_limited_rate:.4f} of requests were 429 "
+                f"(max {limits.max_rate_limited_rate}); the instance was overloaded, "
+                "not saturated. Lower LoadProfile.concurrency."
+            )
+        if r.client_cpu_fraction is not None:
+            assert r.client_cpu_fraction <= limits.max_client_cpu_fraction, (
+                f"{r.transport}: load generator CPU at {_pct(r.client_cpu_fraction)} "
+                f"(max {_pct(limits.max_client_cpu_fraction)}); the client, not the "
+                "instance, was the bottleneck. Result invalid."
+            )
+        if (
+            limits.min_server_container_cpu_util > 0
+            and r.server_container_cpu_util is not None
+        ):
+            assert (
+                r.server_container_cpu_util >= limits.min_server_container_cpu_util
+            ), (
+                f"{r.transport}: container CPU at {_pct(r.server_container_cpu_util)} "
+                f"(min {_pct(limits.min_server_container_cpu_util)}); the instance "
+                "was not saturated. Raise LoadProfile.concurrency."
+            )
 
 
 def percentiles(latencies_ms: List[float]) -> Tuple[float, float, float]:
@@ -65,17 +139,31 @@ def _fmt_ms(value: Optional[float]) -> str:
     return f"{value:.2f}ms" if value is not None else "n/a"
 
 
+def _fmt_cpu(value: Optional[float]) -> str:
+    return f", cpu={value:.3f}ms/req" if value is not None else ""
+
+
 def print_results(token: LaneResult, mtls: LaneResult) -> None:
-    print(f"\n=== Results: {token.lane}/{token.method}/{token.http} ===")
+    print(
+        f"\n=== Results: {token.lane}/{token.method}/{token.http} "
+        f"(concurrency={token.concurrency}/transport over "
+        f"{token.connections} connections, processes={token.processes}) ==="
+    )
     print(
         f"Token: {token.rps:.2f} req/s, p95={_fmt_ms(token.p95_ms)}, "
         f"error_rate={token.error_rate:.4f} ({token.requests} reqs)"
+        f"{_fmt_cpu(token.cpu_ms_per_request)}"
     )
     print(
         f"mTLS:  {mtls.rps:.2f} req/s, p95={_fmt_ms(mtls.p95_ms)}, "
         f"error_rate={mtls.error_rate:.4f} ({mtls.requests} reqs)"
+        f"{_fmt_cpu(mtls.cpu_ms_per_request)}"
     )
     print(f"Token/mTLS ratio: {token.rps / mtls.rps if mtls.rps > 0 else 0:.2f}")
+    for r in (token, mtls):
+        if r.status_counts and r.error_rate > 0:
+            top = sorted(r.status_counts.items(), key=lambda kv: -kv[1])[:6]
+            print(f"{r.transport} statuses: " + ", ".join(f"{k}={v}" for k, v in top))
 
 
 def assert_token_vs_mtls(

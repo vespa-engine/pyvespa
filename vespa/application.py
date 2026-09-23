@@ -207,11 +207,14 @@ def raise_for_status(
             try:
                 error_json = response.json()
                 http_error = HTTPError(
-                    f"HTTP {response.status_code}: {json.dumps(error_json)}"
+                    f"HTTP {response.status_code}: {json.dumps(error_json)}",
+                    response=response,
                 )
             except Exception:
                 # Fall back to text if JSON parsing fails
-                http_error = HTTPError(f"HTTP {response.status_code}: {response.text}")
+                http_error = HTTPError(
+                    f"HTTP {response.status_code}: {response.text}", response=response
+                )
     else:
         # requests/httpx Response - use built-in method
         try:
@@ -726,6 +729,7 @@ class Vespa(object):
         max_workers: int = 8,
         max_connections: int = 16,
         compress: Union[str, bool] = "auto",
+        num_retries_429: int = 10,
         **kwargs,
     ):
         """
@@ -757,6 +761,7 @@ class Vespa(object):
             max_workers (int, optional): The maximum number of workers in the threadpool executor.
             max_connections (int, optional): The maximum number of persisted connections to the Vespa endpoint.
             compress (Union[str, bool], optional): Whether to compress the request body. Defaults to "auto", which will compress if the body is larger than 1024 bytes.
+            num_retries_429 (int, optional): Retries per request on a 429 response or connection error. Defaults to 10; 0 passes every response to the callback unchanged.
             **kwargs (dict, optional): Additional parameters passed to the respective operation type specific function (`_data_point`).
 
         Returns:
@@ -879,8 +884,14 @@ class Vespa(object):
         ):
             id, response = future.result()
             if isinstance(response, Exception):
+                # Keep the real HTTP status (e.g. 429) when the error came from
+                # raise_for_status; 599 only for errors without a response.
+                http_response = getattr(response, "response", None) or getattr(
+                    response.__cause__, "response", None
+                )
+                status_code = getattr(http_response, "status_code", None)
                 response = VespaResponse(
-                    status_code=599,
+                    status_code=status_code if isinstance(status_code, int) else 599,
                     json={
                         "Exception": str(response),
                         "id": id,
@@ -903,6 +914,7 @@ class Vespa(object):
             pool_maxsize=max_connections,
             pool_connections=max_connections,
             compress=compress,
+            num_retries_429=num_retries_429,
         ) as session:
             queue = Queue(maxsize=max_queue_size)
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -926,6 +938,7 @@ class Vespa(object):
         max_queue_size: int = 1000,
         max_workers: int = 64,
         max_connections: int = 1,
+        docv1_retry_policy: Optional[AsyncRetrying] = None,
         **kwargs,
     ):
         """
@@ -955,6 +968,7 @@ class Vespa(object):
             max_queue_size (int, optional): The maximum number of tasks waiting to be processed. Useful to limit memory usage. Default is 1000.
             max_workers (int, optional): Maximum number of concurrent requests to have in-flight, bound by an asyncio.Semaphore, that needs to be acquired by a submit task. Increase if the server is scaled to handle more requests.
             max_connections (int, optional): The maximum number of connections passed to httpx.AsyncClient to the Vespa endpoint. As HTTP/2 is used, only one connection is needed.
+            docv1_retry_policy (AsyncRetrying, optional): Replaces the default two-layer document/v1 retry (unbounded 429 retry inside 3 attempts on 503/exception). Pass ``vespa.retries.NO_RETRY`` to deliver every response, including 429, to the callback unchanged.
             **kwargs (dict, optional): Additional parameters passed to the respective operation type-specific function (`_data_point`).
 
         Returns:
@@ -1002,7 +1016,9 @@ class Vespa(object):
 
         # Wrapping in async function to be able to use asyncio.run, and avoid that the feed_async_iterable have to be async
         async def run():
-            async with self.asyncio(connections=max_connections) as async_session:
+            async with self.asyncio(
+                connections=max_connections, docv1_retry_policy=docv1_retry_policy
+            ) as async_session:
                 semaphore = asyncio.Semaphore(max_workers)
                 tasks = []
                 for doc in iter:
@@ -1514,6 +1530,7 @@ class VespaSync(object):
         pool_connections: int = 10,
         compress: Union[str, bool] = "auto",
         session: Optional[Union[Session, httpr.Client]] = None,
+        num_retries_429: int = 10,
     ) -> None:
         """
         Class to handle synchronous requests to Vespa.
@@ -1573,7 +1590,9 @@ class VespaSync(object):
             )
         self.compress = compress
         self.compress_larger_than = 1024
-        self.num_retries_429 = 10
+        # Retries of a 429 response (and connection errors) per request; 0
+        # returns every response, including 429, to the caller unchanged.
+        self.num_retries_429 = num_retries_429
         self.http_client = (
             session  # For backward compatibility, parameter is still called "session"
         )
@@ -1919,6 +1938,11 @@ class VespaSync(object):
                     response = self._request_with_retry(
                         "DELETE", request_endpoint, params=kwargs
                     )
+                    # An error response (e.g. 429 after retries, 503, 504) has
+                    # no continuation token; treat it as a failed attempt and
+                    # retry the same chunk instead of silently ending the slice
+                    # with documents still present.
+                    raise_for_status(response)
                     result = response.json()
                     if "continuation" in result:
                         request_endpoint = "{}&continuation={}".format(
@@ -1935,8 +1959,10 @@ class VespaSync(object):
                         ) from e
                     sleep(1)
 
+        # Consume the results so an exception raised in a slice propagates
+        # instead of being discarded with the lazy map iterator.
         with ThreadPoolExecutor(max_workers=slices) as executor:
-            executor.map(delete_slice, range(slices))
+            list(executor.map(delete_slice, range(slices)))
 
     def visit(
         self,
@@ -2133,6 +2159,7 @@ class VespaAsync(object):
         timeout: Union[httpx.Timeout, int, float] = 30.0,
         compress: Union[str, bool] = "auto",
         client: Optional[Union[httpx.AsyncClient, httpr.AsyncClient]] = None,
+        docv1_retry_policy: Optional[AsyncRetrying] = None,
         **kwargs,
     ) -> None:
         """
@@ -2208,6 +2235,10 @@ class VespaAsync(object):
             - httpr manages connection pooling and HTTP/2 automatically
         """
         self.app = app
+        # None: the default two-layer document/v1 policy (unbounded 429 retry
+        # inside 3 attempts on 503/exception). A policy replaces both layers,
+        # e.g. ``vespa.retries.NO_RETRY`` for a single attempt.
+        self.docv1_retry_policy = docv1_retry_policy
         self.httpr_client = client  # Renamed from httpx_client
         # Automatically determine ownership based on whether client was provided
         self._owns_client = client is None
@@ -2421,7 +2452,8 @@ class VespaAsync(object):
         Inner layer ``THROTTLE_RETRY`` retries 429 responses (unbounded, see
         ``vespa.retries``). Outer layer ``DOCV1_RETRY`` retries any exception or
         a 503 response up to 3 attempts, then re-raises the last exception or
-        returns the last response.
+        returns the last response. When the client was created with
+        ``docv1_retry_policy``, that single policy is used instead of both.
         """
         path = self.app.get_document_v1_path(
             id=data_id, schema=schema, namespace=namespace, group=groupname
@@ -2443,6 +2475,9 @@ class VespaAsync(object):
                 url=str(response.url),
                 operation_type=operation_type,
             )
+
+        if self.docv1_retry_policy is not None:
+            return await self.docv1_retry_policy.copy()(_send)
 
         async def _send_with_throttle_retry() -> VespaResponse:
             return await THROTTLE_RETRY.copy()(_send)

@@ -1,9 +1,11 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import os
+import shutil
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Generator
+from typing import Dict, Generator
 
 import pytest
 
@@ -12,7 +14,10 @@ from vespa.application import Vespa
 
 from utils.workloads import (
     APPLICATION,
+    CLEANUP_SLICES,
     CONTENT_CLUSTER,
+    IDLE_CPU_UTIL,
+    WARMUP,
     ENVIRONMENT,
     INSTANCE,
     REGION,
@@ -117,22 +122,95 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
 
     # Pre-clean leftovers from any earlier run that was killed before teardown.
     print("\n=== Setup: deleting any leftover test documents ===")
-    mtls_app.delete_all_docs(content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA)
+    mtls_app.delete_all_docs(
+        content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
+    )
     print("Leftover documents deleted.")
 
-    try:
-        yield PerformanceEndpoints(
-            mtls_url=mtls_url,
-            token_url=token_url,
-            cert_path=str(cert_path),
-            key_path=str(key_path),
-            token=secret_token,
-            vespa_cloud=vespa_cloud,
-            mtls_app=mtls_app,
-            token_app=token_app,
+    endpoints = PerformanceEndpoints(
+        mtls_url=mtls_url,
+        token_url=token_url,
+        cert_path=str(cert_path),
+        key_path=str(key_path),
+        token=secret_token,
+        vespa_cloud=vespa_cloud,
+        mtls_app=mtls_app,
+        token_app=token_app,
+    )
+
+    # Warm the instance (JIT, caches, connections) at the target concurrency
+    # before the first measured test, so whichever lane runs first is not
+    # penalized for finding a cold container. Results are discarded.
+    if shutil.which("k6") is not None:
+        from utils.k6_lane import run_k6
+
+        print(f"\n=== Warmup: k6 for {int(WARMUP.warmup_s + WARMUP.duration_s)}s ===")
+        run_k6(
+            endpoints,
+            WARMUP,
+            Path(os.environ.get("PERFORMANCE_REPORT_DIR") or ".") / "k6_warmup.json",
+            extra_env=None,
         )
+        mtls_app.delete_all_docs(
+            content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
+        )
+        print("Warmup documents deleted.")
+
+    try:
+        yield endpoints
     finally:
         # The workloads feed docs, so leave a clean slate for the next run.
         print("\n=== Teardown: deleting fed test documents ===")
-        mtls_app.delete_all_docs(content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA)
+        mtls_app.delete_all_docs(
+            content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
+        )
         print("Fed documents deleted.")
+
+
+def _wait_until_instance_idle(app, max_wait_s: float = 240.0) -> None:
+    """Block until the container and content nodes are quiet (or max_wait_s),
+    so background work left by the previous test or cleanup does not bleed
+    into the next measurement. The metrics proxy refreshes about once a minute."""
+    from utils.saturation import server_cpu_util
+
+    deadline = time.time() + max_wait_s
+    while True:
+        util, _ = server_cpu_util(app)
+        busiest = max(util.values()) if util else 0.0
+        if busiest <= IDLE_CPU_UTIL or time.time() >= deadline:
+            print(
+                f"Instance CPU {busiest * 100:.0f}% (idle <= {IDLE_CPU_UTIL * 100:.0f}%)."
+            )
+            return
+        print(f"Instance CPU {busiest * 100:.0f}%, waiting for it to settle...")
+        time.sleep(15)
+
+
+@pytest.fixture(autouse=True)
+def settled_instance(vespa_cloud_token_endpoints):
+    """Start every test on a quiet instance. Deleting the previous test's
+    documents between tests (PERFORMANCE_CLEAN_BETWEEN_TESTS=1) is opt-in:
+    removing ~600k documents per test left the content node busy for minutes
+    (compaction, tombstone pruning) and halved a later test's throughput, a
+    bigger state change than letting the corpus grow within a session."""
+    _wait_until_instance_idle(vespa_cloud_token_endpoints.mtls_app)
+    yield
+    if os.environ.get("PERFORMANCE_CLEAN_BETWEEN_TESTS") == "1":
+        print("\n=== Cleanup: deleting documents fed by this test ===")
+        vespa_cloud_token_endpoints.mtls_app.delete_all_docs(
+            content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
+        )
+        print("Documents deleted.")
+
+
+@pytest.fixture(scope="session")
+def run_state() -> Dict:
+    """Results shared across tests in one session, e.g. the opening k6 run so
+    the closing k6 run can report how much the instance drifted meanwhile."""
+    return {}
+
+
+def pytest_collection_modifyitems(items):
+    """Run tests marked `perf_last` after everything else (k6 first and last
+    brackets the pyvespa methods, so instance drift within the run is visible)."""
+    items.sort(key=lambda item: 1 if item.get_closest_marker("perf_last") else 0)

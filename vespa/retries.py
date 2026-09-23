@@ -36,6 +36,7 @@ from tenacity.wait import wait_base
 __all__ = [
     "CONTROL_PLANE_RETRY",
     "DOCV1_RETRY",
+    "NO_RETRY",
     "QUERY_RETRY",
     "SYNC_REQUEST_RETRY",
     "THROTTLE_RETRY",
@@ -192,3 +193,8 @@ URL_VALIDATION_RETRY = Retrying(
     reraise=True,
 )
 """Validation of external model URLs in ``vespa.models``: 3 attempts, 1-10s wait."""
+
+NO_RETRY = AsyncRetrying(stop=stop_after_attempt(1), reraise=True)
+"""Single attempt, no retry: pass as ``docv1_retry_policy`` to ``VespaAsync`` (or
+``Vespa.feed_async_iterable``) when every response, including 429, must reach
+the caller unchanged, e.g. in load tests that count backpressure themselves."""
