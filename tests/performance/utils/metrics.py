@@ -160,6 +160,14 @@ def print_results(token: LaneResult, mtls: LaneResult) -> None:
         f"{_fmt_cpu(mtls.cpu_ms_per_request)}"
     )
     print(f"Token/mTLS ratio: {token.rps / mtls.rps if mtls.rps > 0 else 0:.2f}")
+    if token.p50_ms is not None and mtls.p50_ms is not None:
+        # The token path's own cost (its auth hop): the one quantity the
+        # token/mTLS ratio actually varies with. 10 ms here moves the ratio
+        # by ~0.06 at these latencies, so read this, not the ratio.
+        print(
+            f"Token extra latency: p50 {token.p50_ms - mtls.p50_ms:+.1f} ms, "
+            f"p95 {token.p95_ms - mtls.p95_ms:+.1f} ms"
+        )
     for r in (token, mtls):
         if r.status_counts and r.error_rate > 0:
             top = sorted(r.status_counts.items(), key=lambda kv: -kv[1])[:6]

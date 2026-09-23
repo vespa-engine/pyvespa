@@ -179,6 +179,22 @@ rather than by their own latency, which flattens the token/mTLS difference
 and also explains its zero 429s. `feed_async_iterable` uses a semaphore and
 behaves like the closed loops.
 
+The ratio itself is a low-resolution number: in a closed loop it equals mTLS
+latency over token latency, both share ~135 ms of network and server queue,
+and the token path adds ~20 ms for its auth hop, so 10 ms of variation in
+that hop moves the ratio by ~0.06 (k6 opening 0.87 and closing 0.90 differ
+only in token p95, 160 vs 152 ms, with mTLS at 135 ms in both). Graph the
+token path's extra latency directly instead (`perf_token_extra_p50_ms`,
+`perf_token_extra_p95_ms`, printed as "Token extra latency"); the ratio is a
+sanity bound at 0.4.
+
+**What to graph for regression spotting, one quantity each:** total rps per
+method (the instance), token and mTLS rps separately (the instance plus, for
+token, the auth hop), token extra latency (the auth hop alone),
+`cpu_ms_per_request` per method (pyvespa's own efficiency, independent of the
+instance), and container CPU, runner CPU, 429 share and drift as the validity
+evidence behind every point.
+
 ## First CI run (#32, 2026-09-23, us-east runner, fixed 400 per transport)
 
 | Lane / method | token rps | mTLS rps | total | container CPU | runner CPU | 429 share |
