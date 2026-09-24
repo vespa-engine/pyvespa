@@ -40,13 +40,13 @@ def test_pyvespa_performance(vespa_cloud_token_endpoints, tmp_path, run_state, m
     share = profile.per_process()
     expected_s = int(profile.warmup_s + profile.duration_s)
     print(
-        f"\n=== Running pyvespa {method} "
-        f"(concurrency={profile.concurrency} per transport as "
-        f"{profile.processes} processes x {share.concurrency}, "
-        f"token+mtls concurrently, ~{expected_s}s) ==="
+        f"\n=== Running pyvespa {method}: {profile.concurrency} in flight as "
+        f"{profile.processes} processes x {share.concurrency}, one transport at a "
+        f"time, ~{expected_s}s each ==="
     )
-    token, mtls = run_method(
-        method, _targets(endpoints), profile, metrics_app=endpoints.mtls_app
+    token, mtls = (
+        run_method(method, [target], profile, metrics_app=endpoints.mtls_app)[0]
+        for target in _targets(endpoints)
     )
     write_records([token, mtls], report_dir, f"pyvespa_{method}")
     assert_token_vs_mtls(token, mtls, THRESHOLDS)

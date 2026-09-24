@@ -24,12 +24,12 @@ from utils.workloads import LoadProfile  # noqa: E402
 
 def test_for_session_puts_the_queue_target_inside_the_instance():
     profile = LoadProfile(processes=8, server_queue_target=250)
-    # N_total = target + ceiling * rtt, split over two transports, whole processes.
+    # In flight = target + ceiling * rtt for the one active transport, whole processes.
     us = profile.for_session(ceiling_rps=4058, rtt_s=0.056)
     europe = profile.for_session(ceiling_rps=4400, rtt_s=0.125)
-    assert us.concurrency == 240
-    assert europe.concurrency == 400
-    assert us.connections() == 8 and us.streams_per_connection() == 30
+    assert us.concurrency == 480
+    assert europe.concurrency == 800  # capped at max_concurrency
+    assert us.connections() == 8 and us.streams_per_connection() == 60
     # Unmeasurable inputs keep the default.
     assert profile.for_session(0, 0).concurrency == profile.concurrency
     assert profile.for_session(10**6, 10).concurrency == profile.max_concurrency

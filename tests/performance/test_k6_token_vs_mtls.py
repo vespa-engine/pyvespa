@@ -26,13 +26,19 @@ if shutil.which("k6") is None:
 
 
 def _measure(endpoints, report_dir, name: str) -> List[LaneResult]:
-    token, mtls = run_k6(
-        endpoints,
-        endpoints.profile,
-        report_dir / f"{name}_summary.json",
-    )
-    write_records([token, mtls], report_dir, name)
-    return [token, mtls]
+    # One transport at a time: each number is the instance's ceiling through
+    # that path, not a share of it.
+    results = [
+        run_k6(
+            endpoints,
+            endpoints.profile,
+            report_dir / f"{name}_{transport}_summary.json",
+            transport,
+        )
+        for transport in ("token", "mtls")
+    ]
+    write_records(results, report_dir, name)
+    return results
 
 
 def _check(results: List[LaneResult]) -> None:

@@ -2,7 +2,8 @@
 
 Compare k6's HTTP baseline with four pyvespa feed APIs against the persistent
 `vespa-team.pyvespa-performance.default` application in `aws-us-east-1c`.
-Token and mTLS traffic run concurrently in each test.
+Each test measures the token and the mTLS endpoint one after the other, so
+every number is the instance's ceiling through that path rather than a share.
 
 ## Running
 
@@ -14,7 +15,7 @@ and place the authorized data-plane certificate/key pair in
 uv run pytest tests/performance/ -m performance -s -v
 ```
 
-The suite takes roughly 40–55 minutes and deletes documents in the shared
+The suite takes roughly 60–65 minutes and deletes documents in the shared
 application at setup and teardown. Avoid overlapping runs; let the instance
 settle after cleanup before comparing another run.
 
@@ -32,10 +33,10 @@ come from `VESPA_PERFORMANCE_MTLS_CERT` and `VESPA_PERFORMANCE_MTLS_KEY`.
 - Both lanes use the same payload, in-flight request count and connection
   count, with retries and compression disabled and a 120-second timeout.
   Each process/client multiplexes requests over one HTTP/2 connection.
-- A 60-second k6 warmup at half concurrency estimates capacity from its
-  successful requests. Together with measured network RTT, it sets concurrency
-  to keep about 200 requests queued in the instance: total in flight =
-  200 + throughput × RTT, divided between transports.
+- A 60-second k6 warmup on mTLS estimates capacity from its successful
+  requests. Together with measured network RTT, it sets the concurrency of
+  the active transport to keep about 200 requests queued in the instance:
+  in flight = 200 + throughput × RTT.
 - Closed loops count completions inside a 150-second window after 30 seconds
   of warmup. Batch APIs count completions while all worker processes are
   feeding; they have no per-request latency measurements.
@@ -56,13 +57,11 @@ opening k6 throughput when that baseline is present.
 
 If both lanes slow down, investigate the instance. If k6 stays steady and
 pyvespa falls behind, investigate the client path and its CPU cost per request.
-Treat gaps smaller than the opening-to-closing k6 drift as noise. The
-token/mTLS ratio is only a sanity bound: in a closed loop the token transport's
-share is set by its extra latency (an auth hop of ~10 ms), so the ratio moves
-with RTT, and the batch APIs pipeline their requests and so give token a larger
-share than the closed loops do. Graph token and mTLS rps separately plus the
-reported token extra latency instead. Compare CI runs with CI, rather than
-local absolute numbers.
+Treat gaps smaller than the opening-to-closing k6 drift as noise. Because the
+transports run one at a time, token rps and mTLS rps are each an absolute
+ceiling and their ratio is the capacity cost of the token path's auth hop; the
+reported token extra latency is that hop in milliseconds. Compare CI runs with
+CI, rather than local absolute numbers.
 
 CI uploads JUnit XML, k6 summaries, per-method `*records.json`, `k6_drift.json`,
 and `metrics.prom`. Set `PERFORMANCE_REPORT_DIR` to collect the same reports

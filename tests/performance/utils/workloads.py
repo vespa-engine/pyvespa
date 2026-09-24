@@ -26,9 +26,10 @@ def make_doc(prefix: str) -> Tuple[str, Dict]:
 
 @dataclass(frozen=True)
 class LoadProfile:
-    """Shared in-flight load per transport; each process owns one HTTP/2 connection."""
+    """In-flight load for the one transport under test; each process owns one
+    HTTP/2 connection. Token and mTLS run one after the other."""
 
-    concurrency: int = 400  # warmup/fallback; for_session adjusts for network RTT
+    concurrency: int = 400  # per transport; warmup/fallback, for_session adjusts
     server_queue_target: int = 200  # 250 sat at the 429 edge from a 56 ms runner
     max_concurrency: int = 800
     warmup_s: float = 30.0
@@ -53,13 +54,14 @@ class LoadProfile:
         return max(1, self.concurrency // self.streams_per_connection())
 
     def for_session(self, ceiling_rps: float, rtt_s: float) -> "LoadProfile":
-        """N = queued requests + throughput * RTT, split over two transports."""
+        """In flight = queued requests + throughput * RTT; transports run one at
+        a time, so this is the concurrency of the single active transport."""
         if ceiling_rps <= 0 or rtt_s <= 0:
             return self
-        total = self.server_queue_target + ceiling_rps * rtt_s
+        in_flight = self.server_queue_target + ceiling_rps * rtt_s
         step = max(1, self.processes)
-        per_transport = max(step, round(total / 2 / step) * step)
-        return replace(self, concurrency=min(per_transport, self.max_concurrency))
+        concurrency = max(step, round(in_flight / step) * step)
+        return replace(self, concurrency=min(concurrency, self.max_concurrency))
 
     def per_process(self) -> "LoadProfile":
         n = max(1, self.processes)
@@ -73,9 +75,9 @@ class LoadProfile:
 
 
 PROFILE = LoadProfile()
-# Half the default concurrency so the warmup never overloads (400 gave 7% 429s
-# from us-east) and its throughput is a conservative ceiling estimate.
-WARMUP = replace(PROFILE, concurrency=200, warmup_s=15.0, duration_s=45.0)
+# mTLS only, 60 s: warms the instance and gives a conservative ceiling estimate
+# (400 in flight on one transport is under the 429 edge from us-east).
+WARMUP = replace(PROFILE, concurrency=400, warmup_s=15.0, duration_s=45.0)
 PYVESPA_METHODS = (
     "sync_feed_data_point",
     "async_feed_data_point",

@@ -8,7 +8,6 @@ import subprocess
 import time
 from dataclasses import replace
 from pathlib import Path
-from typing import List
 
 from utils.metrics import LaneResult
 from utils.saturation import RunnerCpu, ServerCpuSampler
@@ -77,10 +76,13 @@ def lane_result(metrics: dict, transport: str, profile: LoadProfile) -> LaneResu
     )
 
 
-def run_k6(endpoints, profile: LoadProfile, summary_file: Path) -> List[LaneResult]:
-    """Run k6 and attach runner and instance CPU measurements to each result."""
+def run_k6(
+    endpoints, profile: LoadProfile, summary_file: Path, transport: str
+) -> LaneResult:
+    """Run k6 for one transport; attach runner and instance CPU measurements."""
     env = {
         **os.environ,
+        "TRANSPORT": transport,
         "TOKEN_URL": endpoints.token_url,
         "MTLS_URL": endpoints.mtls_url,
         "TOKEN_AUTH_HEADER": f"Bearer {endpoints.token}",
@@ -95,9 +97,8 @@ def run_k6(endpoints, profile: LoadProfile, summary_file: Path) -> List[LaneResu
 
     expected_s = int(profile.warmup_s + profile.duration_s)
     print(
-        f"\n=== Running k6: {SCRIPT.name} ({profile.concurrency} in flight per "
-        f"transport over {profile.connections()} connections, "
-        f"~{expected_s}s + graceful stop) ==="
+        f"\n=== Running k6 {transport}: {profile.concurrency} in flight over "
+        f"{profile.connections()} connections, ~{expected_s}s + graceful stop ==="
     )
     load_start = time.time()
     runner_cpu = RunnerCpu().start()
@@ -109,12 +110,9 @@ def run_k6(endpoints, profile: LoadProfile, summary_file: Path) -> List[LaneResu
         raise K6Error(f"k6 exited with {result.returncode} (see output above)")
 
     metrics = json.loads(summary_file.read_text()).get("metrics", {})
-    return [
-        replace(
-            lane_result(metrics, transport, profile),
-            client_cpu_fraction=runner_fraction,
-            server_container_cpu_util=server.get(f"container/{CONTAINER_CLUSTER}"),
-            server_content_cpu_util=server.get(f"content/{CONTENT_CLUSTER}"),
-        )
-        for transport in ("token", "mtls")
-    ]
+    return replace(
+        lane_result(metrics, transport, profile),
+        client_cpu_fraction=runner_fraction,
+        server_container_cpu_util=server.get(f"container/{CONTAINER_CLUSTER}"),
+        server_content_cpu_util=server.get(f"content/{CONTENT_CLUSTER}"),
+    )

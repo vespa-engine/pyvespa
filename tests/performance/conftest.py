@@ -130,18 +130,19 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
             endpoints,
             WARMUP,
             Path(os.environ.get("PERFORMANCE_REPORT_DIR") or ".") / "k6_warmup.json",
+            "mtls",
         )
         mtls_app.delete_all_docs(
             content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
         )
         print("Warmup documents deleted.")
         # Successful requests only: 429s are not capacity.
-        ceiling = sum(r.rps * (1 - r.error_rate) for r in warm)
+        ceiling = warm.rps * (1 - warm.error_rate)
         rtt = _network_rtt_s(mtls_app)
         profile = PROFILE.for_session(ceiling_rps=ceiling, rtt_s=rtt)
         print(
             f"Session profile: ceiling ~{ceiling:.0f} rps, RTT {rtt * 1000:.0f} ms -> "
-            f"concurrency {profile.concurrency} per transport "
+            f"concurrency {profile.concurrency} for the active transport "
             f"({profile.connections()} connections x "
             f"{profile.streams_per_connection()} streams), "
             f"~{PROFILE.server_queue_target} queued in the instance"
