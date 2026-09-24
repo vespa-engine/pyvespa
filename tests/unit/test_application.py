@@ -1837,8 +1837,8 @@ class TestMtlsCertContent:
 
     def test_content_matches_files(self, tmp_path):
         cert_file, key_file = tmp_path / "cert.pem", tmp_path / "key.pem"
-        cert_file.write_text(CERT_PEM)
-        key_file.write_text(KEY_PEM)
+        cert_file.write_bytes(CERT_PEM.encode())
+        key_file.write_bytes(KEY_PEM.encode())
         from_files = _prepare_mtls_cert_data(str(cert_file), str(key_file))
         from_content = _prepare_mtls_cert_data(
             None, None, cert_content=CERT_PEM, key_content=KEY_PEM
