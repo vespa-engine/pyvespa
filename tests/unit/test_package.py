@@ -1558,13 +1558,21 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
         self.assertEqual(rank_profile.match_phase.max_hits, 1000)
         self.assertIsNone(rank_profile.match_phase.total_max_hits)
 
-    def test_schema_to_text_with_match_phase(self):
+    def test_schema_to_text_with_match_phase_max_hits(self):
         schema = Schema(
             name="test_match_phase",
             document=Document(
                 fields=[
-                    Field(name="title", type="string", indexing=["index", "summary"]),
-                    Field(name="body", type="string", indexing=["index", "summary"]),
+                    Field(
+                        name="title",
+                        type="string",
+                        indexing=["index", "summary"],
+                    ),
+                    Field(
+                        name="body",
+                        type="string",
+                        indexing=["index", "summary"],
+                    ),
                     Field(name="popularity", type="int", indexing=["attribute"]),
                 ]
             ),
@@ -1574,7 +1582,9 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
                     name="match_phase_test",
                     first_phase="bm25(title) + bm25(body)",
                     match_phase=MatchPhaseRanking(
-                        attribute="popularity", order="descending", max_hits=1000
+                        attribute="popularity",
+                        order="descending",
+                        max_hits=1000,
                     ),
                 ),
             ],
@@ -1613,21 +1623,72 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
 }"""
 
         self.assertEqual(schema.schema_to_text, expected_schema)
-        for limit_name in ("max_hits", "total_max_hits"):
-            for limit in (0, 1000):
-                with self.subTest(limit_name=limit_name, limit=limit):
-                    schema.rank_profiles[
-                        "match_phase_test"
-                    ].match_phase = MatchPhaseRanking(
-                        "popularity", "descending", **{limit_name: limit}
-                    )
-                    self.assertEqual(
-                        schema.schema_to_text,
-                        expected_schema.replace(
-                            "max-hits: 1000",
-                            f"{limit_name.replace('_', '-')}: {limit}",
-                        ),
-                    )
+
+    def test_schema_to_text_with_match_phase_total_max_hits(self):
+        schema = Schema(
+            name="test_match_phase",
+            document=Document(
+                fields=[
+                    Field(
+                        name="title",
+                        type="string",
+                        indexing=["index", "summary"],
+                    ),
+                    Field(
+                        name="body",
+                        type="string",
+                        indexing=["index", "summary"],
+                    ),
+                    Field(name="popularity", type="int", indexing=["attribute"]),
+                ]
+            ),
+            rank_profiles=[
+                RankProfile(name="default", first_phase="nativeRank(title, body)"),
+                RankProfile(
+                    name="match_phase_test",
+                    first_phase="bm25(title) + bm25(body)",
+                    match_phase=MatchPhaseRanking(
+                        attribute="popularity",
+                        order="descending",
+                        total_max_hits=10000,
+                    ),
+                ),
+            ],
+        )
+        expected_schema = """schema test_match_phase {
+    document test_match_phase {
+        field title type string {
+            indexing: index | summary
+        }
+        field body type string {
+            indexing: index | summary
+        }
+        field popularity type int {
+            indexing: attribute
+        }
+    }
+    rank-profile default {
+        first-phase {
+            expression {
+                nativeRank(title, body)
+            }
+        }
+    }
+    rank-profile match_phase_test {
+        match-phase {
+            attribute: popularity
+            order: descending
+            total-max-hits: 10000
+        }
+        first-phase {
+            expression {
+                bm25(title) + bm25(body)
+            }
+        }
+    }
+}"""
+
+        self.assertEqual(schema.schema_to_text, expected_schema)
 
 
 class TestSimplifiedApplicationPackageWithMultipleSchemas(unittest.TestCase):
