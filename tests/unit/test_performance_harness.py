@@ -48,28 +48,18 @@ def test_per_process_splits_concurrency_and_batch():
     )
 
 
-def _worker(requests, errors, latencies, started, finished, cpu_s, completions=()):
+def _worker(started, finished, cpu_s, completions):
     return WorkerResult(
-        requests=requests,
-        errors=errors,
-        rate_limited=0,
-        latencies_ms=latencies,
-        started=started,
-        finished=finished,
-        cpu_s=cpu_s,
-        completions=list(completions),
-        status_counts={"200": requests - errors, "500": errors}
-        if errors
-        else {"200": requests},
+        started=started, finished=finished, cpu_s=cpu_s, completions=list(completions)
     )
 
 
-def test_aggregate_closed_loop_uses_the_window_and_sums_workers():
+def test_aggregate_closed_loop_uses_each_workers_window():
     profile = LoadProfile(concurrency=100, processes=2, duration_s=10.0)
-    parts = [
-        _worker(600, 6, [10.0] * 600, 0.0, 12.0, 1.0),
-        _worker(400, 0, [30.0] * 400, 0.0, 12.0, 1.0),
-    ]
+    # Completions at t=5 count; t=15 (after the window) and t=-1 do not.
+    a = [(5.0, 200, 10.0)] * 594 + [(5.0, 500, 10.0)] * 6 + [(15.0, 200, 10.0)]
+    b = [(5.0, 200, 30.0)] * 400 + [(-1.0, 200, 30.0)]
+    parts = [_worker(0.0, 10.0, 1.0, a), _worker(0.0, 10.0, 1.0, b)]
     result = aggregate("sync_feed_data_point", "token", parts, profile)
     assert result.requests == 1000
     assert result.rps == pytest.approx(100.0)  # 1000 / duration_s
@@ -83,12 +73,9 @@ def test_aggregate_closed_loop_uses_the_window_and_sums_workers():
 def test_aggregate_batch_counts_only_while_every_process_feeds():
     profile = LoadProfile(concurrency=100, processes=2)
     # Process A feeds 0..10 s, process B 2..8 s: window is [2, 8].
-    a = [(t, 200) for t in (1.0, 3.0, 5.0, 7.0, 9.0)]
-    b = [(t, 200) for t in (2.5, 4.5, 6.5)] + [(7.5, 429)]
-    parts = [
-        _worker(5, 0, [], 0.0, 10.0, 0.5, a),
-        _worker(4, 1, [], 2.0, 8.0, 0.5, b),
-    ]
+    a = [(t, 200, None) for t in (1.0, 3.0, 5.0, 7.0, 9.0)]
+    b = [(t, 200, None) for t in (2.5, 4.5, 6.5)] + [(7.5, 429, None)]
+    parts = [_worker(0.0, 10.0, 0.5, a), _worker(2.0, 8.0, 0.5, b)]
     result = aggregate("feed_iterable", "mtls", parts, profile)
     assert result.duration_s == pytest.approx(6.0)
     assert result.requests == 7  # 3 from A inside [2, 8], 4 from B

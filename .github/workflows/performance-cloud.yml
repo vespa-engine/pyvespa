@@ -2,16 +2,6 @@ name: Performance - cloud
 
 on:
   workflow_dispatch:
-    inputs:
-      k6_sweep:
-        description: >-
-          k6 concurrency sweep: comma-separated VUs per transport, e.g.
-          100,200,400,800. When set, only the sweep runs (tests/performance/
-          test_k6_sweep.py) and its table lands in the job summary and the
-          report artifact. Use it to set LoadProfile.concurrency.
-        required: false
-        type: string
-        default: ""
   push:
     branches:
       - master
@@ -39,10 +29,8 @@ jobs:
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           version: "0.6.16"
-          # Own cache key: this job runs ~30 min, and the sibling workflows on
-          # the same push otherwise create the shared key first, so the
-          # post-step warns "Unable to reserve cache ... another job may be
-          # creating this cache".
+          # Own cache key: sibling workflows on the same push otherwise create
+          # the shared key first and the post-step warns "Unable to reserve cache".
           cache-suffix: performance-cloud
 
       - name: Set up Python
@@ -77,30 +65,26 @@ jobs:
           printf '%s\n' "$VESPA_PERFORMANCE_MTLS_KEY" > "$CERT_DIR/data-plane-private-key.pem"
           chmod 600 "$CERT_DIR/data-plane-private-key.pem"
 
-      # Hosted runners land on different CPU models; the client-bound pyvespa
-      # lane moves up to ~1.8x with it. Record the hardware with the report.
+      # Hosted runners land on different CPUs; record which one, plus a
+      # single-thread Python score, so client CPU per request can be compared.
       - name: Record runner hardware
         env:
           PERFORMANCE_REPORT_DIR: ${{ runner.temp }}/performance-report
         run: |
-          uv run python .github/scripts/runner_info.py "$PERFORMANCE_REPORT_DIR" \
-            | tee -a "$GITHUB_STEP_SUMMARY"
+          mkdir -p "$PERFORMANCE_REPORT_DIR"
+          SCORE=$(uv run python -c 'import json,time;n=200000;t=time.perf_counter();[json.loads(json.dumps({"id":"x","title":"t","body":"b"})) for _ in range(n)];print(f"{n/(time.perf_counter()-t):,.0f}")')
+          printf '## Runner\n- CPU: %s (%s vCPU)\n- Python json score: %s ops/s\n' \
+            "$(lscpu | sed -n 's/^Model name: *//p')" "$(nproc)" "$SCORE" \
+            | tee "$PERFORMANCE_REPORT_DIR/runner.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run performance tests
         env:
           VESPA_TEAM_API_KEY: ${{ secrets.VESPA_TEAM_API_KEY }}
           VESPA_CLOUD_SECRET_TOKEN: ${{ secrets.VESPA_CLOUD_SECRET_TOKEN }}
           PERFORMANCE_REPORT_DIR: ${{ runner.temp }}/performance-report
-          PERFORMANCE_K6_SWEEP: ${{ inputs.k6_sweep }}
           PYTHONUNBUFFERED: "1"
         run: |
-          if [ -n "$PERFORMANCE_K6_SWEEP" ]; then
-            TARGETS="tests/performance/test_k6_sweep.py"
-          else
-            TARGETS="tests/performance/ --ignore=tests/performance/test_k6_sweep.py"
-          fi
-          # shellcheck disable=SC2086
-          uv run pytest $TARGETS -m performance -s -v \
+          uv run pytest tests/performance/ -m performance -s -v \
             --junitxml="$PERFORMANCE_REPORT_DIR/junit.xml"
 
       # TODO: use test-summary/action
@@ -110,9 +94,6 @@ jobs:
         run: |
           python3 .github/scripts/junit_to_summary.py \
             "$RUNNER_TEMP/performance-report/junit.xml" >> "$GITHUB_STEP_SUMMARY"
-          if [ -f "$RUNNER_TEMP/performance-report/k6_sweep.md" ]; then
-            cat "$RUNNER_TEMP/performance-report/k6_sweep.md" >> "$GITHUB_STEP_SUMMARY"
-          fi
 
       - name: Convert performance reports to Prometheus format
         if: always()

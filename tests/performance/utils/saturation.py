@@ -1,18 +1,6 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
-"""Evidence that the instance, not the load generator, was the bottleneck.
-
-Two probes, recorded on every LaneResult and asserted by
-`utils.metrics.assert_measurement_valid`:
-
-- `RunnerCpu`: whole-runner CPU busy fraction over a window from /proc/stat
-  (Linux; None elsewhere). Above ~70% the load generator itself is saturated
-  and its throughput number says nothing about Vespa.
-- `server_cpu_util`: node CPU utilization per Vespa cluster from the
-  application's data-plane /prometheus/v1/values (`cpu_util`, percent, from
-  the metrics proxy). Near 100% on the container cluster at the measured
-  concurrency is the proof the instance was the limit.
-"""
+"""Sample runner and instance CPU to detect invalid performance measurements."""
 
 import re
 import threading
@@ -67,13 +55,7 @@ class RunnerCpu:
 
 
 def server_cpu_util(app: Vespa) -> Tuple[Dict[str, float], Optional[float]]:
-    """(cpu_util 0..1 per clusterId, snapshot time as epoch seconds) from the
-    data-plane Prometheus endpoint. The metrics proxy publishes a new snapshot
-    about once a minute; the timestamp says which interval a value covers.
-
-    Returns ({}, None) if the endpoint is unreachable so a metrics hiccup never
-    fails a run by itself; the validity check treats a missing value as unknown.
-    """
+    """Read per-cluster CPU fractions and snapshot time; return ({}, None) if unavailable."""
     try:
         with VespaSync(app=app, pool_connections=1, pool_maxsize=1) as session:
             response = session.http_client.get(
@@ -99,14 +81,7 @@ def server_cpu_util(app: Vespa) -> Tuple[Dict[str, float], Optional[float]]:
 
 
 class ServerCpuSampler:
-    """Poll `server_cpu_util` on a thread while the load runs and report the
-    peak per cluster over the snapshots that cover the load.
-
-    A snapshot stamped T covers roughly [T - 60 s, T]. Only snapshots stamped
-    at least `SNAPSHOT_S` after the load started (fully inside the load) and no
-    later than `SNAPSHOT_S` after it ended count. `stop()` keeps polling for up
-    to `SNAPSHOT_S` after the load so the last covering snapshot is not missed.
-    Falls back to the peak of all samples when no snapshot qualifies."""
+    """Report peak CPU from snapshots covering the load (each spans about 60 seconds)."""
 
     SNAPSHOT_S = 60.0
 

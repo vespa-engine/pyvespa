@@ -1,26 +1,15 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
-"""Multi-process load generation for the pyvespa lane.
-
-One Python process is GIL-bound at roughly 2000 feed requests/s on a hosted
-runner, below what the performance instance can absorb, so a single process
-would measure the client and the runner's CPU rather than Vespa. Each method is
-therefore run in `LoadProfile.processes` worker processes per transport, each
-owning a share of the concurrency, and the samples are merged here.
-
-Client behaviour is pinned to match the k6 script: no retries (a 429 is a
-failed, rate-limited request on both sides), no compression, 120 s timeout.
-
-This module is imported by spawned worker processes: keep it free of pytest.
-"""
+"""Spawn workers per transport to avoid a GIL bottleneck; keep this module free of pytest."""
 
 import asyncio
 import os
 import time
+from collections import Counter
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from multiprocessing import get_context
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 from vespa.application import Vespa, VespaSync
 from vespa.retries import NO_RETRY
@@ -37,15 +26,20 @@ from utils.workloads import (
     make_doc,
 )
 
+BATCH_METHODS = ("feed_iterable", "feed_async_iterable")
+HTTP_MODE = {
+    "sync_feed_data_point": SYNC_HTTP_MODE,
+    "async_feed_data_point": ASYNC_HTTP_MODE,
+    "feed_iterable": SYNC_HTTP_MODE,
+    "feed_async_iterable": ASYNC_HTTP_MODE,
+}
+# (completed_at as time.time(), HTTP status or 0 for no response, latency ms or None)
+Completion = Tuple[float, int, Optional[float]]
+
 
 @dataclass(frozen=True)
 class Target:
-    """Connection details for one transport, picklable for worker processes.
-
-    Vespa objects are built inside the worker (mirrors
-    VespaCloud.get_application) so no client state crosses the process
-    boundary. The token is excluded from repr.
-    """
+    """Picklable connection details; each worker builds its own client."""
 
     transport: str  # "token" | "mtls"
     url: str
@@ -54,10 +48,7 @@ class Target:
     token: Optional[str] = field(default=None, repr=False)
 
     def app(self) -> Vespa:
-        # k6 sends no Accept-Encoding, so its responses come back uncompressed;
-        # httpr asks for zstd/gzip/deflate/br by default and the container
-        # gzips every response for it. Pin identity so both lanes cost the
-        # instance the same per request. (pyvespa's default is compression on.)
+        # Match k6: httpr otherwise requests compressed responses.
         headers = {"Accept-Encoding": "identity"}
         if self.transport == "mtls":
             return Vespa(
@@ -75,110 +66,48 @@ class Target:
 
 @dataclass
 class WorkerResult:
-    """What one worker process measured inside its window."""
+    """One worker process: its measurement window, CPU time over it, completions."""
 
-    requests: int
-    errors: int
-    rate_limited: int  # responses with status 429 (also counted as errors)
-    latencies_ms: List[float]  # empty for the iterable (batch) methods
-    started: float  # time.time(), comparable across processes
+    started: float  # time.time(); closed loops: end of warmup
     finished: float
-    cpu_s: float  # process CPU time over the measurement window
-    # Iterable (batch) methods only: (completed_at time.time(), status) per
-    # document, so the parent can count completions inside the window where
-    # every worker process was still feeding.
-    completions: List[Tuple[float, int]] = field(default_factory=list)
-    # status (or "error") -> count over the measured requests
-    status_counts: Dict[str, int] = field(default_factory=dict)
+    cpu_s: float
+    completions: List[Completion]
 
 
-def _windows(profile: LoadProfile):
-    """(warmup_end, deadline) on perf_counter, measured from now."""
-    start = time.perf_counter()
-    return start + profile.warmup_s, start + profile.warmup_s + profile.duration_s
-
-
-def _status_from_exception(error: BaseException) -> Optional[int]:
-    """HTTP status behind a raised error, if any. pyvespa's sync paths raise on
-    non-2xx (``raise_for_status``), with the response attached to the
-    ``HTTPError`` that is the ``VespaError``'s cause."""
-    seen = 0
-    while error is not None and seen < 5:
-        response = getattr(error, "response", None)
-        status = getattr(response, "status_code", None)
+def _status(response, error: Optional[BaseException]) -> int:
+    """HTTP status of a response, or of the response behind a raised sync error."""
+    if error is None:
+        return response.status_code
+    for _ in range(5):
+        status = getattr(getattr(error, "response", None), "status_code", None)
         if isinstance(status, int):
             return status
         error = error.__cause__ or error.__context__
-        seen += 1
-    return None
-
-
-def _sample(begin: float, response, error: Optional[BaseException]) -> Dict:
-    completed = time.perf_counter()
-    if error is not None:
-        status, ok = _status_from_exception(error), False
-    else:
-        status, ok = response.status_code, response.is_successful()
-    return {
-        "completed_at": completed,
-        "latency_ms": (completed - begin) * 1000,
-        "ok": ok,
-        "status": status,
-    }
-
-
-def _closed_loop_result(
-    samples: List[Dict], warmup_end: float, deadline: float, started: float, cpu_s
-) -> WorkerResult:
-    measured = [s for s in samples if warmup_end <= s["completed_at"] <= deadline]
-    return WorkerResult(
-        requests=len(measured),
-        errors=sum(1 for s in measured if not s["ok"]),
-        rate_limited=sum(1 for s in measured if s["status"] == 429),
-        latencies_ms=[s["latency_ms"] for s in measured],
-        started=started,
-        finished=time.time(),
-        cpu_s=cpu_s,
-        status_counts=_count_statuses(s["status"] for s in measured),
-    )
-
-
-def _count_statuses(statuses) -> Dict[str, int]:
-    counts: Dict[str, int] = {}
-    for status in statuses:
-        key = str(status) if status is not None else "error"
-        counts[key] = counts.get(key, 0) + 1
-    return counts
-
-
-def _sleep_until(perf_deadline: float) -> None:
-    time.sleep(max(0.0, perf_deadline - time.perf_counter()))
+        if error is None:
+            break
+    return 0
 
 
 def sync_feed_data_point(target: Target, profile: LoadProfile, worker: int):
     """VespaSync.feed_data_point, `profile.concurrency` threads, closed loop."""
-    app = target.app()
-    prefix = f"sfdp-{target.transport}-{worker}"
-    started = time.time()
-    warmup_end, deadline = _windows(profile)
+    app, prefix = target.app(), f"sfdp-{target.transport}-{worker}"
+    warmup_end = time.time() + profile.warmup_s
+    deadline = warmup_end + profile.duration_s
 
-    def loop(sync_app: VespaSync) -> List[Dict]:
-        samples: List[Dict] = []
-        while time.perf_counter() < deadline:
+    def loop(sync_app: VespaSync) -> List[Completion]:
+        completions: List[Completion] = []
+        while time.time() < deadline:
             doc_id, fields = make_doc(prefix)
             begin = time.perf_counter()
             try:
-                response = sync_app.feed_data_point(
-                    schema=SCHEMA, data_id=doc_id, fields=fields
-                )
-                samples.append(_sample(begin, response, error=None))
+                response, error = sync_app.feed_data_point(SCHEMA, doc_id, fields), None
             except Exception as e:
-                samples.append(_sample(begin, None, error=e))
-        return samples
+                response, error = None, e
+            latency = (time.perf_counter() - begin) * 1000
+            completions.append((time.time(), _status(response, error), latency))
+        return completions
 
-    # One pooled client shared by the threads (as feed_iterable does), one
-    # connection per thread. A client per thread, each with its own runtime,
-    # doubled p99 latency and left the instance at ~70% CPU at 400 threads.
+    # Share one multiplexed connection, as feed_iterable does.
     with VespaSync(
         app=app,
         pool_connections=profile.concurrency,
@@ -190,79 +119,69 @@ def sync_feed_data_point(target: Target, profile: LoadProfile, worker: int):
             futures = [
                 executor.submit(loop, sync_app) for _ in range(profile.concurrency)
             ]
-            _sleep_until(warmup_end)
+            time.sleep(max(0.0, warmup_end - time.time()))
             cpu_start = time.process_time()
-            per_thread = [f.result() for f in futures]
+            completions = [c for f in futures for c in f.result()]
             cpu_s = time.process_time() - cpu_start
-    samples = [s for thread in per_thread for s in thread]
-    return _closed_loop_result(samples, warmup_end, deadline, started, cpu_s)
+    return WorkerResult(warmup_end, deadline, cpu_s, completions)
 
 
 def async_feed_data_point(target: Target, profile: LoadProfile, worker: int):
     """VespaAsync.feed_data_point, `profile.concurrency` coroutines, closed loop."""
-    app = target.app()
-    prefix = f"afdp-{target.transport}-{worker}"
-    started = time.time()
+    app, prefix = target.app(), f"afdp-{target.transport}-{worker}"
 
-    async def run():
-        samples: List[Dict] = []
+    async def run() -> WorkerResult:
+        completions: List[Completion] = []
         async with app.asyncio(
             connections=profile.async_connections,
             compress=False,
             docv1_retry_policy=NO_RETRY,
         ) as session:
-            warmup_end, deadline = _windows(profile)
+            warmup_end = time.time() + profile.warmup_s
+            deadline = warmup_end + profile.duration_s
 
             async def loop() -> None:
-                while time.perf_counter() < deadline:
+                while time.time() < deadline:
                     doc_id, fields = make_doc(prefix)
                     begin = time.perf_counter()
                     try:
                         response = await session.feed_data_point(
                             schema=SCHEMA, data_id=doc_id, fields=fields
                         )
-                        samples.append(_sample(begin, response, error=None))
+                        error = None
                     except Exception as e:
-                        samples.append(_sample(begin, None, error=e))
+                        response, error = None, e
+                    latency = (time.perf_counter() - begin) * 1000
+                    completions.append((time.time(), _status(response, error), latency))
 
             loops = asyncio.gather(*(loop() for _ in range(profile.concurrency)))
-            await asyncio.sleep(max(0.0, warmup_end - time.perf_counter()))
+            await asyncio.sleep(max(0.0, warmup_end - time.time()))
             cpu_start = time.process_time()
             await loops
-            cpu_s = time.process_time() - cpu_start
-            return samples, warmup_end, deadline, cpu_s
+            return WorkerResult(
+                warmup_end, deadline, time.process_time() - cpu_start, completions
+            )
 
-    samples, warmup_end, deadline, cpu_s = asyncio.run(run())
-    return _closed_loop_result(samples, warmup_end, deadline, started, cpu_s)
+    return asyncio.run(run())
 
 
 def _iterable(target: Target, profile: LoadProfile, worker: int, method: str):
-    """feed_iterable / feed_async_iterable own their loop and clients, so only
-    completion times and statuses (from the callback) and CPU are measurable:
-    throughput, error and 429 rates, no per-request latency."""
-    app = target.app()
-    prefix = f"{method}-{target.transport}-{worker}"
+    """Batch APIs expose completion times and statuses, but no per-request latency."""
+    app, prefix = target.app(), f"{method}-{target.transport}-{worker}"
+    completions: List[Completion] = []
 
-    def make_batch(count: int) -> List[Dict]:
+    def make_batch(count: int) -> List[dict]:
         return [
-            {"id": doc_id, "fields": fields}
-            for doc_id, fields in (make_doc(prefix) for _ in range(count))
+            {"id": d, "fields": f} for d, f in (make_doc(prefix) for _ in range(count))
         ]
 
-    completions: List[Tuple[float, int]] = []
-
-    def callback(response, doc_id: str) -> None:
-        completions.append((time.time(), response.status_code))
-
-    def feed(docs: List[Dict], cb) -> None:
+    def feed(docs: List[dict], callback) -> None:
         if method == "feed_iterable":
-            # max_queue_size bounds the futures the consumer keeps rescanning
-            # (2 x max_queue_size); the default 1000 made this path 4x the
-            # client CPU of the others and CPU-bound on a 4-vCPU runner.
+            # Bound queue scanning overhead so the runner does not become CPU-bound.
             app.feed_iterable(
                 docs,
                 schema=SCHEMA,
-                callback=cb,
+                callback=callback,
                 max_workers=profile.concurrency,
                 max_connections=profile.concurrency,
                 max_queue_size=profile.concurrency,
@@ -273,7 +192,7 @@ def _iterable(target: Target, profile: LoadProfile, worker: int, method: str):
             app.feed_async_iterable(
                 docs,
                 schema=SCHEMA,
-                callback=cb,
+                callback=callback,
                 max_workers=profile.concurrency,
                 max_connections=profile.async_connections,
                 max_queue_size=profile.concurrency,
@@ -282,27 +201,13 @@ def _iterable(target: Target, profile: LoadProfile, worker: int, method: str):
 
     # Untimed warmup batch: connection/TLS setup stays out of the measurement.
     feed(make_batch(profile.iterable_warmup_docs), lambda response, doc_id: None)
-
     docs = make_batch(profile.iterable_docs)
-    started = time.time()
-    cpu_start = time.process_time()
-    feed(docs, callback)
+    started, cpu_start = time.time(), time.process_time()
+    feed(docs, lambda r, doc_id: completions.append((time.time(), r.status_code, None)))
     cpu_s = time.process_time() - cpu_start
-    return WorkerResult(
-        requests=len(docs),
-        errors=sum(1 for _, s in completions if s != 200)
-        + (len(docs) - len(completions)),
-        rate_limited=sum(1 for _, s in completions if s == 429),
-        latencies_ms=[],
-        started=started,
-        finished=time.time(),
-        cpu_s=cpu_s,
-        completions=completions,
-        status_counts=_count_statuses(
-            [status for _, status in completions]
-            + [None] * (len(docs) - len(completions))
-        ),
-    )
+    # Documents without a callback count as failed.
+    completions += [(time.time(), 0, None)] * (len(docs) - len(completions))
+    return WorkerResult(started, time.time(), cpu_s, completions)
 
 
 def feed_iterable(target: Target, profile: LoadProfile, worker: int):
@@ -313,18 +218,11 @@ def feed_async_iterable(target: Target, profile: LoadProfile, worker: int):
     return _iterable(target, profile, worker, "feed_async_iterable")
 
 
-WORKERS: Dict[str, Callable[[Target, LoadProfile, int], WorkerResult]] = {
+WORKERS: dict = {
     "sync_feed_data_point": sync_feed_data_point,
     "async_feed_data_point": async_feed_data_point,
     "feed_iterable": feed_iterable,
     "feed_async_iterable": feed_async_iterable,
-}
-
-HTTP_MODE = {
-    "sync_feed_data_point": SYNC_HTTP_MODE,
-    "async_feed_data_point": ASYNC_HTTP_MODE,
-    "feed_iterable": SYNC_HTTP_MODE,
-    "feed_async_iterable": ASYNC_HTTP_MODE,
 }
 
 
@@ -332,50 +230,32 @@ def aggregate(
     method: str, transport: str, parts: List[WorkerResult], profile: LoadProfile
 ) -> LaneResult:
     """Merge the worker processes of one transport into a LaneResult."""
-    cpu_s = sum(p.cpu_s for p in parts)
-    latencies = [x for p in parts for x in p.latencies_ms]
-    if latencies:
-        # Closed loop: every process counted completions inside its own
-        # `duration_s` window, so the exact aggregate rate is count / window.
-        requests = sum(p.requests for p in parts)
-        errors = sum(p.errors for p in parts)
-        rate_limited = sum(p.rate_limited for p in parts)
-        duration_s = profile.duration_s
-        p50, p95, p99 = percentiles(latencies)
-        status_counts: Dict[str, int] = {}
-        for p in parts:
-            for key, count in p.status_counts.items():
-                status_counts[key] = status_counts.get(key, 0) + count
-    else:
-        # Batch APIs: the same definition as the closed loop. Count only the
-        # completions inside the window where every process was feeding (from
-        # the last process to start until the first to finish), so the ramp-up
-        # and the tail where stragglers run at reduced concurrency are excluded.
-        # time.time() is shared across processes.
-        start = max(p.started for p in parts)
-        end = min(p.finished for p in parts)
+    if method in BATCH_METHODS:
+        # Only count while every process is feeding, so startup and the tail
+        # where stragglers run at reduced concurrency are excluded.
+        start, end = max(p.started for p in parts), min(p.finished for p in parts)
         if end <= start:  # pathological skew: fall back to the whole span
-            start = min(p.started for p in parts)
-            end = max(p.finished for p in parts)
-        window = [
-            status
-            for p in parts
-            for completed_at, status in p.completions
-            if start <= completed_at <= end
-        ]
-        requests = len(window)
-        errors = sum(1 for s in window if s != 200)
-        rate_limited = sum(1 for s in window if s == 429)
+            start, end = min(p.started for p in parts), max(p.finished for p in parts)
+        window = [c for p in parts for c in p.completions if start <= c[0] <= end]
         duration_s = end - start
-        p50 = p95 = p99 = None
-        status_counts = _count_statuses(window)
+    else:
+        # Each process counted completions inside its own window of duration_s.
+        window = [
+            c for p in parts for c in p.completions if p.started <= c[0] <= p.finished
+        ]
+        duration_s = profile.duration_s
+    statuses = [status for _, status, _ in window]
+    latencies = [latency for _, _, latency in window if latency is not None]
+    p50, p95, p99 = percentiles(latencies) if latencies else (None, None, None)
+    requests = len(window)
+    cpu_s = sum(p.cpu_s for p in parts)
     return LaneResult(
         lane="pyvespa",
         method=method,
         transport=transport,
         http=HTTP_MODE[method],
         rps=requests / duration_s if duration_s > 0 else 0.0,
-        error_rate=errors / requests if requests else 1.0,
+        error_rate=sum(s != 200 for s in statuses) / requests if requests else 1.0,
         requests=requests,
         duration_s=duration_s,
         concurrency=profile.concurrency,
@@ -385,8 +265,8 @@ def aggregate(
         processes=profile.processes,
         connections=profile.connections(),
         cpu_ms_per_request=cpu_s * 1000 / requests if requests else None,
-        rate_limited_rate=rate_limited / requests if requests else None,
-        status_counts=status_counts,
+        rate_limited_rate=statuses.count(429) / requests if requests else None,
+        status_counts=dict(Counter(str(s) if s else "error" for s in statuses)),
         # Fallback when /proc/stat is unavailable: our processes' CPU over the
         # window as a share of the machine.
         client_cpu_fraction=(
@@ -401,20 +281,16 @@ def run_method(
     profile: LoadProfile,
     metrics_app: Optional[Vespa] = None,
 ) -> List[LaneResult]:
-    """Run `method` for every target concurrently, each spread over
-    `profile.processes` worker processes, and return one LaneResult per target
-    in the given order, stamped with runner CPU and (if `metrics_app` is given)
-    the instance's peak CPU utilization sampled during the run."""
-    worker_fn = WORKERS[method]
+    """Run all targets concurrently, then merge workers and attach CPU measurements."""
+    worker_fn: Callable = WORKERS[method]
     share = profile.per_process()
     load_start = time.time()
     runner_cpu = RunnerCpu().start()
     sampler = ServerCpuSampler(metrics_app).start() if metrics_app is not None else None
     # spawn: no inherited threads or sockets, and the default on every platform
     # from Python 3.14. Children import this module via the parent's sys.path.
-    context = get_context("spawn")
     with ProcessPoolExecutor(
-        max_workers=len(targets) * profile.processes, mp_context=context
+        max_workers=len(targets) * profile.processes, mp_context=get_context("spawn")
     ) as executor:
         futures = {
             target.transport: [

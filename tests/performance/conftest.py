@@ -30,11 +30,7 @@ from utils.workloads import (
 
 @dataclass(frozen=True)
 class PerformanceEndpoints:
-    """Connection details for both performance lanes (k6 and pyvespa).
-
-    The token and app objects are excluded from repr so pytest failure
-    output (which prints fixture values) never contains the secret.
-    """
+    """Connection details; credentials and clients are excluded from pytest repr."""
 
     mtls_url: str
     token_url: str
@@ -58,19 +54,7 @@ def _require_env_var(name: str) -> str:
 
 @pytest.fixture(scope="session")
 def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]:
-    """
-    Connect to the already-deployed, persistent prod performance instance and
-    yield its mTLS + token endpoint details for both performance lanes.
-
-    This does NOT deploy: the instance is created once by
-    test_deploy_performance_instance.py and reused across runs for stable, comparable
-    regression numbers. Endpoint lookups are read-only control-plane calls.
-
-    Requires the environment variables VESPA_TEAM_API_KEY (control plane) and
-    VESPA_CLOUD_SECRET_TOKEN (token data plane). mTLS additionally needs the
-    data-plane cert/key pair locally (written by the deploy step into
-    ~/.vespa/{tenant}.{app}.{instance}/); if absent, the test is skipped.
-    """
+    """Connect to the persistent app, warm it, and clean up after the session."""
 
     api_key = _require_env_var("VESPA_TEAM_API_KEY")
     secret_token = _require_env_var("VESPA_CLOUD_SECRET_TOKEN")
@@ -88,13 +72,7 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
             "'vespa auth cert'."
         )
 
-    # Control-plane connection only (no deploy). VespaCloud requires
-    # application_package or application_root even for read-only endpoint
-    # lookups, so pass a placeholder root -- get_*_endpoint hit the control-plane
-    # API and never read it. The constructor loads the data-plane cert pair from
-    # ~/.vespa/{tenant}.{app}.{instance}/ (a ./.vespa directory in the cwd would
-    # take precedence) and, as a side effect, updates the global vespa CLI
-    # config to point at this application.
+    # Endpoint lookup requires a placeholder application_root but does not deploy.
     vespa_cloud = VespaCloud(
         tenant=TENANT,
         application=APPLICATION,
@@ -143,12 +121,7 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
         token_app=token_app,
     )
 
-    # Warm the instance (JIT, caches, connections) before the first measured
-    # test, so whichever lane runs first is not penalized for finding a cold
-    # container, and use the warmup's throughput as this session's ceiling
-    # estimate. Together with the network RTT it sets the concurrency that
-    # puts LoadProfile.server_queue_target requests inside the instance
-    # regardless of where the load generator runs.
+    # Use warmup throughput and network RTT to set the shared concurrency.
     if shutil.which("k6") is not None:
         from utils.k6_lane import run_k6
 
@@ -157,7 +130,6 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
             endpoints,
             WARMUP,
             Path(os.environ.get("PERFORMANCE_REPORT_DIR") or ".") / "k6_warmup.json",
-            extra_env=None,
         )
         mtls_app.delete_all_docs(
             content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
@@ -187,8 +159,7 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
 
 
 def _network_rtt_s(app, samples: int = 20) -> float:
-    """Round trip to the endpoint: the minimum of `samples` sequential tiny
-    GETs on one warm connection (network plus a negligible handler)."""
+    """Minimum round trip over sequential GETs on a warm connection."""
     best = float("inf")
     with VespaSync(app=app, pool_connections=1, pool_maxsize=1) as session:
         url = f"{app.end_point}/ApplicationStatus"
@@ -201,9 +172,7 @@ def _network_rtt_s(app, samples: int = 20) -> float:
 
 
 def _wait_until_instance_idle(app, max_wait_s: float = 240.0) -> None:
-    """Block until the container and content nodes are quiet (or max_wait_s),
-    so background work left by the previous test or cleanup does not bleed
-    into the next measurement. The metrics proxy refreshes about once a minute."""
+    """Wait up to max_wait_s for background work from cleanup or the previous test."""
     from utils.saturation import server_cpu_util
 
     deadline = time.time() + max_wait_s
@@ -221,29 +190,16 @@ def _wait_until_instance_idle(app, max_wait_s: float = 240.0) -> None:
 
 @pytest.fixture(autouse=True)
 def settled_instance(vespa_cloud_token_endpoints):
-    """Start every test on a quiet instance. Deleting the previous test's
-    documents between tests (PERFORMANCE_CLEAN_BETWEEN_TESTS=1) is opt-in:
-    removing ~600k documents per test left the content node busy for minutes
-    (compaction, tombstone pruning) and halved a later test's throughput, a
-    bigger state change than letting the corpus grow within a session."""
+    """Wait for background work from the previous test to settle."""
     _wait_until_instance_idle(vespa_cloud_token_endpoints.mtls_app)
-    yield
-    if os.environ.get("PERFORMANCE_CLEAN_BETWEEN_TESTS") == "1":
-        print("\n=== Cleanup: deleting documents fed by this test ===")
-        vespa_cloud_token_endpoints.mtls_app.delete_all_docs(
-            content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
-        )
-        print("Documents deleted.")
 
 
 @pytest.fixture(scope="session")
 def run_state() -> Dict:
-    """Results shared across tests in one session, e.g. the opening k6 run so
-    the closing k6 run can report how much the instance drifted meanwhile."""
+    """Share the opening k6 baseline with the remaining tests."""
     return {}
 
 
 def pytest_collection_modifyitems(items):
-    """Run tests marked `perf_last` after everything else (k6 first and last
-    brackets the pyvespa methods, so instance drift within the run is visible)."""
+    """Bracket the pyvespa tests with opening and closing k6 runs."""
     items.sort(key=lambda item: 1 if item.get_closest_marker("perf_last") else 0)

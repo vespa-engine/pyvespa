@@ -1,6 +1,6 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
-"""Shared k6 runner and summary parsing for the k6 lane and the sweep."""
+"""Run k6 and parse its measured-window metrics."""
 
 import json
 import os
@@ -8,7 +8,7 @@ import subprocess
 import time
 from dataclasses import replace
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List
 
 from utils.metrics import LaneResult
 from utils.saturation import RunnerCpu, ServerCpuSampler
@@ -77,12 +77,8 @@ def lane_result(metrics: dict, transport: str, profile: LoadProfile) -> LaneResu
     )
 
 
-def run_k6(
-    endpoints, profile: LoadProfile, summary_file: Path, extra_env: Optional[Dict]
-) -> List[LaneResult]:
-    """Run the k6 script with `profile` against `endpoints` and return the
-    [token, mtls] LaneResults, stamped with runner CPU over the run and the
-    instance's peak CPU utilization sampled during it. Raises K6Error if k6 fails."""
+def run_k6(endpoints, profile: LoadProfile, summary_file: Path) -> List[LaneResult]:
+    """Run k6 and attach runner and instance CPU measurements to each result."""
     env = {
         **os.environ,
         "TOKEN_URL": endpoints.token_url,
@@ -91,7 +87,6 @@ def run_k6(
         "MTLS_CERT_PATH": endpoints.cert_path,
         "MTLS_KEY_PATH": endpoints.key_path,
         **profile.k6_env(),
-        **(extra_env or {}),
     }
     command = ["k6", "run", "--summary-export", str(summary_file)]
     if os.environ.get("CI"):

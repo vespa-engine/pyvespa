@@ -209,18 +209,3 @@ def assert_token_vs_mtls(
             f"(token p95={token.p95_ms} ms, mTLS p95={mtls.p95_ms} ms, "
             f"max ratio={thresholds.max_token_p95_ratio})"
         )
-
-
-def summarize_samples(samples: List[Dict]) -> Dict:
-    """Reduce closed-loop samples [{latency_ms, ok}] to aggregate fields."""
-    requests = len(samples)
-    errors = sum(1 for s in samples if not s["ok"])
-    latencies = [s["latency_ms"] for s in samples]
-    p50, p95, p99 = percentiles(latencies)
-    return {
-        "requests": requests,
-        "error_rate": errors / requests if requests else 1.0,
-        "p50_ms": p50,
-        "p95_ms": p95,
-        "p99_ms": p99,
-    }

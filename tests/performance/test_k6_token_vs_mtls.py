@@ -18,7 +18,7 @@ from utils.metrics import (
     resolve_report_dir,
     write_records,
 )
-from utils.workloads import K6_THRESHOLDS, VALIDITY
+from utils.workloads import THRESHOLDS, VALIDITY
 
 
 if shutil.which("k6") is None:
@@ -30,7 +30,6 @@ def _measure(endpoints, report_dir, name: str) -> List[LaneResult]:
         endpoints,
         endpoints.profile,
         report_dir / f"{name}_summary.json",
-        extra_env=None,
     )
     write_records([token, mtls], report_dir, name)
     return [token, mtls]
@@ -38,7 +37,7 @@ def _measure(endpoints, report_dir, name: str) -> List[LaneResult]:
 
 def _check(results: List[LaneResult]) -> None:
     token, mtls = results
-    assert_token_vs_mtls(token, mtls, K6_THRESHOLDS)
+    assert_token_vs_mtls(token, mtls, THRESHOLDS)
     assert_measurement_valid([token, mtls], VALIDITY)
 
 

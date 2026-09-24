@@ -1,10 +1,6 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
-"""pyvespa lane: the real pyvespa feed code paths under the same load shape as
-k6. Each method runs in PROFILE.processes worker processes per transport (see
-utils/loadgen.py), token and mTLS concurrently, with retries and compression
-off, so the instance rather than the Python client is the bottleneck and a 429
-means the same thing in both lanes."""
+"""Compare four pyvespa feed paths against the opening k6 baseline."""
 
 import pytest
 
@@ -15,7 +11,12 @@ from utils.metrics import (
     resolve_report_dir,
     write_records,
 )
-from utils.workloads import MIN_PYVESPA_VS_K6_RATIO, PYVESPA_THRESHOLDS, VALIDITY
+from utils.workloads import (
+    MIN_PYVESPA_VS_K6_RATIO,
+    PYVESPA_METHODS,
+    THRESHOLDS,
+    VALIDITY,
+)
 
 
 def _targets(endpoints) -> list:
@@ -30,7 +31,11 @@ def _targets(endpoints) -> list:
     ]
 
 
-def _run_pair(endpoints, report_dir, method: str, run_state: dict) -> None:
+@pytest.mark.performance
+@pytest.mark.parametrize("method", PYVESPA_METHODS)
+def test_pyvespa_performance(vespa_cloud_token_endpoints, tmp_path, run_state, method):
+    endpoints = vespa_cloud_token_endpoints
+    report_dir = resolve_report_dir(tmp_path)
     profile = endpoints.profile
     share = profile.per_process()
     expected_s = int(profile.warmup_s + profile.duration_s)
@@ -44,7 +49,7 @@ def _run_pair(endpoints, report_dir, method: str, run_state: dict) -> None:
         method, _targets(endpoints), profile, metrics_app=endpoints.mtls_app
     )
     write_records([token, mtls], report_dir, f"pyvespa_{method}")
-    assert_token_vs_mtls(token, mtls, PYVESPA_THRESHOLDS[method])
+    assert_token_vs_mtls(token, mtls, THRESHOLDS)
     assert_measurement_valid([token, mtls], VALIDITY)
     k6_first = run_state.get("k6_first")
     if not k6_first:
@@ -59,44 +64,4 @@ def _run_pair(endpoints, report_dir, method: str, run_state: dict) -> None:
         f"{method}: {total:.0f} rps is below {MIN_PYVESPA_VS_K6_RATIO:.0%} of the k6 "
         f"ceiling {k6_total:.0f} rps measured in this session; the client path, not "
         "the instance, limited throughput."
-    )
-
-
-@pytest.mark.performance
-def test_sync_feed_data_point(vespa_cloud_token_endpoints, tmp_path, run_state):
-    _run_pair(
-        vespa_cloud_token_endpoints,
-        resolve_report_dir(tmp_path),
-        "sync_feed_data_point",
-        run_state,
-    )
-
-
-@pytest.mark.performance
-def test_async_feed_data_point(vespa_cloud_token_endpoints, tmp_path, run_state):
-    _run_pair(
-        vespa_cloud_token_endpoints,
-        resolve_report_dir(tmp_path),
-        "async_feed_data_point",
-        run_state,
-    )
-
-
-@pytest.mark.performance
-def test_feed_iterable(vespa_cloud_token_endpoints, tmp_path, run_state):
-    _run_pair(
-        vespa_cloud_token_endpoints,
-        resolve_report_dir(tmp_path),
-        "feed_iterable",
-        run_state,
-    )
-
-
-@pytest.mark.performance
-def test_feed_async_iterable(vespa_cloud_token_endpoints, tmp_path, run_state):
-    _run_pair(
-        vespa_cloud_token_endpoints,
-        resolve_report_dir(tmp_path),
-        "feed_async_iterable",
-        run_state,
     )
