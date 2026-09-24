@@ -1514,7 +1514,11 @@ class Diversity(object):
 
 class MatchPhaseRanking(object):
     def __init__(
-        self, attribute: str, order: Literal["ascending", "descending"], max_hits: int
+        self,
+        attribute: str,
+        order: Literal["ascending", "descending"],
+        max_hits: Optional[int] = None,
+        total_max_hits: Optional[int] = None,
     ) -> None:
         r"""
         Create a Vespa match phase ranking configuration.
@@ -1526,17 +1530,27 @@ class MatchPhaseRanking(object):
         Args:
             attribute (str): The numeric attribute to use for filtering.
             order (str): The sort order, either "ascending" or "descending".
-            max_hits (int): Maximum number of hits to pass to the next phase.
+            max_hits (int, optional): Maximum number of hits per content node to pass to the next phase.
+            total_max_hits (int, optional): Maximum number of hits across all content nodes to pass to the next phase.
+
+        Raises:
+            ValueError: If neither or both of max_hits and total_max_hits are specified.
 
         Example:
             ```python
             MatchPhaseRanking(attribute="popularity", order="descending", max_hits=1000)
             MatchPhaseRanking('popularity', 'descending', 1000)
+            MatchPhaseRanking(attribute="popularity", order="descending", total_max_hits=1000)
             ```
         """
+        if (max_hits is None) == (total_max_hits is None):
+            raise ValueError(
+                "Exactly one of max_hits or total_max_hits must be specified."
+            )
         self.attribute = attribute
         self.order = order
         self.max_hits = max_hits
+        self.total_max_hits = total_max_hits
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
@@ -1545,9 +1559,17 @@ class MatchPhaseRanking(object):
             self.attribute == other.attribute
             and self.order == other.order
             and self.max_hits == other.max_hits
+            and self.total_max_hits == other.total_max_hits
         )
 
     def __repr__(self) -> str:
+        if self.total_max_hits is not None:
+            return "{0}({1}, {2}, total_max_hits={3})".format(
+                self.__class__.__name__,
+                repr(self.attribute),
+                repr(self.order),
+                repr(self.total_max_hits),
+            )
         return "{0}({1}, {2}, {3})".format(
             self.__class__.__name__,
             repr(self.attribute),

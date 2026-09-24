@@ -275,6 +275,52 @@ class TestFunction(unittest.TestCase):
         self.assertEqual(function.args_to_text, "")
 
 
+class TestMatchPhaseRanking(unittest.TestCase):
+    def test_max_hits_positional_compatibility(self):
+        config = MatchPhaseRanking("popularity", "descending", 1000)
+        self.assertEqual(config.max_hits, 1000)
+        self.assertIsNone(config.total_max_hits)
+        self.assertEqual(
+            repr(config), "MatchPhaseRanking('popularity', 'descending', 1000)"
+        )
+        self.assertEqual(
+            config,
+            MatchPhaseRanking("popularity", "descending", max_hits=1000),
+        )
+
+    def test_total_max_hits(self):
+        config = MatchPhaseRanking("popularity", "descending", total_max_hits=1000)
+        self.assertEqual(config.total_max_hits, 1000)
+        self.assertIsNone(config.max_hits)
+        self.assertEqual(
+            repr(config),
+            "MatchPhaseRanking('popularity', 'descending', total_max_hits=1000)",
+        )
+        self.assertEqual(
+            config,
+            MatchPhaseRanking("popularity", "descending", total_max_hits=1000),
+        )
+        self.assertNotEqual(
+            config,
+            MatchPhaseRanking("popularity", "descending", total_max_hits=2000),
+        )
+        self.assertNotEqual(config, MatchPhaseRanking("popularity", "descending", 1000))
+        self.assertNotEqual(config, object())
+
+    def test_exactly_one_limit_required(self):
+        for limits in (
+            {},
+            {"max_hits": None, "total_max_hits": None},
+            {"max_hits": 1000, "total_max_hits": 2000},
+            {"max_hits": 0, "total_max_hits": 0},
+        ):
+            with self.subTest(limits=limits):
+                with self.assertRaisesRegex(
+                    ValueError, "Exactly one of max_hits or total_max_hits"
+                ):
+                    MatchPhaseRanking("popularity", "descending", **limits)
+
+
 class TestRankProfile(unittest.TestCase):
     def test_rank_profile(self):
         rank_profile = RankProfile(name="bm25", first_phase="bm25(title) + bm25(body)")
@@ -1510,6 +1556,7 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
         self.assertEqual(rank_profile.match_phase.attribute, "popularity")
         self.assertEqual(rank_profile.match_phase.order, "descending")
         self.assertEqual(rank_profile.match_phase.max_hits, 1000)
+        self.assertIsNone(rank_profile.match_phase.total_max_hits)
 
     def test_schema_to_text_with_match_phase(self):
         schema = Schema(
@@ -1566,6 +1613,21 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
 }"""
 
         self.assertEqual(schema.schema_to_text, expected_schema)
+        for limit_name in ("max_hits", "total_max_hits"):
+            for limit in (0, 1000):
+                with self.subTest(limit_name=limit_name, limit=limit):
+                    schema.rank_profiles[
+                        "match_phase_test"
+                    ].match_phase = MatchPhaseRanking(
+                        "popularity", "descending", **{limit_name: limit}
+                    )
+                    self.assertEqual(
+                        schema.schema_to_text,
+                        expected_schema.replace(
+                            "max-hits: 1000",
+                            f"{limit_name.replace('_', '-')}: {limit}",
+                        ),
+                    )
 
 
 class TestSimplifiedApplicationPackageWithMultipleSchemas(unittest.TestCase):
