@@ -1833,7 +1833,7 @@ KEY_PEM = "-----BEGIN PRIVATE KEY-----\nkey\n-----END PRIVATE KEY-----\n"
 
 
 class TestMtlsCertContent:
-    """Data plane cert/key passed as PEM content instead of file paths (#1118)."""
+    """Data plane cert/key passed as PEM content instead of file paths."""
 
     def test_content_matches_files(self, tmp_path):
         cert_file, key_file = tmp_path / "cert.pem", tmp_path / "key.pem"
