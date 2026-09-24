@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, AsyncMock
 from requests.models import HTTPError, Response
 
 from vespa.package import ApplicationPackage, Schema, Document
-from vespa.application import Vespa, raise_for_status
+from vespa.application import Vespa, raise_for_status, _prepare_mtls_cert_data
 from vespa.exceptions import VespaError
 from vespa.io import VespaQueryResponse, VespaResponse
 from unittest.mock import Mock
@@ -890,12 +890,16 @@ class MockVespa:
         vespa_cloud_secret_token=None,
         cert=None,
         key=None,
+        cert_content=None,
+        key_content=None,
     ):
         self.base_headers = base_headers or {}
         self.auth_method = auth_method
         self.vespa_cloud_secret_token = vespa_cloud_secret_token
         self.cert = cert
         self.key = key
+        self.cert_content = cert_content
+        self.key_content = key_content
 
 
 # Test class
@@ -1822,3 +1826,64 @@ class TestAsyncQueryKeepRequestBody:
         # Mutating the original body after the call must not affect the stored copy.
         body["nested"]["a"] = 999
         assert r.request_body["nested"]["a"] == 1
+
+
+CERT_PEM = "-----BEGIN CERTIFICATE-----\ncert\n-----END CERTIFICATE-----\n"
+KEY_PEM = "-----BEGIN PRIVATE KEY-----\nkey\n-----END PRIVATE KEY-----\n"
+
+
+class TestMtlsCertContent:
+    """Data plane cert/key passed as PEM content instead of file paths (#1118)."""
+
+    def test_content_matches_files(self, tmp_path):
+        cert_file, key_file = tmp_path / "cert.pem", tmp_path / "key.pem"
+        cert_file.write_text(CERT_PEM)
+        key_file.write_text(KEY_PEM)
+        from_files = _prepare_mtls_cert_data(str(cert_file), str(key_file))
+        from_content = _prepare_mtls_cert_data(
+            None, None, cert_content=CERT_PEM, key_content=KEY_PEM
+        )
+        assert from_content == from_files == (CERT_PEM + KEY_PEM).encode()
+
+    def test_combined_cert_content(self):
+        combined = CERT_PEM + KEY_PEM
+        assert _prepare_mtls_cert_data(None, None, combined) == combined.encode()
+
+    def test_newline_inserted_between_cert_and_key(self):
+        data = _prepare_mtls_cert_data(None, None, CERT_PEM.rstrip("\n"), KEY_PEM)
+        assert data == (CERT_PEM + KEY_PEM).encode()
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"cert": "cert.pem", "cert_content": CERT_PEM},
+            {"key": "key.pem", "key_content": KEY_PEM},
+            {"cert": "cert.pem", "key_content": KEY_PEM},
+            {"key_content": KEY_PEM},
+        ],
+    )
+    def test_invalid_combinations_raise(self, kwargs):
+        with pytest.raises(ValueError):
+            Vespa(url="https://localhost", **kwargs)
+
+    def test_sync_client_receives_pem_data(self):
+        app = Vespa(url="https://localhost", cert_content=CERT_PEM, key_content=KEY_PEM)
+        with patch("vespa.application.httpr.Client") as mock_client_class:
+            with app.syncio():
+                pass
+        assert (
+            mock_client_class.call_args.kwargs["client_pem_data"]
+            == (CERT_PEM + KEY_PEM).encode()
+        )
+
+    @pytest.mark.asyncio
+    async def test_async_client_receives_pem_data(self):
+        app = Vespa(url="https://localhost", cert_content=CERT_PEM, key_content=KEY_PEM)
+        with patch("vespa.application.httpr.AsyncClient") as mock_client_class:
+            mock_client_class.return_value.aclose = AsyncMock()
+            async with app.asyncio():
+                pass
+        assert (
+            mock_client_class.call_args.kwargs["client_pem_data"]
+            == (CERT_PEM + KEY_PEM).encode()
+        )
