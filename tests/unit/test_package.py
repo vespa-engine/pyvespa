@@ -1563,16 +1563,8 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
             name="test_match_phase",
             document=Document(
                 fields=[
-                    Field(
-                        name="title",
-                        type="string",
-                        indexing=["index", "summary"],
-                    ),
-                    Field(
-                        name="body",
-                        type="string",
-                        indexing=["index", "summary"],
-                    ),
+                    Field(name="title", type="string", indexing=["index", "summary"]),
+                    Field(name="body", type="string", indexing=["index", "summary"]),
                     Field(name="popularity", type="int", indexing=["attribute"]),
                 ]
             ),
@@ -1582,9 +1574,7 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
                     name="match_phase_test",
                     first_phase="bm25(title) + bm25(body)",
                     match_phase=MatchPhaseRanking(
-                        attribute="popularity",
-                        order="descending",
-                        max_hits=1000,
+                        attribute="popularity", order="descending", max_hits=1000
                     ),
                 ),
             ],
@@ -1629,16 +1619,8 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
             name="test_match_phase",
             document=Document(
                 fields=[
-                    Field(
-                        name="title",
-                        type="string",
-                        indexing=["index", "summary"],
-                    ),
-                    Field(
-                        name="body",
-                        type="string",
-                        indexing=["index", "summary"],
-                    ),
+                    Field(name="title", type="string", indexing=["index", "summary"]),
+                    Field(name="body", type="string", indexing=["index", "summary"]),
                     Field(name="popularity", type="int", indexing=["attribute"]),
                 ]
             ),
@@ -1648,9 +1630,7 @@ class TestSimplifiedApplicationPackage(unittest.TestCase):
                     name="match_phase_test",
                     first_phase="bm25(title) + bm25(body)",
                     match_phase=MatchPhaseRanking(
-                        attribute="popularity",
-                        order="descending",
-                        total_max_hits=10000,
+                        attribute="popularity", order="descending", total_max_hits=10000
                     ),
                 ),
             ],
