@@ -29,7 +29,7 @@ class LoadProfile:
     """Shared in-flight load per transport; each process owns one HTTP/2 connection."""
 
     concurrency: int = 400  # warmup/fallback; for_session adjusts for network RTT
-    server_queue_target: int = 250
+    server_queue_target: int = 200  # 250 sat at the 429 edge from a 56 ms runner
     max_concurrency: int = 800
     warmup_s: float = 30.0
     duration_s: float = 150.0
@@ -73,7 +73,9 @@ class LoadProfile:
 
 
 PROFILE = LoadProfile()
-WARMUP = replace(PROFILE, warmup_s=15.0, duration_s=45.0)
+# Half the default concurrency so the warmup never overloads (400 gave 7% 429s
+# from us-east) and its throughput is a conservative ceiling estimate.
+WARMUP = replace(PROFILE, concurrency=200, warmup_s=15.0, duration_s=45.0)
 PYVESPA_METHODS = (
     "sync_feed_data_point",
     "async_feed_data_point",

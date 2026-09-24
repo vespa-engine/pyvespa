@@ -135,7 +135,8 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
             content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
         )
         print("Warmup documents deleted.")
-        ceiling = sum(r.rps for r in warm)
+        # Successful requests only: 429s are not capacity.
+        ceiling = sum(r.rps * (1 - r.error_rate) for r in warm)
         rtt = _network_rtt_s(mtls_app)
         profile = PROFILE.for_session(ceiling_rps=ceiling, rtt_s=rtt)
         print(
