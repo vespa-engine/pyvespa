@@ -4,6 +4,7 @@ import json
 import unittest
 import asyncio
 
+import httpr
 import pytest
 from unittest.mock import PropertyMock, patch
 from unittest.mock import MagicMock, AsyncMock
@@ -166,6 +167,43 @@ class TestVespaRequestsUsage(unittest.TestCase):
             content_cluster_name="content",
             timeout="200s",
         )
+
+    @patch("vespa.application.sleep")
+    @patch("vespa.application.httpr.Client")
+    def test_delete_all_docs_retries_a_failed_chunk_with_its_continuation(
+        self, MockClient, _sleep
+    ):
+        client = MockClient.return_value
+        client.get.return_value = Mock(spec=httpr.Response, status_code=200)
+
+        def response(status_code=200, body=None):
+            r = Mock(spec=httpr.Response, status_code=status_code)
+            r.json.return_value = body or {}
+            return r
+
+        # Nine successes keep the following failure inside the 10% error budget.
+        client.delete.side_effect = [
+            response(body={"continuation": str(i)}) for i in range(9)
+        ] + [response(503, {"message": "busy"}), response()]
+
+        app = Vespa(url="http://localhost", port=8080)
+        app.delete_all_docs(schema="foo", content_cluster_name="content")
+        urls = [call.args[0] for call in client.delete.call_args_list]
+        assert len(urls) == 11
+        assert "continuation=8" in urls[-2]
+        assert urls[-1] == urls[-2]  # the failed chunk is retried, not skipped
+
+    @patch("vespa.application.httpr.Client")
+    def test_delete_all_docs_raises_when_a_slice_keeps_failing(self, MockClient):
+        client = MockClient.return_value
+        client.get.return_value = Mock(spec=httpr.Response, status_code=200)
+        failed = Mock(spec=httpr.Response, status_code=503)
+        failed.json.return_value = {"message": "busy"}
+        client.delete.return_value = failed
+
+        app = Vespa(url="http://localhost", port=8080)
+        with pytest.raises(Exception, match="Too many errors"):
+            app.delete_all_docs(schema="foo", content_cluster_name="content")
 
     @patch("vespa.application.httpr.Client")
     def test_visit(self, MockClient):
