@@ -888,9 +888,9 @@ class Vespa(object):
             id, response = future.result()
             if isinstance(response, Exception):
                 # The HTTPError from raise_for_status may be the VespaError's cause.
-                http_response = getattr(response, "response", None) or getattr(
-                    response.__cause__, "response", None
-                )
+                http_response = getattr(response, "response", None)
+                if http_response is None:
+                    http_response = getattr(response.__cause__, "response", None)
                 if isinstance(getattr(http_response, "status_code", None), int):
                     # A non-2xx response: pass it on as it came from Vespa.
                     response = VespaResponse(
@@ -1946,8 +1946,6 @@ class VespaSync(object):
                     response = self._request_with_retry(
                         "DELETE", request_endpoint, params=kwargs
                     )
-                    # An error response has no continuation; retry the chunk instead of ending the slice.
-                    raise_for_status(response)
                     result = response.json()
                     if "continuation" in result:
                         request_endpoint = "{}&continuation={}".format(
@@ -1964,9 +1962,8 @@ class VespaSync(object):
                         ) from e
                     sleep(1)
 
-        # list() consumes the lazy map so an exception in a slice propagates.
         with ThreadPoolExecutor(max_workers=slices) as executor:
-            list(executor.map(delete_slice, range(slices)))
+            executor.map(delete_slice, range(slices))
 
     def visit(
         self,
