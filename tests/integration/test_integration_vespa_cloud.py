@@ -105,6 +105,27 @@ class TestVespaKeyAndCertificate(unittest.TestCase):
         )
         with pytest.raises(HTTPError):
             self.app.get_data(schema="msmarco", data_id="1", raise_on_not_found=True)
+        #
+        # Pass key and cert as content instead of file paths
+        #
+        with open(os.path.join(self.disk_folder, "key_file.txt")) as file:
+            key_content = file.read()
+        with open(os.path.join(self.disk_folder, "cert_file.txt")) as file:
+            cert_content = file.read()
+        content_app = Vespa(
+            url=self.app.url, cert_content=cert_content, key_content=key_content
+        )
+        self.assertEqual(200, content_app.get_application_status().status_code)
+        # 404 (not an auth error) shows mTLS succeeded
+        self.assertEqual(
+            404, content_app.get_data(schema="msmarco", data_id="1").status_code
+        )
+
+        async def get_data_async():
+            async with content_app.asyncio() as session:
+                return await session.get_data(schema="msmarco", data_id="1")
+
+        self.assertEqual(404, asyncio.run(get_data_async()).status_code)
 
     def tearDown(self) -> None:
         self.app.delete_all_docs(

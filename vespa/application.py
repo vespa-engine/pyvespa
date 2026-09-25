@@ -76,39 +76,46 @@ def get_profiling_params() -> Dict[str, str]:
     }
 
 
-def _prepare_mtls_cert_data(cert: Optional[str], key: Optional[str]) -> Optional[bytes]:
+def _prepare_mtls_cert_data(
+    cert: Optional[str],
+    key: Optional[str],
+    cert_content: Optional[str] = None,
+    key_content: Optional[str] = None,
+) -> Optional[bytes]:
     """
     Prepare mTLS certificate data for httpr.
 
-    Reads certificate and key files and combines them into a single bytes object
-    for use with httpr's client_pem_data parameter.
+    Combines certificate and key into a single bytes object for use with httpr's
+    client_pem_data parameter, either from files or from in-memory PEM content.
 
     Args:
         cert: Path to certificate file (may also contain key)
         key: Path to key file (optional if cert contains both)
+        cert_content: PEM certificate content (may also contain key)
+        key_content: PEM key content (optional if cert_content contains both)
 
     Returns:
         Combined certificate and key data as bytes, or None if no cert provided
     """
-    if not cert:
+    if cert_content:
+        cert_data = cert_content.encode("ascii")
+        key_data = key_content.encode("ascii") if key_content else None
+    elif cert:
+        with open(cert, "rb") as f:
+            cert_data = f.read()
+        key_data = None
+        if key and key != cert:
+            with open(key, "rb") as f:
+                key_data = f.read()
+    else:
         return None
 
-    # Read cert file
-    with open(cert, "rb") as f:
-        cert_content = f.read()
-
-    if not key or key == cert:
-        # Single file with both cert and key
-        return cert_content
-
-    # Read key file and combine
-    with open(key, "rb") as f:
-        key_content = f.read()
-
-    # Combine cert and key
-    if not cert_content.endswith(b"\n"):
-        return cert_content + b"\n" + key_content
-    return cert_content + key_content
+    if key_data is None:
+        # Single source with both cert and key
+        return cert_data
+    if not cert_data.endswith(b"\n"):
+        return cert_data + b"\n" + key_data
+    return cert_data + key_data
 
 
 def _prepare_request_body(
@@ -256,6 +263,8 @@ class Vespa(object):
         output_file: IO = sys.stdout,
         application_package: Optional[ApplicationPackage] = None,
         additional_headers: Optional[Dict[str, str]] = None,
+        cert_content: Optional[str] = None,
+        key_content: Optional[str] = None,
     ) -> None:
         """
         Establish a connection with an existing Vespa application.
@@ -270,6 +279,8 @@ class Vespa(object):
             output_file (str): Output file to write output messages.
             application_package (str): Application package definition used to deploy the application.
             additional_headers (dict): Additional headers to be sent to the Vespa application.
+            cert_content (str): PEM content of the data plane certificate, and of the key in case 'key_content' is None. Mutually exclusive with 'cert' and 'key'. Useful when the certificate is read from e.g. an environment variable.
+            key_content (str): PEM content of the data plane key. Requires 'cert_content'. Mutually exclusive with 'cert' and 'key'.
 
         Example usage:
             ```python
@@ -283,14 +294,25 @@ class Vespa(object):
             Vespa(url="https://mtls-endpoint..z.vespa-app.cloud", cert="/path/to/cert.pem", key="/path/to/key.pem")  # doctest: +SKIP
 
             Vespa(url="https://mtls-endpoint..z.vespa-app.cloud", cert="/path/to/cert.pem", key="/path/to/key.pem", additional_headers={"X-Custom-Header": "test"})  # doctest: +SKIP
+
+            Vespa(url="https://mtls-endpoint..z.vespa-app.cloud", cert_content=os.environ["VESPA_CERT"], key_content=os.environ["VESPA_KEY"])  # doctest: +SKIP
             ```
         """
+        if (cert or key) and (cert_content or key_content):
+            raise ValueError(
+                "Provide either 'cert'/'key' (file paths) or "
+                "'cert_content'/'key_content' (PEM content), not both."
+            )
+        if key_content and not cert_content:
+            raise ValueError("'key_content' requires 'cert_content'.")
         self.output_file = output_file
         self.url = url
         self.port = port
         self.deployment_message = deployment_message
         self.cert = cert
         self.key = key
+        self.cert_content = cert_content
+        self.key_content = key_content
         self.vespa_cloud_secret_token = vespa_cloud_secret_token
         self._application_package = application_package
         self.pyvespa_version = vespa.__version__
@@ -1562,7 +1584,9 @@ class VespaSync(object):
 
     def _prepare_mtls_cert(self) -> Optional[bytes]:
         """Prepare mTLS certificate data for httpr."""
-        return _prepare_mtls_cert_data(self.cert, self.key)
+        return _prepare_mtls_cert_data(
+            self.cert, self.key, self.app.cert_content, self.app.key_content
+        )
 
     def _request_with_retry(self, method: str, url: str, json_data=None, **kwargs):
         """
@@ -1617,10 +1641,9 @@ class VespaSync(object):
             }
 
             # Handle mTLS if cert/key are provided
-            if self.cert:
-                client_pem_data = self._prepare_mtls_cert()
-                if client_pem_data:
-                    client_config["client_pem_data"] = client_pem_data
+            client_pem_data = self._prepare_mtls_cert()
+            if client_pem_data:
+                client_config["client_pem_data"] = client_pem_data
 
             # Handle token authentication (already in headers)
             # httpr will use headers automatically
@@ -2236,7 +2259,9 @@ class VespaAsync(object):
 
     def _prepare_mtls_cert(self) -> Optional[bytes]:
         """Prepare mTLS certificate data for httpr."""
-        return _prepare_mtls_cert_data(self.app.cert, self.app.key)
+        return _prepare_mtls_cert_data(
+            self.app.cert, self.app.key, self.app.cert_content, self.app.key_content
+        )
 
     async def __aenter__(self):
         self._open_httpr_client()
@@ -2259,10 +2284,9 @@ class VespaAsync(object):
         }
 
         # Handle mTLS if cert/key are provided
-        if self.app.cert:
-            client_pem_data = self._prepare_mtls_cert()
-            if client_pem_data:
-                client_config["client_pem_data"] = client_pem_data
+        client_pem_data = self._prepare_mtls_cert()
+        if client_pem_data:
+            client_config["client_pem_data"] = client_pem_data
 
         # Handle token authentication (already in headers)
         # httpr will use headers automatically
