@@ -4,7 +4,7 @@
 
 import pytest
 
-from utils.pyvespa_lane import Target, run_method
+from utils.pyvespa_lane import Target, run_pyvespa
 from utils.metrics import (
     assert_measurement_valid,
     assert_token_vs_mtls,
@@ -45,7 +45,7 @@ def test_pyvespa_performance(vespa_cloud_token_endpoints, tmp_path, run_state, m
         f"time, ~{expected_s}s each ==="
     )
     token, mtls = (
-        run_method(method, [target], profile, metrics_app=endpoints.mtls_app)[0]
+        run_pyvespa(method, [target], profile, metrics_app=endpoints.mtls_app)[0]
         for target in _targets(endpoints)
     )
     write_records([token, mtls], report_dir, f"pyvespa_{method}")

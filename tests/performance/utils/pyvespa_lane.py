@@ -226,7 +226,7 @@ WORKERS: dict = {
 }
 
 
-def aggregate(
+def lane_result(
     method: str, transport: str, parts: List[WorkerResult], profile: LoadProfile
 ) -> LaneResult:
     """Merge the worker processes of one transport into a LaneResult."""
@@ -279,7 +279,7 @@ def aggregate(
     )
 
 
-def run_method(
+def run_pyvespa(
     method: str,
     targets: List[Target],
     profile: LoadProfile,
@@ -313,7 +313,7 @@ def run_method(
 
     results = []
     for target in targets:
-        result = aggregate(method, target.transport, parts[target.transport], profile)
+        result = lane_result(method, target.transport, parts[target.transport], profile)
         results.append(
             replace(
                 result,
