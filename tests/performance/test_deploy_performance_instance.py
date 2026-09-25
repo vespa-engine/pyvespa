@@ -30,6 +30,38 @@ CLIENT_TOKEN_ID = os.environ.get("VESPA_CLIENT_TOKEN_ID", "pyvespa_integration")
 PERFORMANCE_PROD_REGION = "aws-us-east-1c"
 
 
+# Deleted ids are kept as tombstones for two weeks by default; here that
+# feed-blocked the node becuase perf tests feed and delete all a lot.
+REMOVED_DOCUMENTS_PRUNE_AGE_S = 3600
+
+
+class PerformanceContentCluster(ContentCluster):
+    """ContentCluster with a short removed-documents retention."""
+
+    def to_xml_string(self, indent=1):
+        xml = super().to_xml_string(indent)
+        pad = " " * 4 * indent
+        tuning = "\n".join(
+            pad + line
+            for line in (
+                "    <engine>",
+                "        <proton>",
+                "            <tuning>",
+                "                <searchnode>",
+                "                    <removed-db>",
+                "                        <prune>",
+                f"                            <age>{REMOVED_DOCUMENTS_PRUNE_AGE_S}</age>",
+                "                        </prune>",
+                "                    </removed-db>",
+                "                </searchnode>",
+                "            </tuning>",
+                "        </proton>",
+                "    </engine>",
+            )
+        )
+        return xml.replace(pad + "</content>", tuning + "\n" + pad + "</content>")
+
+
 class TestDeployPerformanceInstanceToProd(unittest.TestCase):
     """Manual trigger for the persistent, performance-only prod instance.
 
@@ -71,7 +103,7 @@ class TestDeployPerformanceInstanceToProd(unittest.TestCase):
             {"vcpu": "2.0", "memory": "8Gb", "disk": "50Gb", "architecture": "arm64"},
         )
         self.app_package.clusters = [
-            ContentCluster(
+            PerformanceContentCluster(
                 id=f"{schema_name}_content",
                 nodes=Nodes(count="1", parameters=[performance_resources]),
                 document_name=schema_name,
