@@ -109,6 +109,7 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
         content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
     )
     print("Leftover documents deleted.")
+    _fail_fast_if_feed_blocked(mtls_app)
 
     endpoints = PerformanceEndpoints(
         mtls_url=mtls_url,
@@ -158,6 +159,19 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
             content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
         )
         print("Fed documents deleted.")
+
+
+def _fail_fast_if_feed_blocked(app) -> None:
+    """A content node over its memory limit answers 507 to every write, so a
+    session would spend an hour measuring nothing (runs #38/#39). Probe once.
+    The node keeps process memory after documents are removed; if this fails
+    with an empty corpus, restart the content cluster."""
+    with VespaSync(app=app, pool_connections=1, pool_maxsize=1, num_retries_429=0) as s:
+        try:
+            s.feed_data_point(SCHEMA, "feed-block-probe", {"id": "p"})
+        except Exception as e:
+            pytest.fail(f"Feed probe failed, the instance cannot accept writes: {e}")
+        s.delete_data(SCHEMA, "feed-block-probe")
 
 
 def _network_rtt_s(app, samples: int = 20) -> float:
