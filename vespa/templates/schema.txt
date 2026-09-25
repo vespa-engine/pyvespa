@@ -89,7 +89,12 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
         match-phase {
             attribute: {{ value.match_phase.attribute }}
             order: {{ value.match_phase.order }}
+            {% if value.match_phase.max_hits is not none %}
             max-hits: {{ value.match_phase.max_hits }}
+            {% endif %}
+            {% if value.match_phase.total_max_hits is not none %}
+            total-max-hits: {{ value.match_phase.total_max_hits }}
+            {% endif %}
         }
         {% endif %}
         {% if value.first_phase %}
