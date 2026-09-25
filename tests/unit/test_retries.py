@@ -26,9 +26,11 @@ from tenacity.stop import stop_after_attempt as _stop_after_attempt_cls
 from vespa import retries
 from vespa.application import Vespa, VespaAsync, VespaSync
 from vespa.io import VespaResponse
+from vespa.exceptions import VespaError
 from vespa.retries import (
     CONTROL_PLANE_RETRY,
     DOCV1_RETRY,
+    NO_RETRY,
     QUERY_RETRY,
     SYNC_REQUEST_RETRY,
     THROTTLE_RETRY,
@@ -183,6 +185,41 @@ class TestSyncRequestRetry:
         assert response.status_code == 503
         assert sync_client.http_client.get.call_count == 1
 
+    @patch("vespa.application.httpr.Client")
+    def test_syncio_num_retries_429_zero_returns_the_error_as_is(self, client_class):
+        client = client_class.return_value
+        client.get.return_value = _httpr_response(200)
+        client.post.return_value = response = _httpr_response(429, {"message": "x"})
+        app = Vespa(url="http://localhost", port=8080)
+        assert app.syncio().num_retries_429 == 10
+        with app.syncio(num_retries_429=0) as session:
+            with pytest.raises(VespaError) as info:
+                session.feed_data_point(schema="foo", data_id="1", fields={"a": 1})
+        assert client.post.call_count == 1
+        assert isinstance(info.value.__cause__, HTTPError)
+        assert info.value.__cause__.response is response
+
+    @patch("vespa.application.httpr.Client")
+    def test_feed_iterable_num_retries_429_zero_passes_the_error_response_on(
+        self, client_class
+    ):
+        client = client_class.return_value
+        client.get.return_value = _httpr_response(200)
+        client.post.return_value = original = _httpr_response(429, {"message": "x"})
+        original.url = "http://localhost:8080/document/v1/foo/foo/docid/1"
+        seen = []
+        Vespa(url="http://localhost", port=8080).feed_iterable(
+            [{"id": "1", "fields": {"a": 1}}],
+            schema="foo",
+            callback=lambda response, doc_id: seen.append(response),
+            num_retries_429=0,
+        )
+        (response,) = seen
+        assert client.post.call_count == 1
+        assert response.status_code == 429
+        assert response.json == {"message": "x"}
+        assert response.url == original.url
+
 
 class TestVisitRetry:
     def test_visit_policy_retries_http_error_three_times(self):
@@ -276,3 +313,14 @@ class TestAsyncDocv1Retry:
         bounded = THROTTLE_RETRY.copy(stop=stop_after_attempt(2), wait=wait_none())
         assert bounded.stop.max_attempt_number == 2
         assert THROTTLE_RETRY.stop is stop_never  # original untouched
+
+    async def test_docv1_retry_policy_replaces_both_layers(self):
+        app = Vespa(url="http://localhost", port=8080)
+        client = VespaAsync(app, docv1_retry_policy=NO_RETRY)
+        # A second response makes an accidental retry visible instead of looping.
+        client._make_request = AsyncMock(
+            side_effect=[_httpr_response(429), _httpr_response(200)]
+        )
+        response = await client.feed_data_point(schema="s", data_id="1", fields={})
+        assert response.status_code == 429
+        assert client._make_request.await_count == 1
