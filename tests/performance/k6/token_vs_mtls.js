@@ -1,19 +1,28 @@
 import http from "k6/http";
-import { check, sleep } from "k6";
+import exec from "k6/execution";
 import { Trend, Rate, Counter } from "k6/metrics";
 
-// Load profile is injected by test_k6_token_vs_mtls.py from the shared
-// LoadProfile (utils/workloads.py) so both lanes generate identical load.
-const maxVus = Number(__ENV.MAX_VUS || 200);
-const rampUp = __ENV.RAMP_UP || "30s"; // warm up to maxVus
-const hold = __ENV.HOLD || "2m30s"; // steady-state measurement window
+// One transport per run (TRANSPORT=token|mtls), so each gets the whole instance
+// and its throughput is an absolute ceiling rather than a share.
+const transport = __ENV.TRANSPORT || "mtls";
+const url = (transport === "token" ? __ENV.TOKEN_URL : __ENV.MTLS_URL).replace(/\/+$/, "");
+const authHeader = transport === "token" ? __ENV.TOKEN_AUTH_HEADER : null;
 
-const schema = "msmarco";
+// Match pyvespa: one connection per worker, with concurrent HTTP/2 streams.
+const maxVus = Number(__ENV.MAX_VUS || 400);
+const streamsPerConnection = Number(__ENV.STREAMS_PER_CONNECTION || 50);
+const connections = Math.max(1, Math.floor(maxVus / streamsPerConnection));
 
-const tokenUrl = __ENV.TOKEN_URL;
-const mtlsUrl = __ENV.MTLS_URL;
-const tokenAuthHeader = __ENV.TOKEN_AUTH_HEADER;
+function toMs(duration) {
+  let ms = 0;
+  for (const [, value, unit] of duration.matchAll(/(\d+)(ms|s|m|h)/g)) {
+    ms += Number(value) * { ms: 1, s: 1000, m: 60000, h: 3600000 }[unit];
+  }
+  return ms;
+}
 
+const measureStartMs = toMs(__ENV.RAMP_UP || "30s");
+const measureEndMs = measureStartMs + toMs(__ENV.HOLD || "2m30s");
 const tlsAuth = [];
 if (__ENV.MTLS_CERT_PATH && __ENV.MTLS_KEY_PATH) {
   tlsAuth.push({
@@ -22,87 +31,56 @@ if (__ENV.MTLS_CERT_PATH && __ENV.MTLS_KEY_PATH) {
   });
 }
 
-// Closed model: a fixed pool of VUs feeds as fast as the instance responds, so
-// throughput is the measured *output* (not a target we try to hit). This avoids
-// the "insufficient VUs" warnings and dropped iterations the arrival-rate model
-// produced, and gives stable, comparable numbers for regression tracking. Both
-// scenarios use the same VU schedule for a fair token-vs-mTLS comparison.
-const vuStages = [
-  { target: maxVus, duration: rampUp },
-  { target: maxVus, duration: hold },
-];
-
 export const options = {
   scenarios: {
-    mtls: {
-      executor: "ramping-vus",
-      startVUs: 0,
-      stages: vuStages,
+    feed: {
+      executor: "constant-vus",
+      vus: connections,
+      duration: `${Math.ceil(measureEndMs / 1000) + 5}s`,
       gracefulStop: "30s",
-      exec: "mtlsScenario",
-    },
-    token: {
-      executor: "ramping-vus",
-      startVUs: 0,
-      stages: vuStages,
-      gracefulStop: "30s",
-      exec: "tokenScenario",
     },
   },
   summaryTrendStats: ["min", "avg", "med", "p(95)", "p(99)", "max"],
   tlsAuth,
 };
 
-const mtlsDuration = new Trend("mtls_req_duration");
-const tokenDuration = new Trend("token_req_duration");
-const mtlsFailRate = new Rate("mtls_fail_rate");
-const tokenFailRate = new Rate("token_fail_rate");
-const mtlsReqs = new Counter("mtls_reqs");
-const tokenReqs = new Counter("token_reqs");
+const measured = {
+  duration: new Trend(`${transport}_req_duration`),
+  failed: new Rate(`${transport}_fail_rate`),
+  requests: new Counter(`${transport}_reqs`),
+  limited: new Counter(`${transport}_rate_limited`),
+};
 
-function feedDoc(url, authHeader, kindTag) {
-  if (!kindTag) {
-    throw new Error("kindTag is required for tagging http requests");
+async function stream() {
+  while (exec.instance.currentTestRunDuration < measureEndMs) {
+    const docId = Math.random().toString(36).slice(2);
+    const payload = JSON.stringify({
+      fields: { id: docId, title: "performance-doc", body: "benchmark run" },
+    });
+    const res = await http.asyncRequest(
+      "POST",
+      `${url}/document/v1/msmarco/msmarco/docid/${docId}`,
+      payload,
+      {
+        timeout: "120s",
+        headers: {
+          "Content-Type": "application/json",
+          ...(authHeader ? { Authorization: authHeader } : {}),
+        },
+        tags: { kind: transport, name: `feed_doc_${transport}` },
+      },
+    );
+    // Count completions only during the hold, excluding warmup and shutdown.
+    const completed = exec.instance.currentTestRunDuration;
+    if (completed >= measureStartMs && completed <= measureEndMs) {
+      measured.duration.add(res.timings.duration);
+      measured.failed.add(res.status < 200 || res.status >= 300);
+      measured.requests.add(1);
+      if (res.status === 429) measured.limited.add(1);
+    }
   }
-  const docId = Math.random().toString(36).slice(2);
-  const endpoint = `${url.replace(/\/+$/, "")}/document/v1/${schema}/${schema}/docid/${docId}`;
-
-  const payload = JSON.stringify({
-    fields: {
-      id: docId,
-      title: "performance-doc",
-      body: "benchmark run",
-    },
-  });
-
-  const params = {
-    headers: {
-      "Content-Type": "application/json",
-      ...(authHeader ? { Authorization: authHeader } : {}),
-    },
-    tags: {
-      kind: kindTag,
-      name: `feed_doc_${kindTag}`,
-    },
-  };
-
-  return http.post(endpoint, payload, params);
 }
 
-export function mtlsScenario() {
-  const mtlsRes = feedDoc(mtlsUrl, null, "mtls");
-  const mtlsOk = mtlsRes.status >= 200 && mtlsRes.status < 300;
-  mtlsDuration.add(mtlsRes.timings.duration);
-  mtlsFailRate.add(!mtlsOk);
-  mtlsReqs.add(1);
-  check(mtlsRes, { "mtls status 2xx": () => mtlsOk });
-}
-
-export function tokenScenario() {
-  const tokenRes = feedDoc(tokenUrl, tokenAuthHeader, "token");
-  const tokenOk = tokenRes.status >= 200 && tokenRes.status < 300;
-  tokenDuration.add(tokenRes.timings.duration);
-  tokenFailRate.add(!tokenOk);
-  tokenReqs.add(1);
-  check(tokenRes, { "token status 2xx": () => tokenOk });
+export default async function () {
+  await Promise.all(Array.from({ length: streamsPerConnection }, stream));
 }
