@@ -1344,11 +1344,14 @@ class TestMsmarcoApplication(TestApplicationCommon):
             self.assertEqual(response.status_code, 200)
 
     def tearDown(self) -> None:
-        self.app.delete_all_docs(
-            content_cluster_name="content_msmarco", schema=self.app_package.name
-        )
-        self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
-        self.vespa_docker.container.remove()
+        try:
+            self.app.delete_all_docs(
+                content_cluster_name="msmarco_content", schema=self.app_package.name
+            )
+        finally:
+            # Always free port 8089 for the next test class.
+            self.vespa_docker.container.stop(timeout=CONTAINER_STOP_TIMEOUT)
+            self.vespa_docker.container.remove()
 
 
 class TestQaApplication(TestApplicationCommon):
