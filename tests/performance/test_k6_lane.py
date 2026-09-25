@@ -1,7 +1,7 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 """k6 lane: raw HTTP at PROFILE.concurrency VUs per transport. Runs twice per
-session, first and last (`perf_last`), so the pyvespa methods are bracketed
+session, first and last (`performance_last`), so the pyvespa methods are bracketed
 and the instance's drift within the run is measured rather than guessed."""
 
 import json
@@ -58,7 +58,7 @@ def test_token_vs_mtls_performance(vespa_cloud_token_endpoints, tmp_path, run_st
 
 
 @pytest.mark.performance
-@pytest.mark.perf_last
+@pytest.mark.performance_last
 def test_token_vs_mtls_performance_last(
     vespa_cloud_token_endpoints, tmp_path, run_state
 ):

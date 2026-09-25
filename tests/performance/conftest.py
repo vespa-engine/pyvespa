@@ -218,4 +218,4 @@ def run_state() -> Dict:
 
 def pytest_collection_modifyitems(items):
     """Bracket the pyvespa tests with opening and closing k6 runs."""
-    items.sort(key=lambda item: 1 if item.get_closest_marker("perf_last") else 0)
+    items.sort(key=lambda item: 1 if item.get_closest_marker("performance_last") else 0)
