@@ -35,7 +35,8 @@ export const options = {
     feed: {
       executor: "constant-vus",
       vus: connections,
-      duration: `${Math.ceil(measureEndMs / 1000) + 5}s`,
+      // Ends with the hold; gracefulStop lets requests in flight complete.
+      duration: `${Math.ceil(measureEndMs / 1000)}s`,
       gracefulStop: "30s",
     },
   },

@@ -54,7 +54,8 @@ def print_validity(results: List[LaneResult]) -> None:
         print(
             f"Validity {r.transport}: 429 rate={r.rate_limited_rate if r.rate_limited_rate is not None else 'n/a'}, "
             f"in flight={in_flight}, "
-            f"client cpu={_pct(r.client_cpu_fraction)}, "
+            f"client cpu={_pct(r.client_cpu_fraction)} of the machine"
+            f"{f' ({r.client_cpu_cores:.2f} cores)' if r.client_cpu_cores is not None else ''}, "
             f"server container cpu={_pct(r.server_container_cpu_util)}, "
             f"content cpu={_pct(r.server_content_cpu_util)}"
         )

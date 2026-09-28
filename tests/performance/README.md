@@ -1,6 +1,6 @@
 # Performance tests
 
-Compare k6's HTTP baseline with four pyvespa feed APIs against the persistent
+Compare k6's HTTP baseline with the two pyvespa batch feed APIs against the persistent
 `vespa-team.pyvespa-performance.default` application in `aws-us-east-1c`.
 Each test measures the token and the mTLS endpoint one after the other, so
 every number is the instance's ceiling through that path rather than a share.
@@ -40,7 +40,7 @@ come from `VESPA_PERFORMANCE_MTLS_CERT` and `VESPA_PERFORMANCE_MTLS_KEY`.
   `utils/config.py`. The parameters (workers, connections, queue size) come from a
   CI sweep for the fastest single-process throughput; nothing internal is
   tuned. The worker counts are set high enough that the process stays
-  CPU-bound rather than latency-bound, since hosted runners sit 7 to 32 ms
+  CPU-bound rather than latency-bound, since hosted runners sit 4 to 32 ms
   from the instance and a latency-bound rate is just workers divided by the
   round trip. An eight-process variant of this lane matched k6 within 1 to
   4%, so a gap in this lane is Python-side cost per request, not the wire path.
@@ -52,7 +52,8 @@ come from `VESPA_PERFORMANCE_MTLS_CERT` and `VESPA_PERFORMANCE_MTLS_KEY`.
   queued in the instance: in flight = 200 + throughput × RTT, rounded to
   whole connections and capped at `max_concurrency`. Transports run one at a
   time, so this is the whole load the instance sees. If the warmup or the RTT
-  could not be measured, the default `concurrency` is used.
+  cannot be measured the session fails, since without a ceiling there is
+  nothing to compare against.
 - k6 counts completions inside a 150-second window after 30 seconds of
   warmup. pyvespa measures one batch of documents whole, after an untimed
   warmup batch; the batch APIs report no per-request latency.
@@ -99,11 +100,12 @@ All values live in `utils/config.py`, grouped by who uses them.
   3200 rps for both APIs (from 64 and 128 workers respectively) and the
   default queue of 1000 better than both smaller (workers starve) and larger
   (4000 cost a third more CPU per request). The workers are set higher than
-  the knee so the process stays CPU-bound on a runner up to about 35 ms from
+  the knee so the process stays CPU-bound on a runner up to 32 ms from
   the instance; a latency-bound process only does requests in flight divided
   by latency. HTTP/2 allows about 128 concurrent streams per connection, so
   the async API's default single connection caps it at 128 in flight whatever
   `max_workers` says; four connections lift that cap.
+
 **Thresholds** (in the test files, next to the asserts)
 
 - `K6_THRESHOLDS` in `test_k6_lane.py`: error rate at most 2%, floors of
@@ -121,7 +123,7 @@ All values live in `utils/config.py`, grouped by who uses them.
 
 - `server_queue_target` 200: requests kept queued inside the instance, the
   part of the in-flight count that does not depend on the network. 250 sat at
-  the 429 edge from a runner 56 ms away.
+  the 429 edge on a far runner.
 - `concurrency` 400: k6 in-flight requests before `for_session` has measured
   the ceiling and round trip; also the warmup load, safely under the 429 edge.
 - `max_concurrency` 800: cap on what `for_session` can pick, so a bad round
@@ -157,15 +159,20 @@ Compare CI runs with CI, rather than local absolute numbers.
 
 CI uploads JUnit XML, k6 summaries, per-method `*records.json`, `k6_drift.json`,
 and `metrics.prom`. Set `PERFORMANCE_REPORT_DIR` to collect the same reports
-locally. Thresholds are about 30% below CI run #34 (2026-09-23); recalibrate
-load and floors when the application or its hardware changes.
+locally. Each floor comes from one calibration run (see Thresholds under
+Settings) while runner speed varies between runs; recalibrate them, or set
+them per `runner_cpu`, once several runs exist or when the application or its
+hardware changes.
 
 ## Metrics reference
 
 `.github/scripts/reports_to_prom.py` writes `metrics.prom` from the reports.
-Nothing ships it to a Prometheus yet. Every sample carries `commit`, `run_id`
-and `runner_cpu` (the CPU model from `runner.md`), so a point can be traced to
-a change and pyvespa's numbers can be grouped by runner CPU.
+Nothing ships it to a Prometheus yet. `perf_run_info{commit, run_id, runner_cpu} 1`
+identifies the run, and every sample carries `runner_cpu` (the CPU model from
+`runner.md`), so pyvespa's numbers can be grouped by runner CPU and a point
+can be joined to its commit through `perf_run_info`. Commit and run id are
+not on every sample, since a label that changes every run makes a new series
+each time.
 
 `perf_<field>{source, lane, method, transport, concurrency}`, one sample
 per records file, lane, method and transport. Labels: `source` is the records
@@ -183,13 +190,14 @@ configured in-flight requests for k6 and `max_workers` for pyvespa. Fields:
 | `achieved_in_flight` | requests | k6 only: `rps × mean_ms / 1000` (Little's law); divided by `concurrency` it says whether the client kept the instance's queue full |
 | `cpu_ms_per_request` | ms | load-generator CPU per request, pyvespa only; depends on the runner CPU model |
 | `rate_limited_rate` | 0..1 | share of requests answered 429 |
-| `client_cpu_fraction` | 0..1 | load-generator CPU busy share during the window |
+| `client_cpu_fraction` | 0..1 | load-generator CPU busy share of the whole machine during the window; one GIL-bound process shows about 1 divided by the vCPU count |
+| `client_cpu_cores` | cores | pyvespa only: the process's own CPU time over wall time, the client load of one GIL-bound process |
 | `server_container_cpu_util`, `server_content_cpu_util` | 0..1 | instance cluster CPU, peak sample covering the window |
 
 `status_counts`, HTTP status to request count, is in the records file for
 diagnosing a non-zero error rate but is not exported.
 
-`perf_instance_drift_pct` (no labels): closing k6 run's token + mTLS rps
+`perf_instance_drift_pct` (label: `runner_cpu`): closing k6 run's token + mTLS rps
 relative to the opening one, in percent; the instance's own movement during
 the session and therefore the noise floor for that run.
 
@@ -198,7 +206,7 @@ for diagnosis only; the `perf_*` series carry the same information.
 
 ## Graph suggestions
 
-- Token hop: `perf_p50_ms{source="k6_token_hop",transport="token"} - ignoring(transport) perf_p50_ms{source="k6_token_hop",transport="mtls"}`.
+- Token hop: `perf_p50_ms{source="k6_token_hop_records",transport="token"} - ignoring(transport) perf_p50_ms{source="k6_token_hop_records",transport="mtls"}`.
   Independent of load, round trip and runner CPU; the one line that should be
   flat, and the first to move when the token endpoint gets slower.
 - One panel per method: `perf_rps` for both lanes and transports, one point
@@ -209,7 +217,7 @@ for diagnosis only; the `perf_*` series carry the same information.
   `achieved_in_flight / concurrency` < 0.85, `client_cpu_fraction` > 0.90,
   `server_container_cpu_util` < 0.75). Those runs are invalid, not regressions.
 - Share of the ceiling per pyvespa method, from the same run:
-  `sum(perf_rps{lane="pyvespa",method="feed_iterable"}) / sum(perf_rps{source="k6_token_vs_mtls"})`.
+  `sum(perf_rps{lane="pyvespa",method="feed_iterable"}) / sum(perf_rps{source="k6_token_vs_mtls_records"})`.
   A drop here with a steady k6 line is a pyvespa regression.
 - `perf_cpu_ms_per_request` per method, grouped by runner CPU model: the
   client-efficiency trend, the place a pyvespa regression shows first.

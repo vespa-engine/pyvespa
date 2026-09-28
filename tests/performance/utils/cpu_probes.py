@@ -1,5 +1,9 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
+"""CPU probes for the two sides of a measurement: the load generator (the GitHub
+runner or laptop running the tests) and the Vespa instance. The values feed the
+validity checks in utils/asserts.py and are exported with every record."""
+
 import re
 import threading
 import time
@@ -15,7 +19,8 @@ _CPU_UTIL = re.compile(
 _CLUSTER = re.compile(r'clusterId="([^"]+)"')
 
 
-def _read_proc_stat() -> Optional[tuple]:
+def _read_proc_stat() -> Optional[Tuple[int, int]]:
+    """(busy, total) jiffies of the whole machine; None off Linux."""
     try:
         with open(_PROC_STAT) as f:
             fields = f.readline().split()
@@ -23,15 +28,21 @@ def _read_proc_stat() -> Optional[tuple]:
         return None
     if not fields or fields[0] != "cpu":
         return None
-    values = [int(v) for v in fields[1:]]
-    idle = values[3] + (values[4] if len(values) > 4 else 0)  # idle + iowait
-    total = sum(values)
-    return total - idle, total
+    # The "cpu" line lists time spent per state. Only the first eight states add
+    # up to the total; the two after them (guest time) are already included.
+    user, nice, system, idle, iowait, irq, softirq, steal = (
+        [int(v) for v in fields[1:9]] + [0] * 8
+    )[:8]
+    total = user + nice + system + idle + iowait + irq + softirq + steal
+    busy = total - idle - iowait
+    return busy, total
 
 
 @dataclass
 class LoadGeneratorCpu:
-    _start: Optional[tuple] = None
+    """Busy share of the whole load-generator machine between start and stop."""
+
+    _start: Optional[Tuple[int, int]] = None
     fraction: Optional[float] = None
 
     def start(self) -> "LoadGeneratorCpu":
@@ -50,6 +61,8 @@ class LoadGeneratorCpu:
 
 
 def instance_cpu_util(app: Vespa) -> Tuple[Dict[str, float], Optional[float]]:
+    """CPU per cluster (0..1) from the instance's own metrics endpoint, and the
+    time of the snapshot they belong to. Empty when the probe fails."""
     try:
         with VespaSync(app=app, pool_connections=1, pool_maxsize=1) as session:
             response = session.http_client.get(
@@ -75,6 +88,15 @@ def instance_cpu_util(app: Vespa) -> Tuple[Dict[str, float], Optional[float]]:
 
 
 class InstanceCpuSampler:
+    """Peak instance CPU per cluster while a load ran.
+
+    The instance's cpu_util is a 60-second average stamped at the end of its
+    window, so the reading that covers the load arrives up to a minute after
+    the load stops, and a snapshot covers the load only when its timestamp is
+    between load start + 60 s and load end + 60 s. Snapshot times are compared
+    with the runner's clock; both sides run NTP. A load start that includes
+    k6's ramp only widens what the peak is taken over."""
+
     SNAPSHOT_S = 60.0
 
     def __init__(self, app: Vespa, interval_s: float = 10.0):
@@ -85,6 +107,21 @@ class InstanceCpuSampler:
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._started_at: Optional[float] = None
 
+    def start(self) -> "InstanceCpuSampler":
+        self._started_at = time.time()
+        self._thread.start()
+        return self
+
+    def stop(self, load_start: Optional[float] = None) -> Dict[str, float]:
+        """Peak per cluster over the snapshots covering the load; empty when
+        no snapshot covered it, so the caller reports the CPU as unknown."""
+        load_end = time.time()
+        load_start = load_start if load_start is not None else self._started_at
+        self._stop.set()
+        self._thread.join(timeout=60)
+        self._wait_for_snapshot_after(load_end)
+        return self._peak_between(load_start, load_end)
+
     def _poll(self) -> None:
         util, snapshot = instance_cpu_util(self._app)
         if util:
@@ -94,32 +131,21 @@ class InstanceCpuSampler:
         while not self._stop.wait(self._interval_s):
             self._poll()
 
-    def start(self) -> "InstanceCpuSampler":
-        self._started_at = time.time()
-        self._thread.start()
-        return self
-
-    def stop(self, load_start: Optional[float] = None) -> Dict[str, float]:
-        load_end = time.time()
-        load_start = load_start if load_start is not None else self._started_at
-        self._stop.set()
-        self._thread.join(timeout=60)
+    def _wait_for_snapshot_after(self, load_end: float) -> None:
         deadline = load_end + self.SNAPSHOT_S + 15
         while time.time() < deadline:
             self._poll()
             if self._samples and (self._samples[-1][0] or 0) >= load_end:
-                break
+                return
             time.sleep(self._interval_s)
-        covering = [
-            util
-            for snapshot, util in self._samples
-            if snapshot is not None
-            and load_start + self.SNAPSHOT_S <= snapshot <= load_end + self.SNAPSHOT_S
-        ]
-        if not covering:
-            covering = [util for _, util in self._samples]
+
+    def _peak_between(self, load_start: float, load_end: float) -> Dict[str, float]:
+        first = load_start + self.SNAPSHOT_S
+        last = load_end + self.SNAPSHOT_S
         peak: Dict[str, float] = {}
-        for util in covering:
+        for snapshot, util in self._samples:
+            if snapshot is None or not first <= snapshot <= last:
+                continue
             for cluster, value in util.items():
                 peak[cluster] = max(peak.get(cluster, 0.0), value)
         return peak

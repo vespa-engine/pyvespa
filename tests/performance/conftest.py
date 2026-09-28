@@ -13,6 +13,7 @@ from vespa.deployment import VespaCloud
 from vespa.application import Vespa, VespaSync
 
 from utils.k6_lane import run_k6
+from utils.metrics import resolve_report_dir
 from utils.config import (
     APPLICATION,
     CLEANUP_SLICES,
@@ -61,7 +62,9 @@ def _require_env_var(name: str) -> str:
 
 
 @pytest.fixture(scope="session")
-def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]:
+def vespa_cloud_token_endpoints(
+    tmp_path_factory,
+) -> Generator[PerformanceEndpoints, None, None]:
     """Connect to the persistent app, warm it, and clean up after the session."""
 
     api_key = _require_env_var("VESPA_TEAM_API_KEY")
@@ -133,12 +136,8 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
 
     # Warmup throughput and network round trip set k6's concurrency (see `profile`).
     print(f"\n=== Warmup: k6 for {int(WARMUP.warmup_s + WARMUP.duration_s)}s ===")
-    warm = run_k6(
-        endpoints,
-        WARMUP,
-        Path(os.environ.get("PERFORMANCE_REPORT_DIR") or ".") / "k6_warmup.json",
-        "mtls",
-    )
+    report_dir = resolve_report_dir(tmp_path_factory.mktemp("performance-report"))
+    warm = run_k6(endpoints, WARMUP, report_dir / "k6_warmup.json", "mtls")
     mtls_app.delete_all_docs(
         content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
     )
@@ -191,20 +190,24 @@ def _wait_until_instance_idle(app, max_wait_s: float = 240.0) -> None:
     deadline = time.time() + max_wait_s
     while True:
         util, _ = instance_cpu_util(app)
-        busiest = max(util.values()) if util else 0.0
-        if busiest <= IDLE_CPU_UTIL or time.time() >= deadline:
-            print(
-                f"Instance CPU {busiest * 100:.0f}% (idle <= {IDLE_CPU_UTIL * 100:.0f}%)."
-            )
+        busiest = max(util.values()) if util else None
+        label = f"{busiest:.0%}" if busiest is not None else "unknown"
+        if busiest is not None and busiest <= IDLE_CPU_UTIL:
+            print(f"Instance CPU {label} (idle <= {IDLE_CPU_UTIL:.0%}).")
             return
-        print(f"Instance CPU {busiest * 100:.0f}%, waiting for it to settle...")
+        if time.time() >= deadline:
+            print(f"Instance CPU {label} after {max_wait_s:.0f} s; continuing anyway.")
+            return
+        print(f"Instance CPU {label}, waiting for it to settle...")
         time.sleep(15)
 
 
 @pytest.fixture(autouse=True)
-def settled_instance(vespa_cloud_token_endpoints):
-    """Wait for background work from the previous test to settle."""
-    _wait_until_instance_idle(vespa_cloud_token_endpoints.mtls_app)
+def settled_instance(request):
+    """Before a performance test, wait for the previous one's background work to settle."""
+    if request.node.get_closest_marker("performance"):
+        endpoints = request.getfixturevalue("vespa_cloud_token_endpoints")
+        _wait_until_instance_idle(endpoints.mtls_app)
 
 
 @pytest.fixture(scope="session")

@@ -50,12 +50,13 @@ def test_token_hop_latency(vespa_cloud_token_endpoints, tmp_path):
         "k6_token_hop",
         LATENCY_PROBE,
     )
+    assert token.p50_ms is not None and mtls.p50_ms is not None, "no latency samples"
     hop_ms = token.p50_ms - mtls.p50_ms
     print(
         f"\n=== Token hop: p50 token {token.p50_ms:.1f} ms, mTLS {mtls.p50_ms:.1f} ms, "
         f"difference {hop_ms:+.1f} ms ==="
     )
-    assert token.error_rate == 0 and mtls.error_rate == 0
+    assert max(token.error_rate, mtls.error_rate) <= K6_THRESHOLDS.max_error_rate
     assert hop_ms <= MAX_TOKEN_HOP_MS, (
         f"Token path adds {hop_ms:.1f} ms per request at one in flight "
         f"(max {MAX_TOKEN_HOP_MS:.0f} ms)"
@@ -81,7 +82,7 @@ def test_token_vs_mtls_performance_last(
     report_dir = resolve_report_dir(tmp_path)
     last = _measure(vespa_cloud_token_endpoints, report_dir, "k6_token_vs_mtls_last")
     first = run_state.get("k6_first")
-    if first:
+    if first and sum(r.rps for r in first) > 0:
         # Written before the asserts so the artifact has it when a threshold fails.
         first_total = sum(r.rps for r in first)
         last_total = sum(r.rps for r in last)

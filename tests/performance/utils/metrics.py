@@ -28,6 +28,7 @@ class LaneResult:
     cpu_ms_per_request: Optional[float] = None
     rate_limited_rate: Optional[float] = None
     client_cpu_fraction: Optional[float] = None
+    client_cpu_cores: Optional[float] = None
     server_container_cpu_util: Optional[float] = None
     server_content_cpu_util: Optional[float] = None
     status_counts: Optional[Dict[str, int]] = None
