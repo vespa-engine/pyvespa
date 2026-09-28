@@ -82,7 +82,7 @@ VALIDITY = ValidityLimits(
     min_in_flight_fraction=0.85,
 )
 IDLE_CPU_UTIL = 0.30
-CLEANUP_SLICES = 8
+CLEANUP_SLICES = 16  # a session leaves ~4M documents; 8 slices took 30 minutes
 
 # About 30% below CI run #34 (2026-09-23): token 2019+, mTLS 2271+ rps.
 # Ratio bounds are loose because the token path's extra latency varies with RTT.
@@ -93,8 +93,9 @@ THRESHOLDS = Thresholds(
     min_token_rps_ratio=0.4,
     max_token_p95_ratio=4.0,
 )
-# pyvespa floors per method; set about 30% below the first CI run of this lane.
+# pyvespa floors per method, about 30% below CI run #50 (2026-09-28):
+# feed_iterable 2824/3122 rps, feed_async_iterable 2215/2811 rps (token/mTLS).
 PYVESPA_THRESHOLDS = {
-    "feed_iterable": replace(THRESHOLDS, min_token_rps=0, min_mtls_rps=0),
-    "feed_async_iterable": replace(THRESHOLDS, min_token_rps=0, min_mtls_rps=0),
+    "feed_iterable": replace(THRESHOLDS, min_token_rps=1950, min_mtls_rps=2150),
+    "feed_async_iterable": replace(THRESHOLDS, min_token_rps=1550, min_mtls_rps=1950),
 }

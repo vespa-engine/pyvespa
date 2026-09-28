@@ -152,12 +152,18 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
     try:
         yield endpoints
     finally:
-        # The workloads feed docs, so leave a clean slate for the next run.
+        # Best effort: the next session's setup deletes whatever is left, and a
+        # cleanup failure must not turn a passed measurement into an error.
         print("\n=== Teardown: deleting fed test documents ===")
-        mtls_app.delete_all_docs(
-            content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
-        )
-        print("Fed documents deleted.")
+        try:
+            mtls_app.delete_all_docs(
+                content_cluster_name=CONTENT_CLUSTER,
+                schema=SCHEMA,
+                slices=CLEANUP_SLICES,
+            )
+            print("Fed documents deleted.")
+        except Exception as e:
+            print(f"Teardown cleanup did not finish, setup will retry next run: {e}")
 
 
 def _fail_fast_if_feed_blocked(app) -> None:
