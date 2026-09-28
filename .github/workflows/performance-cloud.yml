@@ -65,9 +65,8 @@ jobs:
           printf '%s\n' "$VESPA_PERFORMANCE_MTLS_KEY" > "$CERT_DIR/data-plane-private-key.pem"
           chmod 600 "$CERT_DIR/data-plane-private-key.pem"
 
-      # Hosted runners land on different CPUs; record which one so client CPU
-      # per request can be compared between runs on the same model.
-      - name: Record runner hardware
+      # GitHub hosted runners vary in CPU model; the exporter labels every sample with it.
+      - name: Record GitHub runner hardware
         env:
           PERFORMANCE_REPORT_DIR: ${{ runner.temp }}/performance-report
         run: |

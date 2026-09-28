@@ -1,12 +1,13 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
 # Labels and fields are documented in tests/performance/README.md, Metrics reference.
-RECORD_LABELS = ("lane", "method", "transport", "http", "concurrency")
+RECORD_LABELS = ("lane", "method", "transport", "concurrency")
 RECORD_FIELDS = (
     "rps",
     "error_rate",
@@ -45,34 +46,41 @@ def _typed(prom_name: str, typed_names: set) -> list:
     return [f"# TYPE {prom_name} gauge"]
 
 
-def convert_k6_summary(summary_file: Path, typed_names: set) -> list:
-    metrics = json.loads(summary_file.read_text()).get("metrics", {})
-    source = _sanitize(summary_file.stem)
-    lines = []
-    for name, metric in sorted(metrics.items()):
-        for field, value in sorted(_numeric_fields(metric).items()):
-            prom_name = f"k6_{_sanitize(name)}_{_sanitize(field)}"
-            lines += _typed(prom_name, typed_names)
-            lines.append(f'{prom_name}{{source="{source}"}} {value}')
-    return lines
+def _labels(values: dict) -> str:
+    return ",".join(f'{k}="{_sanitize(str(v))}"' for k, v in values.items() if v)
 
 
-def _labels(record: dict, names: tuple) -> str:
-    return ",".join(
-        f'{name}="{_sanitize(str(record.get(name, "unknown")))}"' for name in names
-    )
+def _run_labels(report_dir: Path) -> dict:
+    runner = report_dir / "runner.md"
+    cpu = re.search(r"CPU: (.*?) \(", runner.read_text()) if runner.exists() else None
+    return {
+        "commit": os.environ.get("GITHUB_SHA", "")[:8],
+        "run_id": os.environ.get("GITHUB_RUN_ID", ""),
+        "runner_cpu": cpu.group(1) if cpu else "",
+    }
 
 
 def _sample(prom_name: str, labels: str, value, typed_names: set) -> list:
     return _typed(prom_name, typed_names) + [f"{prom_name}{{{labels}}} {value}"]
 
 
-def convert_records(records_file: Path, typed_names: set) -> list:
+def convert_k6_summary(summary_file: Path, typed_names: set, run: dict) -> list:
+    metrics = json.loads(summary_file.read_text()).get("metrics", {})
+    labels = _labels({"source": summary_file.stem, **run})
+    lines = []
+    for name, metric in sorted(metrics.items()):
+        for field, value in sorted(_numeric_fields(metric).items()):
+            prom_name = f"k6_{_sanitize(name)}_{_sanitize(field)}"
+            lines += _sample(prom_name, labels, value, typed_names)
+    return lines
+
+
+def convert_records(records_file: Path, typed_names: set, run: dict) -> list:
     records = json.loads(records_file.read_text()).get("records", [])
     lines = []
     for record in records:
-        source = f'source="{_sanitize(records_file.stem)}"'
-        labels = f"{source},{_labels(record, RECORD_LABELS)}"
+        fields = {name: record.get(name, "unknown") for name in RECORD_LABELS}
+        labels = _labels({"source": records_file.stem, **run, **fields})
         for field in RECORD_FIELDS:
             value = record.get(field)
             if value is not None:
@@ -90,15 +98,17 @@ def main() -> int:
         return 0
     lines = []
     typed_names = set()
+    run = _run_labels(report_dir)
     if drift_file.exists():
         drift = json.loads(drift_file.read_text()).get("drift_pct")
         if isinstance(drift, (int, float)):
-            lines += _typed("perf_instance_drift_pct", typed_names)
-            lines.append(f"perf_instance_drift_pct {drift}")
+            lines += _sample(
+                "perf_instance_drift_pct", _labels(run), drift, typed_names
+            )
     for summary_file in summaries:
-        lines += convert_k6_summary(summary_file, typed_names)
+        lines += convert_k6_summary(summary_file, typed_names, run)
     for records_file in record_files:
-        lines += convert_records(records_file, typed_names)
+        lines += convert_records(records_file, typed_names, run)
     out = report_dir / "metrics.prom"
     out.write_text("\n".join(lines) + "\n")
     samples = len(lines) - len(typed_names)

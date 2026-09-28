@@ -1,19 +1,31 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
-"""pyvespa lane: the batch feed APIs as a user calls them, one process, one
-transport at a time. k6 is the instance ceiling; this lane measures how much
-of it pyvespa delivers, so only its own floors and error limits are asserted."""
+"""pyvespa lane: the batch feed APIs in one process, read against the k6 ceiling."""
 
 import pytest
 
 from utils.pyvespa_lane import client, run_pyvespa
-from utils.metrics import (
-    assert_token_vs_mtls,
-    print_validity,
-    resolve_report_dir,
-    write_records,
-)
-from utils.config import PYVESPA_METHODS, PYVESPA_THRESHOLDS
+from utils.asserts import assert_token_vs_mtls, print_validity
+from utils.metrics import Thresholds, resolve_report_dir, write_records
+from utils.config import PYVESPA_METHODS
+
+# Explained under "Thresholds" in tests/performance/README.md.
+PYVESPA_THRESHOLDS = {
+    "feed_iterable": Thresholds(
+        max_error_rate=0.02,
+        min_token_rps=1950,
+        min_mtls_rps=2150,
+        min_token_rps_ratio=0.4,
+        max_token_p95_ratio=4.0,
+    ),
+    "feed_async_iterable": Thresholds(
+        max_error_rate=0.02,
+        min_token_rps=1550,
+        min_mtls_rps=1950,
+        min_token_rps_ratio=0.4,
+        max_token_p95_ratio=4.0,
+    ),
+}
 
 
 def _clients(endpoints) -> dict:
@@ -47,7 +59,6 @@ def test_pyvespa_token_vs_mtls_performance(
     )
     write_records([token, mtls], report_dir, f"pyvespa_{method}")
     assert_token_vs_mtls(token, mtls, PYVESPA_THRESHOLDS[method])
-    # Evidence only: one Python process is the bottleneck here by design.
     print_validity([token, mtls])
     k6_first = run_state.get("k6_first")
     if k6_first:

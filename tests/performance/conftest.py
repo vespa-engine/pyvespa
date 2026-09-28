@@ -12,6 +12,7 @@ import pytest
 from vespa.deployment import VespaCloud
 from vespa.application import Vespa, VespaSync
 
+from utils.k6_lane import run_k6
 from utils.config import (
     APPLICATION,
     CLEANUP_SLICES,
@@ -40,8 +41,15 @@ class PerformanceEndpoints:
     vespa_cloud: VespaCloud = field(repr=False)
     mtls_app: Vespa = field(repr=False)
     token_app: Vespa = field(repr=False)
-    # Effective load profile for this session (concurrency from the measured
-    # ceiling and RTT, see LoadProfile.for_session); PROFILE if not measured.
+    # k6's number is the instance's ceiling, so its queue must never run dry
+    # (then k6 sets the pace) and never overflow into 429s (then the instance
+    # sheds load). How many requests in flight that takes depends on the round
+    # trip, and GitHub's hosted runners land in different regions (4 to 32 ms
+    # from the instance): in flight = 200 queued in the instance + throughput ×
+    # round trip, measured once per session by for_session. PROFILE's default
+    # when it could not be. pyvespa does not use this: one Python process is
+    # GIL-bound far below the ceiling, so its load is fixed by the API
+    # parameters and its number is read against the k6 ceiling.
     profile: LoadProfile = PROFILE
 
 
@@ -58,6 +66,8 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
 
     api_key = _require_env_var("VESPA_TEAM_API_KEY")
     secret_token = _require_env_var("VESPA_CLOUD_SECRET_TOKEN")
+    if shutil.which("k6") is None:
+        pytest.fail("k6 is required: it measures the instance ceiling.", pytrace=False)
 
     # Check the mTLS cert pair up front: without one, VespaCloud would
     # auto-generate a fresh pair the deployed app does not authorize, and the
@@ -109,7 +119,6 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
         content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
     )
     print("Leftover documents deleted.")
-    _fail_fast_if_feed_blocked(mtls_app)
 
     endpoints = PerformanceEndpoints(
         mtls_url=mtls_url,
@@ -122,32 +131,29 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
         token_app=token_app,
     )
 
-    # Use warmup throughput and network RTT to set the shared concurrency.
-    if shutil.which("k6") is not None:
-        from utils.k6_lane import run_k6
-
-        print(f"\n=== Warmup: k6 for {int(WARMUP.warmup_s + WARMUP.duration_s)}s ===")
-        warm = run_k6(
-            endpoints,
-            WARMUP,
-            Path(os.environ.get("PERFORMANCE_REPORT_DIR") or ".") / "k6_warmup.json",
-            "mtls",
-        )
-        mtls_app.delete_all_docs(
-            content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
-        )
-        print("Warmup documents deleted.")
-        # Successful requests only: 429s are not capacity.
-        ceiling = warm.rps * (1 - warm.error_rate)
-        rtt = _network_rtt_s(mtls_app)
-        profile = PROFILE.for_session(ceiling_rps=ceiling, rtt_s=rtt)
-        print(
-            f"Session profile: ceiling ~{ceiling:.0f} rps, RTT {rtt * 1000:.0f} ms -> "
-            f"k6 concurrency {profile.concurrency} for the active transport "
-            f"over {profile.k6_connections} connections, "
-            f"~{PROFILE.server_queue_target} queued in the instance"
-        )
-        endpoints = replace(endpoints, profile=profile)
+    # Warmup throughput and network round trip set k6's concurrency (see `profile`).
+    print(f"\n=== Warmup: k6 for {int(WARMUP.warmup_s + WARMUP.duration_s)}s ===")
+    warm = run_k6(
+        endpoints,
+        WARMUP,
+        Path(os.environ.get("PERFORMANCE_REPORT_DIR") or ".") / "k6_warmup.json",
+        "mtls",
+    )
+    mtls_app.delete_all_docs(
+        content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
+    )
+    print("Warmup documents deleted.")
+    # Successful requests only: 429s are not capacity.
+    ceiling = warm.rps * (1 - warm.error_rate)
+    rtt = _network_rtt_s(mtls_app)
+    profile = PROFILE.for_session(ceiling_rps=ceiling, rtt_s=rtt)
+    print(
+        f"Session profile: ceiling ~{ceiling:.0f} rps, RTT {rtt * 1000:.0f} ms -> "
+        f"k6 concurrency {profile.concurrency} for the active transport "
+        f"over {profile.k6_connections} connections, "
+        f"~{PROFILE.server_queue_target} queued in the instance"
+    )
+    endpoints = replace(endpoints, profile=profile)
 
     try:
         yield endpoints
@@ -166,21 +172,7 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
             print(f"Teardown cleanup did not finish, setup will retry next run: {e}")
 
 
-def _fail_fast_if_feed_blocked(app) -> None:
-    """A content node over its memory limit answers 507 to every write, so a
-    session would spend an hour measuring nothing (runs #38/#39). Probe once.
-    The node keeps process memory after documents are removed; if this fails
-    with an empty corpus, restart the content cluster."""
-    with VespaSync(app=app, pool_connections=1, pool_maxsize=1, num_retries_429=0) as s:
-        try:
-            s.feed_data_point(SCHEMA, "feed-block-probe", {"id": "p"})
-        except Exception as e:
-            pytest.fail(f"Feed probe failed, the instance cannot accept writes: {e}")
-        s.delete_data(SCHEMA, "feed-block-probe")
-
-
 def _network_rtt_s(app, samples: int = 20) -> float:
-    """Minimum round trip over sequential GETs on a warm connection."""
     best = float("inf")
     with VespaSync(app=app, pool_connections=1, pool_maxsize=1) as session:
         url = f"{app.end_point}/ApplicationStatus"

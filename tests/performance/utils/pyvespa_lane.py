@@ -1,8 +1,5 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
-"""The batch APIs as a user runs them: one process, one call per transport.
-Keep this module free of pytest."""
-
 import time
 from collections import Counter
 from typing import Callable, List, Optional
@@ -13,8 +10,8 @@ from vespa.retries import NO_RETRY
 from utils.config import (
     CONTAINER_CLUSTER,
     CONTENT_CLUSTER,
-    FEED_ASYNC_ITERABLE_KNOBS,
-    FEED_ITERABLE_KNOBS,
+    FEED_ASYNC_ITERABLE_PARAMETERS,
+    FEED_ITERABLE_PARAMETERS,
     SCHEMA,
     LoadProfile,
     make_doc,
@@ -22,11 +19,9 @@ from utils.config import (
 from utils.cpu_probes import InstanceCpuSampler, LoadGeneratorCpu
 from utils.metrics import LaneResult
 
-# httpr negotiates HTTP/2 in both modes; these labels record the API defaults.
-HTTP_MODE = {"feed_iterable": "negotiate", "feed_async_iterable": "h2only"}
-KNOBS = {
-    "feed_iterable": FEED_ITERABLE_KNOBS,
-    "feed_async_iterable": FEED_ASYNC_ITERABLE_KNOBS,
+PARAMETERS = {
+    "feed_iterable": FEED_ITERABLE_PARAMETERS,
+    "feed_async_iterable": FEED_ASYNC_ITERABLE_PARAMETERS,
 }
 
 
@@ -57,7 +52,7 @@ def _feed(app: Vespa, method: str, docs: List[dict], callback: Callable) -> None
             callback=callback,
             compress=False,
             num_retries_429=0,
-            **KNOBS[method],
+            **PARAMETERS[method],
         )
     else:
         app.feed_async_iterable(
@@ -65,7 +60,7 @@ def _feed(app: Vespa, method: str, docs: List[dict], callback: Callable) -> None
             schema=SCHEMA,
             callback=callback,
             docv1_retry_policy=NO_RETRY,
-            **KNOBS[method],
+            **PARAMETERS[method],
         )
 
 
@@ -76,7 +71,8 @@ def run_pyvespa(
     profile: LoadProfile,
     metrics_app: Optional[Vespa] = None,
 ) -> LaneResult:
-    """Feed one batch and measure it whole: rps, statuses, CPU on both sides."""
+    """Feed one batch through `method` and measure it whole. Returns the same
+    LaneResult shape as the k6 lane, which the tests assert on and export to Prometheus."""
     prefix = f"{method}-{transport}"
     # Untimed warmup batch: connection and TLS setup stay out of the measurement.
     _feed(app, method, _docs(prefix, profile.iterable_warmup_docs), lambda r, i: None)
@@ -99,12 +95,11 @@ def run_pyvespa(
         lane="pyvespa",
         method=method,
         transport=transport,
-        http=HTTP_MODE[method],
         rps=requests / duration_s,
         error_rate=sum(s != 200 for s in statuses) / requests,
         requests=requests,
         duration_s=duration_s,
-        concurrency=KNOBS[method]["max_workers"],
+        concurrency=PARAMETERS[method]["max_workers"],
         cpu_ms_per_request=cpu_s * 1000 / requests,
         rate_limited_rate=statuses.count(429) / requests,
         client_cpu_fraction=runner_fraction,

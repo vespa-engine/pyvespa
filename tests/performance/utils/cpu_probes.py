@@ -1,9 +1,5 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
-"""CPU probes for the two sides of a measurement: the load generator (the GitHub
-runner or laptop running the tests) and the Vespa instance. Both feed the
-validity checks in utils/metrics.py."""
-
 import re
 import threading
 import time
@@ -20,7 +16,6 @@ _CLUSTER = re.compile(r'clusterId="([^"]+)"')
 
 
 def _read_proc_stat() -> Optional[tuple]:
-    """(busy, total) jiffies summed over all CPUs, or None when unavailable."""
     try:
         with open(_PROC_STAT) as f:
             fields = f.readline().split()
@@ -36,8 +31,6 @@ def _read_proc_stat() -> Optional[tuple]:
 
 @dataclass
 class LoadGeneratorCpu:
-    """Sample /proc/stat at start and stop; `fraction` is busy/total."""
-
     _start: Optional[tuple] = None
     fraction: Optional[float] = None
 
@@ -57,7 +50,6 @@ class LoadGeneratorCpu:
 
 
 def instance_cpu_util(app: Vespa) -> Tuple[Dict[str, float], Optional[float]]:
-    """Read per-cluster CPU fractions and snapshot time; return ({}, None) if unavailable."""
     try:
         with VespaSync(app=app, pool_connections=1, pool_maxsize=1) as session:
             response = session.http_client.get(
@@ -83,8 +75,6 @@ def instance_cpu_util(app: Vespa) -> Tuple[Dict[str, float], Optional[float]]:
 
 
 class InstanceCpuSampler:
-    """Report peak CPU from snapshots covering the load (each spans about 60 seconds)."""
-
     SNAPSHOT_S = 60.0
 
     def __init__(self, app: Vespa, interval_s: float = 10.0):
@@ -110,13 +100,10 @@ class InstanceCpuSampler:
         return self
 
     def stop(self, load_start: Optional[float] = None) -> Dict[str, float]:
-        """Stop polling. `load_start` (epoch seconds) defaults to start()."""
         load_end = time.time()
         load_start = load_start if load_start is not None else self._started_at
         self._stop.set()
         self._thread.join(timeout=60)
-        # Wait for a snapshot stamped after the load ended, so the interval
-        # covering the last part of the load is included.
         deadline = load_end + self.SNAPSHOT_S + 15
         while time.time() < deadline:
             self._poll()

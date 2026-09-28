@@ -5,7 +5,7 @@ import string
 from dataclasses import dataclass, replace
 from typing import Dict, Tuple
 
-from utils.metrics import Thresholds, ValidityLimits
+from utils.metrics import ValidityLimits
 
 TENANT = "vespa-team"
 APPLICATION = "pyvespa-performance"
@@ -26,16 +26,14 @@ def make_doc(prefix: str) -> Tuple[str, Dict]:
 
 @dataclass(frozen=True)
 class LoadProfile:
-    """k6 load for the one transport under test; token and mTLS run one after
-    the other. The pyvespa lane takes its concurrency from the API knobs below."""
-
-    concurrency: int = 400  # per transport; warmup/fallback, for_session adjusts
-    server_queue_target: int = 200  # 250 sat at the 429 edge from a 56 ms runner
+    # The values are explained under "Load settings" in tests/performance/README.md.
+    concurrency: int = 400
+    server_queue_target: int = 200
     max_concurrency: int = 800
     warmup_s: float = 30.0
     duration_s: float = 150.0
-    k6_connections: int = 8  # HTTP/2 connections the k6 streams are spread over
-    iterable_docs: int = 400000  # one batch; about duration_s at the sweep's ~3000 rps
+    k6_connections: int = 8
+    iterable_docs: int = 400000
     iterable_warmup_docs: int = 2000
 
     def k6_env(self) -> dict:
@@ -47,8 +45,6 @@ class LoadProfile:
         }
 
     def for_session(self, ceiling_rps: float, rtt_s: float) -> "LoadProfile":
-        """In flight = queued requests + throughput * RTT; transports run one at
-        a time, so this is the concurrency of the single active transport."""
         if ceiling_rps <= 0 or rtt_s <= 0:
             return self
         in_flight = self.server_queue_target + ceiling_rps * rtt_s
@@ -57,45 +53,28 @@ class LoadProfile:
         return replace(self, concurrency=min(concurrency, self.max_concurrency))
 
 
-PROFILE = LoadProfile()
-# mTLS only, 60 s: warms the instance and gives a conservative ceiling estimate
-# (400 in flight on one transport is under the 429 edge from us-east).
+# Every value below is explained under "Settings" in tests/performance/README.md.
+
+# Session (conftest.py): wait for the instance to settle, clean up documents.
+IDLE_CPU_UTIL = 0.30
+CLEANUP_SLICES = 16
+
+# k6 lane (test_k6_lane.py): the instance ceiling and the token hop.
+PROFILE = LoadProfile()  # opening and closing runs, sized by for_session
 WARMUP = replace(PROFILE, concurrency=400, warmup_s=15.0, duration_s=45.0)
-
-# The batch APIs as a user calls them: one process, one call, these knobs.
-# From a CI sweep (2026-09-28): one process is GIL-bound at ~3200 rps for both
-# APIs (feed_iterable from 64 workers, feed_async_iterable from 128; connections
-# do not matter; the default queue of 1000 beats both smaller and larger). The
-# workers are set higher so the process stays CPU-bound, not latency-bound, on
-# a runner up to ~35 ms from the instance: rps = workers / round trip otherwise.
-FEED_ITERABLE_KNOBS = dict(max_workers=128)
-FEED_ASYNC_ITERABLE_KNOBS = dict(max_workers=400)
-PYVESPA_METHODS = ("feed_iterable", "feed_async_iterable")
-
-# k6 only: reject overload, a client that did not keep the queue full, a
-# CPU-bound runner, or an underloaded instance. In-flight (Little's law) is the
-# direct client check; the CPU fraction is a backstop.
+LATENCY_PROBE = replace(
+    PROFILE, concurrency=1, k6_connections=1, warmup_s=5.0, duration_s=30.0
+)
+# Asserts that a k6 number is about the instance at all: not overloaded (429s),
+# queue kept full (in flight), runner not CPU-bound, instance saturated.
 VALIDITY = ValidityLimits(
     max_rate_limited_rate=0.01,
     max_client_cpu_fraction=0.90,
     min_server_container_cpu_util=0.75,
     min_in_flight_fraction=0.85,
 )
-IDLE_CPU_UTIL = 0.30
-CLEANUP_SLICES = 16  # a session leaves ~4M documents; 8 slices took 30 minutes
 
-# About 30% below CI run #34 (2026-09-23): token 2019+, mTLS 2271+ rps.
-# Ratio bounds are loose because the token path's extra latency varies with RTT.
-THRESHOLDS = Thresholds(
-    max_error_rate=0.02,
-    min_token_rps=1400,
-    min_mtls_rps=1600,
-    min_token_rps_ratio=0.4,
-    max_token_p95_ratio=4.0,
-)
-# pyvespa floors per method, about 30% below CI run #50 (2026-09-28):
-# feed_iterable 2824/3122 rps, feed_async_iterable 2215/2811 rps (token/mTLS).
-PYVESPA_THRESHOLDS = {
-    "feed_iterable": replace(THRESHOLDS, min_token_rps=1950, min_mtls_rps=2150),
-    "feed_async_iterable": replace(THRESHOLDS, min_token_rps=1550, min_mtls_rps=1950),
-}
+# pyvespa lane (test_pyvespa_lane.py): the batch APIs in one process.
+PYVESPA_METHODS = ("feed_iterable", "feed_async_iterable")
+FEED_ITERABLE_PARAMETERS = dict(max_workers=128)
+FEED_ASYNC_ITERABLE_PARAMETERS = dict(max_workers=400, max_connections=4)

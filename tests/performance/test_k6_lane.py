@@ -1,37 +1,31 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
-"""k6 lane: raw HTTP at PROFILE.concurrency VUs per transport. Runs twice per
-session, first and last (`performance_last`), so the pyvespa methods are bracketed
-and the instance's drift within the run is measured rather than guessed."""
-
 import json
-import shutil
 from typing import List
 
 import pytest
 
 from utils.k6_lane import run_k6
-from utils.metrics import (
-    LaneResult,
-    assert_measurement_valid,
-    assert_token_vs_mtls,
-    resolve_report_dir,
-    write_records,
+from utils.asserts import assert_measurement_valid, assert_token_vs_mtls
+from utils.metrics import LaneResult, Thresholds, resolve_report_dir, write_records
+from utils.config import LATENCY_PROBE, VALIDITY
+
+# Explained under "Thresholds" in tests/performance/README.md.
+K6_THRESHOLDS = Thresholds(
+    max_error_rate=0.02,
+    min_token_rps=1400,
+    min_mtls_rps=1600,
+    min_token_rps_ratio=0.4,
+    max_token_p95_ratio=4.0,
 )
-from utils.config import THRESHOLDS, VALIDITY
+MAX_TOKEN_HOP_MS = 50.0
 
 
-if shutil.which("k6") is None:
-    pytest.skip("k6 binary not found in PATH", allow_module_level=True)
-
-
-def _measure(endpoints, report_dir, name: str) -> List[LaneResult]:
-    # One transport at a time: each number is the instance's ceiling through
-    # that path, not a share of it.
+def _measure(endpoints, report_dir, name: str, profile=None) -> List[LaneResult]:
     results = [
         run_k6(
             endpoints,
-            endpoints.profile,
+            profile or endpoints.profile,
             report_dir / f"{name}_{transport}_summary.json",
             transport,
         )
@@ -43,8 +37,29 @@ def _measure(endpoints, report_dir, name: str) -> List[LaneResult]:
 
 def _check(results: List[LaneResult]) -> None:
     token, mtls = results
-    assert_token_vs_mtls(token, mtls, THRESHOLDS)
+    assert_token_vs_mtls(token, mtls, K6_THRESHOLDS)
     assert_measurement_valid([token, mtls], VALIDITY)
+
+
+@pytest.mark.performance
+def test_token_hop_latency(vespa_cloud_token_endpoints, tmp_path):
+    """Token p50 minus mTLS p50 at one request in flight: the token hop, no queueing."""
+    token, mtls = _measure(
+        vespa_cloud_token_endpoints,
+        resolve_report_dir(tmp_path),
+        "k6_token_hop",
+        LATENCY_PROBE,
+    )
+    hop_ms = token.p50_ms - mtls.p50_ms
+    print(
+        f"\n=== Token hop: p50 token {token.p50_ms:.1f} ms, mTLS {mtls.p50_ms:.1f} ms, "
+        f"difference {hop_ms:+.1f} ms ==="
+    )
+    assert token.error_rate == 0 and mtls.error_rate == 0
+    assert hop_ms <= MAX_TOKEN_HOP_MS, (
+        f"Token path adds {hop_ms:.1f} ms per request at one in flight "
+        f"(max {MAX_TOKEN_HOP_MS:.0f} ms)"
+    )
 
 
 @pytest.mark.performance
@@ -62,15 +77,12 @@ def test_token_vs_mtls_performance(vespa_cloud_token_endpoints, tmp_path, run_st
 def test_token_vs_mtls_performance_last(
     vespa_cloud_token_endpoints, tmp_path, run_state
 ):
-    """Closing k6 run. The difference to the opening run is how much the
-    instance itself moved during the session: read every pyvespa-vs-k6 gap
-    smaller than that as noise."""
+    """Closing k6 run; the difference to the opening run is the instance's drift."""
     report_dir = resolve_report_dir(tmp_path)
     last = _measure(vespa_cloud_token_endpoints, report_dir, "k6_token_vs_mtls_last")
     first = run_state.get("k6_first")
     if first:
-        # Drift is recorded before any assertion so the artifact has it even
-        # when a threshold fails.
+        # Written before the asserts so the artifact has it when a threshold fails.
         first_total = sum(r.rps for r in first)
         last_total = sum(r.rps for r in last)
         drift_pct = (last_total - first_total) / first_total * 100
