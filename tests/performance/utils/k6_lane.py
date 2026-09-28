@@ -70,7 +70,6 @@ def lane_result(metrics: dict, transport: str, profile: LoadProfile) -> LaneResu
         requests=count,
         duration_s=profile.duration_s,
         concurrency=profile.concurrency,
-        connections=profile.connections(),
         p50_ms=_metric_value(duration, "med"),
         p95_ms=_require_value(duration, ("p(95)",), transport),
         p99_ms=_metric_value(duration, "p(99)"),
@@ -102,7 +101,7 @@ def run_k6(
     expected_s = int(profile.warmup_s + profile.duration_s)
     print(
         f"\n=== Running k6 {transport}: {profile.concurrency} in flight over "
-        f"{profile.connections()} connections, ~{expected_s}s + graceful stop ==="
+        f"{profile.k6_connections} connections, ~{expected_s}s + graceful stop ==="
     )
     load_start = time.time()
     runner_cpu = LoadGeneratorCpu().start()

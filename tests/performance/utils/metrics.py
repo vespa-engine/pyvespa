@@ -4,7 +4,7 @@ import json
 import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 
 @dataclass(frozen=True)
@@ -29,13 +29,8 @@ class LaneResult:
     # with `concurrency` it shows whether this client kept the instance's queue
     # full, which neither its CPU use nor the instance's CPU can tell.
     achieved_in_flight: Optional[float] = None
-    # Worker processes the concurrency was spread over (pyvespa lane).
-    processes: int = 1
-    # Connections per transport the lane opened (concurrency / connections
-    # requests multiplexed per connection). Same in both lanes by construction.
-    connections: Optional[int] = None
-    # Client CPU per request, summed over worker processes. Largely runner-
-    # independent, so it is the client-efficiency number to track; None for k6.
+    # Client CPU per request. Depends on the runner CPU model, otherwise the
+    # client-efficiency number to track; None for k6.
     cpu_ms_per_request: Optional[float] = None
     # Share of measured requests answered 429 (backpressure). Both lanes run
     # without retries, so this is the same quantity on both sides.
@@ -82,8 +77,7 @@ def _pct(value: Optional[float]) -> str:
     return f"{value * 100:.0f}%" if value is not None else "n/a"
 
 
-def assert_measurement_valid(results: List[LaneResult], limits: ValidityLimits):
-    """Fail the test when the numbers cannot be about the instance."""
+def print_validity(results: List[LaneResult]) -> None:
     for r in results:
         in_flight = (
             f"{r.achieved_in_flight:.0f}/{r.concurrency}"
@@ -97,6 +91,11 @@ def assert_measurement_valid(results: List[LaneResult], limits: ValidityLimits):
             f"server container cpu={_pct(r.server_container_cpu_util)}, "
             f"content cpu={_pct(r.server_content_cpu_util)}"
         )
+
+
+def assert_measurement_valid(results: List[LaneResult], limits: ValidityLimits):
+    """Fail the test when the numbers cannot be about the instance."""
+    print_validity(results)
     for r in results:
         if r.achieved_in_flight is not None and limits.min_in_flight_fraction > 0:
             assert (
@@ -131,19 +130,6 @@ def assert_measurement_valid(results: List[LaneResult], limits: ValidityLimits):
             )
 
 
-def percentiles(latencies_ms: List[float]) -> Tuple[float, float, float]:
-    """Return (p50, p95, p99) of the given latencies in milliseconds."""
-    if not latencies_ms:
-        raise ValueError("No latency samples collected.")
-    ordered = sorted(latencies_ms)
-
-    def pct(p: float) -> float:
-        index = min(len(ordered) - 1, max(0, round(p * (len(ordered) - 1))))
-        return ordered[index]
-
-    return pct(0.50), pct(0.95), pct(0.99)
-
-
 def resolve_report_dir(fallback: Path) -> Path:
     report_dir = Path(os.environ.get("PERFORMANCE_REPORT_DIR") or fallback)
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -168,8 +154,7 @@ def _fmt_cpu(value: Optional[float]) -> str:
 def print_results(token: LaneResult, mtls: LaneResult) -> None:
     print(
         f"\n=== Results: {token.lane}/{token.method}/{token.http} "
-        f"(concurrency={token.concurrency}/transport over "
-        f"{token.connections} connections, processes={token.processes}) ==="
+        f"(concurrency={token.concurrency} per transport) ==="
     )
     print(
         f"Token: {token.rps:.2f} req/s, p95={_fmt_ms(token.p95_ms)}, "

@@ -143,9 +143,8 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
         profile = PROFILE.for_session(ceiling_rps=ceiling, rtt_s=rtt)
         print(
             f"Session profile: ceiling ~{ceiling:.0f} rps, RTT {rtt * 1000:.0f} ms -> "
-            f"concurrency {profile.concurrency} for the active transport "
-            f"({profile.connections()} connections x "
-            f"{profile.streams_per_connection()} streams), "
+            f"k6 concurrency {profile.concurrency} for the active transport "
+            f"over {profile.k6_connections} connections, "
             f"~{PROFILE.server_queue_target} queued in the instance"
         )
         endpoints = replace(endpoints, profile=profile)

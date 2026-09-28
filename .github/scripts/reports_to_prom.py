@@ -3,15 +3,7 @@ import re
 import sys
 from pathlib import Path
 
-RECORD_LABELS = (
-    "lane",
-    "method",
-    "transport",
-    "http",
-    "concurrency",
-    "connections",
-    "processes",
-)
+RECORD_LABELS = ("lane", "method", "transport", "http", "concurrency")
 RECORD_FIELDS = (
     "rps",
     "error_rate",
@@ -62,38 +54,26 @@ def convert_k6_summary(summary_file: Path, typed_names: set) -> list:
     return lines
 
 
+def _labels(record: dict, names: tuple) -> str:
+    return ",".join(
+        f'{name}="{_sanitize(str(record.get(name, "unknown")))}"' for name in names
+    )
+
+
+def _sample(prom_name: str, labels: str, value, typed_names: set) -> list:
+    return _typed(prom_name, typed_names) + [f"{prom_name}{{{labels}}} {value}"]
+
+
 def convert_records(records_file: Path, typed_names: set) -> list:
     records = json.loads(records_file.read_text()).get("records", [])
     lines = []
-    # Token path's extra latency over mTLS for the same lane/method: the auth
-    # hop by itself, cleaner to graph than the token/mTLS rps ratio.
-    by_transport = {r.get("transport"): r for r in records}
-    token, mtls = by_transport.get("token"), by_transport.get("mtls")
-    if token and mtls:
-        for field in ("p50_ms", "p95_ms"):
-            if token.get(field) is not None and mtls.get(field) is not None:
-                labels = ",".join(
-                    f'{label}="{_sanitize(str(token.get(label, "unknown")))}"'
-                    for label in RECORD_LABELS
-                    if label != "transport"
-                )
-                prom_name = f"perf_token_extra_{_sanitize(field)}"
-                lines += _typed(prom_name, typed_names)
-                lines.append(f"{prom_name}{{{labels}}} {token[field] - mtls[field]}")
     for record in records:
-        # Sanitize label values so record content cannot break the exposition
-        # format or inject labels.
-        labels = ",".join(
-            f'{label}="{_sanitize(str(record.get(label, "unknown")))}"'
-            for label in RECORD_LABELS
-        )
+        source = f'source="{_sanitize(records_file.stem)}"'
+        labels = f"{source},{_labels(record, RECORD_LABELS)}"
         for field in RECORD_FIELDS:
             value = record.get(field)
-            if value is None:
-                continue
-            prom_name = f"perf_{_sanitize(field)}"
-            lines += _typed(prom_name, typed_names)
-            lines.append(f"{prom_name}{{{labels}}} {value}")
+            if value is not None:
+                lines += _sample(f"perf_{field}", labels, value, typed_names)
     return lines
 
 

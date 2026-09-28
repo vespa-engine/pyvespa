@@ -8,10 +8,10 @@ const transport = __ENV.TRANSPORT || "mtls";
 const url = (transport === "token" ? __ENV.TOKEN_URL : __ENV.MTLS_URL).replace(/\/+$/, "");
 const authHeader = transport === "token" ? __ENV.TOKEN_AUTH_HEADER : null;
 
-// Match pyvespa: one connection per worker, with concurrent HTTP/2 streams.
+// The in-flight requests are HTTP/2 streams spread over a few connections.
 const maxVus = Number(__ENV.MAX_VUS || 400);
-const streamsPerConnection = Number(__ENV.STREAMS_PER_CONNECTION || 50);
-const connections = Math.max(1, Math.floor(maxVus / streamsPerConnection));
+const connections = Number(__ENV.CONNECTIONS || 8);
+const streamsPerConnection = Math.max(1, Math.round(maxVus / connections));
 
 function toMs(duration) {
   let ms = 0;
