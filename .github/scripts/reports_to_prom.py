@@ -3,6 +3,7 @@ import re
 import sys
 from pathlib import Path
 
+# Labels and fields are documented in tests/performance/README.md, Metrics reference.
 RECORD_LABELS = ("lane", "method", "transport", "http", "concurrency")
 RECORD_FIELDS = (
     "rps",
@@ -88,7 +89,6 @@ def main() -> int:
     lines = []
     typed_names = set()
     if drift_file.exists():
-        # Instance drift between the opening and closing k6 runs of the session.
         drift = json.loads(drift_file.read_text()).get("drift_pct")
         if isinstance(drift, (int, float)):
             lines += _typed("perf_instance_drift_pct", typed_names)
