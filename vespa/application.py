@@ -246,6 +246,18 @@ def raise_for_status(
         raise http_error
 
 
+def _error_status(e: BaseException) -> Optional[int]:
+    """Status code behind an error from raise_for_status, or None if there was no response.
+
+    The response sits on the HTTPError, which may itself be the cause of a VespaError.
+    """
+    for error in (e, e.__cause__):
+        response = getattr(error, "response", None)
+        if response is not None:
+            return response.status_code
+    return None
+
+
 def _response_json(response: Response) -> Dict:
     """Return the parsed JSON body, falling back to the raw text on a non-JSON body."""
     try:
@@ -1922,7 +1934,7 @@ class VespaSync(object):
             Response: The response of the HTTP DELETE request.
 
         Raises:
-            HTTPError: If one occurred.
+            VespaError: If a slice gets a permanent error (4xx other than 429) or fails five times in a row.
         """
 
         if not namespace:
@@ -1938,32 +1950,39 @@ class VespaSync(object):
                 slice_id,
             )
             request_endpoint = end_point
-            count = 0
-            errors = 0
+            failures = 0
             while True:
                 try:
-                    count += 1
                     response = self._request_with_retry(
                         "DELETE", request_endpoint, params=kwargs
                     )
+                    # An error response has no continuation; retry the chunk instead of ending the slice.
+                    raise_for_status(response)
                     result = response.json()
-                    if "continuation" in result:
-                        request_endpoint = "{}&continuation={}".format(
-                            end_point, result["continuation"]
-                        )
-                    else:
-                        break
                 except Exception as e:
-                    errors += 1
-                    error_rate = errors / count
-                    if error_rate > 0.1:
-                        raise Exception(
-                            "Too many errors for slice delete requests"
+                    failures += 1
+                    status = _error_status(e)
+                    # A 4xx other than 429 (for example a wrong cluster name) will not change on retry.
+                    permanent = (
+                        status is not None and 400 <= status < 500 and status != 429
+                    )
+                    if permanent or failures >= 5:
+                        raise VespaError(
+                            f"delete_all_docs slice {slice_id} failed: {e}"
                         ) from e
-                    sleep(1)
+                    sleep(min(2**failures, 30))
+                    continue
+                failures = 0
+                if "continuation" in result:
+                    request_endpoint = "{}&continuation={}".format(
+                        end_point, result["continuation"]
+                    )
+                else:
+                    break
 
+        # list() consumes the lazy map so an exception in a slice propagates.
         with ThreadPoolExecutor(max_workers=slices) as executor:
-            executor.map(delete_slice, range(slices))
+            list(executor.map(delete_slice, range(slices)))
 
     def visit(
         self,

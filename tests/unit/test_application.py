@@ -4,6 +4,7 @@ import json
 import unittest
 import asyncio
 
+import httpr
 import pytest
 from unittest.mock import PropertyMock, patch
 from unittest.mock import MagicMock, AsyncMock
@@ -166,6 +167,65 @@ class TestVespaRequestsUsage(unittest.TestCase):
             content_cluster_name="content",
             timeout="200s",
         )
+
+    @staticmethod
+    def _delete_response(status_code=200, body=None):
+        response = Mock(spec=httpr.Response, status_code=status_code)
+        response.json.return_value = body or {}
+        return response
+
+    @patch("vespa.application.sleep")
+    @patch("vespa.application.httpr.Client")
+    def test_delete_all_docs_retries_a_failed_chunk_and_resets_after_success(
+        self, MockClient, sleep
+    ):
+        client = MockClient.return_value
+        client.get.return_value = self._delete_response()
+        busy = self._delete_response(503, {"message": "busy"})
+        # Four failures in a row twice, each run ended by a success: never five.
+        client.delete.side_effect = (
+            [busy] * 4
+            + [self._delete_response(body={"continuation": "c1"})]
+            + [busy] * 4
+            + [self._delete_response()]
+        )
+
+        app = Vespa(url="http://localhost", port=8080)
+        app.delete_all_docs(schema="foo", content_cluster_name="content")
+        urls = [call.args[0] for call in client.delete.call_args_list]
+        assert len(urls) == 10
+        assert all("continuation" not in url for url in urls[:5])
+        assert all("continuation=c1" in url for url in urls[5:])
+        assert [call.args[0] for call in sleep.call_args_list] == [2, 4, 8, 16] * 2
+
+    @patch("vespa.application.sleep")
+    @patch("vespa.application.httpr.Client")
+    def test_delete_all_docs_gives_up_after_five_failures_in_a_row(
+        self, MockClient, _sleep
+    ):
+        client = MockClient.return_value
+        client.get.return_value = self._delete_response()
+        client.delete.return_value = self._delete_response(503, {"message": "busy"})
+
+        app = Vespa(url="http://localhost", port=8080)
+        with pytest.raises(VespaError, match="slice 0 failed"):
+            app.delete_all_docs(schema="foo", content_cluster_name="content")
+        assert client.delete.call_count == 5
+
+    @patch("vespa.application.sleep")
+    @patch("vespa.application.httpr.Client")
+    def test_delete_all_docs_fails_fast_on_a_permanent_error(self, MockClient, sleep):
+        client = MockClient.return_value
+        client.get.return_value = self._delete_response()
+        client.delete.return_value = self._delete_response(
+            400, {"message": "No cluster named 'content_msmarco'"}
+        )
+
+        app = Vespa(url="http://localhost", port=8080)
+        with pytest.raises(VespaError, match="content_msmarco"):
+            app.delete_all_docs(schema="foo", content_cluster_name="content_msmarco")
+        assert client.delete.call_count == 1
+        sleep.assert_not_called()
 
     @patch("vespa.application.httpr.Client")
     def test_visit(self, MockClient):
