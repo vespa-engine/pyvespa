@@ -1,14 +1,13 @@
+// Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
+
 import http from "k6/http";
 import exec from "k6/execution";
 import { Trend, Rate, Counter } from "k6/metrics";
 
-// One transport per run (TRANSPORT=token|mtls), so each gets the whole instance
-// and its throughput is an absolute ceiling rather than a share.
 const transport = __ENV.TRANSPORT || "mtls";
 const url = (transport === "token" ? __ENV.TOKEN_URL : __ENV.MTLS_URL).replace(/\/+$/, "");
 const authHeader = transport === "token" ? __ENV.TOKEN_AUTH_HEADER : null;
 
-// The in-flight requests are HTTP/2 streams spread over a few connections.
 const maxVus = Number(__ENV.MAX_VUS || 400);
 const connections = Number(__ENV.CONNECTIONS || 8);
 const streamsPerConnection = Math.max(1, Math.round(maxVus / connections));

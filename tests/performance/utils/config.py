@@ -35,7 +35,7 @@ class LoadProfile:
     warmup_s: float = 30.0
     duration_s: float = 150.0
     k6_connections: int = 8  # HTTP/2 connections the k6 streams are spread over
-    iterable_docs: int = 150000  # one batch; sized to take about duration_s
+    iterable_docs: int = 400000  # one batch; about duration_s at the sweep's ~3000 rps
     iterable_warmup_docs: int = 2000
 
     def k6_env(self) -> dict:
@@ -63,9 +63,12 @@ PROFILE = LoadProfile()
 WARMUP = replace(PROFILE, concurrency=400, warmup_s=15.0, duration_s=45.0)
 
 # The batch APIs as a user calls them: one process, one call, these knobs.
-# Values are the library defaults until the local sweep (README) says otherwise.
-FEED_ITERABLE_KNOBS = dict(max_workers=8, max_connections=16, max_queue_size=1000)
-FEED_ASYNC_ITERABLE_KNOBS = dict(max_workers=64, max_connections=1, max_queue_size=1000)
+# From a CI sweep (2026-09-28): feed_iterable plateaus at 64 workers (GIL-bound,
+# 8 gives a quarter of the rate; connections do not matter), feed_async_iterable
+# peaks at 128 workers on one connection. The default queue size of 1000 is best:
+# smaller starves the workers, 4000 costs a third more CPU per request.
+FEED_ITERABLE_KNOBS = dict(max_workers=64)
+FEED_ASYNC_ITERABLE_KNOBS = dict(max_workers=128)
 PYVESPA_METHODS = ("feed_iterable", "feed_async_iterable")
 
 # k6 only: reject overload, a client that did not keep the queue full, a
