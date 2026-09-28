@@ -30,7 +30,10 @@ def _clients(endpoints) -> dict:
 
 @pytest.mark.performance
 @pytest.mark.parametrize("method", PYVESPA_METHODS)
-def test_pyvespa_performance(vespa_cloud_token_endpoints, tmp_path, run_state, method):
+def test_pyvespa_token_vs_mtls_performance(
+    vespa_cloud_token_endpoints, tmp_path, run_state, method
+):
+    """One batch API through the token and the mTLS endpoint, one after the other."""
     endpoints = vespa_cloud_token_endpoints
     report_dir = resolve_report_dir(tmp_path)
     profile = endpoints.profile

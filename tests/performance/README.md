@@ -15,7 +15,7 @@ and place the authorized data-plane certificate/key pair in
 uv run pytest tests/performance/ -m performance -s -v
 ```
 
-The suite takes roughly 60–65 minutes and deletes documents in the shared
+The suite takes roughly 45–70 minutes and deletes documents in the shared
 application at setup and teardown. Avoid overlapping runs; let the instance
 settle after cleanup before comparing another run.
 
@@ -34,9 +34,12 @@ come from `VESPA_PERFORMANCE_MTLS_CERT` and `VESPA_PERFORMANCE_MTLS_KEY`.
 - pyvespa runs `feed_iterable` and `feed_async_iterable` the way a user calls
   them: one process, one call per transport, with the knobs in
   `utils/config.py`. The knobs (workers, connections, queue size) come from a
-  local sweep for the fastest single-process throughput; nothing internal is
-  tuned. An eight-process variant of this lane matched k6 within 1 to 4%, so
-  a gap in this lane is Python-side cost per request, not the wire path.
+  CI sweep for the fastest single-process throughput; nothing internal is
+  tuned. The worker counts are set high enough that the process stays
+  CPU-bound rather than latency-bound, since hosted runners sit 7 to 32 ms
+  from the instance and a latency-bound rate is just workers divided by the
+  round trip. An eight-process variant of this lane matched k6 within 1 to
+  4%, so a gap in this lane is Python-side cost per request, not the wire path.
 - Both lanes use the same payload and HTTP/2, with retries and compression
   disabled and a 120-second timeout.
 - A 60-second k6 warmup on mTLS estimates capacity from its successful

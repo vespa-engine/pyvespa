@@ -63,12 +63,13 @@ PROFILE = LoadProfile()
 WARMUP = replace(PROFILE, concurrency=400, warmup_s=15.0, duration_s=45.0)
 
 # The batch APIs as a user calls them: one process, one call, these knobs.
-# From a CI sweep (2026-09-28): feed_iterable plateaus at 64 workers (GIL-bound,
-# 8 gives a quarter of the rate; connections do not matter), feed_async_iterable
-# peaks at 128 workers on one connection. The default queue size of 1000 is best:
-# smaller starves the workers, 4000 costs a third more CPU per request.
-FEED_ITERABLE_KNOBS = dict(max_workers=64)
-FEED_ASYNC_ITERABLE_KNOBS = dict(max_workers=128)
+# From a CI sweep (2026-09-28): one process is GIL-bound at ~3200 rps for both
+# APIs (feed_iterable from 64 workers, feed_async_iterable from 128; connections
+# do not matter; the default queue of 1000 beats both smaller and larger). The
+# workers are set higher so the process stays CPU-bound, not latency-bound, on
+# a runner up to ~35 ms from the instance: rps = workers / round trip otherwise.
+FEED_ITERABLE_KNOBS = dict(max_workers=128)
+FEED_ASYNC_ITERABLE_KNOBS = dict(max_workers=400)
 PYVESPA_METHODS = ("feed_iterable", "feed_async_iterable")
 
 # k6 only: reject overload, a client that did not keep the queue full, a
