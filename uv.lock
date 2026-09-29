@@ -4629,7 +4629,7 @@ requires-dist = [
     { name = "docker" },
     { name = "fastcore", specifier = ">=1.7.8" },
     { name = "html5lib", marker = "extra == 'feed'" },
-    { name = "httpr", specifier = ">=0.4.0" },
+    { name = "httpr", specifier = ">=0.6.0" },
     { name = "httpx", extras = ["http2"] },
     { name = "ipykernel", marker = "extra == 'docs'", specifier = "==6.31.0" },
     { name = "ipykernel", marker = "extra == 'notebooks'", specifier = "==6.31.0" },
