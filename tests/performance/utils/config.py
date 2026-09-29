@@ -62,12 +62,12 @@ class LoadProfile:
     server_queue_target: int = 200
     max_concurrency: int = 800
     warmup_s: float = 30.0
-    duration_s: float = 150.0
+    duration_s: float = 90.0
     k6_connections: int = 8
     pyvespa_workers: int = 128
     max_pyvespa_workers: int = 1024
     service_s: float = 0.02
-    iterable_docs: int = 400000
+    iterable_docs: int = 200000
     iterable_warmup_docs: int = 2000
 
     def k6_env(self) -> dict:

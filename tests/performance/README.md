@@ -15,7 +15,7 @@ and place the authorized data-plane certificate/key pair in
 uv run pytest tests/performance/ -m performance -s -v
 ```
 
-The suite takes roughly 65–90 minutes and deletes documents in the shared
+The suite takes about 45 minutes, and the workflow stops it at 60. It deletes documents in the shared
 application at setup and teardown. Avoid overlapping runs; let the instance
 settle after cleanup before comparing another run.
 
@@ -64,7 +64,7 @@ come from `VESPA_PERFORMANCE_MTLS_CERT` and `VESPA_PERFORMANCE_MTLS_KEY`.
   regressions. Transports run one at a time, so this is the whole load the
   instance sees. If the warmup or the RTT cannot be measured the session
   fails, since without a ceiling there is nothing to compare against.
-- k6 counts completions inside a 150-second window after 30 seconds of
+- k6 counts completions inside a 90-second window after 30 seconds of
   warmup. pyvespa measures one batch of documents whole, after an untimed
   warmup batch; the batch APIs report no per-request latency.
 - Tests wait for instance CPU to settle between workloads. Documents remain
@@ -82,7 +82,7 @@ All values live in `utils/config.py`, grouped by who uses them.
 
 **Session** (`conftest.py`)
 
-- `IDLE_CPU_UTIL` 0.30: before each test, wait (up to four minutes) until the
+- `IDLE_CPU_UTIL` 0.30: before each test, wait (up to two minutes) until the
   busiest instance cluster is under 30% CPU, so cleanup or the previous test
   does not leak into the next measurement.
 - `CLEANUP_SLICES` 16: parallel slices for `delete_all_docs`. A session
@@ -139,8 +139,9 @@ All values live in `utils/config.py`, grouped by who uses them.
   the ceiling and round trip; also the warmup load, safely under the 429 edge.
 - `max_concurrency` 800: cap on what `for_session` can pick, so a bad round
   trip measurement cannot overload the instance.
-- `warmup_s` 30 and `duration_s` 150: ramp-up excluded from counting, then the
-  hold window. 150 s keeps drift within a run at 1 to 3%.
+- `warmup_s` 30 and `duration_s` 90: ramp-up excluded from counting, then the
+  hold window. 150 s gave 1 to 3% drift within a run; 90 s saves six minutes
+  per session for a little more noise.
 - `k6_connections` 8: HTTP/2 connections the k6 streams are spread over. The
   instance does not care between 1 and 16.
 - `pyvespa_workers` 128: `max_workers` for both batch APIs before
@@ -150,8 +151,9 @@ All values live in `utils/config.py`, grouped by who uses them.
   23 ms across runners 4 to 67 ms away.
 - `max_pyvespa_workers` 1024: cap on `pyvespa_workers`, so a bad round trip
   measurement cannot start a thousand threads.
-- `iterable_docs` 400000: one pyvespa batch per transport, about the hold
-  window long at the roughly 3000 rps one process reaches.
+- `iterable_docs` 200000: one pyvespa batch per transport, a bit over a minute
+  at the roughly 3000 rps one process reaches, and half the documents to
+  delete at teardown.
 - `iterable_warmup_docs` 2000: an untimed first batch so connection and TLS
   setup stay out of the measurement.
 
@@ -204,7 +206,7 @@ configured in-flight requests for k6 and `max_workers` for pyvespa. Fields:
 | `rps` | 1/s | requests completed per second inside the measurement window |
 | `error_rate` | 0..1 | share of those requests not answered 200 |
 | `requests` | count | requests counted in the window |
-| `duration_s` | s | window length: the 150 s hold for k6, the batch's wall time for pyvespa |
+| `duration_s` | s | window length: the 90 s hold for k6, the batch's wall time for pyvespa |
 | `p50_ms`, `p95_ms`, `p99_ms`, `mean_ms` | ms | latency, k6 only; the batch APIs time nothing per request |
 | `achieved_in_flight` | requests | k6 only: `rps × mean_ms / 1000` (Little's law); divided by `concurrency` it says whether the client kept the instance's queue full |
 | `cpu_ms_per_request` | ms | load-generator CPU per request, pyvespa only; depends on the runner CPU model |

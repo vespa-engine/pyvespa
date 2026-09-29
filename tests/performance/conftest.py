@@ -183,7 +183,7 @@ def _network_rtt_s(app, samples: int = 20) -> float:
     return best
 
 
-def _wait_until_instance_idle(app, max_wait_s: float = 240.0) -> None:
+def _wait_until_instance_idle(app, max_wait_s: float = 120.0) -> None:
     """Wait up to max_wait_s for background work from cleanup or the previous test."""
     from utils.cpu_probes import instance_cpu_util
 
