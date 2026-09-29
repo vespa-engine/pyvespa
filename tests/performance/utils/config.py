@@ -1,5 +1,6 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
+import math
 import random
 import string
 from dataclasses import dataclass, replace
@@ -33,6 +34,9 @@ class LoadProfile:
     warmup_s: float = 30.0
     duration_s: float = 150.0
     k6_connections: int = 8
+    pyvespa_workers: int = 128
+    max_pyvespa_workers: int = 1024
+    service_s: float = 0.02
     iterable_docs: int = 400000
     iterable_warmup_docs: int = 2000
 
@@ -50,7 +54,12 @@ class LoadProfile:
         in_flight = self.server_queue_target + ceiling_rps * rtt_s
         step = self.k6_connections
         concurrency = max(step, round(in_flight / step) * step)
-        return replace(self, concurrency=min(concurrency, self.max_concurrency))
+        workers = math.ceil(ceiling_rps * (rtt_s + self.service_s) / 16) * 16
+        return replace(
+            self,
+            concurrency=min(concurrency, self.max_concurrency),
+            pyvespa_workers=min(max(workers, 64), self.max_pyvespa_workers),
+        )
 
 
 # Every value below is explained under "Settings" in tests/performance/README.md.
@@ -74,7 +83,6 @@ VALIDITY = ValidityLimits(
     min_in_flight_fraction=0.85,
 )
 
-# pyvespa lane (test_pyvespa_lane.py): the batch APIs in one process.
+# pyvespa lane (test_pyvespa_lane.py): the batch APIs in one process, with
+# max_workers from PROFILE.pyvespa_workers and everything else the library default.
 PYVESPA_METHODS = ("feed_iterable", "feed_async_iterable")
-FEED_ITERABLE_PARAMETERS = dict(max_workers=128)
-FEED_ASYNC_ITERABLE_PARAMETERS = dict(max_workers=400, max_connections=4)

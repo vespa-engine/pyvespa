@@ -35,25 +35,26 @@ come from `VESPA_PERFORMANCE_MTLS_CERT` and `VESPA_PERFORMANCE_MTLS_KEY`.
   itself can change (compaction as the corpus grows, memory pressure, a noisy
   host neighbour). The closing run measures that movement with the same
   client, so a pyvespa-versus-k6 gap can be told apart from instance drift.
-- pyvespa runs `feed_iterable` and `feed_async_iterable` the way a user calls
-  them: one process, one call per transport, with the parameters in
-  `utils/config.py`. The parameters (workers, connections, queue size) come from a
-  CI sweep for the fastest single-process throughput; nothing internal is
-  tuned. The worker counts are set high enough that the process stays
-  CPU-bound rather than latency-bound, since hosted runners sit 4 to 32 ms
-  from the instance and a latency-bound rate is just workers divided by the
-  round trip. An eight-process variant of this lane matched k6 within 1 to
-  4%, so a gap in this lane is Python-side cost per request, not the wire path.
+- pyvespa runs `feed_iterable` and `feed_async_iterable` in one process, one
+  call per transport, with `max_workers` sized per session (below) and every
+  other parameter the library default. A CI sweep found the defaults for
+  queue size and connections best; nothing internal is tuned. An
+  eight-process variant of this lane matched k6 within 1 to 4%, so a gap in
+  this lane is Python-side cost per request, not the wire path.
 - Both lanes use the same payload and HTTP/2, with retries and compression
   disabled and a 120-second timeout.
 - A 60-second k6 warmup on mTLS estimates capacity from its successful
   requests. Together with measured network RTT, `LoadProfile.for_session`
-  sets the k6 concurrency of the active transport to keep about 200 requests
-  queued in the instance: in flight = 200 + throughput × RTT, rounded to
-  whole connections and capped at `max_concurrency`. Transports run one at a
-  time, so this is the whole load the instance sees. If the warmup or the RTT
-  cannot be measured the session fails, since without a ceiling there is
-  nothing to compare against.
+  sizes both lanes. k6 gets enough in flight to keep about 200 requests
+  queued in the instance: 200 + ceiling × RTT, rounded to whole connections
+  and capped at `max_concurrency`. pyvespa gets enough in flight to reach the
+  ceiling if the client could: `max_workers` = ceiling × (RTT + 20 ms service
+  time), rounded up to 16, between 64 and `max_pyvespa_workers`. Hosted
+  runners sit 4 to 67 ms from the instance; with a fixed worker count the far
+  ones were latency-bound (rate = workers ÷ latency) and looked like
+  regressions. Transports run one at a time, so this is the whole load the
+  instance sees. If the warmup or the RTT cannot be measured the session
+  fails, since without a ceiling there is nothing to compare against.
 - k6 counts completions inside a 150-second window after 30 seconds of
   warmup. pyvespa measures one batch of documents whole, after an untimed
   warmup batch; the batch APIs report no per-request latency.
@@ -94,17 +95,12 @@ All values live in `utils/config.py`, grouped by who uses them.
 **pyvespa lane** (`test_pyvespa_lane.py`)
 
 - `PYVESPA_METHODS`: the two batch APIs.
-- `FEED_ITERABLE_PARAMETERS` and `FEED_ASYNC_ITERABLE_PARAMETERS`: `max_workers` 128
-  and 400, `max_connections` 4 for the async API, everything else the library
-  default. A CI sweep on 2026-09-28 found one process GIL-bound at about
-  3200 rps for both APIs (from 64 and 128 workers respectively) and the
-  default queue of 1000 better than both smaller (workers starve) and larger
-  (4000 cost a third more CPU per request). The workers are set higher than
-  the knee so the process stays CPU-bound on a runner up to 32 ms from
-  the instance; a latency-bound process only does requests in flight divided
-  by latency. HTTP/2 allows about 128 concurrent streams per connection, so
-  the async API's default single connection caps it at 128 in flight whatever
-  `max_workers` says; four connections lift that cap.
+- Both APIs get `max_workers` from `PROFILE.pyvespa_workers` (sized per
+  session, see the `LoadProfile` fields) and library defaults for everything
+  else. A CI sweep on 2026-09-28 found one process GIL-bound at about 3200 rps
+  for both APIs once enough requests are in flight, the connection count
+  irrelevant, and the default queue of 1000 better than both smaller (workers
+  starve) and larger (4000 cost a third more CPU per request).
 
 **Thresholds** (in the test files, next to the asserts)
 
@@ -132,6 +128,13 @@ All values live in `utils/config.py`, grouped by who uses them.
   hold window. 150 s keeps drift within a run at 1 to 3%.
 - `k6_connections` 8: HTTP/2 connections the k6 streams are spread over. The
   instance does not care between 1 and 16.
+- `pyvespa_workers` 128: `max_workers` for both batch APIs before
+  `for_session` has measured; enough for a near runner.
+- `service_s` 0.02: the instance's time per feed request at moderate load,
+  added to the round trip when sizing `pyvespa_workers`. Measured as 17 to
+  23 ms across runners 4 to 67 ms away.
+- `max_pyvespa_workers` 1024: cap on `pyvespa_workers`, so a bad round trip
+  measurement cannot start a thousand threads.
 - `iterable_docs` 400000: one pyvespa batch per transport, about the hold
   window long at the roughly 3000 rps one process reaches.
 - `iterable_warmup_docs` 2000: an untimed first batch so connection and TLS

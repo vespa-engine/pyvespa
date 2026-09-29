@@ -51,7 +51,8 @@ def test_pyvespa_token_vs_mtls_performance(
     profile = endpoints.profile
     print(
         f"\n=== Running pyvespa {method}: {profile.iterable_docs} docs per "
-        "transport, one transport at a time ==="
+        f"transport with max_workers={profile.pyvespa_workers}, one transport "
+        "at a time ==="
     )
     token, mtls = (
         run_pyvespa(method, app, transport, profile, metrics_app=endpoints.mtls_app)
