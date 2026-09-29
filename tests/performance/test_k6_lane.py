@@ -1,14 +1,19 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import json
+from dataclasses import replace
 from typing import List
 
 import pytest
 
 from utils.k6_lane import run_k6
-from utils.asserts import assert_measurement_valid, assert_token_vs_mtls
+from utils.asserts import (
+    assert_measurement_valid,
+    assert_token_vs_mtls,
+    print_gzip_effect,
+)
 from utils.metrics import LaneResult, Thresholds, resolve_report_dir, write_records
-from utils.config import LATENCY_PROBE, VALIDITY
+from utils.config import LARGE, LARGE_GZIP, LATENCY_PROBE, SMALL, VALIDITY
 
 # Explained under "Thresholds" in tests/performance/README.md.
 K6_THRESHOLDS = Thresholds(
@@ -19,15 +24,20 @@ K6_THRESHOLDS = Thresholds(
     max_token_p95_ratio=4.0,
 )
 MAX_TOKEN_HOP_MS = 50.0
+# Large documents, plain and gzipped: floors are set after the first calibration run.
+K6_4K_THRESHOLDS = replace(K6_THRESHOLDS, min_token_rps=0, min_mtls_rps=0)
 
 
-def _measure(endpoints, report_dir, name: str, profile=None) -> List[LaneResult]:
+def _measure(
+    endpoints, report_dir, name: str, profile=None, case=SMALL
+) -> List[LaneResult]:
     results = [
         run_k6(
             endpoints,
             profile or endpoints.profile,
             report_dir / f"{name}_{transport}_summary.json",
             transport,
+            case,
         )
         for transport in ("token", "mtls")
     ]
@@ -35,9 +45,9 @@ def _measure(endpoints, report_dir, name: str, profile=None) -> List[LaneResult]
     return results
 
 
-def _check(results: List[LaneResult]) -> None:
+def _check(results: List[LaneResult], thresholds=K6_THRESHOLDS) -> None:
     token, mtls = results
-    assert_token_vs_mtls(token, mtls, K6_THRESHOLDS)
+    assert_token_vs_mtls(token, mtls, thresholds)
     assert_measurement_valid([token, mtls], VALIDITY)
 
 
@@ -71,6 +81,21 @@ def test_token_vs_mtls_performance(vespa_cloud_token_endpoints, tmp_path, run_st
     )
     run_state["k6_first"] = results
     _check(results)
+
+
+@pytest.mark.performance
+def test_gzip_4k_performance(vespa_cloud_token_endpoints, tmp_path):
+    """The 4 KB document plain and gzipped, so compression's cost or gain on the
+    wire shows against the same instance and runner."""
+    report_dir = resolve_report_dir(tmp_path)
+    plain = _measure(vespa_cloud_token_endpoints, report_dir, "k6_4k", case=LARGE)
+    gzipped = _measure(
+        vespa_cloud_token_endpoints, report_dir, "k6_4k_gzip", case=LARGE_GZIP
+    )
+    for before, after in zip(plain, gzipped):
+        print_gzip_effect(before, after)
+    _check(plain, K6_4K_THRESHOLDS)
+    _check(gzipped, K6_4K_THRESHOLDS)
 
 
 @pytest.mark.performance

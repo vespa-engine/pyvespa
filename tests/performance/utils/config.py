@@ -4,7 +4,8 @@ import math
 import random
 import string
 from dataclasses import dataclass, replace
-from typing import Dict, Tuple
+from pathlib import Path
+from typing import Dict, Optional, Tuple
 
 from utils.metrics import ValidityLimits
 
@@ -18,11 +19,40 @@ CONTENT_CLUSTER = "msmarco_content"
 CONTAINER_CLUSTER = "msmarco_container"
 
 
-def make_doc(prefix: str) -> Tuple[str, Dict]:
+# The same text feeds both lanes, so a large document compresses identically in k6 and pyvespa.
+DOCUMENTS = Path(__file__).parent.parent / "documents"
+BODY_SMALL = (DOCUMENTS / "body_small.txt").read_text()
+BODY_4K = (DOCUMENTS / "body_4k.txt").read_text()
+
+
+def make_doc(prefix: str, body: str = BODY_SMALL) -> Tuple[str, Dict]:
     doc_id = f"{prefix}-" + "".join(
         random.choices(string.ascii_lowercase + string.digits, k=16)
     )
-    return doc_id, {"id": doc_id, "title": "performance-doc", "body": "benchmark run"}
+    return doc_id, {"id": doc_id, "title": "performance-doc", "body": body}
+
+
+@dataclass(frozen=True)
+class FeedCase:
+    """What each request carries: the small document, or a large one, gzipped or not."""
+
+    body_bytes: int = 0  # 0 is the small benchmark document
+    gzip: bool = False
+    docs: Optional[int] = None  # pyvespa batch size; None is LoadProfile.iterable_docs
+
+    @property
+    def suffix(self) -> str:
+        size = f"_{self.body_bytes // 1024}k" if self.body_bytes else ""
+        return size + ("_gzip" if self.gzip else "")
+
+    @property
+    def body(self) -> str:
+        return BODY_4K[: self.body_bytes] if self.body_bytes else BODY_SMALL
+
+
+SMALL = FeedCase()
+LARGE = FeedCase(body_bytes=4096, docs=100000)
+LARGE_GZIP = replace(LARGE, gzip=True)
 
 
 @dataclass(frozen=True)
@@ -85,4 +115,10 @@ VALIDITY = ValidityLimits(
 
 # pyvespa lane (test_pyvespa_lane.py): the batch APIs in one process, with
 # max_workers from PROFILE.pyvespa_workers and everything else the library default.
-PYVESPA_METHODS = ("feed_iterable", "feed_async_iterable")
+# Only feed_iterable has a compression parameter, so the large cases use it.
+PYVESPA_RUNS = (
+    ("feed_iterable", SMALL),
+    ("feed_async_iterable", SMALL),
+    ("feed_iterable", LARGE),
+    ("feed_iterable", LARGE_GZIP),
+)
