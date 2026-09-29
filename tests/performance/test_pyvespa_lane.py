@@ -2,12 +2,15 @@
 
 """pyvespa lane: the batch feed APIs in one process, read against the k6 ceiling."""
 
-from dataclasses import replace
-
 import pytest
 
 from utils.pyvespa_lane import client, run_pyvespa
-from utils.asserts import assert_token_vs_mtls, print_gzip_effect, print_validity
+from utils.asserts import (
+    assert_floor,
+    assert_token_vs_mtls,
+    print_gzip_effect,
+    print_validity,
+)
 from utils.metrics import Thresholds, resolve_report_dir, write_records
 from utils.config import LARGE, LARGE_GZIP, PYVESPA_METHODS, SMALL
 
@@ -28,10 +31,7 @@ PYVESPA_THRESHOLDS = {
         max_token_p95_ratio=4.0,
     ),
 }
-# Large documents, plain and gzipped: floors are set after the first calibration run.
-PYVESPA_4K_THRESHOLDS = replace(
-    PYVESPA_THRESHOLDS["feed_iterable"], min_token_rps=0, min_mtls_rps=0
-)
+PYVESPA_4K_MIN_MTLS_RPS = 1100  # the 4 KB document, plain and gzipped, on mTLS
 
 
 def _clients(endpoints) -> dict:
@@ -46,8 +46,10 @@ def _clients(endpoints) -> dict:
     }
 
 
-def _measure(endpoints, report_dir, method: str, case=SMALL):
-    """One method through the token and the mTLS endpoint, one after the other."""
+def _measure(
+    endpoints, report_dir, method: str, case=SMALL, transports=("token", "mtls")
+):
+    """One method through each transport, one transport at a time."""
     profile = endpoints.profile
     name = method + case.suffix
     print(
@@ -55,12 +57,15 @@ def _measure(endpoints, report_dir, method: str, case=SMALL):
         f"per transport with max_workers={profile.pyvespa_workers}, one transport "
         "at a time ==="
     )
-    token, mtls = (
-        run_pyvespa(method, app, transport, profile, endpoints.mtls_app, case)
-        for transport, app in _clients(endpoints).items()
-    )
-    write_records([token, mtls], report_dir, f"pyvespa_{name}")
-    return token, mtls
+    clients = _clients(endpoints)
+    results = [
+        run_pyvespa(
+            method, clients[transport], transport, profile, endpoints.mtls_app, case
+        )
+        for transport in transports
+    ]
+    write_records(results, report_dir, f"pyvespa_{name}")
+    return results
 
 
 @pytest.mark.performance
@@ -81,13 +86,16 @@ def test_pyvespa_token_vs_mtls_performance(
 @pytest.mark.performance
 def test_pyvespa_gzip_4k_performance(vespa_cloud_token_endpoints, tmp_path):
     """The 4 KB document plain and gzipped through feed_iterable, the one batch
-    API with a compression parameter, on the same runner and instance."""
+    API with a compression parameter, on mTLS, the standard transport."""
     endpoints = vespa_cloud_token_endpoints
     report_dir = resolve_report_dir(tmp_path)
-    plain = _measure(endpoints, report_dir, "feed_iterable", LARGE)
-    gzipped = _measure(endpoints, report_dir, "feed_iterable", LARGE_GZIP)
-    for before, after in zip(plain, gzipped):
-        print_gzip_effect(before, after)
-    for token, mtls in (plain, gzipped):
-        assert_token_vs_mtls(token, mtls, PYVESPA_4K_THRESHOLDS)
-        print_validity([token, mtls])
+    (plain,) = _measure(endpoints, report_dir, "feed_iterable", LARGE, ("mtls",))
+    (gzipped,) = _measure(endpoints, report_dir, "feed_iterable", LARGE_GZIP, ("mtls",))
+    print_gzip_effect(plain, gzipped)
+    for result in (plain, gzipped):
+        assert_floor(
+            result,
+            PYVESPA_4K_MIN_MTLS_RPS,
+            PYVESPA_THRESHOLDS["feed_iterable"].max_error_rate,
+        )
+        print_validity([result])

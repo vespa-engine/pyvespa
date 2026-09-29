@@ -1,13 +1,13 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import json
-from dataclasses import replace
 from typing import List
 
 import pytest
 
 from utils.k6_lane import run_k6
 from utils.asserts import (
+    assert_floor,
     assert_measurement_valid,
     assert_token_vs_mtls,
     print_gzip_effect,
@@ -24,12 +24,16 @@ K6_THRESHOLDS = Thresholds(
     max_token_p95_ratio=4.0,
 )
 MAX_TOKEN_HOP_MS = 50.0
-# Large documents, plain and gzipped: floors are set after the first calibration run.
-K6_4K_THRESHOLDS = replace(K6_THRESHOLDS, min_token_rps=0, min_mtls_rps=0)
+K6_4K_MIN_MTLS_RPS = 1050  # the 4 KB document, plain and gzipped, on mTLS
 
 
 def _measure(
-    endpoints, report_dir, name: str, profile=None, case=SMALL
+    endpoints,
+    report_dir,
+    name: str,
+    profile=None,
+    case=SMALL,
+    transports=("token", "mtls"),
 ) -> List[LaneResult]:
     results = [
         run_k6(
@@ -39,15 +43,15 @@ def _measure(
             transport,
             case,
         )
-        for transport in ("token", "mtls")
+        for transport in transports
     ]
     write_records(results, report_dir, name)
     return results
 
 
-def _check(results: List[LaneResult], thresholds=K6_THRESHOLDS) -> None:
+def _check(results: List[LaneResult]) -> None:
     token, mtls = results
-    assert_token_vs_mtls(token, mtls, thresholds)
+    assert_token_vs_mtls(token, mtls, K6_THRESHOLDS)
     assert_measurement_valid([token, mtls], VALIDITY)
 
 
@@ -85,17 +89,20 @@ def test_token_vs_mtls_performance(vespa_cloud_token_endpoints, tmp_path, run_st
 
 @pytest.mark.performance
 def test_gzip_4k_performance(vespa_cloud_token_endpoints, tmp_path):
-    """The 4 KB document plain and gzipped, so compression's cost or gain on the
-    wire shows against the same instance and runner."""
+    """The 4 KB document plain and gzipped on mTLS, the standard transport, so
+    compression's cost or gain on the wire shows against the same instance."""
+    endpoints = vespa_cloud_token_endpoints
     report_dir = resolve_report_dir(tmp_path)
-    plain = _measure(vespa_cloud_token_endpoints, report_dir, "k6_4k", case=LARGE)
-    gzipped = _measure(
-        vespa_cloud_token_endpoints, report_dir, "k6_4k_gzip", case=LARGE_GZIP
+    (plain,) = _measure(
+        endpoints, report_dir, "k6_4k", case=LARGE, transports=("mtls",)
     )
-    for before, after in zip(plain, gzipped):
-        print_gzip_effect(before, after)
-    _check(plain, K6_4K_THRESHOLDS)
-    _check(gzipped, K6_4K_THRESHOLDS)
+    (gzipped,) = _measure(
+        endpoints, report_dir, "k6_4k_gzip", case=LARGE_GZIP, transports=("mtls",)
+    )
+    print_gzip_effect(plain, gzipped)
+    for result in (plain, gzipped):
+        assert_floor(result, K6_4K_MIN_MTLS_RPS, K6_THRESHOLDS.max_error_rate)
+        assert_measurement_valid([result], VALIDITY)
 
 
 @pytest.mark.performance

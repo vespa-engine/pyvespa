@@ -43,9 +43,10 @@ come from `VESPA_PERFORMANCE_MTLS_CERT` and `VESPA_PERFORMANCE_MTLS_KEY`.
   this lane is Python-side cost per request, not the wire path.
 - Both lanes use the same payload and HTTP/2, with retries and compression
   disabled and a 120-second timeout.
-- Both lanes also feed a 4 KB document plain and gzipped, one after the other
-  on the same runner, so request compression's cost in client CPU and gain on
-  the wire is measured rather than assumed. k6 gzips with its request option,
+- Both lanes also feed a 4 KB document plain and gzipped on mTLS, the standard
+  transport, one after the other on the same runner, so request compression's
+  cost in client CPU and gain on the wire is measured rather than assumed. The
+  token endpoint's cost is the other tests' job. k6 gzips with its request option,
   pyvespa with `feed_iterable(compress=True)`; `feed_async_iterable` has no
   such parameter. Document bodies live in `documents/` and both lanes read the
   same files. One body per case is enough: gzip works per request, so its cost
@@ -104,8 +105,8 @@ All values live in `utils/config.py`, grouped by who uses them.
 **pyvespa lane** (`test_pyvespa_lane.py`)
 
 - `PYVESPA_METHODS`: the two batch APIs, measured with the small document.
-  A second test runs `feed_iterable` with the 4 KB document plain (`LARGE`)
-  and gzipped (`LARGE_GZIP`), 100000 documents per transport, a quarter of
+  A second test runs `feed_iterable` on mTLS with the 4 KB document plain
+  (`LARGE`) and gzipped (`LARGE_GZIP`), 100000 documents each, a quarter of
   the small batch since each is sixty times the size.
 - Both APIs get `max_workers` from `PROFILE.pyvespa_workers` (sized per
   session, see the `LoadProfile` fields) and library defaults for everything
@@ -126,9 +127,10 @@ All values live in `utils/config.py`, grouped by who uses them.
 - `PYVESPA_THRESHOLDS` in `test_pyvespa_lane.py`: floors about 30% below the
   calibration run of 2026-09-28 (`feed_iterable` 2824 token and 3122 mTLS
   rps, `feed_async_iterable` 2215 and 2811); error and ratio bounds as for k6.
-- The 4 KB cases (`K6_4K_THRESHOLDS`, `PYVESPA_4K_THRESHOLDS`) have no
-  throughput floors yet; they are set from the first calibration run, about
-  30% below it like the others.
+- `K6_4K_MIN_MTLS_RPS` 1050 and `PYVESPA_4K_MIN_MTLS_RPS` 1100: floors for the
+  4 KB document on mTLS, shared by the plain and the gzipped case, about 30%
+  below the gzipped result of the calibration run of 2026-09-29 (k6 1528 rps,
+  pyvespa 1608). The error ceiling is the lanes' usual 2%.
 
 **`LoadProfile` fields**
 
