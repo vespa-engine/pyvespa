@@ -988,7 +988,7 @@ class Vespa(object):
             callback (function): A callback function to be called on each result. Signature `callback(response: VespaResponse, id: str)`.
             operation_type (str, optional): The operation to perform. Defaults to `feed`. Valid values are `feed`, `update`, or `delete`.
             max_queue_size (int, optional): The maximum number of tasks waiting to be processed. Useful to limit memory usage. Default is 1000.
-            max_workers (int, optional): Maximum number of concurrent requests to have in-flight, bound by an asyncio.Semaphore, that needs to be acquired by a submit task. Increase if the server is scaled to handle more requests.
+            max_workers (int, optional): Maximum number of requests in flight at once. Also sizes the HTTP client's thread pool, so up to max_workers threads exist while feeding. Increase if the server is scaled to handle more requests, or if it is far away.
             max_connections (int, optional): The maximum number of connections passed to httpx.AsyncClient to the Vespa endpoint. As HTTP/2 is used, only one connection is needed.
             docv1_retry_policy (AsyncRetrying, optional): Replaces the default two-layer document/v1 retry (unbounded 429 retry inside 3 attempts on 503/exception). Pass ``vespa.retries.NO_RETRY`` to deliver every response, including 429, to the callback unchanged.
             **kwargs (dict, optional): Additional parameters passed to the respective operation type-specific function (`_data_point`).
@@ -1039,7 +1039,10 @@ class Vespa(object):
         # Wrapping in async function to be able to use asyncio.run, and avoid that the feed_async_iterable have to be async
         async def run():
             async with self.asyncio(
-                connections=max_connections, docv1_retry_policy=docv1_retry_policy
+                connections=max_connections,
+                docv1_retry_policy=docv1_retry_policy,
+                # httpr runs each request on a thread; its pool must match the semaphore.
+                max_concurrency=max_workers,
             ) as async_session:
                 semaphore = asyncio.Semaphore(max_workers)
                 tasks = []

@@ -864,6 +864,20 @@ class TestFeedAsyncIterable(unittest.TestCase):
 
         self.assertLessEqual(max_seen, max_workers)
 
+    def test_feed_async_iterable_sizes_the_client_pool_to_max_workers(self):
+        # httpr runs one thread per request, so a smaller pool would cap the in-flight count.
+        self.mock_session.feed_data_point.return_value = VespaResponse(
+            json={}, status_code=200, url="", operation_type="feed"
+        )
+
+        self.vespa.feed_async_iterable(
+            iter=[{"id": "doc1", "fields": {}}],
+            schema="test_schema",
+            max_workers=400,
+        )
+
+        self.assertEqual(self.mock_asyncio.call_args.kwargs["max_concurrency"], 400)
+
 
 class TestQueryMany(unittest.TestCase):
     def setUp(self):
