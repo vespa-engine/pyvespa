@@ -19,6 +19,7 @@ from vespa.deployment import VespaCloud
 from tests.integration.test_integration_docker import (
     create_msmarco_application_package,
 )
+from utils.config import APPLICATION, ENVIRONMENT, INSTANCE, REGION, SCHEMA, TENANT
 
 # Reuse the existing tenant data-plane token (tenant+id scoped, so it works for
 # this dedicated app too). VESPA_CLIENT_TOKEN_ID selects the token id; the
@@ -26,8 +27,6 @@ from tests.integration.test_integration_docker import (
 # authenticates. Fallback matches the token id the deployed performance app
 # declares.
 CLIENT_TOKEN_ID = os.environ.get("VESPA_CLIENT_TOKEN_ID", "pyvespa_integration")
-
-PERFORMANCE_PROD_REGION = "aws-us-east-1c"
 
 
 # Deleted ids are kept as tombstones for two weeks by default; here that
@@ -78,7 +77,7 @@ class TestDeployPerformanceInstanceToProd(unittest.TestCase):
     """
 
     def setUp(self) -> None:
-        schema_name = "msmarco"
+        schema_name = SCHEMA
         self.auth_clients = [
             AuthClient(
                 id="mtls",
@@ -116,7 +115,7 @@ class TestDeployPerformanceInstanceToProd(unittest.TestCase):
             ),
         ]
         self.app_package.deployment_config = DeploymentConfiguration(
-            environment="prod", regions=[PERFORMANCE_PROD_REGION]
+            environment=ENVIRONMENT, regions=[REGION]
         )
         # Single 1-node clusters in prod need two first-deployment overrides:
         # redundancy=1 (no HA replica) and minimum-node-count (<2 nodes). Both are
@@ -132,13 +131,13 @@ class TestDeployPerformanceInstanceToProd(unittest.TestCase):
         if not api_key:
             raise RuntimeError("VESPA_TEAM_API_KEY must be set to deploy.")
         self.vespa_cloud = VespaCloud(
-            tenant="vespa-team",
-            application="pyvespa-performance",
+            tenant=TENANT,
+            application=APPLICATION,
             key_content=api_key.replace(r"\n", "\n"),
             application_package=self.app_package,
             auth_client_token_id=CLIENT_TOKEN_ID,
         )
-        self.instance_name = "default"
+        self.instance_name = INSTANCE
         self.build_no = self.vespa_cloud.deploy_to_prod(
             instance=self.instance_name,
             source_url="https://github.com/vespa-engine/pyvespa",

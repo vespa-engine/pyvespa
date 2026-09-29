@@ -1,18 +1,27 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import os
-from dataclasses import dataclass, field
+import shutil
+import time
+from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Generator
+from typing import Dict, Generator
 
 import pytest
 
 from vespa.deployment import VespaCloud
-from vespa.application import Vespa
+from vespa.application import Vespa, VespaSync
 
-from utils.workloads import (
+from utils.k6_lane import run_k6
+from utils.metrics import resolve_report_dir
+from utils.config import (
     APPLICATION,
+    CLEANUP_SLICES,
     CONTENT_CLUSTER,
+    IDLE_CPU_UTIL,
+    PROFILE,
+    WARMUP,
+    LoadProfile,
     ENVIRONMENT,
     INSTANCE,
     REGION,
@@ -23,11 +32,7 @@ from utils.workloads import (
 
 @dataclass(frozen=True)
 class PerformanceEndpoints:
-    """Connection details for both performance lanes (k6 and pyvespa).
-
-    The token and app objects are excluded from repr so pytest failure
-    output (which prints fixture values) never contains the secret.
-    """
+    """Connection details; credentials and clients are excluded from pytest repr."""
 
     mtls_url: str
     token_url: str
@@ -37,6 +42,16 @@ class PerformanceEndpoints:
     vespa_cloud: VespaCloud = field(repr=False)
     mtls_app: Vespa = field(repr=False)
     token_app: Vespa = field(repr=False)
+    # k6's number is the instance's ceiling, so its queue must never run dry
+    # (then k6 sets the pace) and never overflow into 429s (then the instance
+    # sheds load). How many requests in flight that takes depends on the round
+    # trip, and GitHub's hosted runners land in different regions (4 to 32 ms
+    # from the instance): in flight = 200 queued in the instance + throughput ×
+    # round trip, measured once per session by for_session. PROFILE's default
+    # when it could not be. pyvespa does not use this: one Python process is
+    # GIL-bound far below the ceiling, so its load is fixed by the API
+    # parameters and its number is read against the k6 ceiling.
+    profile: LoadProfile = PROFILE
 
 
 def _require_env_var(name: str) -> str:
@@ -47,23 +62,15 @@ def _require_env_var(name: str) -> str:
 
 
 @pytest.fixture(scope="session")
-def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]:
-    """
-    Connect to the already-deployed, persistent prod performance instance and
-    yield its mTLS + token endpoint details for both performance lanes.
-
-    This does NOT deploy: the instance is created once by
-    test_deploy_performance_instance.py and reused across runs for stable, comparable
-    regression numbers. Endpoint lookups are read-only control-plane calls.
-
-    Requires the environment variables VESPA_TEAM_API_KEY (control plane) and
-    VESPA_CLOUD_SECRET_TOKEN (token data plane). mTLS additionally needs the
-    data-plane cert/key pair locally (written by the deploy step into
-    ~/.vespa/{tenant}.{app}.{instance}/); if absent, the test is skipped.
-    """
+def vespa_cloud_token_endpoints(
+    tmp_path_factory,
+) -> Generator[PerformanceEndpoints, None, None]:
+    """Connect to the persistent app, warm it, and clean up after the session."""
 
     api_key = _require_env_var("VESPA_TEAM_API_KEY")
     secret_token = _require_env_var("VESPA_CLOUD_SECRET_TOKEN")
+    if shutil.which("k6") is None:
+        pytest.fail("k6 is required: it measures the instance ceiling.", pytrace=False)
 
     # Check the mTLS cert pair up front: without one, VespaCloud would
     # auto-generate a fresh pair the deployed app does not authorize, and the
@@ -78,13 +85,7 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
             "'vespa auth cert'."
         )
 
-    # Control-plane connection only (no deploy). VespaCloud requires
-    # application_package or application_root even for read-only endpoint
-    # lookups, so pass a placeholder root -- get_*_endpoint hit the control-plane
-    # API and never read it. The constructor loads the data-plane cert pair from
-    # ~/.vespa/{tenant}.{app}.{instance}/ (a ./.vespa directory in the cwd would
-    # take precedence) and, as a side effect, updates the global vespa CLI
-    # config to point at this application.
+    # Endpoint lookup requires a placeholder application_root but does not deploy.
     vespa_cloud = VespaCloud(
         tenant=TENANT,
         application=APPLICATION,
@@ -117,22 +118,104 @@ def vespa_cloud_token_endpoints() -> Generator[PerformanceEndpoints, None, None]
 
     # Pre-clean leftovers from any earlier run that was killed before teardown.
     print("\n=== Setup: deleting any leftover test documents ===")
-    mtls_app.delete_all_docs(content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA)
+    mtls_app.delete_all_docs(
+        content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
+    )
     print("Leftover documents deleted.")
 
+    endpoints = PerformanceEndpoints(
+        mtls_url=mtls_url,
+        token_url=token_url,
+        cert_path=str(cert_path),
+        key_path=str(key_path),
+        token=secret_token,
+        vespa_cloud=vespa_cloud,
+        mtls_app=mtls_app,
+        token_app=token_app,
+    )
+
+    # Warmup throughput and network round trip set k6's concurrency (see `profile`).
+    print(f"\n=== Warmup: k6 for {int(WARMUP.warmup_s + WARMUP.duration_s)}s ===")
+    report_dir = resolve_report_dir(tmp_path_factory.mktemp("performance-report"))
+    warm = run_k6(endpoints, WARMUP, report_dir / "k6_warmup.json", "mtls")
+    mtls_app.delete_all_docs(
+        content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
+    )
+    print("Warmup documents deleted.")
+    # Successful requests only: 429s are not capacity.
+    ceiling = warm.rps * (1 - warm.error_rate)
+    rtt = _network_rtt_s(mtls_app)
+    profile = PROFILE.for_session(ceiling_rps=ceiling, rtt_s=rtt)
+    print(
+        f"Session profile: ceiling ~{ceiling:.0f} rps, RTT {rtt * 1000:.0f} ms -> "
+        f"k6 concurrency {profile.concurrency} for the active transport "
+        f"over {profile.k6_connections} connections, "
+        f"~{PROFILE.server_queue_target} queued in the instance"
+    )
+    endpoints = replace(endpoints, profile=profile)
+
     try:
-        yield PerformanceEndpoints(
-            mtls_url=mtls_url,
-            token_url=token_url,
-            cert_path=str(cert_path),
-            key_path=str(key_path),
-            token=secret_token,
-            vespa_cloud=vespa_cloud,
-            mtls_app=mtls_app,
-            token_app=token_app,
-        )
+        yield endpoints
     finally:
-        # The workloads feed docs, so leave a clean slate for the next run.
+        # Best effort: the next session's setup deletes whatever is left, and a
+        # cleanup failure must not turn a passed measurement into an error.
         print("\n=== Teardown: deleting fed test documents ===")
-        mtls_app.delete_all_docs(content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA)
-        print("Fed documents deleted.")
+        try:
+            mtls_app.delete_all_docs(
+                content_cluster_name=CONTENT_CLUSTER,
+                schema=SCHEMA,
+                slices=CLEANUP_SLICES,
+            )
+            print("Fed documents deleted.")
+        except Exception as e:
+            print(f"Teardown cleanup did not finish, setup will retry next run: {e}")
+
+
+def _network_rtt_s(app, samples: int = 20) -> float:
+    best = float("inf")
+    with VespaSync(app=app, pool_connections=1, pool_maxsize=1) as session:
+        url = f"{app.end_point}/ApplicationStatus"
+        session.http_client.get(url, timeout=30)  # connection + TLS setup
+        for _ in range(samples):
+            started = time.perf_counter()
+            session.http_client.get(url, timeout=30)
+            best = min(best, time.perf_counter() - started)
+    return best
+
+
+def _wait_until_instance_idle(app, max_wait_s: float = 240.0) -> None:
+    """Wait up to max_wait_s for background work from cleanup or the previous test."""
+    from utils.cpu_probes import instance_cpu_util
+
+    deadline = time.time() + max_wait_s
+    while True:
+        util, _ = instance_cpu_util(app)
+        busiest = max(util.values()) if util else None
+        label = f"{busiest:.0%}" if busiest is not None else "unknown"
+        if busiest is not None and busiest <= IDLE_CPU_UTIL:
+            print(f"Instance CPU {label} (idle <= {IDLE_CPU_UTIL:.0%}).")
+            return
+        if time.time() >= deadline:
+            print(f"Instance CPU {label} after {max_wait_s:.0f} s; continuing anyway.")
+            return
+        print(f"Instance CPU {label}, waiting for it to settle...")
+        time.sleep(15)
+
+
+@pytest.fixture(autouse=True)
+def settled_instance(request):
+    """Before a performance test, wait for the previous one's background work to settle."""
+    if request.node.get_closest_marker("performance"):
+        endpoints = request.getfixturevalue("vespa_cloud_token_endpoints")
+        _wait_until_instance_idle(endpoints.mtls_app)
+
+
+@pytest.fixture(scope="session")
+def run_state() -> Dict:
+    """Share the opening k6 baseline with the remaining tests."""
+    return {}
+
+
+def pytest_collection_modifyitems(items):
+    """Bracket the pyvespa tests with opening and closing k6 runs."""
+    items.sort(key=lambda item: 1 if item.get_closest_marker("performance_last") else 0)
