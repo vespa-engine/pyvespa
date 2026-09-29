@@ -42,15 +42,14 @@ class PerformanceEndpoints:
     vespa_cloud: VespaCloud = field(repr=False)
     mtls_app: Vespa = field(repr=False)
     token_app: Vespa = field(repr=False)
-    # k6's number is the instance's ceiling, so its queue must never run dry
-    # (then k6 sets the pace) and never overflow into 429s (then the instance
-    # sheds load). How many requests in flight that takes depends on the round
-    # trip, and GitHub's hosted runners land in different regions (4 to 32 ms
-    # from the instance): in flight = 200 queued in the instance + throughput ×
-    # round trip, measured once per session by for_session. PROFILE's default
-    # when it could not be. pyvespa does not use this: one Python process is
-    # GIL-bound far below the ceiling, so its load is fixed by the API
-    # parameters and its number is read against the k6 ceiling.
+    # How many requests each lane keeps in flight depends on the round trip,
+    # and GitHub's hosted runners land in different regions (4 to 67 ms from
+    # the instance), so for_session sizes both lanes once per session. k6 must
+    # keep the instance's queue full without overflowing into 429s: 200 queued
+    # + ceiling × round trip. pyvespa, one GIL-bound process, gets enough in
+    # flight to reach the ceiling if it could, ceiling × (round trip + service
+    # time), so anything below the ceiling is client cost, not waiting.
+    # PROFILE's defaults when the session could not measure.
     profile: LoadProfile = PROFILE
 
 
@@ -150,7 +149,8 @@ def vespa_cloud_token_endpoints(
         f"Session profile: ceiling ~{ceiling:.0f} rps, RTT {rtt * 1000:.0f} ms -> "
         f"k6 concurrency {profile.concurrency} for the active transport "
         f"over {profile.k6_connections} connections, "
-        f"~{PROFILE.server_queue_target} queued in the instance"
+        f"~{PROFILE.server_queue_target} queued in the instance; "
+        f"pyvespa max_workers {profile.pyvespa_workers}"
     )
     endpoints = replace(endpoints, profile=profile)
 
