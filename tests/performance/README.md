@@ -103,10 +103,10 @@ All values live in `utils/config.py`, grouped by who uses them.
 
 **pyvespa lane** (`test_pyvespa_lane.py`)
 
-- `PYVESPA_RUNS`: the two batch APIs with the small document, then
-  `feed_iterable` with the 4 KB document plain (`LARGE`) and gzipped
-  (`LARGE_GZIP`). The large cases feed 100000 documents per transport, a
-  quarter of the small batch, since each is sixty times the size.
+- `PYVESPA_METHODS`: the two batch APIs, measured with the small document.
+  A second test runs `feed_iterable` with the 4 KB document plain (`LARGE`)
+  and gzipped (`LARGE_GZIP`), 100000 documents per transport, a quarter of
+  the small batch since each is sixty times the size.
 - Both APIs get `max_workers` from `PROFILE.pyvespa_workers` (sized per
   session, see the `LoadProfile` fields) and library defaults for everything
   else. A CI sweep on 2026-09-28 found one process GIL-bound at about 3200 rps
@@ -126,9 +126,9 @@ All values live in `utils/config.py`, grouped by who uses them.
 - `PYVESPA_THRESHOLDS` in `test_pyvespa_lane.py`: floors about 30% below the
   calibration run of 2026-09-28 (`feed_iterable` 2824 token and 3122 mTLS
   rps, `feed_async_iterable` 2215 and 2811); error and ratio bounds as for k6.
-- The 4 KB cases (`K6_4K_THRESHOLDS`, `feed_iterable_4k`,
-  `feed_iterable_4k_gzip`) have no throughput floors yet; they are set from
-  the first calibration run, about 30% below it like the others.
+- The 4 KB cases (`K6_4K_THRESHOLDS`, `PYVESPA_4K_THRESHOLDS`) have no
+  throughput floors yet; they are set from the first calibration run, about
+  30% below it like the others.
 
 **`LoadProfile` fields**
 

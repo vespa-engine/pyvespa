@@ -115,10 +115,4 @@ VALIDITY = ValidityLimits(
 
 # pyvespa lane (test_pyvespa_lane.py): the batch APIs in one process, with
 # max_workers from PROFILE.pyvespa_workers and everything else the library default.
-# Only feed_iterable has a compression parameter, so the large cases use it.
-PYVESPA_RUNS = (
-    ("feed_iterable", SMALL),
-    ("feed_async_iterable", SMALL),
-    ("feed_iterable", LARGE),
-    ("feed_iterable", LARGE_GZIP),
-)
+PYVESPA_METHODS = ("feed_iterable", "feed_async_iterable")
