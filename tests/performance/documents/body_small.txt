@@ -1,1 +1,1 @@
-benchmark run
+Lorem ipsum dolor sit amet
