@@ -15,7 +15,7 @@ and place the authorized data-plane certificate/key pair in
 uv run pytest tests/performance/ -m performance -s -v
 ```
 
-The suite takes about 45 minutes, and the workflow stops it at 60. It deletes documents in the shared
+The suite takes about 45 minutes and deletes documents in the shared
 application at setup and teardown. Avoid overlapping runs; let the instance
 settle after cleanup before comparing another run.
 
