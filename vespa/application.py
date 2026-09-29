@@ -118,6 +118,21 @@ def _prepare_mtls_cert_data(
     return cert_data + key_data
 
 
+# The async client runs one thread per request in flight. Above this many, more
+# threads rarely add throughput and mostly cost memory and GIL contention.
+MAX_THREADS_WITHOUT_WARNING = 1024
+
+
+def _warn_if_many_threads(name: str, value: int) -> None:
+    if value > MAX_THREADS_WITHOUT_WARNING:
+        warnings.warn(
+            f"{name}={value} starts that many HTTP client threads; values above "
+            f"{MAX_THREADS_WITHOUT_WARNING} rarely add throughput. Consider more "
+            "processes instead.",
+            stacklevel=3,
+        )
+
+
 def _prepare_request_body(
     method: str,
     json_data=None,
@@ -1036,6 +1051,8 @@ class Vespa(object):
                         type(e), e, e.__traceback__, file=sys.stderr
                     )
 
+        _warn_if_many_threads("max_workers", max_workers)
+
         # Wrapping in async function to be able to use asyncio.run, and avoid that the feed_async_iterable have to be async
         async def run():
             async with self.asyncio(
@@ -1136,9 +1153,9 @@ class Vespa(object):
         Args:
             queries (Iterable[dict]): Iterable of query bodies (dictionaries) to be sent.
             num_connections (int, optional): Number of connections to be used in the asynchronous client (uses HTTP/2). Defaults to 1.
-            max_concurrent (int, optional): Maximum concurrent requests to be sent. Defaults to 100. Be careful with increasing too much.
+            max_concurrent (int, optional): Maximum concurrent requests to be sent. Defaults to 100. Also sizes the HTTP client's thread pool, so up to max_concurrent threads exist while querying.
             adaptive (bool, optional): Use adaptive throttling. Defaults to True. When True, starts with lower concurrency and adjusts based on error rates.
-            client_kwargs (dict, optional): Additional arguments to be passed to the httpx.AsyncClient.
+            client_kwargs (dict, optional): Additional arguments to be passed to the HTTP client; `max_concurrency` here overrides `max_concurrent`.
             **query_kwargs (dict, optional): Additional arguments to be passed to the query method.
 
         Returns:
@@ -1146,8 +1163,12 @@ class Vespa(object):
         """
 
         results = []
-        # Use the asynchronous client from VespaAsync (created via self.asyncio).
-        async with self.asyncio(connections=num_connections, **client_kwargs) as client:
+        _warn_if_many_threads("max_concurrent", max_concurrent)
+        # The client runs each request on a thread; its pool must allow max_concurrent.
+        async with self.asyncio(
+            connections=num_connections,
+            **{"max_concurrency": max_concurrent, **client_kwargs},
+        ) as client:
             if adaptive:
                 throttler = AdaptiveThrottler(
                     initial_concurrent=min(10, max_concurrent),
@@ -1191,9 +1212,9 @@ class Vespa(object):
         Args:
             queries (Iterable[dict]): Iterable of query bodies (dictionaries) to be sent.
             num_connections (int, optional): Number of connections to be used in the asynchronous client (uses HTTP/2). Defaults to 1.
-            max_concurrent (int, optional): Maximum concurrent requests to be sent. Defaults to 100. Be careful with increasing too much.
+            max_concurrent (int, optional): Maximum concurrent requests to be sent. Defaults to 100. Also sizes the HTTP client's thread pool, so up to max_concurrent threads exist while querying.
             adaptive (bool, optional): Use adaptive throttling. Defaults to True. When True, starts with lower concurrency and adjusts based on error rates.
-            client_kwargs (dict, optional): Additional arguments to be passed to the httpx.AsyncClient.
+            client_kwargs (dict, optional): Additional arguments to be passed to the HTTP client; `max_concurrency` here overrides `max_concurrent`.
             **query_kwargs (dict, optional): Additional arguments to be passed to the query method.
 
         Returns:

@@ -3,6 +3,7 @@
 import json
 import unittest
 import asyncio
+import warnings
 
 import httpr
 import pytest
@@ -878,6 +879,18 @@ class TestFeedAsyncIterable(unittest.TestCase):
 
         self.assertEqual(self.mock_asyncio.call_args.kwargs["max_concurrency"], 400)
 
+    def test_feed_async_iterable_warns_about_very_many_workers(self):
+        self.mock_session.feed_data_point.return_value = VespaResponse(
+            json={}, status_code=200, url="", operation_type="feed"
+        )
+        docs = [{"id": "doc1", "fields": {}}]
+
+        with self.assertWarns(UserWarning):
+            self.vespa.feed_async_iterable(docs, schema="s", max_workers=2000)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            self.vespa.feed_async_iterable(docs, schema="s", max_workers=1024)
+
 
 class TestQueryMany(unittest.TestCase):
     def setUp(self):
@@ -929,6 +942,7 @@ class TestQueryMany(unittest.TestCase):
         self.mock_asyncio.assert_called_once_with(
             app=self.vespa,
             connections=2,
+            max_concurrency=100,
             total_timeout=None,
             timeout=10,
             client=None,
