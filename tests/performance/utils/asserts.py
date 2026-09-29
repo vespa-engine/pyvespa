@@ -44,6 +44,17 @@ def print_results(token: LaneResult, mtls: LaneResult) -> None:
             print(f"{r.transport} statuses: " + ", ".join(f"{k}={v}" for k, v in top))
 
 
+def print_gzip_effect(plain: LaneResult, gzipped: LaneResult) -> None:
+    """Same document with and without request compression, same transport."""
+    cpu = ""
+    if plain.cpu_ms_per_request and gzipped.cpu_ms_per_request:
+        cpu = f", client cpu/req x{gzipped.cpu_ms_per_request / plain.cpu_ms_per_request:.2f}"
+    print(
+        f"gzip {plain.transport}: {plain.rps:.0f} -> {gzipped.rps:.0f} rps "
+        f"(x{gzipped.rps / plain.rps if plain.rps else 0:.2f}){cpu}"
+    )
+
+
 def print_validity(results: List[LaneResult]) -> None:
     for r in results:
         in_flight = (

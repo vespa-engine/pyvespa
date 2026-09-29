@@ -9,7 +9,13 @@ from pathlib import Path
 
 from utils.metrics import LaneResult
 from utils.cpu_probes import LoadGeneratorCpu, InstanceCpuSampler
-from utils.config import CONTAINER_CLUSTER, CONTENT_CLUSTER, LoadProfile
+from utils.config import (
+    CONTAINER_CLUSTER,
+    CONTENT_CLUSTER,
+    SMALL,
+    FeedCase,
+    LoadProfile,
+)
 
 SCRIPT = Path(__file__).parent.parent / "k6" / "token_vs_mtls.js"
 
@@ -38,7 +44,9 @@ def _require_value(metric: dict, fields: tuple, label: str) -> float:
     )
 
 
-def lane_result(metrics: dict, transport: str, profile: LoadProfile) -> LaneResult:
+def lane_result(
+    metrics: dict, transport: str, profile: LoadProfile, method: str = "http_post"
+) -> LaneResult:
     """Turn one transport's k6 summary into a LaneResult: the same shape the pyvespa
     lane produces, which the tests assert on and export to Prometheus."""
     duration = _require_metric_key(metrics, f"{transport}_req_duration")
@@ -55,7 +63,7 @@ def lane_result(metrics: dict, transport: str, profile: LoadProfile) -> LaneResu
 
     return LaneResult(
         lane="k6",
-        method="http_post",
+        method=method,
         transport=transport,
         concurrency=profile.concurrency,
         duration_s=profile.duration_s,
@@ -72,7 +80,11 @@ def lane_result(metrics: dict, transport: str, profile: LoadProfile) -> LaneResu
 
 
 def run_k6(
-    endpoints, profile: LoadProfile, summary_file: Path, transport: str
+    endpoints,
+    profile: LoadProfile,
+    summary_file: Path,
+    transport: str,
+    case: FeedCase = SMALL,
 ) -> LaneResult:
     env = {
         **os.environ,
@@ -82,6 +94,8 @@ def run_k6(
         "TOKEN_AUTH_HEADER": f"Bearer {endpoints.token}",
         "MTLS_CERT_PATH": endpoints.cert_path,
         "MTLS_KEY_PATH": endpoints.key_path,
+        "BODY_BYTES": str(case.body_bytes),
+        "COMPRESSION": "gzip" if case.gzip else "",
         **profile.k6_env(),
     }
     command = ["k6", "run", "--summary-export", str(summary_file)]
@@ -91,8 +105,8 @@ def run_k6(
 
     expected_s = int(profile.warmup_s + profile.duration_s)
     print(
-        f"\n=== Running k6 {transport}: {profile.concurrency} in flight over "
-        f"{profile.k6_connections} connections, ~{expected_s}s + graceful stop ==="
+        f"\n=== Running k6 {transport}{case.suffix}: {profile.concurrency} in flight "
+        f"over {profile.k6_connections} connections, ~{expected_s}s + graceful stop ==="
     )
     load_start = time.time()
     runner_cpu = LoadGeneratorCpu().start()
@@ -105,7 +119,7 @@ def run_k6(
 
     metrics = json.loads(summary_file.read_text()).get("metrics", {})
     return replace(
-        lane_result(metrics, transport, profile),
+        lane_result(metrics, transport, profile, "http_post" + case.suffix),
         client_cpu_fraction=runner_fraction,
         server_container_cpu_util=server.get(f"container/{CONTAINER_CLUSTER}"),
         server_content_cpu_util=server.get(f"content/{CONTENT_CLUSTER}"),

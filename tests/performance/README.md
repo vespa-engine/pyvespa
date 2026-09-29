@@ -15,7 +15,7 @@ and place the authorized data-plane certificate/key pair in
 uv run pytest tests/performance/ -m performance -s -v
 ```
 
-The suite takes roughly 45–70 minutes and deletes documents in the shared
+The suite takes roughly 65–90 minutes and deletes documents in the shared
 application at setup and teardown. Avoid overlapping runs; let the instance
 settle after cleanup before comparing another run.
 
@@ -43,6 +43,15 @@ come from `VESPA_PERFORMANCE_MTLS_CERT` and `VESPA_PERFORMANCE_MTLS_KEY`.
   this lane is Python-side cost per request, not the wire path.
 - Both lanes use the same payload and HTTP/2, with retries and compression
   disabled and a 120-second timeout.
+- Both lanes also feed a 4 KB document plain and gzipped, one after the other
+  on the same runner, so request compression's cost in client CPU and gain on
+  the wire is measured rather than assumed. k6 gzips with its request option,
+  pyvespa with `feed_iterable(compress=True)`; `feed_async_iterable` has no
+  such parameter. Document bodies live in `documents/` and both lanes read the
+  same files. One body per case is enough: gzip works per request, so its cost
+  and ratio depend on the text, not on documents differing; the server indexes
+  the same terms in both arms, so the comparison holds, and only the absolute
+  4 KB numbers are less representative than a varied corpus would be.
 - A 60-second k6 warmup on mTLS estimates capacity from its successful
   requests. Together with measured network RTT, `LoadProfile.for_session`
   sizes both lanes. k6 gets enough in flight to keep about 200 requests
@@ -94,7 +103,10 @@ All values live in `utils/config.py`, grouped by who uses them.
 
 **pyvespa lane** (`test_pyvespa_lane.py`)
 
-- `PYVESPA_METHODS`: the two batch APIs.
+- `PYVESPA_METHODS`: the two batch APIs, measured with the small document.
+  A second test runs `feed_iterable` with the 4 KB document plain (`LARGE`)
+  and gzipped (`LARGE_GZIP`), 100000 documents per transport, a quarter of
+  the small batch since each is sixty times the size.
 - Both APIs get `max_workers` from `PROFILE.pyvespa_workers` (sized per
   session, see the `LoadProfile` fields) and library defaults for everything
   else. A CI sweep on 2026-09-28 found one process GIL-bound at about 3200 rps
@@ -114,6 +126,9 @@ All values live in `utils/config.py`, grouped by who uses them.
 - `PYVESPA_THRESHOLDS` in `test_pyvespa_lane.py`: floors about 30% below the
   calibration run of 2026-09-28 (`feed_iterable` 2824 token and 3122 mTLS
   rps, `feed_async_iterable` 2215 and 2811); error and ratio bounds as for k6.
+- The 4 KB cases (`K6_4K_THRESHOLDS`, `PYVESPA_4K_THRESHOLDS`) have no
+  throughput floors yet; they are set from the first calibration run, about
+  30% below it like the others.
 
 **`LoadProfile` fields**
 
@@ -180,7 +195,8 @@ each time.
 `perf_<field>{source, lane, method, transport, concurrency}`, one sample
 per records file, lane, method and transport. Labels: `source` is the records
 file (the opening and closing k6 runs differ only here), `lane` is `k6` or
-`pyvespa`, `method` is `http_post` or the pyvespa method, `concurrency` the
+`pyvespa`, `method` is `http_post` or the pyvespa method, with `_4k` and
+`_4k_gzip` appended for the large-document cases, `concurrency` the
 configured in-flight requests for k6 and `max_workers` for pyvespa. Fields:
 
 | field | unit | meaning |
@@ -222,6 +238,10 @@ for diagnosis only; the `perf_*` series carry the same information.
 - Share of the ceiling per pyvespa method, from the same run:
   `sum(perf_rps{lane="pyvespa",method="feed_iterable"}) / sum(perf_rps{source="k6_token_vs_mtls_records"})`.
   A drop here with a steady k6 line is a pyvespa regression.
+- gzip effect: `perf_rps` and `perf_cpu_ms_per_request` for `http_post_4k`
+  against `http_post_4k_gzip`, and `feed_iterable_4k` against
+  `feed_iterable_4k_gzip`, same run. Compression that starts costing more
+  CPU or gaining less throughput shows here.
 - `perf_cpu_ms_per_request` per method, grouped by runner CPU model: the
   client-efficiency trend, the place a pyvespa regression shows first.
 - Token path cost per method: the exporter writes no derived series, Grafana

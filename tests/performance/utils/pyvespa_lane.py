@@ -11,6 +11,8 @@ from utils.config import (
     CONTAINER_CLUSTER,
     CONTENT_CLUSTER,
     SCHEMA,
+    SMALL,
+    FeedCase,
     LoadProfile,
     make_doc,
 )
@@ -32,16 +34,20 @@ def client(
     return Vespa(url=url, vespa_cloud_secret_token=token, additional_headers=headers)
 
 
-def _ignore(response, doc_id) -> None:
-    pass
-
-
-def _docs(prefix: str, count: int) -> List[dict]:
-    return [{"id": d, "fields": f} for d, f in (make_doc(prefix) for _ in range(count))]
+def _docs(prefix: str, count: int, body: str) -> List[dict]:
+    return [
+        {"id": d, "fields": f}
+        for d, f in (make_doc(prefix, body) for _ in range(count))
+    ]
 
 
 def _feed(
-    app: Vespa, method: str, docs: List[dict], callback: Callable, workers: int
+    app: Vespa,
+    method: str,
+    docs: List[dict],
+    callback: Callable,
+    workers: int,
+    compress: bool,
 ) -> None:
     """One call, retries off so every 429 is seen as such."""
     if method == "feed_iterable":
@@ -50,10 +56,11 @@ def _feed(
             schema=SCHEMA,
             callback=callback,
             max_workers=workers,
-            compress=False,
+            compress=compress,
             num_retries_429=0,
         )
     else:
+        assert not compress, "feed_async_iterable has no compression parameter"
         app.feed_async_iterable(
             docs,
             schema=SCHEMA,
@@ -69,20 +76,29 @@ def run_pyvespa(
     transport: str,
     profile: LoadProfile,
     metrics_app: Optional[Vespa] = None,
+    case: FeedCase = SMALL,
 ) -> LaneResult:
     """Feed one batch through `method` and measure it whole. Returns the same
     LaneResult shape as the k6 lane, which the tests assert on and export to Prometheus."""
-    prefix = f"{method}-{transport}"
-    # Untimed warmup batch: connection and TLS setup stay out of the measurement.
+    prefix = f"{method}{case.suffix}-{transport}"
     workers = profile.pyvespa_workers
-    _feed(app, method, _docs(prefix, profile.iterable_warmup_docs), _ignore, workers)
+    # Untimed warmup batch: connection and TLS setup stay out of the measurement.
+    warmup = _docs(prefix, profile.iterable_warmup_docs, case.body)
+    _feed(app, method, warmup, lambda r, i: None, workers, case.gzip)
 
-    docs = _docs(prefix, profile.iterable_docs)
+    docs = _docs(prefix, case.docs or profile.iterable_docs, case.body)
     statuses: List[int] = []
     runner_cpu = LoadGeneratorCpu().start()
     sampler = InstanceCpuSampler(metrics_app).start() if metrics_app else None
     started, cpu_start = time.time(), time.process_time()
-    _feed(app, method, docs, lambda r, i: statuses.append(r.status_code), workers)
+    _feed(
+        app,
+        method,
+        docs,
+        lambda r, i: statuses.append(r.status_code),
+        workers,
+        case.gzip,
+    )
     duration_s = time.time() - started
     cpu_s = time.process_time() - cpu_start
     runner_fraction = runner_cpu.stop()
@@ -93,7 +109,7 @@ def run_pyvespa(
     requests = len(statuses)
     return LaneResult(
         lane="pyvespa",
-        method=method,
+        method=method + case.suffix,
         transport=transport,
         rps=requests / duration_s,
         error_rate=sum(not 200 <= s < 300 for s in statuses) / requests,

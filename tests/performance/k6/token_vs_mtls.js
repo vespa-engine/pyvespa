@@ -12,6 +12,13 @@ const maxVus = Number(__ENV.MAX_VUS || 400);
 const connections = Number(__ENV.CONNECTIONS || 8);
 const streamsPerConnection = Math.max(1, Math.round(maxVus / connections));
 
+// Same document text as the pyvespa lane.
+const bodyBytes = Number(__ENV.BODY_BYTES || 0);
+const body = bodyBytes
+  ? open("../documents/body_4k.txt").slice(0, bodyBytes)
+  : open("../documents/body_small.txt");
+const compression = __ENV.COMPRESSION || "";
+
 function toMs(duration) {
   let ms = 0;
   for (const [, value, unit] of duration.matchAll(/(\d+)(ms|s|m|h)/g)) {
@@ -55,7 +62,7 @@ async function stream() {
   while (exec.instance.currentTestRunDuration < measureEndMs) {
     const docId = Math.random().toString(36).slice(2);
     const payload = JSON.stringify({
-      fields: { id: docId, title: "performance-doc", body: "benchmark run" },
+      fields: { id: docId, title: "performance-doc", body },
     });
     const res = await http.asyncRequest(
       "POST",
@@ -63,6 +70,7 @@ async function stream() {
       payload,
       {
         timeout: "120s",
+        compression,
         headers: {
           "Content-Type": "application/json",
           ...(authHeader ? { Authorization: authHeader } : {}),
