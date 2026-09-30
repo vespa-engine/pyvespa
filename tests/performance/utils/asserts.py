@@ -72,6 +72,21 @@ def print_validity(results: List[LaneResult]) -> None:
         )
 
 
+def assert_floor(result: LaneResult, min_rps: float, max_error_rate: float) -> None:
+    """The single-transport assert set: error ceiling and throughput floor."""
+    print(
+        f"\n=== Results: {result.lane}/{result.method} {result.transport}: "
+        f"{result.rps:.2f} req/s, error_rate={result.error_rate:.4f} "
+        f"({result.requests} reqs){_fmt_cpu(result.cpu_ms_per_request)} ==="
+    )
+    assert result.error_rate <= max_error_rate, (
+        f"Error rate too high ({result.error_rate:.4f}, max={max_error_rate})"
+    )
+    assert result.rps >= min_rps, (
+        f"Throughput too low (got {result.rps:.2f} req/s, expected >={min_rps} req/s)"
+    )
+
+
 def assert_token_vs_mtls(
     token: LaneResult, mtls: LaneResult, thresholds: Thresholds
 ) -> None:
