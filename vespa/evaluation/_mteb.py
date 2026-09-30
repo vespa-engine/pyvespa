@@ -352,7 +352,7 @@ class VespaMTEBApp(SearchProtocol):
         hf_subset: str,
         top_k: int,
         encode_kwargs: dict[str, Any],
-        # Optional[...]: mteb >=2.21 defines these as string aliases, so `X | None` raises TypeError.
+        # Optional[...]: mteb >=2.20.7 defines these as string aliases, so `X | None` raises TypeError.
         instructions: Optional[InstructionDatasetType] = None,
         top_ranked: Optional[TopRankedDocumentsType] = None,
         num_proc: int = 1,  # Not used, but required by MTEB interface
