@@ -2258,6 +2258,75 @@ class VespaCloud(VespaDeployment):
             expiration=response["expiration"],
         )
 
+    def list_dataplane_tokens(self) -> List["DataplaneTokenInfo"]:
+        """List the Vespa Cloud data-plane tokens of the tenant.
+
+        Secret token values are never returned; each token is described by
+        its versions, identified by fingerprint.
+
+        Example usage:
+            ```python
+            for token in vespa_cloud.list_dataplane_tokens():
+                for version in token.versions:
+                    print(token.id, version.fingerprint, version.state)
+            ```
+
+        Returns:
+            List[DataplaneTokenInfo]: All data-plane tokens of the tenant.
+
+        Raises:
+            urllib3.exceptions.HTTPError: If Vespa Cloud rejects the request.
+        """
+        response = self._request("GET", f"/application/v4/tenant/{self.tenant}/token")
+        return [
+            DataplaneTokenInfo(
+                id=token["id"],
+                last_updated_millis=token["lastUpdatedMillis"],
+                versions=[
+                    DataplaneTokenVersion(
+                        fingerprint=version["fingerprint"],
+                        state=version["state"],
+                        created=version.get("created"),
+                        author=version.get("author"),
+                        expiration=version.get("expiration"),
+                    )
+                    for version in token.get("versions", [])
+                ],
+            )
+            for token in response.get("tokens", [])
+        ]
+
+    def revoke_dataplane_token(self, token_id: str, fingerprint: str) -> None:
+        """Revoke a version of a Vespa Cloud data-plane token.
+
+        Only the version identified by ``fingerprint`` is revoked; other
+        versions with the same ``token_id`` remain valid. The revocation
+        propagates to deployments asynchronously, and the version is listed
+        with state ``"revoking"`` until it has been removed everywhere.
+
+        Example usage:
+            ```python
+            token = vespa_cloud.create_dataplane_token()
+            vespa_cloud.revoke_dataplane_token(token.id, token.fingerprint)
+            ```
+
+        Args:
+            token_id (str): Token name.
+            fingerprint (str): Fingerprint of the token version to revoke, as
+                returned by :meth:`create_dataplane_token` or
+                :meth:`list_dataplane_tokens`.
+
+        Raises:
+            urllib3.exceptions.HTTPError: If Vespa Cloud rejects the
+                request (e.g. unknown token or fingerprint).
+        """
+        query = urlencode({"fingerprint": fingerprint})
+        self._request(
+            "DELETE",
+            f"/application/v4/tenant/{self.tenant}"
+            f"/token/{quote(token_id, safe='')}?{query}",
+        )
+
     def _ensure_auth_clients_for_token(self, token_id: str) -> None:
         """Ensure ``self.application_package`` exposes a token data-plane endpoint.
 
@@ -2696,7 +2765,8 @@ class DataplaneToken:
             the data-plane endpoint. Store securely; this value is shown only
             once at creation time.
         fingerprint: SHA-256 fingerprint identifying this specific token
-            version; required if you later revoke it.
+            version; required if you later revoke it with
+            :meth:`VespaCloud.revoke_dataplane_token`.
         expiration: ISO-8601 timestamp at which the token expires.
     """
 
@@ -2704,3 +2774,47 @@ class DataplaneToken:
     token: str
     fingerprint: str
     expiration: str
+
+
+@dataclass
+class DataplaneTokenVersion:
+    """A version of a Vespa Cloud data-plane token, as returned by
+    :meth:`VespaCloud.list_dataplane_tokens`.
+
+    Attributes:
+        fingerprint: SHA-256 fingerprint identifying this token version. Pass
+            it to :meth:`VespaCloud.revoke_dataplane_token` to revoke it.
+        state: One of ``"unused"``, ``"deploying"``, ``"active"``,
+            ``"revoking"`` or ``"expired"``.
+        created: ISO-8601 timestamp at which the version was created. ``None``
+            for versions being revoked.
+        author: The principal that created the version. ``None`` for versions
+            being revoked.
+        expiration: ISO-8601 timestamp at which the version expires, or
+            ``"none"`` if it never expires. ``None`` for versions being
+            revoked.
+    """
+
+    fingerprint: str
+    state: str
+    created: Optional[str] = None
+    author: Optional[str] = None
+    expiration: Optional[str] = None
+
+
+@dataclass
+class DataplaneTokenInfo:
+    """A Vespa Cloud data-plane token, as returned by
+    :meth:`VespaCloud.list_dataplane_tokens`. Does not contain the secret
+    token value.
+
+    Attributes:
+        id: The token name (the ``tokenid`` in the Vespa Cloud Console).
+        last_updated_millis: When the token was last updated, in milliseconds
+            since the epoch.
+        versions: The versions of the token.
+    """
+
+    id: str
+    last_updated_millis: int
+    versions: List[DataplaneTokenVersion]
