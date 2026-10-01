@@ -60,52 +60,54 @@ class LoadGeneratorCpu:
         return self.fraction
 
 
-def instance_cpu_util(app: Vespa) -> Tuple[Dict[str, float], Optional[float]]:
-    """CPU per cluster (0..1) from the instance's own metrics endpoint, and the
-    time of the snapshot they belong to. Empty when the probe fails."""
+def instance_cpu_util(app: Vespa) -> Dict[str, float]:
+    """CPU per cluster (0..1) from the instance's own metrics endpoint; empty
+    when the probe fails. The timestamp on the values is the time of the
+    request, not of the window they average, so it is not returned."""
     try:
         with VespaSync(app=app, pool_connections=1, pool_maxsize=1) as session:
             response = session.http_client.get(
                 f"{app.end_point}/prometheus/v1/values", timeout=30
             )
         if response.status_code != 200:
-            return {}, None
+            return {}
         text = response.text
     except Exception:
-        return {}, None
+        return {}
     util: Dict[str, float] = {}
-    snapshot: Optional[float] = None
-    for labels, value, timestamp_ms in _CPU_UTIL.findall(text):
+    for labels, value, _ in _CPU_UTIL.findall(text):
         cluster = _CLUSTER.search(labels)
         if cluster:
             # One node per cluster here; keep the max if there are several.
             util[cluster.group(1)] = max(
                 util.get(cluster.group(1), 0.0), float(value) / 100.0
             )
-            if timestamp_ms:
-                snapshot = max(snapshot or 0.0, int(timestamp_ms) / 1000.0)
-    return util, snapshot
+    return util
 
 
 class InstanceCpuSampler:
-    """Peak instance CPU per cluster while a load ran.
+    """Mean instance CPU per cluster while a load ran.
 
-    The instance's cpu_util is a 60-second average stamped at the end of its
-    window, so the reading that covers the load arrives up to a minute after
-    the load stops, and a snapshot covers the load only when its timestamp is
-    between load start + 60 s and load end + 60 s. Snapshot times are compared
-    with the runner's clock; both sides run NTP. A load start that includes
-    k6's ramp only widens what the peak is taken over."""
+    The instance's cpu_util is an average over about the last 60 s, and the metrics
+    proxy refreshes it about every 30 s. Its timestamp is the time of the
+    request, not of the window, so a reading is placed by when the sampler took
+    it: one taken at least FULL_WINDOW_S after the load started, and before it
+    ended, averages load only. `samples` counts those readings. A load too
+    short for any (the pyvespa batches) still gets a value, the peak of the
+    readings taken after PARTIAL_WINDOW_S, which also averages some of the time
+    before the load; `samples` is 0 then."""
 
-    SNAPSHOT_S = 60.0
+    FULL_WINDOW_S = 90.0
+    PARTIAL_WINDOW_S = 30.0
 
     def __init__(self, app: Vespa, interval_s: float = 10.0):
         self._app = app
         self._interval_s = interval_s
-        self._samples: List[Tuple[Optional[float], Dict[str, float]]] = []
+        self._readings: List[Tuple[float, Dict[str, float]]] = []
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._started_at: Optional[float] = None
+        self.samples = 0
 
     def start(self) -> "InstanceCpuSampler":
         self._started_at = time.time()
@@ -113,39 +115,36 @@ class InstanceCpuSampler:
         return self
 
     def stop(self, load_start: Optional[float] = None) -> Dict[str, float]:
-        """Peak per cluster over the snapshots covering the load; empty when
-        no snapshot covered it, so the caller reports the CPU as unknown."""
+        """CPU per cluster over the load; empty when nothing was read, so the
+        caller reports the CPU as unknown."""
         load_end = time.time()
         load_start = load_start if load_start is not None else self._started_at
         self._stop.set()
         self._thread.join(timeout=60)
-        self._wait_for_snapshot_after(load_end)
-        return self._peak_between(load_start, load_end)
-
-    def _poll(self) -> None:
-        util, snapshot = instance_cpu_util(self._app)
-        if util:
-            self._samples.append((snapshot, util))
+        full = self._between(load_start + self.FULL_WINDOW_S, load_end)
+        if full:
+            # A cluster whose value happened not to change still had its window
+            # refreshed, so the busiest-changing cluster counts the readings.
+            self.samples = max(len(values) for values in full.values())
+            return {c: sum(values) / len(values) for c, values in full.items()}
+        partial = self._between(load_start + self.PARTIAL_WINDOW_S, load_end)
+        return {c: max(values) for c, values in partial.items()}
 
     def _run(self) -> None:
         while not self._stop.wait(self._interval_s):
-            self._poll()
+            util = instance_cpu_util(self._app)
+            if util:
+                self._readings.append((time.time(), util))
 
-    def _wait_for_snapshot_after(self, load_end: float) -> None:
-        deadline = load_end + self.SNAPSHOT_S + 15
-        while time.time() < deadline:
-            self._poll()
-            if self._samples and (self._samples[-1][0] or 0) >= load_end:
-                return
-            time.sleep(self._interval_s)
-
-    def _peak_between(self, load_start: float, load_end: float) -> Dict[str, float]:
-        first = load_start + self.SNAPSHOT_S
-        last = load_end + self.SNAPSHOT_S
-        peak: Dict[str, float] = {}
-        for snapshot, util in self._samples:
-            if snapshot is None or not first <= snapshot <= last:
+    def _between(self, first: float, last: float) -> Dict[str, List[float]]:
+        """Distinct readings per cluster taken in [first, last]; a value read
+        again before the proxy refreshed it counts once."""
+        values: Dict[str, List[float]] = {}
+        for taken_at, util in self._readings:
+            if not first <= taken_at <= last:
                 continue
             for cluster, value in util.items():
-                peak[cluster] = max(peak.get(cluster, 0.0), value)
-        return peak
+                seen = values.setdefault(cluster, [])
+                if not seen or seen[-1] != value:
+                    seen.append(value)
+        return values

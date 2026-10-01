@@ -70,6 +70,10 @@ come from `VESPA_PERFORMANCE_MTLS_CERT` and `VESPA_PERFORMANCE_MTLS_KEY`.
   warmup batch; the batch APIs report no per-request latency.
 - Tests wait for instance CPU to settle between workloads. Documents remain
   until teardown because deleting between tests causes background compaction.
+- Instance CPU is the highest `cpu_util` a cluster reports. It averages about
+  the last minute and is refreshed about every 30 s, so only readings taken
+  90 s or more into a load describe the load alone; the record keeps their
+  mean and their count.
 
 Load settings live in `utils/config.py` and the thresholds in the test files.
 `utils/k6_lane.py` and `utils/pyvespa_lane.py` are the two lanes, both
@@ -215,7 +219,8 @@ configured in-flight requests for k6 and `max_workers` for pyvespa. Fields:
 | `rate_limited_rate` | 0..1 | share of requests answered 429 |
 | `client_cpu_fraction` | 0..1 | load-generator CPU busy share of the whole machine during the window; one GIL-bound process shows about 1 divided by the vCPU count |
 | `client_cpu_cores` | cores | pyvespa only: the process's own CPU time over wall time, the client load of one GIL-bound process |
-| `server_container_cpu_util`, `server_content_cpu_util` | 0..1 | instance cluster CPU, peak sample covering the window |
+| `server_container_cpu_util`, `server_content_cpu_util` | 0..1 | instance cluster CPU: the mean of the readings taken 90 s or more into the load, or, when the load was shorter, the peak of those taken 30 s or more into it |
+| `server_cpu_samples` | count | readings behind the CPU values that average load only; 0 means the load was too short for one and the CPU values also average some time before it |
 
 `status_counts`, HTTP status to request count, is in the records file for
 diagnosing a non-zero error rate but is not exported.
