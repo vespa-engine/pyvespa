@@ -368,6 +368,23 @@ class TestCreateDataplaneTokenAndAutoInjectedAuthClients(unittest.TestCase):
         )
         app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
 
+        # The new version is listed, and can be revoked.
+        listed = next(
+            t for t in self.vespa_cloud.list_dataplane_tokens() if t.id == result.id
+        )
+        self.assertIn(result.fingerprint, [v.fingerprint for v in listed.versions])
+        self.vespa_cloud.revoke_dataplane_token(result.id, result.fingerprint)
+        listed = next(
+            t for t in self.vespa_cloud.list_dataplane_tokens() if t.id == result.id
+        )
+        self.assertTrue(
+            all(
+                v.state == "revoking"
+                for v in listed.versions
+                if v.fingerprint == result.fingerprint
+            )
+        )
+
     def tearDown(self) -> None:
         shutil.rmtree(self.disk_folder, ignore_errors=True)
         self.vespa_cloud.delete(instance=self.instance_name)

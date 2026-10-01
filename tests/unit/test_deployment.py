@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 import os
 from unittest.mock import patch, MagicMock
 
-from vespa.deployment import VespaCloud
+from vespa.deployment import DataplaneTokenInfo, DataplaneTokenVersion, VespaCloud
 from vespa.package import (
     PRODUCTION_TEST_FILE,
     ApplicationPackage,
@@ -798,6 +798,70 @@ class TestDataplaneToken(unittest.TestCase):
         path = mock_request.call_args[0][1]
         self.assertIn("expiration=P30D", path)
         self.assertNotIn("expiration=P14D", path)
+
+    @patch("vespa.deployment.VespaCloud._request")
+    def test_list_dataplane_tokens(self, mock_request):
+        mock_request.return_value = {
+            "tokens": [
+                {
+                    "id": "myapp",
+                    "lastUpdatedMillis": 1778630400000,
+                    "versions": [
+                        {
+                            "fingerprint": "ab:cd:ef",
+                            "created": "2026-04-29T00:00:00Z",
+                            "author": "user@example.com",
+                            "expiration": "2026-05-13T00:00:00Z",
+                            "state": "active",
+                        },
+                        {"fingerprint": "12:34:56", "state": "revoking"},
+                    ],
+                }
+            ]
+        }
+
+        tokens = self.vc.list_dataplane_tokens()
+
+        method, path = mock_request.call_args[0][:2]
+        self.assertEqual(method, "GET")
+        self.assertEqual(path, "/application/v4/tenant/t/token")
+        self.assertEqual(
+            tokens,
+            [
+                DataplaneTokenInfo(
+                    id="myapp",
+                    last_updated_millis=1778630400000,
+                    versions=[
+                        DataplaneTokenVersion(
+                            fingerprint="ab:cd:ef",
+                            state="active",
+                            created="2026-04-29T00:00:00Z",
+                            author="user@example.com",
+                            expiration="2026-05-13T00:00:00Z",
+                        ),
+                        DataplaneTokenVersion(fingerprint="12:34:56", state="revoking"),
+                    ],
+                )
+            ],
+        )
+
+    @patch("vespa.deployment.VespaCloud._request")
+    def test_list_dataplane_tokens_empty(self, mock_request):
+        mock_request.return_value = {"tokens": []}
+
+        self.assertEqual(self.vc.list_dataplane_tokens(), [])
+
+    @patch("vespa.deployment.VespaCloud._request")
+    def test_revoke_dataplane_token(self, mock_request):
+        mock_request.return_value = {"message": "Token version deleted"}
+
+        self.vc.revoke_dataplane_token("my/app", "ab:cd:ef")
+
+        method, path = mock_request.call_args[0][:2]
+        self.assertEqual(method, "DELETE")
+        self.assertEqual(
+            path, "/application/v4/tenant/t/token/my%2Fapp?fingerprint=ab%3Acd%3Aef"
+        )
 
 
 if __name__ == "__main__":
