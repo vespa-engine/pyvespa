@@ -50,7 +50,7 @@ def _measure(
     endpoints, report_dir, method: str, case=SMALL, transports=("token", "mtls")
 ):
     """One method through each transport, one transport at a time."""
-    profile = endpoints.profile
+    profile = endpoints.profile_for(case)
     name = method + case.suffix
     print(
         f"\n=== Running pyvespa {name}: {case.docs or profile.iterable_docs} docs "

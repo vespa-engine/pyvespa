@@ -96,7 +96,7 @@ def run_k6(
         "MTLS_KEY_PATH": endpoints.key_path,
         "BODY_BYTES": str(case.body_bytes),
         "COMPRESSION": "gzip" if case.gzip else "",
-        **profile.k6_env(),
+        **profile.k6_env(transport),
     }
     command = ["k6", "run", "--summary-export", str(summary_file)]
     if os.environ.get("CI"):
@@ -106,7 +106,7 @@ def run_k6(
     expected_s = int(profile.warmup_s + profile.duration_s)
     print(
         f"\n=== Running k6 {transport}{case.suffix}: {profile.concurrency} in flight "
-        f"over {profile.k6_connections} connections, ~{expected_s}s + graceful stop ==="
+        f"over {profile.connections(transport)} connections, ~{expected_s}s + graceful stop ==="
     )
     load_start = time.time()
     runner_cpu = LoadGeneratorCpu().start()

@@ -38,7 +38,7 @@ def _measure(
     results = [
         run_k6(
             endpoints,
-            profile or endpoints.profile,
+            profile or endpoints.profile_for(case),
             report_dir / f"{name}_{transport}_summary.json",
             transport,
             case,
