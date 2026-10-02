@@ -2,7 +2,7 @@
 
 import json
 import os
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -44,6 +44,13 @@ class Thresholds:
     min_mtls_rps: float
     min_token_rps_ratio: float
     max_token_p95_ratio: float
+
+    def scaled(self, factor: float) -> "Thresholds":
+        return replace(
+            self,
+            min_token_rps=self.min_token_rps * factor,
+            min_mtls_rps=self.min_mtls_rps * factor,
+        )
 
 
 @dataclass(frozen=True)

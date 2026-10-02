@@ -72,10 +72,7 @@ class LoadProfile:
     iterable_warmup_docs: int = 2000
 
     def connections(self, transport: str) -> int:
-        """k6 connections for a transport. mTLS lost throughput as connections
-        were added and token gained, so each runs where it reached its ceiling:
-        mTLS on k6_connections, token on enough to keep each one at
-        token_streams_per_connection."""
+        # Token gains from more connections, mTLS loses (see README).
         if transport != "token":
             return self.k6_connections
         per = self.token_streams_per_connection
@@ -112,13 +109,8 @@ CLEANUP_SLICES = 16
 # k6 lane (test_k6_lane.py): the instance ceiling and the token hop.
 PROFILE = LoadProfile()  # opening and closing runs, sized by for_session
 WARMUP = replace(PROFILE, concurrency=400, warmup_s=15.0, duration_s=45.0)
-# The 4 KB document's own ceiling sizes its runs: sized from the small one, a
-# far runner queued about 400 in the instance and got 429s. 256 stays under
-# that edge from 4 to 140 ms away.
+# Sizes the 4 KB runs from the 4 KB ceiling (see README).
 WARMUP_LARGE = replace(PROFILE, concurrency=256, warmup_s=10.0, duration_s=30.0)
-# The 4 KB runs' base before for_session. A 4 KB request takes the instance
-# longer, so pyvespa needs more workers per rps: 20 ms gave 64 and starved the
-# gzipped batch (x0.84), while the small profile's 400 got 429s.
 PROFILE_LARGE = replace(PROFILE, service_s=0.05)
 LATENCY_PROBE = replace(
     PROFILE, concurrency=1, k6_connections=1, warmup_s=5.0, duration_s=30.0
@@ -131,6 +123,9 @@ VALIDITY = ValidityLimits(
     min_server_container_cpu_util=0.75,
     min_in_flight_fraction=0.85,
 )
+
+# runner_speed.benchmark_s() on the calibration runner; None leaves the floors as is.
+RUNNER_REFERENCE_S: Optional[float] = None
 
 # pyvespa lane (test_pyvespa_lane.py): the batch APIs in one process, with
 # max_workers from PROFILE.pyvespa_workers and everything else the library default.

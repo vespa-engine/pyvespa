@@ -75,7 +75,8 @@ def test_pyvespa_token_vs_mtls_performance(
 ):
     endpoints = vespa_cloud_token_endpoints
     token, mtls = _measure(endpoints, resolve_report_dir(tmp_path), method)
-    assert_token_vs_mtls(token, mtls, PYVESPA_THRESHOLDS[method])
+    floors = PYVESPA_THRESHOLDS[method].scaled(endpoints.runner_speed)
+    assert_token_vs_mtls(token, mtls, floors)
     print_validity([token, mtls])
     k6_first = run_state.get("k6_first")
     if k6_first:
@@ -92,10 +93,12 @@ def test_pyvespa_gzip_4k_performance(vespa_cloud_token_endpoints, tmp_path):
     (plain,) = _measure(endpoints, report_dir, "feed_iterable", LARGE, ("mtls",))
     (gzipped,) = _measure(endpoints, report_dir, "feed_iterable", LARGE_GZIP, ("mtls",))
     print_gzip_effect(plain, gzipped)
+    # Only down: on a fast runner the 4 KB batch hits the instance's ceiling first.
+    floor = PYVESPA_4K_MIN_MTLS_RPS * min(1.0, endpoints.runner_speed)
     for result in (plain, gzipped):
         assert_floor(
             result,
-            PYVESPA_4K_MIN_MTLS_RPS,
+            floor,
             PYVESPA_THRESHOLDS["feed_iterable"].max_error_rate,
         )
         print_validity([result])

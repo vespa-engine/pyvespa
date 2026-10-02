@@ -62,8 +62,7 @@ class LoadGeneratorCpu:
 
 def instance_cpu_util(app: Vespa) -> Dict[str, float]:
     """CPU per cluster (0..1) from the instance's own metrics endpoint; empty
-    when the probe fails. The timestamp on the values is the time of the
-    request, not of the window they average, so it is not returned."""
+    when the probe fails."""
     try:
         with VespaSync(app=app, pool_connections=1, pool_maxsize=1) as session:
             response = session.http_client.get(
@@ -88,16 +87,9 @@ def instance_cpu_util(app: Vespa) -> Dict[str, float]:
 class InstanceCpuSampler:
     """Mean instance CPU per cluster while a load ran.
 
-    The instance's cpu_util averages about the last minute, and the metrics
-    proxy refreshes it about every 30 s, so it lags the load: it reached its
-    steady value about 115 s after a load started and was still there about
-    25 s after it stopped. Its timestamp is the time of the request, not of the
-    window, so a reading is placed by when the sampler took it: from
-    FULL_WINDOW_S after the load started to TAIL_S after it ended, it averages
-    load only. At 90 s the first run after an idle wait read 69% and 75%
-    where the same load otherwise read 93% and 95%. `samples` counts those
-    readings. A load too short for any (most pyvespa batches) gets no value,
-    and no tail wait."""
+    cpu_util averages about the last minute and lags the load, so only readings
+    from FULL_WINDOW_S into the load until TAIL_S after it count. Shorter loads
+    get no value."""
 
     FULL_WINDOW_S = 120.0
     TAIL_S = 20.0
@@ -117,8 +109,6 @@ class InstanceCpuSampler:
         return self
 
     def stop(self, load_start: Optional[float] = None) -> Dict[str, float]:
-        """Mean CPU per cluster over the load; empty when no reading covered the
-        load alone, so the caller reports the CPU as unknown."""
         load_end = time.time()
         load_start = load_start if load_start is not None else self._started_at
         first, last = load_start + self.FULL_WINDOW_S, load_end + self.TAIL_S
@@ -141,8 +131,6 @@ class InstanceCpuSampler:
                 self._readings.append((time.time(), util))
 
     def _between(self, first: float, last: float) -> Dict[str, List[float]]:
-        """Distinct readings per cluster taken in [first, last]; a value read
-        again before the proxy refreshed it counts once."""
         values: Dict[str, List[float]] = {}
         for taken_at, util in self._readings:
             if not first <= taken_at <= last:

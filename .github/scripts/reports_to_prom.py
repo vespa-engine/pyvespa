@@ -101,6 +101,7 @@ def main() -> int:
     summaries = sorted(report_dir.glob("*summary.json"))
     record_files = sorted(report_dir.glob("*records.json"))
     drift_file = report_dir / "k6_drift.json"
+    bench_file = report_dir / "runner_benchmark.json"
     if not summaries and not record_files:
         print(f"No report files in {report_dir}; nothing to convert.")
         return 0
@@ -115,6 +116,12 @@ def main() -> int:
         if isinstance(drift, (int, float)):
             labels = _labels({"runner_cpu": runner_cpu})
             samples.append(("perf_instance_drift_pct", labels, drift))
+    if bench_file.exists():
+        bench = json.loads(bench_file.read_text())
+        labels = _labels({"runner_cpu": runner_cpu})
+        for field in ("benchmark_s", "speed"):
+            if isinstance(bench.get(field), (int, float)):
+                samples.append((f"perf_runner_{field}", labels, bench[field]))
     for summary_file in summaries:
         samples += k6_summary_samples(summary_file, runner_cpu)
     for records_file in record_files:
