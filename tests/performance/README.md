@@ -147,26 +147,21 @@ All values live in `utils/config.py`, grouped by who uses them.
 - `PYVESPA_THRESHOLDS` in `test_pyvespa_lane.py`: floors about 30% below the
   calibration run of 2026-09-28 (`feed_iterable` 2824 token and 3122 mTLS
   rps, `feed_async_iterable` 2215 and 2811); error and ratio bounds as for k6.
-  The floors follow the runner: times this runner's speed, see
-  `RUNNER_REFERENCE_S`. One pyvespa process is bound at about 1.5 cores by
-  the GIL, so its rate is about 1.5 / CPU per request, and CPU per request
-  moved almost 2x between runners of the same CPU model (0.36 to 0.70 ms):
-  a slow runner at 56 ms failed the token floors while a sweep there showed
-  128, 256 and 400 workers within 4%. k6 floors stay fixed; k6 is not bound
-  by the runner.
+  The floors scale with the session's RTT, see `PYVESPA_RTT_FACTORS`.
 - `K6_4K_MIN_MTLS_RPS` 1050 and `PYVESPA_4K_MIN_MTLS_RPS` 1100: floors for the
   4 KB document on mTLS, shared by the plain and the gzipped case, about 30%
   below the gzipped result of the calibration run of 2026-09-29 (k6 1528 rps,
-  pyvespa 1608). The error ceiling is the lanes' usual 2%. The pyvespa 4 KB
-  floor only scales down, since on a fast runner the batch meets the
-  instance's 4 KB ceiling first.
-- `RUNNER_REFERENCE_S` in `utils/config.py`: `utils/runner_speed.benchmark_s()`
-  on the runner the pyvespa floors were calibrated on; this runner's speed is
-  that over its own time. The benchmark is a few seconds of plain Python doing
-  the kind of work the client does per request, so a pyvespa regression does
-  not get normalized away; it times the runner at session start, not a
-  neighbour slowing it down later. None until set, and then the floors do not
-  move.
+  pyvespa 1608). The error ceiling is the lanes' usual 2%.
+- `PYVESPA_RTT_FACTORS` in `utils/config.py`: pyvespa's rps relative to a
+  runner 24 ms or less away, per transport, interpolated over the session's
+  RTT. pyvespa's client CPU per request grows with the round trip: on one
+  runner with latency added, 384 workers, mTLS went from 2910 rps at
+  0.52 ms per request (24 ms) to 2410 at 0.60 (52 ms) and 2080 at 0.67
+  (84 ms), token from 2670 at 0.55 to 1970 at 0.65 and 1430 at 0.84. A runner
+  speed benchmark was the same on a near and a far runner, and 128 to 400
+  workers made no difference, so the round trip, not the runner, sets the
+  pyvespa rate. Beyond 84 ms the last segment is extended, down to 0.3. The
+  4 KB floor does not scale: the instance's 4 KB ceiling bounds that batch.
 
 **`LoadProfile` fields**
 
@@ -258,9 +253,6 @@ configured in-flight requests for k6 and `max_workers` for pyvespa. Fields:
 
 `status_counts`, HTTP status to request count, is in the records file for
 diagnosing a non-zero error rate but is not exported.
-
-`perf_runner_benchmark_s`, `perf_runner_speed` (label: `runner_cpu`): the
-runner benchmark's time and the factor the pyvespa floors were scaled by.
 
 `perf_instance_drift_pct` (label: `runner_cpu`): closing k6 run's token + mTLS rps
 relative to the opening one, in percent; the instance's own movement during

@@ -1,7 +1,6 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import io
-import json
 import os
 import shutil
 import time
@@ -14,7 +13,6 @@ import pytest
 from vespa.deployment import VespaCloud
 from vespa.application import Vespa, VespaSync
 
-from utils import runner_speed
 from utils.k6_lane import run_k6
 from utils.metrics import resolve_report_dir
 from utils.config import (
@@ -28,7 +26,6 @@ from utils.config import (
     WARMUP,
     WARMUP_LARGE,
     PROFILE_LARGE,
-    RUNNER_REFERENCE_S,
     FeedCase,
     LoadProfile,
     ENVIRONMENT,
@@ -61,7 +58,7 @@ class PerformanceEndpoints:
     # PROFILE's defaults when the session could not measure.
     profile: LoadProfile = PROFILE
     large_profile: LoadProfile = PROFILE
-    runner_speed: float = 1.0
+    rtt_s: float = 0.0
 
     def profile_for(self, case: FeedCase) -> LoadProfile:
         return self.large_profile if case.body_bytes else self.profile
@@ -168,24 +165,11 @@ def vespa_cloud_token_endpoints(
             f"pyvespa max_workers {profile.pyvespa_workers}"
         )
         profiles[name] = profile
-    bench_s = runner_speed.benchmark_s()
-    speed = runner_speed.speed(bench_s, RUNNER_REFERENCE_S)
-    reference = f"{RUNNER_REFERENCE_S:.3f} s" if RUNNER_REFERENCE_S else "none yet"
-    print(
-        f"Runner benchmark: {bench_s:.3f} s (reference {reference}) -> "
-        f"pyvespa floors x{speed:.2f}"
-    )
-    (report_dir / "runner_benchmark.json").write_text(
-        json.dumps(
-            {"benchmark_s": bench_s, "reference_s": RUNNER_REFERENCE_S, "speed": speed},
-            indent=2,
-        )
-    )
     endpoints = replace(
         endpoints,
         profile=profiles["k6_warmup"],
         large_profile=profiles["k6_warmup_4k"],
-        runner_speed=speed,
+        rtt_s=rtt,
     )
 
     try:

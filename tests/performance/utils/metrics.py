@@ -45,11 +45,11 @@ class Thresholds:
     min_token_rps_ratio: float
     max_token_p95_ratio: float
 
-    def scaled(self, factor: float) -> "Thresholds":
+    def scaled(self, token_factor: float, mtls_factor: float) -> "Thresholds":
         return replace(
             self,
-            min_token_rps=self.min_token_rps * factor,
-            min_mtls_rps=self.min_mtls_rps * factor,
+            min_token_rps=self.min_token_rps * token_factor,
+            min_mtls_rps=self.min_mtls_rps * mtls_factor,
         )
 
 

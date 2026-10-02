@@ -124,9 +124,23 @@ VALIDITY = ValidityLimits(
     min_in_flight_fraction=0.85,
 )
 
-# runner_speed.benchmark_s() on the calibration runner; None leaves the floors as is.
-RUNNER_REFERENCE_S: Optional[float] = None
-
 # pyvespa lane (test_pyvespa_lane.py): the batch APIs in one process, with
 # max_workers from PROFILE.pyvespa_workers and everything else the library default.
 PYVESPA_METHODS = ("feed_iterable", "feed_async_iterable")
+# pyvespa rps relative to a near runner, by RTT in ms, measured with added
+# latency on one runner; the floors are scaled by it (see README).
+PYVESPA_RTT_FACTORS = {
+    "mtls": ((24.0, 1.0), (52.0, 0.83), (84.0, 0.72)),
+    "token": ((24.0, 1.0), (52.0, 0.74), (84.0, 0.54)),
+}
+
+
+def rtt_factor(transport: str, rtt_ms: float) -> float:
+    points = PYVESPA_RTT_FACTORS[transport]
+    if rtt_ms <= points[0][0]:
+        return 1.0
+    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+        if rtt_ms <= x1:
+            return y0 + (y1 - y0) * (rtt_ms - x0) / (x1 - x0)
+    (x0, y0), (x1, y1) = points[-2], points[-1]
+    return max(0.3, y1 + (y1 - y0) * (rtt_ms - x1) / (x1 - x0))
