@@ -116,6 +116,10 @@ WARMUP = replace(PROFILE, concurrency=400, warmup_s=15.0, duration_s=45.0)
 # far runner queued about 400 in the instance and got 429s. 256 stays under
 # that edge from 4 to 140 ms away.
 WARMUP_LARGE = replace(PROFILE, concurrency=256, warmup_s=10.0, duration_s=30.0)
+# The 4 KB runs' base before for_session. A 4 KB request takes the instance
+# longer, so pyvespa needs more workers per rps: 20 ms gave 64 and starved the
+# gzipped batch (x0.84), while the small profile's 400 got 429s.
+PROFILE_LARGE = replace(PROFILE, service_s=0.05)
 LATENCY_PROBE = replace(
     PROFILE, concurrency=1, k6_connections=1, warmup_s=5.0, duration_s=30.0
 )

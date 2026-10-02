@@ -25,6 +25,7 @@ from utils.config import (
     SMALL,
     WARMUP,
     WARMUP_LARGE,
+    PROFILE_LARGE,
     FeedCase,
     LoadProfile,
     ENVIRONMENT,
@@ -141,9 +142,9 @@ def vespa_cloud_token_endpoints(
     report_dir = resolve_report_dir(tmp_path_factory.mktemp("performance-report"))
     rtt = _network_rtt_s(mtls_app)
     profiles = {}
-    for name, warmup, case in (
-        ("k6_warmup", WARMUP, SMALL),
-        ("k6_warmup_4k", WARMUP_LARGE, LARGE),
+    for name, warmup, case, base in (
+        ("k6_warmup", WARMUP, SMALL, PROFILE),
+        ("k6_warmup_4k", WARMUP_LARGE, LARGE, PROFILE_LARGE),
     ):
         seconds = int(warmup.warmup_s + warmup.duration_s)
         print(f"\n=== Warmup {name}: k6 for {seconds}s ===")
@@ -154,7 +155,7 @@ def vespa_cloud_token_endpoints(
         print("Warmup documents deleted.")
         # Successful requests only: 429s are not capacity.
         ceiling = warm.rps * (1 - warm.error_rate)
-        profile = PROFILE.for_session(ceiling_rps=ceiling, rtt_s=rtt)
+        profile = base.for_session(ceiling_rps=ceiling, rtt_s=rtt)
         print(
             f"Session profile {name}: ceiling ~{ceiling:.0f} rps, RTT "
             f"{rtt * 1000:.0f} ms -> k6 concurrency {profile.concurrency} for the "
