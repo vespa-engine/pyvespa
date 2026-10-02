@@ -57,9 +57,9 @@ come from `VESPA_PERFORMANCE_MTLS_CERT` and `VESPA_PERFORMANCE_MTLS_KEY`.
   requests. Together with measured network RTT, `LoadProfile.for_session`
   sizes both lanes. k6 gets enough in flight to keep about 200 requests
   queued in the instance: 200 + ceiling × RTT, rounded to whole connections
-  and capped at `max_concurrency`. pyvespa gets enough in flight to reach the
-  ceiling if the client could: `max_workers` = ceiling × (RTT + 20 ms service
-  time), rounded up to 16, between 64 and `max_pyvespa_workers`. Hosted
+  and capped at `max_concurrency`. pyvespa gets enough in flight to reach its
+  own ceiling: `max_workers` = min(ceiling, `pyvespa_max_rps`) × (RTT + 20 ms
+  service time), rounded up to 16, between 128 and `max_pyvespa_workers`. Hosted
   runners sit 4 to 67 ms from the instance; with a fixed worker count the far
   ones were latency-bound (rate = workers ÷ latency) and looked like
   regressions. Transports run one at a time, so this is the whole load the
@@ -181,6 +181,10 @@ All values live in `utils/config.py`, grouped by who uses them.
   where token peaked; 28 per connection gave 12% less, 112 gave 32% less.
 - `pyvespa_workers` 128: `max_workers` for both batch APIs before
   `for_session` has measured; enough for a near runner.
+- `pyvespa_max_rps` 3200: about what one GIL-bound pyvespa process reaches.
+  Sized from the instance's ceiling instead, a runner 70 ms away got 400
+  workers, and `feed_async_iterable`'s bursts drew 3.7% 429s on mTLS; 128 to
+  400 workers gave the same rate at 31 ms.
 - `service_s` 0.02: the instance's time per feed request at moderate load,
   added to the round trip when sizing `pyvespa_workers`. Measured as 17 to
   23 ms across runners 4 to 67 ms away.

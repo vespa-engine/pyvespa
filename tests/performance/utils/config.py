@@ -67,6 +67,7 @@ class LoadProfile:
     token_streams_per_connection: int = 14
     pyvespa_workers: int = 128
     max_pyvespa_workers: int = 1024
+    pyvespa_max_rps: float = 3200.0
     service_s: float = 0.02
     iterable_docs: int = 200000
     iterable_warmup_docs: int = 2000
@@ -92,11 +93,12 @@ class LoadProfile:
         in_flight = self.server_queue_target + ceiling_rps * rtt_s
         step = self.k6_connections
         concurrency = max(step, round(in_flight / step) * step)
-        workers = math.ceil(ceiling_rps * (rtt_s + self.service_s) / 16) * 16
+        rate = min(ceiling_rps, self.pyvespa_max_rps)
+        workers = math.ceil(rate * (rtt_s + self.service_s) / 16) * 16
         return replace(
             self,
             concurrency=min(concurrency, self.max_concurrency),
-            pyvespa_workers=min(max(workers, 64), self.max_pyvespa_workers),
+            pyvespa_workers=min(max(workers, 128), self.max_pyvespa_workers),
         )
 
 
