@@ -81,9 +81,10 @@ come from `VESPA_PERFORMANCE_MTLS_CERT` and `VESPA_PERFORMANCE_MTLS_KEY`.
 - Tests wait for instance CPU to settle between workloads. Documents remain
   until teardown because deleting between tests causes background compaction.
 - Instance CPU is the highest `cpu_util` a cluster reports. It averages about
-  the last minute and is refreshed about every 30 s, so only readings taken
-  90 s or more into a load describe the load alone; the record keeps their
-  mean and their count.
+  the last minute and is refreshed about every 30 s, so it lags the load by up
+  to two minutes. Only readings taken from 120 s into a load until 20 s after
+  it describe the load alone; the record keeps their mean and their count. At
+  90 s the first run after an idle wait read 20 points low.
 
 Load settings live in `utils/config.py` and the thresholds in the test files.
 `utils/k6_lane.py` and `utils/pyvespa_lane.py` are the two lanes, both
@@ -187,9 +188,7 @@ bounds. k6 must also pass the validity checks that prove the instance was the
 bottleneck: no more than 1% of requests receive 429, the client held at least
 85% of the configured concurrency in flight (rps × mean latency, Little's law:
 the direct test of whether the client kept the instance's queue full), runner
-CPU at most 90%, and for mTLS container CPU at least 75%. Token levels off
-below the container's CPU limit (69% on the run that added its connections),
-so its check is the in-flight and 429 ones. pyvespa prints the same evidence
+CPU at most 90%, container CPU at least 75%. pyvespa prints the same evidence
 without asserting it, since one Python process is the bottleneck by design,
 and reports the share of the session's k6 ceiling each method delivers.
 Missing probes are reported as unknown and do not fail the run.
@@ -238,7 +237,7 @@ configured in-flight requests for k6 and `max_workers` for pyvespa. Fields:
 | `rate_limited_rate` | 0..1 | share of requests answered 429 |
 | `client_cpu_fraction` | 0..1 | load-generator CPU busy share of the whole machine during the window; one GIL-bound process shows about 1 divided by the vCPU count |
 | `client_cpu_cores` | cores | pyvespa only: the process's own CPU time over wall time, the client load of one GIL-bound process |
-| `server_container_cpu_util`, `server_content_cpu_util` | 0..1 | instance cluster CPU: the mean of the readings taken 90 s or more into the load; empty when the load was shorter |
+| `server_container_cpu_util`, `server_content_cpu_util` | 0..1 | instance cluster CPU: the mean of the readings taken from 120 s into the load until 20 s after it; empty when the load was shorter |
 | `server_cpu_samples` | count | readings behind the CPU values; 0 means the load was too short for one, so the CPU values are empty |
 
 `status_counts`, HTTP status to request count, is in the records file for
@@ -262,7 +261,7 @@ for diagnosis only; the `perf_*` series carry the same information.
   10% between runs (`perf_instance_drift_pct` shows its movement within one).
 - Skip or annotate runs outside the validity limits (`rate_limited_rate` > 0.01,
   `achieved_in_flight / concurrency` < 0.85, `client_cpu_fraction` > 0.90,
-  mTLS `server_container_cpu_util` < 0.75). Those runs are invalid, not regressions.
+  `server_container_cpu_util` < 0.75). Those runs are invalid, not regressions.
 - Share of the ceiling per pyvespa method, from the same run:
   `sum(perf_rps{lane="pyvespa",method="feed_iterable"}) / sum(perf_rps{source="k6_token_vs_mtls_records"})`.
   A drop here with a steady k6 line is a pyvespa regression.

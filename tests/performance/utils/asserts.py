@@ -150,11 +150,8 @@ def assert_measurement_valid(results: List[LaneResult], limits: ValidityLimits):
                 f"(max {_pct(limits.max_client_cpu_fraction)}); the client, not the "
                 "instance, was the bottleneck. Result invalid."
             )
-        # Token stops short of the container's CPU: with enough connections it
-        # used about a third less CPU per request and still levelled off.
         if (
-            r.transport == "mtls"
-            and limits.min_server_container_cpu_util > 0
+            limits.min_server_container_cpu_util > 0
             and r.server_container_cpu_util is not None
         ):
             assert (

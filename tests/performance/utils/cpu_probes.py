@@ -88,15 +88,19 @@ def instance_cpu_util(app: Vespa) -> Dict[str, float]:
 class InstanceCpuSampler:
     """Mean instance CPU per cluster while a load ran.
 
-    The instance's cpu_util is an average over about the last 60 s, and the metrics
-    proxy refreshes it about every 30 s. Its timestamp is the time of the
-    request, not of the window, so a reading is placed by when the sampler took
-    it: one taken at least FULL_WINDOW_S after the load started, and before it
-    ended, averages load only. `samples` counts those readings. A load too
-    short for any (most pyvespa batches) gets no value: earlier readings mostly
-    average the idle time before it, and read as low as 2%."""
+    The instance's cpu_util averages about the last minute, and the metrics
+    proxy refreshes it about every 30 s, so it lags the load: it reached its
+    steady value about 115 s after a load started and was still there about
+    25 s after it stopped. Its timestamp is the time of the request, not of the
+    window, so a reading is placed by when the sampler took it: from
+    FULL_WINDOW_S after the load started to TAIL_S after it ended, it averages
+    load only. At 90 s the first run after an idle wait read 69% and 75%
+    where the same load otherwise read 93% and 95%. `samples` counts those
+    readings. A load too short for any (most pyvespa batches) gets no value,
+    and no tail wait."""
 
-    FULL_WINDOW_S = 90.0
+    FULL_WINDOW_S = 120.0
+    TAIL_S = 20.0
 
     def __init__(self, app: Vespa, interval_s: float = 10.0):
         self._app = app
@@ -117,9 +121,12 @@ class InstanceCpuSampler:
         load alone, so the caller reports the CPU as unknown."""
         load_end = time.time()
         load_start = load_start if load_start is not None else self._started_at
+        first, last = load_start + self.FULL_WINDOW_S, load_end + self.TAIL_S
+        if last > first:
+            time.sleep(max(0.0, last - time.time()))
         self._stop.set()
         self._thread.join(timeout=60)
-        full = self._between(load_start + self.FULL_WINDOW_S, load_end)
+        full = self._between(first, last)
         if not full:
             return {}
         # A cluster whose value happened not to change still had its window
