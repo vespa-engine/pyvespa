@@ -65,6 +65,11 @@ come from `VESPA_PERFORMANCE_MTLS_CERT` and `VESPA_PERFORMANCE_MTLS_KEY`.
   regressions. Transports run one at a time, so this is the whole load the
   instance sees. If the warmup or the RTT cannot be measured the session
   fails, since without a ceiling there is nothing to compare against.
+- The 4 KB document has its own warmup and profile, so far runners do not
+  queue so many 4 KB requests in the instance that it answers 429.
+- k6 runs mTLS on 8 connections and token on enough to keep about 14
+  requests on each. Token gains from more connections and mTLS loses, so
+  each transport reaches its own ceiling.
 - k6 counts completions inside a 90-second window after 30 seconds of
   warmup. pyvespa measures one batch of documents whole, after an untimed
   warmup batch; the batch APIs report no per-request latency.
@@ -99,6 +104,9 @@ All values live in `utils/config.py`, grouped by who uses them.
 - `WARMUP`: mTLS only, 400 in flight, 15 s ramp and 45 s hold. Warms the
   instance and gives a conservative ceiling estimate from its successful
   requests; 400 on one transport stays under the 429 edge.
+- `WARMUP_LARGE`: the same for the 4 KB document, 256 in flight, 10 s ramp
+  and 30 s hold. Sizes the 4 KB runs of both lanes from `PROFILE_LARGE`,
+  `PROFILE` with `service_s` 0.05.
 - `LATENCY_PROBE`: one request in flight on one connection, 5 s warmup and
   30 s hold, about a thousand samples per transport for the p50.
 - `VALIDITY`: the four limits from "Reading results". In-flight is the direct
@@ -147,8 +155,9 @@ All values live in `utils/config.py`, grouped by who uses them.
 - `warmup_s` 30 and `duration_s` 90: ramp-up excluded from counting, then the
   hold window. 150 s gave 1 to 3% drift within a run; 90 s saves six minutes
   per session for a little more noise.
-- `k6_connections` 8: HTTP/2 connections the k6 streams are spread over. The
-  instance does not care between 1 and 16.
+- `k6_connections` 8: HTTP/2 connections for mTLS, and the least token gets.
+- `token_streams_per_connection` 14: token connections are in-flight ÷ 14,
+  where token reached its ceiling.
 - `pyvespa_workers` 128: `max_workers` for both batch APIs before
   `for_session` has measured; enough for a near runner.
 - `service_s` 0.02: the instance's time per feed request at moderate load,

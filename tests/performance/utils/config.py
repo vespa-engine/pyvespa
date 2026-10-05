@@ -64,18 +64,25 @@ class LoadProfile:
     warmup_s: float = 30.0
     duration_s: float = 90.0
     k6_connections: int = 8
+    token_streams_per_connection: int = 14
     pyvespa_workers: int = 128
     max_pyvespa_workers: int = 1024
     service_s: float = 0.02
     iterable_docs: int = 200000
     iterable_warmup_docs: int = 2000
 
-    def k6_env(self) -> dict:
+    def connections(self, transport: str) -> int:
+        if transport != "token":
+            return self.k6_connections
+        per = self.token_streams_per_connection
+        return max(self.k6_connections, round(self.concurrency / per))
+
+    def k6_env(self, transport: str) -> dict:
         return {
             "MAX_VUS": str(self.concurrency),
             "RAMP_UP": f"{int(self.warmup_s)}s",
             "HOLD": f"{int(self.duration_s)}s",
-            "CONNECTIONS": str(self.k6_connections),
+            "CONNECTIONS": str(self.connections(transport)),
         }
 
     def for_session(self, ceiling_rps: float, rtt_s: float) -> "LoadProfile":
@@ -101,6 +108,8 @@ CLEANUP_SLICES = 16
 # k6 lane (test_k6_lane.py): the instance ceiling and the token hop.
 PROFILE = LoadProfile()  # opening and closing runs, sized by for_session
 WARMUP = replace(PROFILE, concurrency=400, warmup_s=15.0, duration_s=45.0)
+WARMUP_LARGE = replace(PROFILE, concurrency=256, warmup_s=10.0, duration_s=30.0)
+PROFILE_LARGE = replace(PROFILE, service_s=0.05)
 LATENCY_PROBE = replace(
     PROFILE, concurrency=1, k6_connections=1, warmup_s=5.0, duration_s=30.0
 )

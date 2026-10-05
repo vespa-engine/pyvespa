@@ -20,8 +20,13 @@ from utils.config import (
     CLEANUP_SLICES,
     CONTENT_CLUSTER,
     IDLE_CPU_UTIL,
+    LARGE,
     PROFILE,
+    SMALL,
     WARMUP,
+    WARMUP_LARGE,
+    PROFILE_LARGE,
+    FeedCase,
     LoadProfile,
     ENVIRONMENT,
     INSTANCE,
@@ -52,6 +57,10 @@ class PerformanceEndpoints:
     # time), so anything below the ceiling is client cost, not waiting.
     # PROFILE's defaults when the session could not measure.
     profile: LoadProfile = PROFILE
+    large_profile: LoadProfile = PROFILE
+
+    def profile_for(self, case: FeedCase) -> LoadProfile:
+        return self.large_profile if case.body_bytes else self.profile
 
 
 def _require_env_var(name: str) -> str:
@@ -129,25 +138,37 @@ def vespa_cloud_token_endpoints(
     )
 
     # Warmup throughput and network round trip set k6's concurrency (see `profile`).
-    print(f"\n=== Warmup: k6 for {int(WARMUP.warmup_s + WARMUP.duration_s)}s ===")
     report_dir = resolve_report_dir(tmp_path_factory.mktemp("performance-report"))
-    warm = run_k6(endpoints, WARMUP, report_dir / "k6_warmup.json", "mtls")
-    mtls_app.delete_all_docs(
-        content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
-    )
-    print("Warmup documents deleted.")
-    # Successful requests only: 429s are not capacity.
-    ceiling = warm.rps * (1 - warm.error_rate)
     rtt = _network_rtt_s(mtls_app)
-    profile = PROFILE.for_session(ceiling_rps=ceiling, rtt_s=rtt)
-    print(
-        f"Session profile: ceiling ~{ceiling:.0f} rps, RTT {rtt * 1000:.0f} ms -> "
-        f"k6 concurrency {profile.concurrency} for the active transport "
-        f"over {profile.k6_connections} connections, "
-        f"~{PROFILE.server_queue_target} queued in the instance; "
-        f"pyvespa max_workers {profile.pyvespa_workers}"
+    profiles = {}
+    for name, warmup, case, base in (
+        ("k6_warmup", WARMUP, SMALL, PROFILE),
+        ("k6_warmup_4k", WARMUP_LARGE, LARGE, PROFILE_LARGE),
+    ):
+        seconds = int(warmup.warmup_s + warmup.duration_s)
+        print(f"\n=== Warmup {name}: k6 for {seconds}s ===")
+        warm = run_k6(endpoints, warmup, report_dir / f"{name}.json", "mtls", case)
+        mtls_app.delete_all_docs(
+            content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
+        )
+        print("Warmup documents deleted.")
+        # Successful requests only: 429s are not capacity.
+        ceiling = warm.rps * (1 - warm.error_rate)
+        profile = base.for_session(ceiling_rps=ceiling, rtt_s=rtt)
+        print(
+            f"Session profile {name}: ceiling ~{ceiling:.0f} rps, RTT "
+            f"{rtt * 1000:.0f} ms -> k6 concurrency {profile.concurrency} for the "
+            f"active transport over {profile.connections('mtls')} mTLS or "
+            f"{profile.connections('token')} token connections, "
+            f"~{PROFILE.server_queue_target} queued in the instance; "
+            f"pyvespa max_workers {profile.pyvespa_workers}"
+        )
+        profiles[name] = profile
+    endpoints = replace(
+        endpoints,
+        profile=profiles["k6_warmup"],
+        large_profile=profiles["k6_warmup_4k"],
     )
-    endpoints = replace(endpoints, profile=profile)
 
     try:
         yield endpoints
