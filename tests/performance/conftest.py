@@ -58,6 +58,7 @@ class PerformanceEndpoints:
     # PROFILE's defaults when the session could not measure.
     profile: LoadProfile = PROFILE
     large_profile: LoadProfile = PROFILE
+    rtt_s: float = 0.0
 
     def profile_for(self, case: FeedCase) -> LoadProfile:
         return self.large_profile if case.body_bytes else self.profile
@@ -168,6 +169,7 @@ def vespa_cloud_token_endpoints(
         endpoints,
         profile=profiles["k6_warmup"],
         large_profile=profiles["k6_warmup_4k"],
+        rtt_s=rtt,
     )
 
     try:
