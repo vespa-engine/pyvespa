@@ -1,5 +1,6 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
+import io
 import os
 import shutil
 import time
@@ -91,13 +92,7 @@ def vespa_cloud_token_endpoints(
         instance=INSTANCE,
         key_content=api_key.replace(r"\n", "\n"),
         application_root=".",
-    )
-
-    mtls_url = vespa_cloud.get_mtls_endpoint(
-        instance=INSTANCE, environment=ENVIRONMENT, region=REGION
-    )
-    token_url = vespa_cloud.get_token_endpoint(
-        instance=INSTANCE, environment=ENVIRONMENT, region=REGION
+        output_file=io.StringIO(),
     )
 
     mtls_app = vespa_cloud.get_application(
@@ -123,8 +118,8 @@ def vespa_cloud_token_endpoints(
     print("Leftover documents deleted.")
 
     endpoints = PerformanceEndpoints(
-        mtls_url=mtls_url,
-        token_url=token_url,
+        mtls_url=mtls_app.url,
+        token_url=token_app.url,
         cert_path=str(cert_path),
         key_path=str(key_path),
         token=secret_token,
@@ -189,7 +184,7 @@ def _wait_until_instance_idle(app, max_wait_s: float = 120.0) -> None:
 
     deadline = time.time() + max_wait_s
     while True:
-        util, _ = instance_cpu_util(app)
+        util = instance_cpu_util(app)
         busiest = max(util.values()) if util else None
         label = f"{busiest:.0%}" if busiest is not None else "unknown"
         if busiest is not None and busiest <= IDLE_CPU_UTIL:

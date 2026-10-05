@@ -31,6 +31,7 @@ class LaneResult:
     client_cpu_cores: Optional[float] = None
     server_container_cpu_util: Optional[float] = None
     server_content_cpu_util: Optional[float] = None
+    server_cpu_samples: Optional[int] = None
     status_counts: Optional[Dict[str, int]] = None
 
 

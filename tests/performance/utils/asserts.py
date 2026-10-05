@@ -68,7 +68,9 @@ def print_validity(results: List[LaneResult]) -> None:
             f"client cpu={_pct(r.client_cpu_fraction)} of the machine"
             f"{f' ({r.client_cpu_cores:.2f} cores)' if r.client_cpu_cores is not None else ''}, "
             f"server container cpu={_pct(r.server_container_cpu_util)}, "
-            f"content cpu={_pct(r.server_content_cpu_util)}"
+            f"content cpu={_pct(r.server_content_cpu_util)} "
+            f"({r.server_cpu_samples if r.server_cpu_samples is not None else 'n/a'} "
+            "full-window samples)"
         )
 
 
