@@ -25,6 +25,7 @@ RECORD_FIELDS = (
     "client_cpu_cores",
     "server_container_cpu_util",
     "server_content_cpu_util",
+    "server_cpu_samples",
 )
 
 Sample = Tuple[str, str, float]  # metric name, label string, value

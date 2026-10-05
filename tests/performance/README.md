@@ -57,19 +57,27 @@ come from `VESPA_PERFORMANCE_MTLS_CERT` and `VESPA_PERFORMANCE_MTLS_KEY`.
   requests. Together with measured network RTT, `LoadProfile.for_session`
   sizes both lanes. k6 gets enough in flight to keep about 200 requests
   queued in the instance: 200 + ceiling × RTT, rounded to whole connections
-  and capped at `max_concurrency`. pyvespa gets enough in flight to reach the
-  ceiling if the client could: `max_workers` = ceiling × (RTT + 20 ms service
-  time), rounded up to 16, between 64 and `max_pyvespa_workers`. Hosted
+  and capped at `max_concurrency`. pyvespa gets enough in flight to reach its
+  own ceiling: `max_workers` = min(ceiling, `pyvespa_max_rps`) × (RTT + 20 ms
+  service time), rounded up to 16, between 128 and `max_pyvespa_workers`. Hosted
   runners sit 4 to 67 ms from the instance; with a fixed worker count the far
   ones were latency-bound (rate = workers ÷ latency) and looked like
   regressions. Transports run one at a time, so this is the whole load the
   instance sees. If the warmup or the RTT cannot be measured the session
   fails, since without a ceiling there is nothing to compare against.
+- The 4 KB document has its own warmup and profile, so far runners do not
+  queue so many 4 KB requests in the instance that it answers 429.
+- k6 runs mTLS on 8 connections and token on enough to keep about 14
+  requests on each. Token gains from more connections and mTLS loses, so
+  each transport reaches its own ceiling.
 - k6 counts completions inside a 90-second window after 30 seconds of
   warmup. pyvespa measures one batch of documents whole, after an untimed
   warmup batch; the batch APIs report no per-request latency.
 - Tests wait for instance CPU to settle between workloads. Documents remain
   until teardown because deleting between tests causes background compaction.
+- Instance CPU lags the load by up to two minutes, so only readings from
+  120 s into a load until 20 s after it count; the record keeps their mean
+  and count.
 
 Load settings live in `utils/config.py` and the thresholds in the test files.
 `utils/k6_lane.py` and `utils/pyvespa_lane.py` are the two lanes, both
@@ -96,6 +104,9 @@ All values live in `utils/config.py`, grouped by who uses them.
 - `WARMUP`: mTLS only, 400 in flight, 15 s ramp and 45 s hold. Warms the
   instance and gives a conservative ceiling estimate from its successful
   requests; 400 on one transport stays under the 429 edge.
+- `WARMUP_LARGE`: the same for the 4 KB document, 256 in flight, 10 s ramp
+  and 30 s hold. Sizes the 4 KB runs of both lanes from `PROFILE_LARGE`,
+  `PROFILE` with `service_s` 0.05.
 - `LATENCY_PROBE`: one request in flight on one connection, 5 s warmup and
   30 s hold, about a thousand samples per transport for the p50.
 - `VALIDITY`: the four limits from "Reading results". In-flight is the direct
@@ -131,6 +142,11 @@ All values live in `utils/config.py`, grouped by who uses them.
   4 KB document on mTLS, shared by the plain and the gzipped case, about 30%
   below the gzipped result of the calibration run of 2026-09-29 (k6 1528 rps,
   pyvespa 1608). The error ceiling is the lanes' usual 2%.
+- `PYVESPA_RTT_FACTORS` in `utils/config.py`: the pyvespa floors scale with
+  the session's RTT, since pyvespa's client CPU per request grows with the
+  round trip. The factors are pyvespa's rps relative to a runner 24 ms or
+  less away, measured by adding latency on one runner. The 4 KB floor does
+  not scale.
 
 **`LoadProfile` fields**
 
@@ -144,10 +160,13 @@ All values live in `utils/config.py`, grouped by who uses them.
 - `warmup_s` 30 and `duration_s` 90: ramp-up excluded from counting, then the
   hold window. 150 s gave 1 to 3% drift within a run; 90 s saves six minutes
   per session for a little more noise.
-- `k6_connections` 8: HTTP/2 connections the k6 streams are spread over. The
-  instance does not care between 1 and 16.
+- `k6_connections` 8: HTTP/2 connections for mTLS, and the least token gets.
+- `token_streams_per_connection` 14: token connections are in-flight ÷ 14,
+  where token reached its ceiling.
 - `pyvespa_workers` 128: `max_workers` for both batch APIs before
   `for_session` has measured; enough for a near runner.
+- `pyvespa_max_rps` 3200: about what one GIL-bound pyvespa process reaches;
+  `pyvespa_workers` is sized for it rather than the instance's ceiling.
 - `service_s` 0.02: the instance's time per feed request at moderate load,
   added to the round trip when sizing `pyvespa_workers`. Measured as 17 to
   23 ms across runners 4 to 67 ms away.
@@ -215,7 +234,8 @@ configured in-flight requests for k6 and `max_workers` for pyvespa. Fields:
 | `rate_limited_rate` | 0..1 | share of requests answered 429 |
 | `client_cpu_fraction` | 0..1 | load-generator CPU busy share of the whole machine during the window; one GIL-bound process shows about 1 divided by the vCPU count |
 | `client_cpu_cores` | cores | pyvespa only: the process's own CPU time over wall time, the client load of one GIL-bound process |
-| `server_container_cpu_util`, `server_content_cpu_util` | 0..1 | instance cluster CPU, peak sample covering the window |
+| `server_container_cpu_util`, `server_content_cpu_util` | 0..1 | instance cluster CPU, mean of the readings from 120 s into the load until 20 s after it; empty for shorter loads |
+| `server_cpu_samples` | count | readings behind the CPU values; 0 for shorter loads |
 
 `status_counts`, HTTP status to request count, is in the records file for
 diagnosing a non-zero error rate but is not exported.

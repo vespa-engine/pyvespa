@@ -12,7 +12,7 @@ from utils.asserts import (
     print_validity,
 )
 from utils.metrics import Thresholds, resolve_report_dir, write_records
-from utils.config import LARGE, LARGE_GZIP, PYVESPA_METHODS, SMALL
+from utils.config import LARGE, LARGE_GZIP, PYVESPA_METHODS, SMALL, rtt_factor
 
 # Explained under "Thresholds" in tests/performance/README.md.
 PYVESPA_THRESHOLDS = {
@@ -50,7 +50,7 @@ def _measure(
     endpoints, report_dir, method: str, case=SMALL, transports=("token", "mtls")
 ):
     """One method through each transport, one transport at a time."""
-    profile = endpoints.profile
+    profile = endpoints.profile_for(case)
     name = method + case.suffix
     print(
         f"\n=== Running pyvespa {name}: {case.docs or profile.iterable_docs} docs "
@@ -75,7 +75,14 @@ def test_pyvespa_token_vs_mtls_performance(
 ):
     endpoints = vespa_cloud_token_endpoints
     token, mtls = _measure(endpoints, resolve_report_dir(tmp_path), method)
-    assert_token_vs_mtls(token, mtls, PYVESPA_THRESHOLDS[method])
+    rtt_ms = endpoints.rtt_s * 1000
+    token_factor, mtls_factor = rtt_factor("token", rtt_ms), rtt_factor("mtls", rtt_ms)
+    print(
+        f"Floors at RTT {rtt_ms:.0f} ms: token x{token_factor:.2f}, "
+        f"mTLS x{mtls_factor:.2f}"
+    )
+    floors = PYVESPA_THRESHOLDS[method].scaled(token_factor, mtls_factor)
+    assert_token_vs_mtls(token, mtls, floors)
     print_validity([token, mtls])
     k6_first = run_state.get("k6_first")
     if k6_first:

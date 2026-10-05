@@ -122,5 +122,6 @@ def run_pyvespa(
         client_cpu_cores=cpu_s / duration_s,
         server_container_cpu_util=server.get(f"container/{CONTAINER_CLUSTER}"),
         server_content_cpu_util=server.get(f"content/{CONTENT_CLUSTER}"),
+        server_cpu_samples=sampler.samples if sampler else None,
         status_counts=dict(Counter(str(s) if s else "error" for s in statuses)),
     )

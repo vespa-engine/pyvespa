@@ -64,18 +64,26 @@ class LoadProfile:
     warmup_s: float = 30.0
     duration_s: float = 90.0
     k6_connections: int = 8
+    token_streams_per_connection: int = 14
     pyvespa_workers: int = 128
     max_pyvespa_workers: int = 1024
+    pyvespa_max_rps: float = 3200.0
     service_s: float = 0.02
     iterable_docs: int = 200000
     iterable_warmup_docs: int = 2000
 
-    def k6_env(self) -> dict:
+    def connections(self, transport: str) -> int:
+        if transport != "token":
+            return self.k6_connections
+        per = self.token_streams_per_connection
+        return max(self.k6_connections, round(self.concurrency / per))
+
+    def k6_env(self, transport: str) -> dict:
         return {
             "MAX_VUS": str(self.concurrency),
             "RAMP_UP": f"{int(self.warmup_s)}s",
             "HOLD": f"{int(self.duration_s)}s",
-            "CONNECTIONS": str(self.k6_connections),
+            "CONNECTIONS": str(self.connections(transport)),
         }
 
     def for_session(self, ceiling_rps: float, rtt_s: float) -> "LoadProfile":
@@ -84,11 +92,12 @@ class LoadProfile:
         in_flight = self.server_queue_target + ceiling_rps * rtt_s
         step = self.k6_connections
         concurrency = max(step, round(in_flight / step) * step)
-        workers = math.ceil(ceiling_rps * (rtt_s + self.service_s) / 16) * 16
+        rate = min(ceiling_rps, self.pyvespa_max_rps)
+        workers = math.ceil(rate * (rtt_s + self.service_s) / 16) * 16
         return replace(
             self,
             concurrency=min(concurrency, self.max_concurrency),
-            pyvespa_workers=min(max(workers, 64), self.max_pyvespa_workers),
+            pyvespa_workers=min(max(workers, 128), self.max_pyvespa_workers),
         )
 
 
@@ -101,6 +110,8 @@ CLEANUP_SLICES = 16
 # k6 lane (test_k6_lane.py): the instance ceiling and the token hop.
 PROFILE = LoadProfile()  # opening and closing runs, sized by for_session
 WARMUP = replace(PROFILE, concurrency=400, warmup_s=15.0, duration_s=45.0)
+WARMUP_LARGE = replace(PROFILE, concurrency=256, warmup_s=10.0, duration_s=30.0)
+PROFILE_LARGE = replace(PROFILE, service_s=0.05)
 LATENCY_PROBE = replace(
     PROFILE, concurrency=1, k6_connections=1, warmup_s=5.0, duration_s=30.0
 )
@@ -116,3 +127,19 @@ VALIDITY = ValidityLimits(
 # pyvespa lane (test_pyvespa_lane.py): the batch APIs in one process, with
 # max_workers from PROFILE.pyvespa_workers and everything else the library default.
 PYVESPA_METHODS = ("feed_iterable", "feed_async_iterable")
+# See "Thresholds" in tests/performance/README.md.
+PYVESPA_RTT_FACTORS = {
+    "mtls": ((24.0, 1.0), (52.0, 0.83), (84.0, 0.72)),
+    "token": ((24.0, 1.0), (52.0, 0.74), (84.0, 0.54)),
+}
+
+
+def rtt_factor(transport: str, rtt_ms: float) -> float:
+    points = PYVESPA_RTT_FACTORS[transport]
+    if rtt_ms <= points[0][0]:
+        return 1.0
+    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+        if rtt_ms <= x1:
+            return y0 + (y1 - y0) * (rtt_ms - x0) / (x1 - x0)
+    (x0, y0), (x1, y1) = points[-2], points[-1]
+    return max(0.3, y1 + (y1 - y0) * (rtt_ms - x1) / (x1 - x0))
