@@ -2,6 +2,11 @@ name: MKDocs test and linkcheck
 
 on:
   workflow_dispatch:
+    inputs:
+      python-version:
+        description: "Python version to run with"
+        required: false
+        default: "3.10"
   pull_request:
     branches:
       - master
@@ -23,11 +28,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.10"
+          python-version: ${{ inputs.python-version || '3.10' }}
 
       - name: Install dependencies
         run: |
-          uv sync --extra dev --extra docs
+          uv sync --python ${{ inputs.python-version || '3.10' }} --extra dev --extra docs
       - name: Run tests
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
