@@ -360,13 +360,14 @@ class TestCreateDataplaneTokenAndAutoInjectedAuthClients(unittest.TestCase):
         self.assertTrue(result.fingerprint)
         self.assertTrue(result.expiration)
 
-        app = self.vespa_cloud.get_application(
+        # get_application waits for the token endpoint to accept the new token.
+        self.vespa_cloud.get_application(
             instance=self.instance_name,
             environment="dev",
             endpoint_type="token",
             vespa_cloud_secret_token=result.token,
+            max_wait=APP_INIT_TIMEOUT,
         )
-        app.wait_for_application_up(max_wait=APP_INIT_TIMEOUT)
 
         # The new version is listed, and can be revoked.
         listed = next(
