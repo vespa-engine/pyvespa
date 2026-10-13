@@ -197,3 +197,5 @@ constraint-dependencies = [
     "soupsieve>=2.8.4",
     "torch>=2.13.0",
 ]
+
+exclude-newer = "7 days"
