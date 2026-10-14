@@ -1,5 +1,6 @@
 import warnings
-from unittest.mock import MagicMock, patch
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
@@ -2097,30 +2098,103 @@ class TestHFModelsURLValidation:
                 )
             raise
 
+
+class _RecordingHTTPServer:
+    """Local stdlib HTTP server that records requests and returns a
+    configurable status code per HTTP method. Used to test URL validation
+    against a real socket instead of mocking the HTTP client."""
+
+    def __init__(self, status_for=None):
+        self.status_for = status_for or {"HEAD": 200, "GET": 200}
+        self.requests = []
+        outer = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def _respond(self):
+                outer.requests.append(
+                    {
+                        "method": self.command,
+                        "path": self.path,
+                        "headers": dict(self.headers.items()),
+                    }
+                )
+                self.send_response(outer.status_for.get(self.command, 200))
+                self.end_headers()
+
+            do_HEAD = _respond
+            do_GET = _respond
+
+            def log_message(self, format, *args):
+                pass  # Silence per-request logging
+
+        self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+        self._thread.start()
+
+    @property
+    def url(self) -> str:
+        host, port = self._server.server_address[:2]
+        return f"http://{host}:{port}"
+
+    def stop(self):
+        self._server.shutdown()
+        self._server.server_close()
+
+    def head_request(self):
+        return next(r for r in self.requests if r["method"] == "HEAD")
+
+
+class TestValidateSingleURL:
+    """Cover the scenarios from #1287: HEAD success, HEAD-fails-then-GET-
+    succeeds, and both failing -> ValueError, against a local HTTP server."""
+
+    def setup_method(self):
+        self.server = _RecordingHTTPServer()
+
+    def teardown_method(self):
+        self.server.stop()
+
+    def test_head_success(self):
+        self.server.status_for = {"HEAD": 200, "GET": 200}
+        config = ModelConfig(model_id="x", embedding_dim=8)
+        config._validate_single_url("model_url", f"{self.server.url}/model.onnx")
+        assert [r["method"] for r in self.server.requests] == ["HEAD"]
+
+    def test_head_fails_then_get_succeeds(self):
+        self.server.status_for = {"HEAD": 405, "GET": 200}
+        config = ModelConfig(model_id="x", embedding_dim=8)
+        config._validate_single_url("model_url", f"{self.server.url}/model.onnx")
+        assert [r["method"] for r in self.server.requests] == ["HEAD", "GET"]
+
+    def test_both_methods_fail_raises_value_error(self):
+        self.server.status_for = {"HEAD": 404, "GET": 404}
+        config = ModelConfig(model_id="x", embedding_dim=8)
+        with pytest.raises(ValueError, match="returned HTTP 404"):
+            config._validate_single_url("model_url", f"{self.server.url}/model.onnx")
+
+    def test_unreachable_host_raises_value_error(self):
+        config = ModelConfig(model_id="x", embedding_dim=8)
+        # Port 1 on localhost is not listening -> connection refused, which
+        # must be wrapped in a ValueError (previously requests.RequestException).
+        with pytest.raises(ValueError, match="Failed to validate model_url"):
+            config._validate_single_url("model_url", "http://127.0.0.1:1/model.onnx")
+
     def test_validation_sends_hf_token_for_huggingface_urls(self, monkeypatch):
         """An HF_TOKEN in the environment is sent as a Bearer auth header for
-        huggingface.co URLs (authenticated requests avoid HTTP 429 rate limits),
-        but is not leaked to other hosts."""
+        URLs containing huggingface.co (authenticated requests avoid HTTP 429
+        rate limits), but not for URLs on other hosts."""
         monkeypatch.setenv("HF_TOKEN", "hf_testtoken123")
         config = ModelConfig(model_id="x", embedding_dim=8)
 
-        captured = {}
+        # Path contains "huggingface.co" -> the token branch is hit.
+        config._validate_single_url(
+            "model_url", f"{self.server.url}/huggingface.co/foo/resolve/main/model.onnx"
+        )
+        request = self.server.head_request()
+        assert request["headers"].get("Authorization") == "Bearer hf_testtoken123"
 
-        def fake_head(url, **kwargs):
-            captured["headers"] = kwargs.get("headers")
-            response = MagicMock()
-            response.status_code = 200
-            return response
-
-        with patch("vespa.models.requests.head", side_effect=fake_head):
-            config._validate_single_url(
-                "model_url",
-                "https://huggingface.co/foo/resolve/main/model.onnx",
-            )
-        assert captured["headers"].get("Authorization") == "Bearer hf_testtoken123"
-
-        with patch("vespa.models.requests.head", side_effect=fake_head):
-            config._validate_single_url(
-                "model_url", "https://data.vespa-cloud.com/model.onnx"
-            )
-        assert "Authorization" not in captured["headers"]
+        # No "huggingface.co" anywhere in the URL -> no token is sent.
+        self.server.requests.clear()
+        config._validate_single_url("model_url", f"{self.server.url}/model.onnx")
+        request = self.server.head_request()
+        assert "Authorization" not in request["headers"]

@@ -6,7 +6,8 @@ import re
 import warnings
 from difflib import get_close_matches
 from typing import Any, Callable, Dict, List, Optional, Union, Literal
-import requests
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, fields, field
 
 from vespa.package import (
@@ -279,20 +280,28 @@ class ModelConfig:
         if token and "huggingface.co" in url:
             headers["Authorization"] = f"Bearer {token}"
         try:
-            response = requests.head(
-                url, timeout=10, allow_redirects=True, headers=headers
-            )
-            if response.status_code != 200:
-                # Some servers don't support HEAD, try GET with stream
-                response = requests.get(
-                    url, timeout=10, stream=True, allow_redirects=True, headers=headers
-                )
-                response.close()
-            if response.status_code != 200:
-                raise ValueError(
-                    f"{url_name} returned HTTP {response.status_code}: {url}"
-                )
-        except requests.RequestException as e:
+
+            def _status(method: str) -> int:
+                req = urllib.request.Request(url, method=method, headers=headers)
+                try:
+                    # urlopen only downloads the body on .read(), so not
+                    # reading it mirrors the previous requests stream=True
+                    # behavior.
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        return resp.status
+                except urllib.error.HTTPError as e:
+                    # Unlike requests, urllib raises for 4xx/5xx responses;
+                    # consume the error and treat its code as the status.
+                    e.close()
+                    return e.code
+
+            status = _status("HEAD")
+            if status != 200:
+                # Some servers don't support HEAD, try GET
+                status = _status("GET")
+            if status != 200:
+                raise ValueError(f"{url_name} returned HTTP {status}: {url}")
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
             raise ValueError(f"Failed to validate {url_name} '{url}': {e}") from e
 
     def to_dict(self, include_none: bool = False) -> Dict[str, Any]:
