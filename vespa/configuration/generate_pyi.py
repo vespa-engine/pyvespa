@@ -1,12 +1,14 @@
-from vespa.configuration import services, query_profiles, deployment
+from vespa.configuration import services, query_profiles, deployment, hosts
 from vespa.configuration.services import generated_services_tags
 from vespa.configuration.query_profiles import generated_query_profile_tags
 from vespa.configuration.deployment import generated_deployment_tags
+from vespa.configuration.hosts import generated_hosts_tags
 
 for mod, tag_set in [
     (services, generated_services_tags),
     (query_profiles, generated_query_profile_tags),
     (deployment, generated_deployment_tags),
+    (hosts, generated_hosts_tags),
 ]:
     mod_location = mod.__file__
     file_location = mod.__file__

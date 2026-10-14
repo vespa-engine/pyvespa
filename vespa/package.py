@@ -32,6 +32,7 @@ from vespa.configuration.vt import Xml, vt
 from vespa.configuration.services import services
 from vespa.configuration.services import *
 from vespa.configuration.deployment import DeploymentItem
+from vespa.configuration.hosts import HostsItem
 from vespa.configuration.query_profiles import QueryProfileItem
 from vespa.validation import to_vespa_identifier, validate_application_package_name
 
@@ -3628,6 +3629,7 @@ class ApplicationPackage(object):
         clusters: Optional[List[Cluster]] = None,
         deployment_config: Optional[Union[DeploymentConfiguration, VT]] = None,
         services_config: Optional[ServicesConfiguration] = None,
+        hosts_config: Optional[Union[HostsItem, VT]] = None,
         query_profile_config: Optional[Union[VT, List[VT]]] = None,
         include_files: Optional[List[Tuple[Union[str, Path], Union[str, Path]]]] = None,
         production_tests: Optional[List[ProductionTest]] = None,
@@ -3661,6 +3663,7 @@ class ApplicationPackage(object):
             deployment_config (Union[DeploymentConfiguration, VT], optional): Deployment configuration for the application.
                 Must be either a DeploymentConfiguration object (legacy) or a VT (Vespa Tag) based deployment configuration whose top-level tag must be `deployment`. Defaults to None.
             services_config (ServicesConfiguration, optional): (Optional) Services configuration for the application. For advanced configuration.  See https://vespa-engine.github.io/pyvespa/advanced-configuration.html
+            hosts_config (Union[HostsItem, VT], optional): Hosts configuration for the application. Must be either a HostsItem object or a VT (Vespa Tag) based hosts configuration whose top-level tag must be `hosts`. If not provided, no hosts.xml is written to the application package. Defaults to None.
             query_profile_config (Union[VT, List[VT]], optional): Configuration for query profiles. If provided, will override the query_profile and query_profile_type arguments. Defaults to None. See See https://vespa-engine.github.io/pyvespa/advanced-configuration.html
             include_files (List[Tuple[Union[str, Path], Union[str, Path]]], optional): Extra files to bundle into the application
                 package. Each entry is a ``(source_path, dest_path)`` tuple where ``source_path`` is a
@@ -3749,6 +3752,11 @@ class ApplicationPackage(object):
         else:
             self.deployment_config = deployment_config
         self.services_config = services_config
+        self.hosts_config = (
+            HostsItem.from_vt(hosts_config)
+            if isinstance(hosts_config, VT)
+            else hosts_config
+        )
         self.include_files: List[Tuple[Path, str]] = []
         for src, dest in include_files or []:
             src_path = Path(src)
@@ -4009,6 +4017,12 @@ class ApplicationPackage(object):
         deployment_template = env.get_template("deployment.xml")
         return deployment_template.render(deployment_config=self.deployment_config)
 
+    @property
+    def hosts_to_text(self) -> Optional[str]:
+        if self.hosts_config is None:
+            return None
+        return (str(Xml().to_xml()) + str(self.hosts_config.to_xml())).rstrip("\n")
+
     @staticmethod
     def _application_package_file_name(disk_folder):
         return os.path.join(disk_folder, "application_package.json")
@@ -4070,6 +4084,8 @@ class ApplicationPackage(object):
                         )
             if self.deployment_config:
                 zip_archive.writestr("deployment.xml", self.deployment_to_text)
+            if self.hosts_config:
+                zip_archive.writestr("hosts.xml", self.hosts_to_text)
             if self.production_tests:
                 zip_archive.writestr(
                     PRODUCTION_TEST_FILE, self.production_tests_to_text
@@ -4173,6 +4189,9 @@ class ApplicationPackage(object):
         if self.deployment_config:
             with open(os.path.join(root, "deployment.xml"), "w") as f:
                 f.write(self.deployment_to_text)
+        if self.hosts_config:
+            with open(os.path.join(root, "hosts.xml"), "w") as f:
+                f.write(self.hosts_to_text)
         if self.production_tests:
             test_path = Path(root) / PRODUCTION_TEST_FILE
             test_path.parent.mkdir(parents=True, exist_ok=True)
