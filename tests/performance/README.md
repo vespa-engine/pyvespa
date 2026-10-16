@@ -128,17 +128,27 @@ All values live in `utils/config.py`, grouped by who uses them.
 
 **Thresholds** (in the test files, next to the asserts)
 
-- `K6_THRESHOLDS` in `test_k6_lane.py`: error rate at most 2%, floors of
-  1400 token and 1600 mTLS rps, about 30% below the calibration run of
-  2026-09-23 (2019 and 2271 rps). The ratio bounds (token at least 40% of
-  mTLS rps, token p95 at most four times mTLS) are loose because the token
-  path's extra latency varies with the round trip.
-- `MAX_TOKEN_HOP_MS` 50 in `test_k6_lane.py`: bound on token p50 minus mTLS
-  p50 at one in flight. Generous until a few runs have shown the usual value.
+- k6 floors follow recent runs (`utils/baseline.py`): before the tests, CI
+  downloads the reports of the last 5 successful master runs, and each k6 floor
+  is 75% of the median of the same record there. k6 is bound by the instance,
+  and Vespa Cloud moves the instance to newer hardware without a deploy
+  (`perf_host_info` shows the flavors), so a fixed floor goes stale. Newer
+  hardware only raises the numbers, so a move never fails a run, and the floors
+  catch up within a few runs; a drop of more than a quarter fails. With fewer
+  than 3 earlier runs (local runs, a new record) the fixed minimum applies.
+- `K6_THRESHOLDS` in `test_k6_lane.py`: error rate at most 2%; minimum floors
+  of 1400 token and 1600 mTLS rps, the backstop under the floors from recent
+  runs, so a slowly sinking median cannot pull them down unnoticed. The ratio
+  bounds (token at least 40% of mTLS rps, token p95 at most four times mTLS)
+  are loose because the token path's extra latency varies with the round trip.
+- `MAX_TOKEN_HOP_MS` 20 in `test_k6_lane.py`: bound on token p50 minus mTLS
+  p50 at one in flight. Runs in October 2026 measured -1 to +5 ms; it does not
+  depend on hardware or round trip.
 - `PYVESPA_THRESHOLDS` in `test_pyvespa_lane.py`: floors about 30% below the
   calibration run of 2026-09-28 (`feed_iterable` 2824 token and 3122 mTLS
   rps, `feed_async_iterable` 2215 and 2811); error and ratio bounds as for k6.
-- `K6_4K_MIN_MTLS_RPS` 1050 and `PYVESPA_4K_MIN_MTLS_RPS` 1100: floors for the
+- `K6_4K_MIN_MTLS_RPS` 1050 (the minimum under the k6 4 KB floors from recent
+  runs) and `PYVESPA_4K_MIN_MTLS_RPS` 1100: floors for the
   4 KB document on mTLS, shared by the plain and the gzipped case, about 30%
   below the gzipped result of the calibration run of 2026-09-29 (k6 1528 rps,
   pyvespa 1608). The error ceiling is the lanes' usual 2%.
@@ -200,10 +210,8 @@ Compare CI runs with CI, rather than local absolute numbers.
 
 CI uploads JUnit XML, k6 summaries, per-method `*records.json`, `k6_drift.json`,
 `session.json` (RTT and host flavors) and `metrics.prom`. Set `PERFORMANCE_REPORT_DIR` to collect the same reports
-locally. Each floor comes from one calibration run (see Thresholds under
-Settings) while runner speed varies between runs; recalibrate them, or set
-them per `runner_cpu`, once several runs exist or when the application or its
-hardware changes.
+locally. The k6 floors follow recent runs; the pyvespa floors come from one
+calibration run each, scaled by RTT (see Thresholds under Settings).
 
 ## Metrics reference
 

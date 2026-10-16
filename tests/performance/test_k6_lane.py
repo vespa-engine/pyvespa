@@ -1,10 +1,12 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import json
+from dataclasses import replace
 from typing import List
 
 import pytest
 
+from utils.baseline import floor
 from utils.k6_lane import run_k6
 from utils.asserts import (
     assert_floor,
@@ -23,7 +25,7 @@ K6_THRESHOLDS = Thresholds(
     min_token_rps_ratio=0.4,
     max_token_p95_ratio=4.0,
 )
-MAX_TOKEN_HOP_MS = 50.0
+MAX_TOKEN_HOP_MS = 20.0
 K6_4K_MIN_MTLS_RPS = 1050  # the 4 KB document, plain and gzipped, on mTLS
 
 
@@ -49,9 +51,14 @@ def _measure(
     return results
 
 
-def _check(results: List[LaneResult]) -> None:
+def _check(results: List[LaneResult], name: str) -> None:
     token, mtls = results
-    assert_token_vs_mtls(token, mtls, K6_THRESHOLDS)
+    thresholds = replace(
+        K6_THRESHOLDS,
+        min_token_rps=floor(name, "token", K6_THRESHOLDS.min_token_rps),
+        min_mtls_rps=floor(name, "mtls", K6_THRESHOLDS.min_mtls_rps),
+    )
+    assert_token_vs_mtls(token, mtls, thresholds)
     assert_measurement_valid([token, mtls], VALIDITY)
 
 
@@ -84,7 +91,7 @@ def test_token_vs_mtls_performance(vespa_cloud_token_endpoints, tmp_path, run_st
         vespa_cloud_token_endpoints, resolve_report_dir(tmp_path), "k6_token_vs_mtls"
     )
     run_state["k6_first"] = results
-    _check(results)
+    _check(results, "k6_token_vs_mtls")
 
 
 @pytest.mark.performance
@@ -100,8 +107,9 @@ def test_gzip_4k_performance(vespa_cloud_token_endpoints, tmp_path):
         endpoints, report_dir, "k6_4k_gzip", case=LARGE_GZIP, transports=("mtls",)
     )
     print_gzip_effect(plain, gzipped)
-    for result in (plain, gzipped):
-        assert_floor(result, K6_4K_MIN_MTLS_RPS, K6_THRESHOLDS.max_error_rate)
+    for name, result in (("k6_4k", plain), ("k6_4k_gzip", gzipped)):
+        min_rps = floor(name, "mtls", K6_4K_MIN_MTLS_RPS)
+        assert_floor(result, min_rps, K6_THRESHOLDS.max_error_rate)
         assert_measurement_valid([result], VALIDITY)
 
 
@@ -135,4 +143,4 @@ def test_token_vs_mtls_performance_last(
         )
     else:
         print("No opening k6 run in this session; drift not measured.")
-    _check(last)
+    _check(last, "k6_token_vs_mtls_last")

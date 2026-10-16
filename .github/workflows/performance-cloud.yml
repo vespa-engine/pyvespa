@@ -18,6 +18,7 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read # download earlier runs' reports for the k6 floors
 
 jobs:
   performance-cloud:
@@ -76,11 +77,25 @@ jobs:
             echo "- CPU: $(lscpu | sed -n 's/^Model name: *//p') ($(nproc) vCPU)"
           } | tee "$PERFORMANCE_REPORT_DIR/runner.md" >> "$GITHUB_STEP_SUMMARY"
 
+      # The k6 floors follow the last successful master runs (tests/performance/utils/baseline.py).
+      - name: Download recent performance reports
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run list -R "$GITHUB_REPOSITORY" --workflow performance-cloud.yml \
+            --branch master --status success -L 5 --json databaseId -q '.[].databaseId' |
+          while read -r id; do
+            gh run download "$id" -R "$GITHUB_REPOSITORY" -n performance-report \
+              -D "$RUNNER_TEMP/performance-baseline/$id" || true
+          done
+
       - name: Run performance tests
         env:
           VESPA_TEAM_API_KEY: ${{ secrets.VESPA_TEAM_API_KEY }}
           VESPA_CLOUD_SECRET_TOKEN: ${{ secrets.VESPA_CLOUD_SECRET_TOKEN }}
           PERFORMANCE_REPORT_DIR: ${{ runner.temp }}/performance-report
+          PERFORMANCE_BASELINE_DIR: ${{ runner.temp }}/performance-baseline
           PYTHONUNBUFFERED: "1"
         run: |
           uv run pytest tests/performance/ -m performance -s -v \
