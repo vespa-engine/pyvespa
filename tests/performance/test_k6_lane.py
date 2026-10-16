@@ -34,6 +34,7 @@ def _measure(
     profile=None,
     case=SMALL,
     transports=("token", "mtls"),
+    timeline: bool = False,
 ) -> List[LaneResult]:
     results = [
         run_k6(
@@ -42,6 +43,9 @@ def _measure(
             report_dir / f"{name}_{transport}_summary.json",
             transport,
             case,
+            timeline_file=(
+                report_dir / f"{name}_{transport}_timeline.json" if timeline else None
+            ),
         )
         for transport in transports
     ]
@@ -81,7 +85,10 @@ def test_token_hop_latency(vespa_cloud_token_endpoints, tmp_path):
 def test_token_vs_mtls_performance(vespa_cloud_token_endpoints, tmp_path, run_state):
     """Opening k6 run: the instance ceiling before the pyvespa methods."""
     results = _measure(
-        vespa_cloud_token_endpoints, resolve_report_dir(tmp_path), "k6_token_vs_mtls"
+        vespa_cloud_token_endpoints,
+        resolve_report_dir(tmp_path),
+        "k6_token_vs_mtls",
+        timeline=True,
     )
     run_state["k6_first"] = results
     _check(results)

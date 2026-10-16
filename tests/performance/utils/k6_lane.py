@@ -1,11 +1,14 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
+import csv
+import gzip
 import json
 import os
 import subprocess
 import time
 from dataclasses import replace
 from pathlib import Path
+from typing import Optional
 
 from utils.metrics import LaneResult
 from utils.cpu_probes import LoadGeneratorCpu, InstanceCpuSampler
@@ -85,7 +88,10 @@ def run_k6(
     summary_file: Path,
     transport: str,
     case: FeedCase = SMALL,
+    timeline_file: Optional[Path] = None,
 ) -> LaneResult:
+    """One k6 run on one transport. With timeline_file, also write its
+    completions and latency per second and the instance CPU readings."""
     env = {
         **os.environ,
         "TRANSPORT": transport,
@@ -99,6 +105,10 @@ def run_k6(
         **profile.k6_env(transport),
     }
     command = ["k6", "run", "--summary-export", str(summary_file)]
+    samples_file = None
+    if timeline_file is not None:
+        samples_file = timeline_file.with_suffix(".csv.gz")
+        command += ["--out", f"csv={samples_file}"]
     if os.environ.get("CI"):
         command.append("--quiet")
     command.append(str(SCRIPT))
@@ -116,6 +126,8 @@ def run_k6(
     finally:
         runner_fraction = runner_cpu.stop()
         server = sampler.stop(load_start)
+    if samples_file is not None:
+        write_timeline(samples_file, timeline_file, load_start, sampler.readings)
 
     metrics = json.loads(summary_file.read_text()).get("metrics", {})
     return replace(
@@ -125,3 +137,36 @@ def run_k6(
         server_content_cpu_util=server.get(f"content/{CONTENT_CLUSTER}"),
         server_cpu_samples=sampler.samples,
     )
+
+
+def write_timeline(
+    samples_file: Path, timeline_file: Path, load_start: float, readings
+) -> None:
+    """Per second of the run: completions, non-200s and mean latency from k6's
+    per-request CSV (deleted afterwards, it is large), plus the instance CPU
+    readings, all in seconds since the load started."""
+    seconds = {}
+    with gzip.open(samples_file, "rt", newline="") as f:
+        for row in csv.DictReader(f):
+            if row["metric_name"] != "http_req_duration":
+                continue
+            second = seconds.setdefault(int(row["timestamp"]), [0, 0, 0.0])
+            second[0] += 1
+            second[1] += row["status"] != "200"
+            second[2] += float(row["metric_value"])
+    samples_file.unlink()
+    timeline = {
+        "per_second": [
+            {
+                "t": round(ts - load_start),
+                "completed": n,
+                "not_200": bad,
+                "mean_ms": total_ms / n,
+            }
+            for ts, (n, bad, total_ms) in sorted(seconds.items())
+        ],
+        "instance_cpu": [
+            {"t": round(taken_at - load_start), **util} for taken_at, util in readings
+        ],
+    }
+    timeline_file.write_text(json.dumps(timeline, indent=1))

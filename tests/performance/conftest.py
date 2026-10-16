@@ -1,6 +1,7 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import io
+import json
 import os
 import shutil
 import time
@@ -141,6 +142,7 @@ def vespa_cloud_token_endpoints(
     # Warmup throughput and network round trip set k6's concurrency (see `profile`).
     report_dir = resolve_report_dir(tmp_path_factory.mktemp("performance-report"))
     rtt = _network_rtt_s(mtls_app)
+    (report_dir / "session.json").write_text(json.dumps({"rtt_ms": rtt * 1000}))
     profiles = {}
     for name, warmup, case, base in (
         ("k6_warmup", WARMUP, SMALL, PROFILE),
@@ -148,7 +150,15 @@ def vespa_cloud_token_endpoints(
     ):
         seconds = int(warmup.warmup_s + warmup.duration_s)
         print(f"\n=== Warmup {name}: k6 for {seconds}s ===")
-        warm = run_k6(endpoints, warmup, report_dir / f"{name}.json", "mtls", case)
+        print(f"Instance CPU before {name}: {_instance_cpu_label(mtls_app)}")
+        warm = run_k6(
+            endpoints,
+            warmup,
+            report_dir / f"{name}.json",
+            "mtls",
+            case,
+            timeline_file=report_dir / f"{name}_timeline.json",
+        )
         mtls_app.delete_all_docs(
             content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
         )
@@ -199,6 +209,13 @@ def _network_rtt_s(app, samples: int = 20) -> float:
             session.http_client.get(url, timeout=30)
             best = min(best, time.perf_counter() - started)
     return best
+
+
+def _instance_cpu_label(app) -> str:
+    from utils.cpu_probes import instance_cpu_util
+
+    util = instance_cpu_util(app)
+    return ", ".join(f"{c} {v:.0%}" for c, v in sorted(util.items())) or "unknown"
 
 
 def _wait_until_instance_idle(app, max_wait_s: float = 120.0) -> None:

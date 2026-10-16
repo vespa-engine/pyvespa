@@ -199,7 +199,10 @@ difference between k6's token and mTLS latency is that hop in milliseconds.
 Compare CI runs with CI, rather than local absolute numbers.
 
 CI uploads JUnit XML, k6 summaries, per-method `*records.json`, `k6_drift.json`,
-and `metrics.prom`. Set `PERFORMANCE_REPORT_DIR` to collect the same reports
+`session.json` (the RTT) and `metrics.prom`. The two warmups and the opening k6
+run also write `*_timeline.json`: completions, non-200s and mean latency per
+second, and the instance CPU readings, to see whether the instance warms up
+during a run. Set `PERFORMANCE_REPORT_DIR` to collect the same reports
 locally. Each floor comes from one calibration run (see Thresholds under
 Settings) while runner speed varies between runs; recalibrate them, or set
 them per `runner_cpu`, once several runs exist or when the application or its
@@ -243,6 +246,10 @@ diagnosing a non-zero error rate but is not exported.
 `perf_instance_drift_pct` (label: `runner_cpu`): closing k6 run's token + mTLS rps
 relative to the opening one, in percent; the instance's own movement during
 the session and therefore the noise floor for that run.
+
+`perf_network_rtt_ms` (label: `runner_cpu`): the session's network round trip
+to the instance, the best of 20 requests, which sizes both lanes and scales
+the pyvespa floors.
 
 `k6_<metric>_<field>{source}`: every numeric field of the raw k6 summaries,
 for diagnosis only; the `perf_*` series carry the same information.

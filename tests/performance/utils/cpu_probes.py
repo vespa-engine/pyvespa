@@ -122,6 +122,11 @@ class InstanceCpuSampler:
         self.samples = max(len(values) for values in full.values())
         return {c: sum(values) / len(values) for c, values in full.items()}
 
+    @property
+    def readings(self) -> List[Tuple[float, Dict[str, float]]]:
+        """Every reading taken: (unix time, CPU per cluster)."""
+        return list(self._readings)
+
     def _run(self) -> None:
         while not self._stop.wait(self._interval_s):
             util = instance_cpu_util(self._app)
