@@ -74,9 +74,7 @@ def _instance_metrics(app: Vespa) -> str:
 
 
 def instance_flavors(app: Vespa) -> Dict[str, str]:
-    """Host flavor (the cloud instance type, e.g. aws-m9g.large) per cluster.
-    Vespa Cloud moves nodes to newer hardware on its own, which moves the k6
-    ceiling, so every report records it. Hostnames stay out of the public reports."""
+    """Cloud instance type per cluster, e.g. aws-m9g.large."""
     flavors: Dict[str, str] = {}
     for labels, _, _ in _CPU_UTIL.findall(_instance_metrics(app)):
         cluster, flavor = _CLUSTER.search(labels), _FLAVOR.search(labels)

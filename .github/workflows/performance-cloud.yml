@@ -18,7 +18,7 @@ concurrency:
 
 permissions:
   contents: read
-  actions: read # download earlier runs' reports for the k6 floors
+  actions: read # for the k6 floors
 
 jobs:
   performance-cloud:
@@ -77,7 +77,6 @@ jobs:
             echo "- CPU: $(lscpu | sed -n 's/^Model name: *//p') ($(nproc) vCPU)"
           } | tee "$PERFORMANCE_REPORT_DIR/runner.md" >> "$GITHUB_STEP_SUMMARY"
 
-      # The k6 floors follow the last successful master runs (tests/performance/utils/baseline.py).
       - name: Download recent performance reports
         continue-on-error: true
         env:

@@ -128,27 +128,21 @@ All values live in `utils/config.py`, grouped by who uses them.
 
 **Thresholds** (in the test files, next to the asserts)
 
-- k6 floors follow recent runs (`utils/baseline.py`): before the tests, CI
-  downloads the reports of the last 5 successful master runs, and each k6 floor
-  is 75% of the median of the same record there. k6 is bound by the instance,
-  and Vespa Cloud moves the instance to newer hardware without a deploy
-  (`perf_host_info` shows the flavors), so a fixed floor goes stale. Newer
-  hardware only raises the numbers, so a move never fails a run, and the floors
-  catch up within a few runs; a drop of more than a quarter fails. With fewer
-  than 3 earlier runs (local runs, a new record) the fixed minimum applies.
+- k6 floors (`utils/baseline.py`): 75% of the median of the same record in
+  the last 5 successful master runs, which CI downloads first. Vespa Cloud
+  moves the instance to newer hardware without a deploy, so fixed floors go
+  stale; this way they follow it. With fewer than 3 earlier runs (e.g. locally)
+  the fixed minimums apply.
 - `K6_THRESHOLDS` in `test_k6_lane.py`: error rate at most 2%; minimum floors
-  of 1400 token and 1600 mTLS rps, the backstop under the floors from recent
-  runs, so a slowly sinking median cannot pull them down unnoticed. The ratio
-  bounds (token at least 40% of mTLS rps, token p95 at most four times mTLS)
-  are loose because the token path's extra latency varies with the round trip.
+  of 1400 token and 1600 mTLS rps. The ratio bounds (token at least 40% of
+  mTLS rps, token p95 at most four times mTLS) are loose because the token
+  path's extra latency varies with the round trip.
 - `MAX_TOKEN_HOP_MS` 20 in `test_k6_lane.py`: bound on token p50 minus mTLS
-  p50 at one in flight. Runs in October 2026 measured -1 to +5 ms; it does not
-  depend on hardware or round trip.
+  p50 at one in flight; measured -1 to +5 ms.
 - `PYVESPA_THRESHOLDS` in `test_pyvespa_lane.py`: floors about 30% below the
   calibration run of 2026-09-28 (`feed_iterable` 2824 token and 3122 mTLS
   rps, `feed_async_iterable` 2215 and 2811); error and ratio bounds as for k6.
-- `K6_4K_MIN_MTLS_RPS` 1050 (the minimum under the k6 4 KB floors from recent
-  runs) and `PYVESPA_4K_MIN_MTLS_RPS` 1100: floors for the
+- `K6_4K_MIN_MTLS_RPS` 1050 (minimum) and `PYVESPA_4K_MIN_MTLS_RPS` 1100: floors for the
   4 KB document on mTLS, shared by the plain and the gzipped case, about 30%
   below the gzipped result of the calibration run of 2026-09-29 (k6 1528 rps,
   pyvespa 1608). The error ceiling is the lanes' usual 2%.
@@ -252,15 +246,12 @@ diagnosing a non-zero error rate but is not exported.
 relative to the opening one, in percent; the instance's own movement during
 the session and therefore the noise floor for that run.
 
-`perf_network_rtt_ms` (label: `runner_cpu`): the session's network round trip
-to the instance, the best of 20 requests, which sizes both lanes and scales
-the pyvespa floors.
+`perf_network_rtt_ms` (label: `runner_cpu`): the session's round trip to the
+instance, best of 20 requests.
 
-`perf_host_info{cluster, flavor} 1`: each cluster's host flavor, the cloud
-instance type, from the instance's own metrics. Vespa Cloud moves nodes to
-newer instance types without a deploy
-([automated instance type migration](https://docs.vespa.ai/en/performance/node-resources.html#automated-instance-type-migration)),
-which moves the k6 ceiling; a flavor change explains a step in the k6 numbers.
+`perf_host_info{cluster, flavor} 1`: each cluster's cloud instance type. A
+change explains a step in the k6 numbers; see
+[automated instance type migration](https://docs.vespa.ai/en/performance/node-resources.html#automated-instance-type-migration).
 
 `k6_<metric>_<field>{source}`: every numeric field of the raw k6 summaries,
 for diagnosis only; the `perf_*` series carry the same information.
