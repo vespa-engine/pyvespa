@@ -258,8 +258,9 @@ the pyvespa floors.
 
 `perf_host_info{cluster, flavor} 1`: each cluster's host flavor, the cloud
 instance type, from the instance's own metrics. Vespa Cloud moves nodes to
-newer instance types without a deploy (`HostFlavorUpgrader`), which moves the
-k6 ceiling; a flavor change explains a step in the k6 numbers.
+newer instance types without a deploy
+([automated instance type migration](https://docs.vespa.ai/en/performance/node-resources.html#automated-instance-type-migration)),
+which moves the k6 ceiling; a flavor change explains a step in the k6 numbers.
 
 `k6_<metric>_<field>{source}`: every numeric field of the raw k6 summaries,
 for diagnosis only; the `perf_*` series carry the same information.
