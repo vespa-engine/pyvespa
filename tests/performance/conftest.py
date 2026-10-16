@@ -14,6 +14,7 @@ import pytest
 from vespa.deployment import VespaCloud
 from vespa.application import Vespa, VespaSync
 
+from utils.cpu_probes import instance_flavors
 from utils.k6_lane import run_k6
 from utils.metrics import resolve_report_dir
 from utils.config import (
@@ -142,7 +143,11 @@ def vespa_cloud_token_endpoints(
     # Warmup throughput and network round trip set k6's concurrency (see `profile`).
     report_dir = resolve_report_dir(tmp_path_factory.mktemp("performance-report"))
     rtt = _network_rtt_s(mtls_app)
-    (report_dir / "session.json").write_text(json.dumps({"rtt_ms": rtt * 1000}))
+    flavors = instance_flavors(mtls_app)
+    print(f"RTT {rtt * 1000:.0f} ms; host flavors: {flavors or 'unknown'}")
+    (report_dir / "session.json").write_text(
+        json.dumps({"rtt_ms": rtt * 1000, "flavors": flavors}, indent=2)
+    )
     profiles = {}
     for name, warmup, case, base in (
         ("k6_warmup", WARMUP, SMALL, PROFILE),
@@ -151,14 +156,7 @@ def vespa_cloud_token_endpoints(
         seconds = int(warmup.warmup_s + warmup.duration_s)
         print(f"\n=== Warmup {name}: k6 for {seconds}s ===")
         print(f"Instance CPU before {name}: {_instance_cpu_label(mtls_app)}")
-        warm = run_k6(
-            endpoints,
-            warmup,
-            report_dir / f"{name}.json",
-            "mtls",
-            case,
-            timeline_file=report_dir / f"{name}_timeline.json",
-        )
+        warm = run_k6(endpoints, warmup, report_dir / f"{name}.json", "mtls", case)
         mtls_app.delete_all_docs(
             content_cluster_name=CONTENT_CLUSTER, schema=SCHEMA, slices=CLEANUP_SLICES
         )

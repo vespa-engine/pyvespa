@@ -117,10 +117,14 @@ def main() -> int:
             labels = _labels({"runner_cpu": runner_cpu})
             samples.append(("perf_instance_drift_pct", labels, drift))
     if session_file.exists():
-        rtt_ms = json.loads(session_file.read_text()).get("rtt_ms")
+        session = json.loads(session_file.read_text())
+        rtt_ms = session.get("rtt_ms")
         if isinstance(rtt_ms, (int, float)):
             labels = _labels({"runner_cpu": runner_cpu})
             samples.append(("perf_network_rtt_ms", labels, rtt_ms))
+        for cluster, flavor in sorted(session.get("flavors", {}).items()):
+            labels = _labels({"cluster": cluster, "flavor": flavor})
+            samples.append(("perf_host_info", labels, 1))
     for summary_file in summaries:
         samples += k6_summary_samples(summary_file, runner_cpu)
     for records_file in record_files:

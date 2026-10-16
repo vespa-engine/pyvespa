@@ -17,6 +17,7 @@ _CPU_UTIL = re.compile(
     r"^cpu_util\{([^}]*)\}\s+([0-9.eE+-]+)(?:\s+(\d+))?", re.MULTILINE
 )
 _CLUSTER = re.compile(r'clusterId="([^"]+)"')
+_FLAVOR = re.compile(r'flavor="([^"]+)"')
 
 
 def _read_proc_stat() -> Optional[Tuple[int, int]]:
@@ -60,19 +61,34 @@ class LoadGeneratorCpu:
         return self.fraction
 
 
-def instance_cpu_util(app: Vespa) -> Dict[str, float]:
-    """CPU per cluster (0..1) from the instance's own metrics endpoint; empty
-    when the probe fails."""
+def _instance_metrics(app: Vespa) -> str:
+    """The instance's own Prometheus metrics; empty when the probe fails."""
     try:
         with VespaSync(app=app, pool_connections=1, pool_maxsize=1) as session:
             response = session.http_client.get(
                 f"{app.end_point}/prometheus/v1/values", timeout=30
             )
-        if response.status_code != 200:
-            return {}
-        text = response.text
+        return response.text if response.status_code == 200 else ""
     except Exception:
-        return {}
+        return ""
+
+
+def instance_flavors(app: Vespa) -> Dict[str, str]:
+    """Host flavor (the cloud instance type, e.g. aws-m9g.large) per cluster.
+    Vespa Cloud moves nodes to newer hardware on its own, which moves the k6
+    ceiling, so every report records it. Hostnames stay out of the public reports."""
+    flavors: Dict[str, str] = {}
+    for labels, _, _ in _CPU_UTIL.findall(_instance_metrics(app)):
+        cluster, flavor = _CLUSTER.search(labels), _FLAVOR.search(labels)
+        if cluster and flavor:
+            flavors[cluster.group(1)] = flavor.group(1)
+    return flavors
+
+
+def instance_cpu_util(app: Vespa) -> Dict[str, float]:
+    """CPU per cluster (0..1) from the instance's own metrics endpoint; empty
+    when the probe fails."""
+    text = _instance_metrics(app)
     util: Dict[str, float] = {}
     for labels, value, _ in _CPU_UTIL.findall(text):
         cluster = _CLUSTER.search(labels)
@@ -121,11 +137,6 @@ class InstanceCpuSampler:
             return {}
         self.samples = max(len(values) for values in full.values())
         return {c: sum(values) / len(values) for c, values in full.items()}
-
-    @property
-    def readings(self) -> List[Tuple[float, Dict[str, float]]]:
-        """Every reading taken: (unix time, CPU per cluster)."""
-        return list(self._readings)
 
     def _run(self) -> None:
         while not self._stop.wait(self._interval_s):
