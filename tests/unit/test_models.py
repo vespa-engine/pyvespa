@@ -959,9 +959,9 @@ class TestCommonModelsXMLGeneration:
     </prepend>
 </component>"""
 
-        assert compare_xml(
-            xml, expected
-        ), f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"
+        assert compare_xml(xml, expected), (
+            f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"
+        )
 
     def test_lightonai_modernbert_large_xml(self):
         """Test lightonai-modernbert-large generates correct XML."""
@@ -978,9 +978,9 @@ class TestCommonModelsXMLGeneration:
     </prepend>
 </component>"""
 
-        assert compare_xml(
-            xml, expected
-        ), f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"
+        assert compare_xml(xml, expected), (
+            f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"
+        )
 
     def test_alibaba_gte_modernbert_xml(self):
         """Test alibaba-gte-modernbert generates correct XML."""
@@ -994,9 +994,9 @@ class TestCommonModelsXMLGeneration:
     <pooling-strategy>cls</pooling-strategy>
 </component>"""
 
-        assert compare_xml(
-            xml, expected
-        ), f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"
+        assert compare_xml(xml, expected), (
+            f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"
+        )
 
     def test_e5_small_v2_xml(self):
         """Test e5-small-v2 generates correct XML."""
@@ -1013,9 +1013,9 @@ class TestCommonModelsXMLGeneration:
     </prepend>
 </component>"""
 
-        assert compare_xml(
-            xml, expected
-        ), f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"
+        assert compare_xml(xml, expected), (
+            f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"
+        )
 
     def test_e5_base_v2_xml(self):
         """Test e5-base-v2 generates correct XML."""
@@ -1032,9 +1032,9 @@ class TestCommonModelsXMLGeneration:
     </prepend>
 </component>"""
 
-        assert compare_xml(
-            xml, expected
-        ), f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"
+        assert compare_xml(xml, expected), (
+            f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"
+        )
 
     def test_e5_large_v2_xml(self):
         """Test e5-large-v2 generates correct XML."""
@@ -1051,9 +1051,9 @@ class TestCommonModelsXMLGeneration:
     </prepend>
 </component>"""
 
-        assert compare_xml(
-            xml, expected
-        ), f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"
+        assert compare_xml(xml, expected), (
+            f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"
+        )
 
     def test_multilingual_e5_base_xml(self):
         """Test multilingual-e5-base generates correct XML."""
@@ -1070,9 +1070,9 @@ class TestCommonModelsXMLGeneration:
     </prepend>
 </component>"""
 
-        assert compare_xml(
-            xml, expected
-        ), f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"
+        assert compare_xml(xml, expected), (
+            f"XML mismatch:\nGot:\n{xml}\n\nExpected:\n{expected}"
+        )
 
 
 class TestCreateHybridPackage:
@@ -1363,9 +1363,9 @@ class TestCreateHybridPackage:
         }
     }
 }"""
-        assert (
-            package.schema.schema_to_text == expected_xml
-        ), f"Schema XML mismatch:\nGot:\n{package.schema.schema_to_text}\n\nExpected:\n{expected_xml}"
+        assert package.schema.schema_to_text == expected_xml, (
+            f"Schema XML mismatch:\nGot:\n{package.schema.schema_to_text}\n\nExpected:\n{expected_xml}"
+        )
 
         # Check that we have 2 components
         assert len(package.components) == 2
@@ -1927,9 +1927,9 @@ class TestCreateHybridPackage:
     }
 }"""
         schema_text = package.schema.schema_to_text
-        assert (
-            schema_text == expected_schema
-        ), f"Schema mismatch:\nGot:\n{schema_text}\n\nExpected:\n{expected_schema}"
+        assert schema_text == expected_schema, (
+            f"Schema mismatch:\nGot:\n{schema_text}\n\nExpected:\n{expected_schema}"
+        )
 
     def test_create_hybrid_package_single_model_string(self):
         """Test single model setup using model name string."""
@@ -2072,9 +2072,9 @@ class TestHFModelsURLValidation:
 
         # Verify config has URLs set
         assert config.model_url is not None, f"{model_name} should have model_url"
-        assert (
-            config.tokenizer_url is not None
-        ), f"{model_name} should have tokenizer_url"
+        assert config.tokenizer_url is not None, (
+            f"{model_name} should have tokenizer_url"
+        )
 
         # Explicitly validate URLs by creating a new config with validation enabled
         # (HF_MODELS uses validate_urls=False by default for fast import)
@@ -2191,10 +2191,13 @@ class TestValidateSingleURL:
             "model_url", f"{self.server.url}/huggingface.co/foo/resolve/main/model.onnx"
         )
         request = self.server.head_request()
-        assert request["headers"].get("Authorization") == "Bearer hf_testtoken123"
+        # HTTP header names are case-insensitive; clients may normalize them
+        # (e.g. httpr/reqwest lowercases them on the wire).
+        headers = {k.lower(): v for k, v in request["headers"].items()}
+        assert headers.get("authorization") == "Bearer hf_testtoken123"
 
         # No "huggingface.co" anywhere in the URL -> no token is sent.
         self.server.requests.clear()
         config._validate_single_url("model_url", f"{self.server.url}/model.onnx")
         request = self.server.head_request()
-        assert "Authorization" not in request["headers"]
+        assert "authorization" not in {k.lower() for k in request["headers"]}

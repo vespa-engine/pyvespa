@@ -4,10 +4,9 @@ import json
 import os
 import re
 import warnings
+import httpr
 from difflib import get_close_matches
 from typing import Any, Callable, Dict, List, Optional, Union, Literal
-import urllib.error
-import urllib.request
 from dataclasses import dataclass, fields, field
 
 from vespa.package import (
@@ -280,29 +279,18 @@ class ModelConfig:
         if token and "huggingface.co" in url:
             headers["Authorization"] = f"Bearer {token}"
         try:
-
-            def _status(method: str) -> int:
-                req = urllib.request.Request(url, method=method, headers=headers)
-                try:
-                    # urlopen only downloads the body on .read(), so not
-                    # reading it mirrors the previous requests stream=True
-                    # behavior.
-                    with urllib.request.urlopen(req, timeout=10) as resp:
-                        return resp.status
-                except urllib.error.HTTPError as e:
-                    # Unlike requests, urllib raises for 4xx/5xx responses;
-                    # consume the error and treat its code as the status.
-                    e.close()
-                    return e.code
-
-            status = _status("HEAD")
-            if status != 200:
-                # Some servers don't support HEAD, try GET
-                status = _status("GET")
-            if status != 200:
-                raise ValueError(f"{url_name} returned HTTP {status}: {url}")
-        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            with httpr.Client(timeout=10) as client:
+                status = client.head(url, headers=headers).status_code
+                if status != 200:
+                    # Some servers don't support HEAD; fall back to a GET that
+                    # streams the body without buffering it (mirrors the old
+                    # requests stream=True behavior).
+                    with client.stream("GET", url, headers=headers) as response:
+                        status = response.status_code
+        except Exception as e:
             raise ValueError(f"Failed to validate {url_name} '{url}': {e}") from e
+        if status != 200:
+            raise ValueError(f"{url_name} returned HTTP {status}: {url}")
 
     def to_dict(self, include_none: bool = False) -> Dict[str, Any]:
         """
