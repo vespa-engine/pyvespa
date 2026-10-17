@@ -4,9 +4,9 @@ import json
 import os
 import re
 import warnings
+import httpr
 from difflib import get_close_matches
 from typing import Any, Callable, Dict, List, Optional, Union, Literal
-import requests
 from dataclasses import dataclass, fields, field
 
 from vespa.package import (
@@ -279,21 +279,18 @@ class ModelConfig:
         if token and "huggingface.co" in url:
             headers["Authorization"] = f"Bearer {token}"
         try:
-            response = requests.head(
-                url, timeout=10, allow_redirects=True, headers=headers
-            )
-            if response.status_code != 200:
-                # Some servers don't support HEAD, try GET with stream
-                response = requests.get(
-                    url, timeout=10, stream=True, allow_redirects=True, headers=headers
-                )
-                response.close()
-            if response.status_code != 200:
-                raise ValueError(
-                    f"{url_name} returned HTTP {response.status_code}: {url}"
-                )
-        except requests.RequestException as e:
+            with httpr.Client(timeout=10) as client:
+                status = client.head(url, headers=headers).status_code
+                if status != 200:
+                    # Some servers don't support HEAD; fall back to a GET that
+                    # streams the body without buffering it (mirrors the old
+                    # requests stream=True behavior).
+                    with client.stream("GET", url, headers=headers) as response:
+                        status = response.status_code
+        except Exception as e:
             raise ValueError(f"Failed to validate {url_name} '{url}': {e}") from e
+        if status != 200:
+            raise ValueError(f"{url_name} returned HTTP {status}: {url}")
 
     def to_dict(self, include_none: bool = False) -> Dict[str, Any]:
         """
