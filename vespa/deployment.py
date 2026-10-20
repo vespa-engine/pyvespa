@@ -826,7 +826,7 @@ class VespaCloud(VespaDeployment):
             application_root, source_url, instance
         )
 
-        deploy_url = "https://console.vespa-cloud.com/tenant/{}/application/{}/prod/deployment".format(
+        deploy_url = "https://console.vespa-cloud.com/tenant/{}/application/{}/environment/prod/deployment".format(
             self.tenant, self.application
         )
         print(f"Follow deployment at: {deploy_url}", file=self.output)
