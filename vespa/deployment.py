@@ -525,7 +525,7 @@ class VespaDocker(VespaDeployment):
             return False
 
         output = self.container.exec_run(
-            "bash -c 'curl -s --head http://localhost:19071/ApplicationStatus'"
+            "bash -c 'curl --silent --head http://localhost:19071/ApplicationStatus'"
         ).output.decode("utf-8")
         logging.debug("Config Server ApplicationStatus head response: " + output)
         return output.split("\r\n")[0] == "HTTP/1.1 200 OK"
