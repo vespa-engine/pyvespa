@@ -12,7 +12,7 @@ readme = "README.md"
 keywords = ["vespa", "search engine", "data science"]
 classifiers = ["License :: OSI Approved :: Apache Software License"]
 dependencies = [
-    "httpr>=0.6.0",
+    "httpr>=0.7.8",
     "docker",
     "jinja2",
     "cryptography>=50.0.0",
@@ -199,3 +199,5 @@ constraint-dependencies = [
 ]
 
 exclude-newer = "7 days"
+# httpr 0.7.8 drops the compromised eMudhra root (emSign ECC Root CA - G3).
+exclude-newer-package = { httpr = "2026-10-21T12:00:00Z" }
