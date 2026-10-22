@@ -199,5 +199,5 @@ constraint-dependencies = [
 ]
 
 exclude-newer = "7 days"
-# httpr 0.7.8 drops the compromised eMudhra root (emSign ECC Root CA - G3).
-exclude-newer-package = { httpr = "2026-10-21T12:00:00Z" }
+# httpr 0.7.8 and certifi 2026.10.19 drop the compromised eMudhra roots (emSign).
+exclude-newer-package = { httpr = "2026-10-21T12:00:00Z", certifi = "2026-10-21T12:00:00Z" }
