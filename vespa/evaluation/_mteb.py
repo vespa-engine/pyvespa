@@ -203,7 +203,6 @@ class VespaMTEBApp(SearchProtocol):
             return self.vespa_cloud.deploy(
                 instance=self.instance,
                 disk_folder=self.disk_folder,
-                environment="dev",
             )
 
     @staticmethod
