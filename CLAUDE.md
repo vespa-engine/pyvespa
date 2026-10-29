@@ -160,7 +160,7 @@ All HTTP operations return response objects that check for errors automatically.
 
 ### Type Hints
 
-The codebase uses comprehensive type hints. Use Python 3.9+ type syntax and `typing_extensions` for backports (e.g., `Unpack` for Python < 3.11).
+The codebase uses comprehensive type hints. Use Python 3.11+ type syntax.
 
 ### Tenacity for Retries
 

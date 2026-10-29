@@ -5,7 +5,6 @@ import importlib.resources
 import json
 import os
 import re
-import sys
 import warnings
 import xml.dom.minidom as minidom
 import xml.etree.ElementTree as ET
@@ -35,11 +34,7 @@ from vespa.configuration.deployment import DeploymentItem
 from vespa.configuration.query_profiles import QueryProfileItem
 from vespa.validation import to_vespa_identifier, validate_application_package_name
 
-if sys.version_info >= (3, 11):
-    from typing import Unpack
-else:
-    # Older versions of Python have Unpack in typing_extensions
-    from typing_extensions import Unpack
+from typing import Unpack
 
 
 class Summary(object):

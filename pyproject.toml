@@ -1,7 +1,7 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 [build-system]
-requires = ["setuptools==83.0.0", "wheel", "build", "twine", "versioneer[toml]"]
+requires = ["setuptools==84.1.0", "wheel", "build", "twine", "versioneer[toml]"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -17,7 +17,6 @@ dependencies = [
     "jinja2",
     "cryptography>=50.0.0",
     "tenacity>=8.4.1",
-    "typing_extensions",
     "python-dateutil",
     "fastcore>=1.7.8",
     "lxml",
@@ -28,7 +27,7 @@ dependencies = [
     "httpx[http2]",
 ]
 
-requires-python = ">=3.10,<3.16"
+requires-python = ">=3.11,<3.16"
 
 [[project.authors]]
 name = "Thiago G. Martins"
@@ -50,7 +49,7 @@ file = "LICENSE"
 [project.optional-dependencies]
 vespacli = ["vespacli"]
 build = [
-    "setuptools==83.0.0",
+    "setuptools==84.1.0",
     "build==1.5.0",
     "twine==5.1.1",
     "toml==0.10.2",
@@ -105,8 +104,8 @@ notebooks = [
     "matplotlib",
 ]
 mteb = [
-    "mteb>=2.12.30,<3; python_version>='3.10'",
-    "simplejson; python_version>='3.10'",
+    "mteb>=2.12.30,<3",
+    "simplejson",
 ]
 dev = [
     "pre-commit",
@@ -185,7 +184,9 @@ docstring-code-line-length = "dynamic"
 # These are not directly depended on, but are pinned to patched versions
 # to resolve security advisories.
 constraint-dependencies = [
-    "pillow>=12.3.0",
+    "pillow>=13.0.0",
+    "virtualenv>=21.14.9",
+    "filelock>=4.2.1",
     "aiohttp>=3.14.1",
     "jupyter-server>=2.20.0",
     "jupyterlab>=4.5.10",

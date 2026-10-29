@@ -6,7 +6,7 @@ on:
       python-version:
         description: "Python version to run with"
         required: false
-        default: "3.10"
+        default: "3.11"
   push:
     branches:
       - master
@@ -33,11 +33,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: ${{ inputs.python-version || '3.10' }}
+          python-version: ${{ inputs.python-version || '3.11' }}
 
       - name: Install dependencies
         run: |
-          uv sync --python ${{ inputs.python-version || '3.10' }} --extra dev
+          uv sync --python ${{ inputs.python-version || '3.11' }} --extra dev
 
       - name: Run integration tests
         env:
@@ -58,11 +58,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: ${{ inputs.python-version || '3.10' }}
+          python-version: ${{ inputs.python-version || '3.11' }}
 
       - name: Install dependencies
         run: |
-          uv sync --python ${{ inputs.python-version || '3.10' }} --extra dev
+          uv sync --python ${{ inputs.python-version || '3.11' }} --extra dev
 
       - name: Run integration tests
         env:
@@ -85,11 +85,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: ${{ inputs.python-version || '3.10' }}
+          python-version: ${{ inputs.python-version || '3.11' }}
 
       - name: Install dependencies
         run: |
-          uv sync --python ${{ inputs.python-version || '3.10' }} --extra dev
+          uv sync --python ${{ inputs.python-version || '3.11' }} --extra dev
 
       - name: Run integration tests
         env:
@@ -110,11 +110,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: ${{ inputs.python-version || '3.10' }}
+          python-version: ${{ inputs.python-version || '3.11' }}
 
       - name: Install dependencies
         run: |
-          uv sync --python ${{ inputs.python-version || '3.10' }} --extra dev --extra mteb
+          uv sync --python ${{ inputs.python-version || '3.11' }} --extra dev --extra mteb
 
       - name: Run MTEB cloud integration tests
         env:
