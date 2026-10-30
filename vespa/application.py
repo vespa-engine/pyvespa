@@ -19,7 +19,7 @@ from typing import (
     Union,
 )
 from concurrent.futures import ThreadPoolExecutor, Future, as_completed
-from queue import Queue, Empty
+from queue import Queue
 import threading
 import httpr
 
@@ -787,7 +787,7 @@ class Vespa(object):
             namespace (str, optional): The Vespa document id namespace. If no namespace is provided, the schema is used.
             callback (function): A callback function to be called on each result. Signature `callback(response: VespaResponse, id: str)`.
             operation_type (str, optional): The operation to perform. Defaults to `feed`. Valid values are `feed`, `update`, or `delete`.
-            max_queue_size (int, optional): The maximum size of the blocking queue and max in-flight operations.
+            max_queue_size (int, optional): The maximum number of operations sent or waiting for their callback.
             max_workers (int, optional): The maximum number of workers in the threadpool executor.
             max_connections (int, optional): The maximum number of persisted connections to the Vespa endpoint.
             compress (Union[str, bool], optional): Whether to compress the request body. Defaults to "auto", which will compress if the body is larger than 1024 bytes.
@@ -813,50 +813,32 @@ class Vespa(object):
                     "Not possible to infer schema name. Specify schema parameter."
                 )
 
-        def _consumer(
-            queue: Queue,
-            executor: ThreadPoolExecutor,
-            sync_session: VespaSync,
-            max_in_flight=2 * max_queue_size,
+        def _deliver(
+            completed: "Queue[Optional[Future]]", in_flight: threading.BoundedSemaphore
         ):
-            in_flight = 0  # Single threaded consumer
-            futures: List[Future] = []
-            while True:
+            # Single thread, so user callbacks never run concurrently
+            while (future := completed.get()) is not None:
                 try:
-                    doc = queue.get(timeout=5)
-                except Empty:
-                    continue  # producer has not produced anything
-                if doc is None:  # producer is done
-                    queue.task_done()
-                    break  # Break and wait for all futures to complete
-
-                completed_futures = [future for future in futures if future.done()]
-                for future in completed_futures:
-                    futures.remove(future)
-                    in_flight -= 1
-                    _handle_result_callback(future, callback=callback)
-
-                while in_flight >= max_in_flight:
-                    # Check for completed tasks and reduce in-flight tasks
-                    for future in futures:
-                        if future.done():
-                            futures.remove(future)
-                            in_flight -= 1
-                            _handle_result_callback(future, callback=callback)
-                    sleep(0.01)  # wait a bit for more futures to complete
-
-                # we can submit a new doc to Vespa
-                future: Future = executor.submit(_submit, doc, sync_session)
-                futures.append(future)
-                in_flight += 1
-                queue.task_done()  # signal that we have consumed the doc from queue
-
-            # make sure callback is called for all pending operations before
-            # exiting the consumer thread
-            for future in futures:
-                _handle_result_callback(future, callback)
+                    if not future.cancelled():
+                        _handle_result_callback(future, callback=callback)
+                except Exception as e:
+                    print("Exception handling a feed result", file=sys.stderr)
+                    traceback.print_exception(
+                        type(e), e, e.__traceback__, file=sys.stderr
+                    )
+                finally:
+                    in_flight.release()
 
         def _submit(
+            doc: dict, sync_session: VespaSync
+        ) -> Tuple[str, Union[VespaResponse, Exception]]:
+            try:
+                return _send(doc, sync_session)
+            except Exception as e:
+                # E.g. a doc that is not a dict: report it and keep feeding
+                return None, e
+
+        def _send(
             doc: dict, sync_session: VespaSync
         ) -> Tuple[str, Union[VespaResponse, Exception]]:
             id = doc.get("id", None)
@@ -953,17 +935,39 @@ class Vespa(object):
             compress=compress,
             num_retries_429=num_retries_429,
         ) as session:
-            queue = Queue(maxsize=max_queue_size)
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                consumer_thread = threading.Thread(
-                    target=_consumer, args=(queue, executor, session, max_queue_size)
-                )
-                consumer_thread.start()
+            # Operations sent or waiting for their callback
+            in_flight = threading.BoundedSemaphore(max_queue_size)
+            completed: "Queue[Optional[Future]]" = Queue()
+            # A daemon, so a hanging user callback cannot block interpreter exit
+            deliverer = threading.Thread(
+                target=_deliver, args=(completed, in_flight), daemon=True
+            )
+            deliverer.start()
+            executor = ThreadPoolExecutor(max_workers=max_workers)
+            try:
                 for doc in iter:
-                    queue.put(doc, block=True)
-                queue.put(None, block=True)
-                queue.join()
-                consumer_thread.join()
+                    in_flight.acquire()
+                    try:
+                        future = executor.submit(_submit, doc, session)
+                    except BaseException:
+                        in_flight.release()
+                        raise
+                    future.add_done_callback(completed.put)
+            except BaseException:
+                # Drop operations not yet sent; those sent still get callbacks
+                executor.shutdown(wait=False, cancel_futures=True)
+                raise
+            finally:
+                try:
+                    executor.shutdown(wait=True)
+                except BaseException:
+                    # Interrupted while waiting: drop operations not yet sent.
+                    # Those already sent finish, but get no callback.
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    raise
+                finally:
+                    completed.put(None)
+                    deliverer.join()
 
     def feed_async_iterable(
         self,

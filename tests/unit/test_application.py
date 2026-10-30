@@ -1,6 +1,9 @@
 # Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 
 import json
+import random
+import threading
+import time
 import unittest
 import asyncio
 import warnings
@@ -890,6 +893,155 @@ class TestFeedAsyncIterable(unittest.TestCase):
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             self.vespa.feed_async_iterable(docs, schema="s", max_workers=1024)
+
+
+class TestFeedIterable(unittest.TestCase):
+    def setUp(self):
+        self.session = MagicMock()
+        self.session.feed_data_point.side_effect = self._feed_data_point
+        self.sync_patcher = patch("vespa.application.VespaSync")
+        self.sync_patcher.start().return_value.__enter__.return_value = self.session
+        self.vespa = Vespa(url="http://localhost", port=8080)
+        self.delay = 0.0
+        self.responses = []
+        self.callback_threads = set()
+
+    def tearDown(self):
+        self.sync_patcher.stop()
+
+    def _feed_data_point(self, data_id, **kwargs):
+        time.sleep(self.delay() if callable(self.delay) else self.delay)
+        return VespaResponse(
+            json={"id": data_id}, status_code=200, url="", operation_type="feed"
+        )
+
+    def _callback(self, response, id):
+        self.callback_threads.add(threading.get_ident())
+        self.responses.append((id, response.status_code))
+
+    def _feed(self, docs, **kwargs):
+        # In a thread, so a hang fails the test instead of the suite
+        errors = []
+
+        def run():
+            try:
+                self.vespa.feed_iterable(
+                    docs, schema="s", callback=self._callback, **kwargs
+                )
+            except BaseException as e:
+                errors.append(e)
+
+        feeder = threading.Thread(target=run, daemon=True)
+        feeder.start()
+        feeder.join(timeout=20)
+        self.assertFalse(feeder.is_alive(), "feed_iterable hung")
+        if errors:
+            raise errors[0]
+
+    def _ids(self):
+        return sorted(id for id, _ in self.responses)
+
+    def test_every_doc_gets_exactly_one_callback_on_one_thread(self):
+        self.delay = lambda: random.uniform(0, 0.003)  # out-of-order completions
+        docs = [{"id": f"doc{i}", "fields": {}} for i in range(500)]
+
+        self._feed(docs, max_workers=16)
+
+        self.assertEqual(self._ids(), sorted(d["id"] for d in docs))
+        self.assertEqual(len(self.callback_threads), 1)
+
+    def test_invalid_items_get_a_callback_and_feeding_continues(self):
+        docs = [{"fields": {}}, {"id": "nofields"}, "not-a-dict"] + [
+            {"id": f"doc{i}", "fields": {}} for i in range(10)
+        ]
+
+        self._feed(docs)
+
+        codes = dict(self.responses)
+        self.assertEqual(len(self.responses), len(docs))
+        # Missing id, then the item that is not a dict
+        self.assertEqual(sorted(s for id, s in self.responses if id is None), [499, 599])
+        self.assertEqual(codes["nofields"], 499)
+        self.assertTrue(all(codes[f"doc{i}"] == 200 for i in range(10)))
+
+    def test_a_raising_callback_does_not_stop_the_feed(self):
+        def callback(response, id):
+            self._callback(response, id)
+            raise RuntimeError("user bug")
+
+        docs = [{"id": f"doc{i}", "fields": {}} for i in range(50)]
+        errors = []
+
+        def run():
+            try:
+                self.vespa.feed_iterable(docs, schema="s", callback=callback)
+            except BaseException as e:
+                errors.append(e)
+
+        with patch("sys.stderr"):
+            feeder = threading.Thread(target=run, daemon=True)
+            feeder.start()
+            feeder.join(timeout=20)
+
+        self.assertFalse(feeder.is_alive(), "feed_iterable hung")
+        self.assertEqual(errors, [])
+        self.assertEqual(len(self.responses), 50)
+
+    def test_an_iterator_error_is_raised_after_sent_docs_are_called_back(self):
+        self.delay = 0.01
+        before = set(threading.enumerate())
+
+        def docs():
+            for i in range(20):
+                yield {"id": f"doc{i}", "fields": {}}
+            time.sleep(0.1)
+            raise ValueError("bad input")
+
+        with self.assertRaises(ValueError):
+            self._feed(docs())
+
+        self.assertEqual(len(self.responses), self.session.feed_data_point.call_count)
+        self.assertEqual(len(self.responses), 20)
+        time.sleep(0.1)
+        self.assertEqual(set(threading.enumerate()) - before, set())
+
+    def test_outstanding_operations_are_bounded_by_max_queue_size(self):
+        self.delay = lambda: random.uniform(0.001, 0.003)
+        consumed = 0
+        max_outstanding = 0
+
+        def docs():
+            nonlocal consumed
+            for i in range(1000):
+                consumed += 1
+                yield {"id": f"doc{i}", "fields": {}}
+
+        def callback(response, id):
+            nonlocal max_outstanding
+            time.sleep(0.0005)
+            self._callback(response, id)
+            max_outstanding = max(max_outstanding, consumed - len(self.responses))
+
+        self.vespa.feed_iterable(
+            docs(), schema="s", callback=callback, max_queue_size=50, max_workers=8
+        )
+
+        self.assertEqual(len(self.responses), 1000)
+        self.assertLessEqual(max_outstanding, 50)
+
+    def test_callbacks_arrive_while_the_producer_waits(self):
+        self.delay = 0.005
+        delivered_during_pause = []
+
+        def docs():
+            for i in range(10):
+                yield {"id": f"doc{i}", "fields": {}}
+            time.sleep(0.5)
+            delivered_during_pause.append(len(self.responses))
+
+        self._feed(docs())
+
+        self.assertEqual(delivered_during_pause, [10])
 
 
 class TestQueryMany(unittest.TestCase):
