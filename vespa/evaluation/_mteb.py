@@ -140,7 +140,7 @@ class VespaMTEBApp(SearchProtocol):
                     logger.info(
                         f"Deleting Vespa Cloud deployment (instance={self.instance})..."
                     )
-                    self.vespa_cloud.delete(instance=self.instance, environment="dev")
+                    self.vespa_cloud.delete(instance=self.instance)
                     logger.info("Vespa Cloud deployment deleted successfully.")
                 except Exception as e:
                     logger.warning(f"Error during cloud cleanup: {e}")
@@ -203,7 +203,6 @@ class VespaMTEBApp(SearchProtocol):
             return self.vespa_cloud.deploy(
                 instance=self.instance,
                 disk_folder=self.disk_folder,
-                environment="dev",
             )
 
     @staticmethod

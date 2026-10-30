@@ -27,7 +27,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Sync the vendored metric presets with the latest Vespa CLI release
         id: sync

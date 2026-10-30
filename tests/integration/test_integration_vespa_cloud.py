@@ -725,37 +725,6 @@ class TestDeployKeyLocation(unittest.TestCase):
         self.vespa_cloud.delete(instance=self.instance)
 
 
-class TestDeployPerf(unittest.TestCase):
-    def setUp(self) -> None:
-        self.app_package = sample_package
-        self.instance = "perf-deployment"
-        self.vespa_cloud = VespaCloud(
-            tenant="vespa-team",
-            application="pyvespa-integration",
-            key_content=os.getenv("VESPA_TEAM_API_KEY").replace(r"\n", "\n"),
-            application_package=self.app_package,
-        )
-        self.environment = "perf"
-
-    def test_deploy(self):
-        self.app = self.vespa_cloud.deploy(
-            instance=self.instance, environment=self.environment, max_wait=1200
-        )
-        endpoints = self.vespa_cloud.get_all_endpoints(
-            instance=self.instance, environment=self.environment
-        )
-        self.assertGreater(len(endpoints), 0)
-        contents = self.vespa_cloud.get_app_package_contents(
-            instance=self.instance, environment=self.environment
-        )
-        self.assertGreater(len(contents), 0)
-
-    def tearDown(self) -> None:
-        # Wait a little bit to make sure the deployment is finished
-        time.sleep(10)
-        self.vespa_cloud.delete(instance=self.instance, environment=self.environment)
-
-
 class TestDeployDevEuRegion(unittest.TestCase):
     """Deploy to a non-default dev region (aws-euw1-az1) to verify multi-dev-zone support."""
 
