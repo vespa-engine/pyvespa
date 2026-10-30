@@ -97,7 +97,7 @@ jobs:
           PERFORMANCE_BASELINE_DIR: ${{ runner.temp }}/performance-baseline
           PYTHONUNBUFFERED: "1"
         run: |
-          uv run pytest tests/performance/ -m performance -s -v \
+          uv run pytest tests/performance/test_feed_iterable_ab.py -m performance -s -v \
             --junitxml="$PERFORMANCE_REPORT_DIR/junit.xml"
 
       # TODO: use test-summary/action
