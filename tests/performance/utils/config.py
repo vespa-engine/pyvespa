@@ -129,8 +129,8 @@ VALIDITY = ValidityLimits(
 PYVESPA_METHODS = ("feed_iterable", "feed_async_iterable")
 # See "Thresholds" in tests/performance/README.md.
 PYVESPA_RTT_FACTORS = {
-    "mtls": ((24.0, 1.0), (52.0, 0.83), (84.0, 0.72)),
-    "token": ((24.0, 1.0), (52.0, 0.74), (84.0, 0.54)),
+    "mtls": ((24.0, 1.0), (52.0, 0.83), (84.0, 0.68)),
+    "token": ((24.0, 1.0), (52.0, 0.70), (84.0, 0.48)),
 }
 
 
