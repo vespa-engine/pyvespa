@@ -147,8 +147,8 @@ All values live in `utils/config.py`, grouped by who uses them.
 - `PYVESPA_RTT_FACTORS` in `utils/config.py`: the pyvespa floors scale with
   the session's RTT, since pyvespa's client CPU per request grows with the
   round trip. The factors are pyvespa's rps relative to a runner 24 ms or
-  less away, measured by adding latency on one runner. The 4 KB floor does
-  not scale.
+  less away, measured by adding latency on one runner and adjusted to runs up
+  to 68 ms away. The 4 KB floor does not scale.
 
 **`LoadProfile` fields**
 
