@@ -865,6 +865,102 @@ class TestFeedAsyncIterable(unittest.TestCase):
 
         self.assertLessEqual(max_seen, max_workers)
 
+    def _ok(self):
+        return VespaResponse(json={}, status_code=200, url="", operation_type="feed")
+
+    def test_feed_async_iterable_does_not_drain_at_queue_boundary(self):
+        release = asyncio.Event()
+
+        async def fake_feed_data_point(*args, data_id=None, semaphore=None, **kwargs):
+            async with semaphore:
+                if data_id == "doc4":
+                    release.set()
+                if data_id == "doc0":
+                    await asyncio.wait_for(release.wait(), timeout=2)
+            return self._ok()
+
+        self.mock_session.feed_data_point.side_effect = fake_feed_data_point
+        callback = MagicMock()
+
+        self.vespa.feed_async_iterable(
+            iter=[{"id": f"doc{i}", "fields": {}} for i in range(10)],
+            schema="s",
+            callback=callback,
+            max_queue_size=3,
+            max_workers=2,
+        )
+
+        statuses = {c.args[1]: c.args[0].status_code for c in callback.call_args_list}
+        # doc0 can only get a 200 status if doc4 started while doc0 ran
+        self.assertEqual(statuses["doc0"], 200, "doc4 did not start while doc0 ran")
+
+    def test_feed_async_iterable_bounds_unfinished_documents(self):
+        max_queue_size = 3
+        pulled = 0
+        finished = 0
+        max_unfinished = 0
+
+        async def fake_feed_data_point(*args, semaphore=None, **kwargs):
+            async with semaphore:
+                await asyncio.sleep(0.001)
+            return self._ok()
+
+        def docs():
+            nonlocal pulled, max_unfinished
+            for i in range(50):
+                max_unfinished = max(max_unfinished, pulled - finished)
+                pulled += 1
+                yield {"id": f"doc{i}", "fields": {}}
+
+        def callback(response, id):
+            nonlocal finished
+            finished += 1
+
+        self.mock_session.feed_data_point.side_effect = fake_feed_data_point
+
+        self.vespa.feed_async_iterable(
+            iter=docs(),
+            schema="s",
+            callback=callback,
+            max_queue_size=max_queue_size,
+            max_workers=10,
+        )
+
+        self.assertEqual(finished, 50)
+        self.assertLessEqual(max_unfinished, max_queue_size)
+
+    def test_feed_async_iterable_continues_after_request_exception(self):
+        async def fake_feed_data_point(*args, data_id=None, semaphore=None, **kwargs):
+            async with semaphore:
+                await asyncio.sleep(0)
+            if data_id == "doc2":
+                raise RuntimeError("boom")
+            return self._ok()
+
+        self.mock_session.feed_data_point.side_effect = fake_feed_data_point
+        callback = MagicMock()
+
+        self.vespa.feed_async_iterable(
+            iter=[{"id": f"doc{i}", "fields": {}} for i in range(6)],
+            schema="s",
+            callback=callback,
+            max_queue_size=2,
+            max_workers=1,
+        )
+
+        statuses = [(c.args[1], c.args[0].status_code) for c in callback.call_args_list]
+        self.assertCountEqual(
+            statuses,
+            [
+                ("doc0", 200),
+                ("doc1", 200),
+                ("doc2", 599),
+                ("doc3", 200),
+                ("doc4", 200),
+                ("doc5", 200),
+            ],
+        )
+
     def test_feed_async_iterable_sizes_the_client_pool_to_max_workers(self):
         # httpr runs one thread per request, so a smaller pool would cap the in-flight count.
         self.mock_session.feed_data_point.return_value = VespaResponse(

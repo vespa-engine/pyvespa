@@ -1058,76 +1058,85 @@ class Vespa(object):
             async with self.asyncio(
                 connections=max_connections,
                 docv1_retry_policy=docv1_retry_policy,
-                # httpr runs each request on a thread; its pool must match the semaphore.
+                # Match httpr's thread pool to the semaphore limit to avoid
+                # additional queuing inside httpr.
                 max_concurrency=max_workers,
             ) as async_session:
                 semaphore = asyncio.Semaphore(max_workers)
-                tasks = []
-                for doc in iter:
-                    id = doc.get("id")
-                    fields = doc.get("fields")
-                    groupname = doc.get("groupname")
+                docs = (doc for doc in iter)  # shared, so each doc is sent once
 
-                    if id is None:
-                        response = VespaResponse(
-                            status_code=499,
-                            json={"id": id, "message": "Missing id in input dict"},
-                            url="n/a",
-                            operation_type=operation_type,
-                        )
-                        if callback is not None:
-                            callback(response, id)
-                        continue
-                    if fields is None and operation_type != "delete":
-                        response = VespaResponse(
-                            status_code=499,
-                            json={"id": id, "message": "Missing fields in input dict"},
-                            url="n/a",
-                            operation_type=operation_type,
-                        )
-                        if callback is not None:
-                            callback(response, id)
-                        continue
+                async def worker():
+                    for doc in docs:
+                        id = doc.get("id")
+                        fields = doc.get("fields")
+                        groupname = doc.get("groupname")
 
-                    if operation_type == "feed":
-                        task = async_session.feed_data_point(
-                            schema=schema,
-                            namespace=namespace,
-                            groupname=groupname,
-                            data_id=id,
-                            fields=fields,
-                            semaphore=semaphore,
-                            **kwargs,
-                        )
-                    elif operation_type == "update":
-                        task = async_session.update_data(
-                            schema=schema,
-                            namespace=namespace,
-                            groupname=groupname,
-                            data_id=id,
-                            fields=fields,
-                            semaphore=semaphore,
-                            **kwargs,
-                        )
-                    elif operation_type == "delete":
-                        task = async_session.delete_data(
-                            schema=schema,
-                            namespace=namespace,
-                            data_id=id,
-                            groupname=groupname,
-                            semaphore=semaphore,
-                            **kwargs,
-                        )
+                        if id is None:
+                            response = VespaResponse(
+                                status_code=499,
+                                json={"id": id, "message": "Missing id in input dict"},
+                                url="n/a",
+                                operation_type=operation_type,
+                            )
+                            if callback is not None:
+                                callback(response, id)
+                            continue
+                        if fields is None and operation_type != "delete":
+                            response = VespaResponse(
+                                status_code=499,
+                                json={
+                                    "id": id,
+                                    "message": "Missing fields in input dict",
+                                },
+                                url="n/a",
+                                operation_type=operation_type,
+                            )
+                            if callback is not None:
+                                callback(response, id)
+                            continue
 
-                    tasks.append(handle_result(asyncio.create_task(task), id))
+                        if operation_type == "feed":
+                            task = async_session.feed_data_point(
+                                schema=schema,
+                                namespace=namespace,
+                                groupname=groupname,
+                                data_id=id,
+                                fields=fields,
+                                semaphore=semaphore,
+                                **kwargs,
+                            )
+                        elif operation_type == "update":
+                            task = async_session.update_data(
+                                schema=schema,
+                                namespace=namespace,
+                                groupname=groupname,
+                                data_id=id,
+                                fields=fields,
+                                semaphore=semaphore,
+                                **kwargs,
+                            )
+                        elif operation_type == "delete":
+                            task = async_session.delete_data(
+                                schema=schema,
+                                namespace=namespace,
+                                data_id=id,
+                                groupname=groupname,
+                                semaphore=semaphore,
+                                **kwargs,
+                            )
 
-                    # Control the number of in-flight tasks
-                    if len(tasks) >= max_queue_size:
-                        await asyncio.gather(*tasks)
-                        tasks = []
+                        # Own task, so a waiting request starts before the callback runs.
+                        await handle_result(asyncio.create_task(task), id)
 
-                if tasks:
-                    await asyncio.gather(*tasks)
+                # Each worker holds one doc, bounding memory to max_queue_size.
+                workers = [asyncio.create_task(worker()) for _ in range(max_queue_size)]
+                try:
+                    await asyncio.gather(*workers)
+                finally:
+                    # Stop the other workers if one raises, e.g. from iter.
+                    for w in workers:
+                        w.cancel()
+                    await asyncio.gather(*workers, return_exceptions=True)
 
         asyncio.run(run())
         return
