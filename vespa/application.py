@@ -1063,20 +1063,10 @@ class Vespa(object):
                 max_concurrency=max_workers,
             ) as async_session:
                 semaphore = asyncio.Semaphore(max_workers)
-                # Limits unfinished tasks to bound memory for a large iter.
-                # Each task releases its slot as soon as it finishes, so the
-                # loop creates the next one and max_workers requests stay in flight.
-                queue_slots = asyncio.Semaphore(max_queue_size)
-                # Maps each handle_result task to its request task, so the
-                # finally block can cancel both.
-                pending: Dict[asyncio.Task, asyncio.Task] = {}
+                docs = (doc for doc in iter)  # shared, so each doc is sent once
 
-                def release(t: asyncio.Task):
-                    del pending[t]
-                    queue_slots.release()
-
-                try:
-                    for doc in iter:
+                async def worker():
+                    for doc in docs:
                         id = doc.get("id")
                         fields = doc.get("fields")
                         groupname = doc.get("groupname")
@@ -1105,7 +1095,6 @@ class Vespa(object):
                                 callback(response, id)
                             continue
 
-                        await queue_slots.acquire()
                         if operation_type == "feed":
                             task = async_session.feed_data_point(
                                 schema=schema,
@@ -1136,18 +1125,18 @@ class Vespa(object):
                                 **kwargs,
                             )
 
-                        request = asyncio.create_task(task)
-                        t = asyncio.create_task(handle_result(request, id))
-                        pending[t] = request
-                        t.add_done_callback(release)
+                        # Own task, so a waiting request starts before the callback runs.
+                        await handle_result(asyncio.create_task(task), id)
 
-                    if pending:
-                        await asyncio.gather(*pending)
+                # Each worker holds one doc, bounding memory to max_queue_size.
+                workers = [asyncio.create_task(worker()) for _ in range(max_queue_size)]
+                try:
+                    await asyncio.gather(*workers)
                 finally:
-                    for t, request in pending.items():
-                        request.cancel()
-                        t.cancel()
-                    await asyncio.gather(*pending, return_exceptions=True)
+                    # Stop the other workers if one raises, e.g. from iter.
+                    for w in workers:
+                        w.cancel()
+                    await asyncio.gather(*workers, return_exceptions=True)
 
         asyncio.run(run())
         return
