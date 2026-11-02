@@ -1058,15 +1058,18 @@ class Vespa(object):
             async with self.asyncio(
                 connections=max_connections,
                 docv1_retry_policy=docv1_retry_policy,
-                # httpr runs each request on a thread; its pool must match the semaphore.
+                # Match httpr's thread pool to the semaphore limit to avoid
+                # additional queuing inside httpr.
                 max_concurrency=max_workers,
             ) as async_session:
                 semaphore = asyncio.Semaphore(max_workers)
-                # Bounds created-but-unfinished tasks (memory) without draining
-                # them in batches, so max_workers requests stay in flight
+                # Limits unfinished tasks to bound memory for a large iter.
+                # Each task releases its slot as soon as it finishes, so the
+                # loop creates the next one and max_workers requests stay in flight.
                 queue_slots = asyncio.Semaphore(max_queue_size)
-                # Result handler task -> its request task
-                pending = {}
+                # Maps each handle_result task to its request task, so the
+                # finally block can cancel both.
+                pending: Dict[asyncio.Task, asyncio.Task] = {}
 
                 def release(t: asyncio.Task):
                     del pending[t]
@@ -1102,8 +1105,6 @@ class Vespa(object):
                                 callback(response, id)
                             continue
 
-                        # Acquire before creating the request coroutine, so a
-                        # cancelled wait leaves no never-awaited coroutine
                         await queue_slots.acquire()
                         if operation_type == "feed":
                             task = async_session.feed_data_point(
@@ -1143,8 +1144,6 @@ class Vespa(object):
                     if pending:
                         await asyncio.gather(*pending)
                 finally:
-                    # Cancel the requests too: a handler cancelled before it
-                    # starts never cancels the request it would have awaited
                     for t, request in pending.items():
                         request.cancel()
                         t.cancel()
