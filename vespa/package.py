@@ -1734,6 +1734,19 @@ class RankProfile(object):
         self.rank_type = kwargs.get("rank_type", None)
         self.rank_properties = kwargs.get("rank_properties", None)
         self.inputs = kwargs.get("inputs", None)
+        if self.inputs is not None:
+            if isinstance(self.inputs, str) or not all(
+                isinstance(i, (tuple, list))
+                and len(i) in (2, 3)
+                and all(isinstance(part, str) for part in i[:2])
+                for i in self.inputs
+            ):
+                raise ValueError(
+                    "RankProfile 'inputs' must be a list of (name, type) or "
+                    "(name, type, default) tuples, e.g. "
+                    "[('query(q)', 'tensor<float>(x[384])')]. "
+                    f"Got: {self.inputs!r}"
+                )
         self.mutate = kwargs.get("mutate", None)
         self.filter_threshold = kwargs.get("filter_threshold", None)
         self.weakand = kwargs.get("weakand", None)  # <-- NEW: store weakand parameters

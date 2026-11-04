@@ -430,6 +430,17 @@ class TestRankProfile(unittest.TestCase):
         self.assertEqual(rank_profile.inputs[0][0], "query(image_query_embedding)")
         self.assertEqual(rank_profile.inputs[1][0], "query(image_query_embedding2)")
 
+    def test_rank_profile_inputs_validation(self):
+        for bad in (
+            [("query(q)")],
+            "query(q)",
+            [("query(q)",)],
+            [("query(q)", "tensor<float>(x[4])", "0", "extra")],
+            [("query(q)", None)],
+        ):
+            with self.subTest(inputs=bad), self.assertRaises(ValueError):
+                RankProfile(name="bm25", first_phase="bm25(title)", inputs=bad)
+
     def test_rank_profile_inputs_schema_rendering(self):
         """Test that rank profile inputs are properly rendered in the schema text output."""
         # Create a simple test document and schema with inputs
