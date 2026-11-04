@@ -55,13 +55,15 @@ from vespa.package import (
     ServicesConfiguration,
     ApplicationConfiguration,
     QueryProfileItem,
+    HostsItem,
     Diversity,
     Summary,
 )
-from vespa.configuration.vt import compare_xml
+from vespa.configuration.vt import compare_xml, vt
 from vespa.configuration.services import *
 from vespa.configuration.query_profiles import *
 from vespa.configuration.deployment import *
+from vespa.configuration.hosts import hosts, host, alias
 
 
 class TestField(unittest.TestCase):
@@ -3800,6 +3802,89 @@ class TestDeploymentVT(unittest.TestCase):
             name="testfilescomplex", deployment_config=self.complex_vt
         )
         self._assert_deployment_files_and_zip(app_package, self.complex_expected)
+
+
+class TestHostsVT(unittest.TestCase):
+    def setUp(self):
+        self.simple_vt = hosts(host(name="localhost")(alias("node1")))
+        self.simple_expected = """<hosts>
+    <host name="localhost">
+        <alias>node1</alias>
+    </host>
+</hosts>"""
+        self.multi_vt = hosts(
+            host(name="localhost")(alias("node1")),
+            host(name="node2.example.com")(alias("node2")),
+        )
+        self.multi_expected = """<hosts>
+    <host name="localhost">
+        <alias>node1</alias>
+    </host>
+    <host name="node2.example.com">
+        <alias>node2</alias>
+    </host>
+</hosts>"""
+
+    def test_hosts_reproduces_default_template(self):
+        app = ApplicationPackage(name="testhosts", hosts_config=self.simple_vt)
+        template_path = importlib.resources.files("vespa").joinpath(
+            "templates/hosts.xml"
+        )
+        with open(template_path) as f:
+            template_content = f.read()
+        self.assertTrue(compare_xml(template_content, app.hosts_to_text))
+
+    def test_multiple_hosts(self):
+        app = ApplicationPackage(name="testhosts", hosts_config=self.multi_vt)
+        self.assertTrue(compare_xml(self.multi_expected, app.hosts_to_text))
+
+    def test_invalid_root_tag_raises(self):
+        with self.assertRaises(ValueError):
+            HostsItem(vt("services"))
+        with self.assertRaises(ValueError):
+            ApplicationPackage(name="testhosts", hosts_config=vt("services"))
+
+    def test_non_vt_raises(self):
+        with self.assertRaises(TypeError):
+            HostsItem("not a vt")
+
+    def test_hosts_written_to_files_and_zip(self):
+        app = ApplicationPackage(name="testhosts", hosts_config=self.multi_vt)
+        with tempfile.TemporaryDirectory() as tmp:
+            # Test to_files
+            app.to_files(tmp)
+            hosts_path = os.path.join(tmp, "hosts.xml")
+            self.assertTrue(os.path.exists(hosts_path))
+            with open(hosts_path) as f:
+                content = f.read()
+                self.assertTrue(compare_xml(app.hosts_to_text, content))
+
+            # Test to_zipfile
+            zip_path = os.path.join(tmp, "app.zip")
+            app.to_zipfile(zip_path)
+            self.assertTrue(os.path.exists(zip_path))
+            with zipfile.ZipFile(zip_path) as zf:
+                self.assertIn("hosts.xml", zf.namelist())
+                with zf.open("hosts.xml") as f:
+                    content = f.read().decode("utf-8")
+                    self.assertTrue(compare_xml(self.multi_expected, content))
+
+    def test_no_hosts_config_no_hosts_xml(self):
+        app = ApplicationPackage(name="testhosts")
+        self.assertIsNone(app.hosts_to_text)
+        with tempfile.TemporaryDirectory() as tmp:
+            app.to_files(tmp)
+            self.assertFalse(os.path.exists(os.path.join(tmp, "hosts.xml")))
+            zip_path = os.path.join(tmp, "app.zip")
+            app.to_zipfile(zip_path)
+            with zipfile.ZipFile(zip_path) as zf:
+                self.assertNotIn("hosts.xml", zf.namelist())
+
+    def test_raw_vt_accepted(self):
+        raw_vt = vt("hosts", vt("host", vt("alias", "node1"), name="localhost"))
+        app = ApplicationPackage(name="testhosts", hosts_config=raw_vt)
+        self.assertIsInstance(app.hosts_config, HostsItem)
+        self.assertTrue(compare_xml(self.simple_expected, app.hosts_to_text))
 
 
 class TestIncludeFiles(unittest.TestCase):
