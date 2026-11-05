@@ -25,7 +25,7 @@ from urllib.parse import quote, urlencode, urlparse
 
 import docker
 
-from requests_toolbelt.multipart.encoder import MultipartEncoder
+from vespa._multipart import encode_multipart
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization, hashes
@@ -1702,7 +1702,7 @@ class VespaCloud(VespaDeployment):
         self,
         method: str,
         path: str,
-        body: Union[BytesIO, MultipartEncoder, dict, None] = None,
+        body: Union[BytesIO, dict, None] = None,
         headers: dict = {},
         return_raw_response: bool = False,
     ) -> Union[dict, httpr.Response]:
@@ -1721,7 +1721,7 @@ class VespaCloud(VespaDeployment):
         self,
         method: str,
         path: str,
-        body: Union[BytesIO, MultipartEncoder, dict, None] = None,
+        body: Union[BytesIO, dict, None] = None,
         headers: dict = {},
         return_raw_response: bool = False,
     ) -> Union[dict, httpr.Response]:
@@ -1740,26 +1740,14 @@ class VespaCloud(VespaDeployment):
         self,
         method: str,
         path: str,
-        body: Union[BytesIO, MultipartEncoder, dict, None] = None,
+        body: Union[BytesIO, dict, None] = None,
         headers: dict = {},
         return_raw_response: bool = False,
     ) -> Union[dict, httpr.Response]:
         digest = hashes.Hash(hashes.SHA256(), default_backend())
 
         # Handle different body types
-        if isinstance(body, MultipartEncoder):
-            # Use the encoded data for hash computation
-            digest = hashes.Hash(hashes.SHA256(), default_backend())
-            digest.update(body.to_string())  # This moves the buffer position to the end
-            body._buffer.seek(0)  # Needs to be reset. Otherwise, no data will be sent
-            # Update the headers to include the Content-Type
-            headers.update({"Content-Type": body.content_type})
-            # Read the content of multipart_data into a bytes object
-            multipart_data_bytes: bytes = body.to_string()
-            headers.update({"Content-Length": str(len(multipart_data_bytes))})
-            # Convert multipart_data_bytes to type BytesIO
-            body_data: BytesIO = BytesIO(multipart_data_bytes)
-        elif isinstance(body, dict):
+        if isinstance(body, dict):
             body_bytes = json.dumps(body).encode("utf-8")
             digest.update(body_bytes)
             body_data = BytesIO(body_bytes)
@@ -2448,20 +2436,13 @@ class VespaCloud(VespaDeployment):
                 file=self.output,
             )
             print("No tests will be submitted.", file=self.output)
-        multipart_data = MultipartEncoder(
-            fields=fields,
-        )
+        multipart_bytes, multipart_content_type = encode_multipart(fields=fields)
 
         # Compute content hash, etc
         if self.control_plane_auth_method == "api_key":
             url = self.base_url + deploy_path
             digest = hashes.Hash(hashes.SHA256(), default_backend())
-            digest.update(
-                multipart_data.to_string()
-            )  # This moves the buffer position to the end
-            multipart_data._buffer.seek(
-                0
-            )  # Needs to be reset. Otherwise, no data will be sent
+            digest.update(multipart_bytes)
             content_hash = standard_b64encode(digest.finalize()).decode("UTF-8")
             timestamp = (
                 datetime.utcnow().isoformat() + "Z"
@@ -2483,15 +2464,11 @@ class VespaCloud(VespaDeployment):
             headers = {
                 "Authorization": "Bearer " + self.control_plane_access_token,
             }
-        # Read the content of multipart_data into a bytes object
-        multipart_data_bytes: bytes = multipart_data.to_string()
-        headers["Content-Length"] = str(len(multipart_data_bytes))
+        headers["Content-Length"] = str(len(multipart_bytes))
         # Update the headers to include the Content-Type
-        headers["Content-Type"] = multipart_data.content_type
-        # Convert multipart_data_bytes to type BytesIO
-        multipart_data_bytes = BytesIO(multipart_data_bytes)
+        headers["Content-Type"] = multipart_content_type
         response = self._request(
-            "POST", deploy_path, body=multipart_data_bytes, headers=headers
+            "POST", deploy_path, body=BytesIO(multipart_bytes), headers=headers
         )
         message = response.get("message", "No message provided")
         print(message, file=self.output)
@@ -2537,9 +2514,12 @@ class VespaCloud(VespaDeployment):
                     "application/json",
                 ),
             }
-            multipart = MultipartEncoder(fields=form_data)
-            headers = {"Content-Type": multipart.content_type}
-            payload = multipart
+            multipart_bytes, multipart_content_type = encode_multipart(fields=form_data)
+            headers = {
+                "Content-Type": multipart_content_type,
+                "Content-Length": str(len(multipart_bytes)),
+            }
+            payload = BytesIO(multipart_bytes)
         else:
             # Use existing direct zip upload
             headers = {"Content-Type": "application/zip"}
