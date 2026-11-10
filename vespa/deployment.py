@@ -775,6 +775,7 @@ class VespaCloud(VespaDeployment):
         instance: Optional[str] = "default",
         application_root: Optional[str] = None,
         source_url: str = "",
+        skip_tests: bool = False,
     ) -> Optional[int]:
         """
         Deploy the given application package as the given instance in the Vespa Cloud prod environment.
@@ -793,6 +794,7 @@ class VespaCloud(VespaDeployment):
             instance (str): Name of this instance of the application in the Vespa Cloud.
             application_root (str): Path to either save the required Vespa config files (if initialized with application_package) or read them from (if initialized with application_root).
             source_url (str, optional): Optional source URL (including commit hash) for the deployment. This is a URL to the source code repository, e.g., GitHub, that is used to build the application package. Example: <https://github.com/vespa-cloud/vector-search/commit/474d7771bd938d35dc5dcfd407c21c019d15df3c>. The source URL will show up in the Vespa Cloud Console next to the build number.
+            skip_tests (bool, optional): Skip system and staging tests when deploying this build to production. Tests still run for platform upgrades. Defaults to False.
 
         Raises:
             ValueError: If a production test file under application_root is invalid.
@@ -812,7 +814,7 @@ class VespaCloud(VespaDeployment):
 
         self._validate_production_tests(application_root)
         self.build_no = self._start_prod_deployment(
-            application_root, source_url, instance
+            application_root, source_url, instance, skip_tests=skip_tests
         )
 
         deploy_url = "https://console.vespa-cloud.com/tenant/{}/application/{}/environment/prod/deployment".format(
@@ -2373,7 +2375,11 @@ class VespaCloud(VespaDeployment):
             )
 
     def _start_prod_deployment(
-        self, application_root: str, source_url: str = "", instance: str = "default"
+        self,
+        application_root: str,
+        source_url: str = "",
+        instance: str = "default",
+        skip_tests: bool = False,
     ) -> int:
         # The submit API is used for prod deployments
         deploy_path = "/application/v4/tenant/{}/application/{}/submit/".format(
@@ -2400,6 +2406,8 @@ class VespaCloud(VespaDeployment):
         }
         if source_url:
             submit_options["sourceUrl"] = source_url
+        if skip_tests:
+            submit_options["skipTests"] = True
 
         # Define the fields data to add to the multipart data
         fields = {

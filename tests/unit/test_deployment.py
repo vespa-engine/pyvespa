@@ -85,6 +85,32 @@ class TestVespaCloud(unittest.TestCase):
             self.assertEqual(7, self.vespa_cloud.deploy_to_prod(application_root=tmp))
             mock_start.assert_called_once()
 
+    @patch("vespa.deployment.VespaCloud._start_prod_deployment", return_value=7)
+    def test_deploy_to_prod_passes_skip_tests(self, mock_start):
+        with TemporaryDirectory() as tmp:
+            self.vespa_cloud.deploy_to_prod(application_root=tmp, skip_tests=True)
+        self.assertTrue(mock_start.call_args.kwargs["skip_tests"])
+
+    @patch("vespa.deployment.VespaCloud._request", return_value={"build": 44})
+    @patch(
+        "vespa.deployment.VespaCloud.read_app_package_from_disk", return_value=b"zip"
+    )
+    @patch("vespa.deployment.VespaCloud._write_certificate")
+    def test_start_prod_deployment_submit_options(
+        self, mock_write_cert, mock_read_app, mock_request
+    ):
+        self.vespa_cloud.application_package = None
+        self.vespa_cloud.control_plane_auth_method = "access_token"
+        self.vespa_cloud.control_plane_access_token = "fake_access_token"
+        with TemporaryDirectory() as tmp:
+            self.assertEqual(44, self.vespa_cloud._start_prod_deployment(tmp))
+            body = mock_request.call_args.kwargs["body"].getvalue()
+            self.assertNotIn(b"skipTests", body)
+
+            self.vespa_cloud._start_prod_deployment(tmp, skip_tests=True)
+            body = mock_request.call_args.kwargs["body"].getvalue()
+            self.assertIn(b'"skipTests": true', body)
+
     @patch("vespa.deployment.VespaCloud._request")
     def test_wait_for_prod_deployment_names_failed_production_test(self, mock_request):
         mock_request.return_value = {
