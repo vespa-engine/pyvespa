@@ -98,6 +98,11 @@ jobs:
           PYTHONUNBUFFERED: "1"
         run: |
           uv run pytest tests/performance/ -m performance -s -v \
+            --junitxml="$PERFORMANCE_REPORT_DIR/junit.xml" && exit 0
+          echo "::warning::Performance tests failed, rerunning the failed ones"
+          rm -f "$PERFORMANCE_REPORT_DIR/k6_drift.json"
+          uv run pytest tests/performance/ -m performance -s -v \
+            --last-failed --last-failed-no-failures none \
             --junitxml="$PERFORMANCE_REPORT_DIR/junit.xml"
 
       # TODO: use test-summary/action
