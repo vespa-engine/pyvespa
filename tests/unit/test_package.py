@@ -2835,6 +2835,153 @@ class TestSchemaStructField(unittest.TestCase):
 
 
 class TestStructField(unittest.TestCase):
+    @staticmethod
+    def _schema_with_struct_summary(summary: Summary) -> Schema:
+        return Schema(
+            name="probe",
+            mode="streaming",
+            document=Document(
+                fields=[
+                    Field(
+                        "subject",
+                        "s1",
+                        struct_fields=[
+                            StructField("f1", indexing=["summary"], summary=summary)
+                        ],
+                    )
+                ],
+                structs=[Struct("s1", [Field("f1", "string")])],
+            ),
+        )
+
+    def test_struct_field_summary_named_source(self):
+        summary = Summary(name="subject", fields=[("source", "subject.f1")])
+        schema = self._schema_with_struct_summary(summary)
+        expected = """\
+schema probe {
+    document probe {
+        field subject type s1 {
+            struct-field f1 {
+                indexing: summary
+                summary subject {
+                    source: subject.f1
+                }
+            }
+        }
+        struct s1 {
+            field f1 type string {
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema.schema_to_text, expected)
+
+    def test_struct_field_summary_multiline_properties(self):
+        summary = Summary(fields=["dynamic", ("bolding", "on")])
+        schema = self._schema_with_struct_summary(summary)
+        expected = """\
+schema probe {
+    document probe {
+        field subject type s1 {
+            struct-field f1 {
+                indexing: summary
+                summary {
+                    dynamic
+                    bolding: on
+                }
+            }
+        }
+        struct s1 {
+            field f1 type string {
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema.schema_to_text, expected)
+
+    def test_struct_field_summary_select_elements_by(self):
+        summary = Summary(select_elements_by="best_chunks")
+        schema = self._schema_with_struct_summary(summary)
+        expected = """\
+schema probe {
+    document probe {
+        field subject type s1 {
+            struct-field f1 {
+                indexing: summary
+                summary {
+                    select-elements-by: best_chunks
+                }
+            }
+        }
+        struct s1 {
+            field f1 type string {
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema.schema_to_text, expected)
+
+    def test_struct_field_summary_simple(self):
+        summary = Summary(fields=["dynamic"])
+        schema = self._schema_with_struct_summary(summary)
+        expected = """\
+schema probe {
+    document probe {
+        field subject type s1 {
+            struct-field f1 {
+                indexing: summary
+                summary: dynamic
+            }
+        }
+        struct s1 {
+            field f1 type string {
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema.schema_to_text, expected)
+
+    def test_struct_field_summary_empty(self):
+        summary = Summary()
+        schema = self._schema_with_struct_summary(summary)
+        expected = """\
+schema probe {
+    document probe {
+        field subject type s1 {
+            struct-field f1 {
+                indexing: summary
+                summary {}
+            }
+        }
+        struct s1 {
+            field f1 type string {
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema.schema_to_text, expected)
+
+    def test_struct_field_summary_deprecated_type(self):
+        with self.assertWarnsRegex(FutureWarning, r"(?i)\btype\b.*deprecated.*removed"):
+            summary = Summary(name="subject", type="string")
+        schema = self._schema_with_struct_summary(summary)
+        expected = """\
+schema probe {
+    document probe {
+        field subject type s1 {
+            struct-field f1 {
+                indexing: summary
+                summary subject type string {}
+            }
+        }
+        struct s1 {
+            field f1 type string {
+            }
+        }
+    }
+}"""
+        self.assertEqual(schema.schema_to_text, expected)
+
     def test_struct_field_schema_simple(self):
         email_struct = Struct(
             name="email",

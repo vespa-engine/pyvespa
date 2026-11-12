@@ -139,11 +139,9 @@ field {{ field.name }} type {{ field.type }} {
         {% endfor %}
         {% endif %}
         {% if struct_field.summary %}
-        summary {% if struct_field.summary.name %}{{struct_field.summary.name}}{% endif %}{% if struct_field.summary.type %} type {{ struct_field.summary.type }} {% endif %}{
-            {% for field in struct_field.summary.attributes_as_string_list %}
-            {{ field }}
-            {% endfor %}
-        }
+        {% for line in struct_field.summary.as_lines %}
+        {{ line }}
+        {% endfor %}
         {% endif %}
         {% if struct_field.rank %}
         rank: {{ struct_field.rank }}
