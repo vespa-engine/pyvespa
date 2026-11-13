@@ -98,7 +98,7 @@ notebooks = [
     "openai",
     "datasets<5.0.2",
     "ir_datasets",
-    "pytrec_eval",
+    "pytrec-eval-terrier",
     "papermill",
     "ipywidgets",
     "matplotlib",

@@ -5375,12 +5375,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pytrec-eval"
-version = "0.5"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/2e/03/e6e84df6a7c1265579ab26bbe30ff7f8c22745aa77e0799bba471c0a3a19/pytrec_eval-0.5.tar.gz", hash = "sha256:d9eb4616e7d6b73bf1b5ba4c2c4916e88124e790b53fd61610c30158999e7bde", size = 15248, upload-time = "2020-09-07T18:31:57.186Z" }
-
-[[package]]
 name = "pytrec-eval-terrier"
 version = "0.5.11"
 source = { registry = "https://pypi.org/simple" }
@@ -5503,7 +5497,7 @@ notebooks = [
     { name = "pandas" },
     { name = "papermill" },
     { name = "plotly" },
-    { name = "pytrec-eval" },
+    { name = "pytrec-eval-terrier" },
     { name = "torch" },
 ]
 unittest = [
@@ -5563,7 +5557,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'unittest'" },
     { name = "pytest-asyncio", marker = "extra == 'unittest'" },
     { name = "python-dateutil" },
-    { name = "pytrec-eval", marker = "extra == 'notebooks'" },
+    { name = "pytrec-eval-terrier", marker = "extra == 'notebooks'" },
     { name = "pyvespa", extras = ["build"], marker = "extra == 'dev'" },
     { name = "pyvespa", extras = ["unittest"], marker = "extra == 'dev'" },
     { name = "pyyaml", marker = "extra == 'feed'" },
