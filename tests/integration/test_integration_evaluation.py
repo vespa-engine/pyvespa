@@ -42,7 +42,7 @@ import tempfile
 # Code used to produce these metrics:
 
 ## /// script
-## requires-python = ">=3.11"
+## requires-python = ">=3.11.5"
 ## dependencies = [
 ##     "sentence-transformers==3.3.1",
 ## ]
