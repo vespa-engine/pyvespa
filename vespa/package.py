@@ -1578,6 +1578,7 @@ class RankProfileFields(TypedDict, total=False):
     constants: Dict
     functions: List[Function]
     summary_features: List
+    sort_features: Optional[List[str]]
     match_features: List
     diversity: Diversity
     match_phase: MatchPhaseRanking
@@ -1629,6 +1630,12 @@ class RankProfile(object):
             functions (list, optional): List of `Function` objects representing rank functions to be included in the rank profile.
             summary_features (list, optional): List of rank features to be included with each hit.
                 [More info](https://docs.vespa.ai/en/reference/schema-reference.html#summary-features) about summary features.
+            sort_features (list[str], optional): List of rank features and rank-profile
+                functions that queries may use with feature sorting. Names must identify
+                numeric scalar features or functions taking no arguments. Omit or pass
+                None to inherit; pass [] to clear inherited sort features.
+                Select sort order separately in the query.
+                [More info](https://docs.vespa.ai/en/reference/schemas/schemas.html#sort-features) about sort features.
             match_features (list, optional): List of rank features to be included with each hit.
                 [More info](https://docs.vespa.ai/en/reference/schema-reference.html#match-features) about match features.
             second_phase (SecondPhaseRanking, optional): Config specifying the second phase of ranking. See `SecondPhaseRanking`.
@@ -1722,6 +1729,7 @@ class RankProfile(object):
         self.constants = kwargs.get("constants", constants)
         self.functions = kwargs.get("functions", functions)
         self.summary_features = kwargs.get("summary_features", summary_features)
+        self.sort_features = kwargs.get("sort_features", None)
         self.diversity = kwargs.get("diversity", diversity)
         self.match_features = kwargs.get("match_features", match_features)
         self.second_phase = kwargs.get("second_phase", second_phase)
@@ -1761,6 +1769,7 @@ class RankProfile(object):
             and self.constants == other.constants
             and self.functions == other.functions
             and self.summary_features == other.summary_features
+            and self.sort_features == other.sort_features
             and self.match_features == other.match_features
             and self.second_phase == other.second_phase
             and self.global_phase == other.global_phase
