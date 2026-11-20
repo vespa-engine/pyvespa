@@ -430,6 +430,56 @@ class TestRankProfile(unittest.TestCase):
         self.assertEqual(rank_profile.inputs[0][0], "query(image_query_embedding)")
         self.assertEqual(rank_profile.inputs[1][0], "query(image_query_embedding2)")
 
+    def test_rank_profile_sort_features_schema_rendering(self):
+        cases = [
+            ({}, ""),
+            ({"sort_features": None}, ""),
+            ({"sort_features": []}, "        sort-features {\n        }\n"),
+            (
+                {"sort_features": ["document_score", "title_score"]},
+                "        sort-features {\n"
+                "            document_score\n"
+                "            title_score\n"
+                "        }\n",
+            ),
+        ]
+        for kwargs, expected_block in cases:
+            with self.subTest(kwargs=kwargs):
+                schema = Schema(
+                    name="test",
+                    document=Document(),
+                    rank_profiles=[
+                        RankProfile(name="custom", inherits="default", **kwargs)
+                    ],
+                )
+                self.assertEqual(
+                    schema.schema_to_text,
+                    "schema test {\n"
+                    "    document test {\n"
+                    "    }\n"
+                    "    rank-profile custom inherits default {\n"
+                    + expected_block
+                    + "    }\n}",
+                )
+
+    def test_rank_profile_sort_features_equality(self):
+        for features in (None, [], ["document_score"]):
+            with self.subTest(features=features):
+                self.assertEqual(
+                    RankProfile(name="custom", sort_features=features),
+                    RankProfile(name="custom", sort_features=features),
+                )
+        for left, right in (
+            (["document_score"], ["title_score"]),
+            (["document_score"], []),
+            (None, []),
+        ):
+            with self.subTest(left=left, right=right):
+                self.assertNotEqual(
+                    RankProfile(name="custom", sort_features=left),
+                    RankProfile(name="custom", sort_features=right),
+                )
+
     def test_rank_profile_inputs_validation(self):
         for bad in (
             [("query(q)")],
