@@ -10,6 +10,12 @@ on:
   pull_request:
     branches:
       - master
+    paths:
+      - "vespa/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "docs/**/*.ipynb"
+      - ".github/workflows/notebooks-except-cloud.yml"
   push:
     branches:
       - master

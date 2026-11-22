@@ -5,6 +5,14 @@ on:
   pull_request:
     branches:
       - master
+    paths:
+      - "vespa/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "tests/unit/**"
+      - "tests/testfiles/**"
+      - "tests/testapps/**"
+      - ".github/workflows/pyvespa-unit-tests.yml"
   push:
     branches:
       - master

@@ -10,6 +10,16 @@ on:
   pull_request:
     branches:
       - master
+    paths:
+      - "vespa/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "docs/**"
+      - "mkdocs.yml"
+      - ".github/scripts/linkcheck.py"
+      - ".github/scripts/ignore_urls.txt"
+      - "tests/mktestdocs/**"
+      - ".github/workflows/mktestdocs.yml"
   push:
     branches:
       - master
