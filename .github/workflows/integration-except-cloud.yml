@@ -10,6 +10,14 @@ on:
   pull_request:
     branches:
       - master
+    paths:
+      - "vespa/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "tests/integration/**"
+      - "tests/testapps/**"
+      - "tests/testfiles/**"
+      - ".github/workflows/integration-except-cloud.yml"
   push:
     branches:
       - master
