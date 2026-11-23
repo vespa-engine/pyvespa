@@ -45,6 +45,13 @@ schema {{ schema_name }}{% if schema.inherits %} inherits {{ schema.inherits }}{
 {% endif %}
 {% for key, value in rank_profiles.items() %}
     rank-profile {{ key }}{% if value.inherits %} inherits {{ value.inherits }}{% endif %} {
+        {% if value.sort_features is not none %}
+        sort-features {
+        {% for feature in value.sort_features %}
+            {{ feature }}
+        {% endfor %}
+        }
+        {% endif %}
         {% if value.filter_threshold %}
         filter-threshold: {{ value.filter_threshold }}
         {% endif %}
