@@ -106,6 +106,45 @@ class TestQueryBuilder(unittest.TestCase):
         self.assertEqual(q, expected)
         return q
 
+    def test_matches_regex_with_backslash_is_escaped(self):
+        condition = qb.QueryField("f1").matches(r"^\d{3}$")
+        q = qb.select("*").from_("sd1").where(condition)
+        expected = r'select * from sd1 where f1 matches "^\\d{3}$"'
+        self.assertEqual(q, expected)
+        return q
+
+    def test_string_values_with_quotes_are_escaped(self):
+        title = qb.QueryField("title")
+        cases = [
+            (title.contains('12" pizza'), r'title contains "12\" pizza"'),
+            (title == 'say "hi"', r'title = "say \"hi\""'),
+            (title.in_('a"b'), r'title in ("a\"b")'),
+            (qb.phrase('"quoted"', "term"), r'phrase("\"quoted\"", "term")'),
+            (
+                qb.userInput('what does "RAG" mean'),
+                r'userInput("what does \"RAG\" mean")',
+            ),
+            (qb.userQuery('"exact phrase"'), r'userQuery("\"exact phrase\"")'),
+            (qb.fuzzy('a"b'), r'fuzzy("a\"b")'),
+            (
+                qb.uri('https://example.com/?q="x"'),
+                r'uri("https://example.com/?q=\"x\"")',
+            ),
+        ]
+        for condition, expected in cases:
+            with self.subTest(expected=expected):
+                q = qb.select("*").from_("sd1").where(condition)
+                self.assertEqual(q, f"select * from sd1 where {expected}")
+
+    def test_annotation_string_value_is_escaped(self):
+        condition = qb.QueryField("f1").contains(
+            "v1", annotations={"label": 'my "label"'}
+        )
+        q = qb.select("*").from_("sd1").where(condition)
+        expected = r'select * from sd1 where f1 contains({label:"my \"label\""}"v1")'
+        self.assertEqual(q, expected)
+        return q
+
     def test_nested_queries(self):
         nested_query = (
             qb.QueryField("f2").contains("2") & qb.QueryField("f3").contains("3")

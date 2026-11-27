@@ -4,6 +4,16 @@ from vespa.package import Schema
 import json
 
 
+def _quote_string(value: Any) -> str:
+    """Return ``value`` as a YQL string literal.
+
+    YQL strings use the same backslash escapes as JSON, so a double quote or a
+    backslash in the value has to be escaped. Otherwise the query does not parse,
+    or means something else.
+    """
+    return json.dumps(str(value), ensure_ascii=False)
+
+
 class QueryField:
     def __init__(self, name: str):
         self.name = name
@@ -83,7 +93,7 @@ class QueryField:
 
     def in_(self, *values) -> Condition:
         values_str = ", ".join(
-            f'"{v}"' if isinstance(v, str) else str(v) for v in values
+            _quote_string(v) if isinstance(v, str) else str(v) for v in values
         )
         return Condition(f"{self.name} in ({values_str})")
 
@@ -132,7 +142,7 @@ class QueryField:
             if value.startswith("@"):
                 return value
             else:
-                return f'"{value}"'
+                return _quote_string(value)
         elif isinstance(value, Condition):
             return value.build()
         else:
@@ -141,7 +151,7 @@ class QueryField:
     @staticmethod
     def _format_annotation_value(value: Any) -> str:
         if isinstance(value, str):
-            return f'"{value}"'
+            return _quote_string(value)
         elif isinstance(value, bool):
             return str(value).lower()
         elif isinstance(value, dict):
@@ -723,7 +733,11 @@ class Q:
             'select * from documents where userQuery("search terms")'
             ```
         """
-        return Condition(f'userQuery("{value}")') if value else Condition("userQuery()")
+        return (
+            Condition(f"userQuery({_quote_string(value)})")
+            if value
+            else Condition("userQuery()")
+        )
 
     @staticmethod
     def dotProduct(
@@ -1100,7 +1114,7 @@ class Q:
             'select * from sd1 where phrase("new", "york", "city")'
             ```
         """
-        terms_str = ", ".join(f'"{term}"' for term in terms)
+        terms_str = ", ".join(_quote_string(term) for term in terms)
         expr = f"phrase({terms_str})"
         if annotations:
             annotations_str = ",".join(
@@ -1140,7 +1154,7 @@ class Q:
             'select * from sd1 where ({distance:5}near("machine", "learning"))'
             ```
         """
-        terms_str = ", ".join(f'"{term}"' for term in terms)
+        terms_str = ", ".join(_quote_string(term) for term in terms)
         expr = f"near({terms_str})"
         if annotations is None:
             annotations = {}
@@ -1185,7 +1199,7 @@ class Q:
             'select * from sd1 where ({distance:3}onear("deep", "learning"))'
             ```
         """
-        terms_str = ", ".join(f'"{term}"' for term in terms)
+        terms_str = ", ".join(_quote_string(term) for term in terms)
         expr = f"onear({terms_str})"
         if annotations is None:
             annotations = {}
@@ -1261,7 +1275,7 @@ class Q:
             'select * from sd1 where fieldName contains equiv("Snoop Dogg", "Calvin Broadus")'
             ```
         """
-        terms_str = ", ".join(f'"{term}"' for term in terms)
+        terms_str = ", ".join(_quote_string(term) for term in terms)
         expr = f"equiv({terms_str})"
         return Condition(expr)
 
@@ -1289,7 +1303,7 @@ class Q:
             'select * from sd1 where uri("vespa.ai/foo")'
             ```
         """
-        expr = f'uri("{value}")'
+        expr = f"uri({_quote_string(value)})"
         if annotations:
             annotations_str = ",".join(
                 f"{k}:{QueryField._format_annotation_value(v)}"
@@ -1330,7 +1344,7 @@ class Q:
             'select * from sd1 where ({prefixLength:1,maxEditDistance:2}fuzzy("parantesis"))'
             ```
         """
-        expr = f'fuzzy("{value}")'
+        expr = f"fuzzy({_quote_string(value)})"
         if annotations:
             annotations_str = ",".join(
                 f"{k}:{QueryField._format_annotation_value(v)}"
@@ -1381,7 +1395,7 @@ class Q:
         elif value.startswith("@"):
             expr = f"userInput({value})"
         else:
-            expr = f'userInput("{value}")'
+            expr = f"userInput({_quote_string(value)})"
         if annotations:
             annotations_str = ",".join(
                 f"{k}:{QueryField._format_annotation_value(v)}"
@@ -1426,7 +1440,12 @@ class Q:
             attributes_str = "0"
         else:
             attributes_str = (
-                "{" + ",".join(f'"{k}":"{v}"' for k, v in attributes.items()) + "}"
+                "{"
+                + ",".join(
+                    f"{_quote_string(k)}:{_quote_string(v)}"
+                    for k, v in attributes.items()
+                )
+                + "}"
             )
         if range_attributes is None:
             range_attributes_str = "0"
